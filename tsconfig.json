@@ -15,6 +15,7 @@
     "allowJs": true,
     "paths": {
       "lexical": ["./packages/lexical/src/index.ts"],
+      "@lexical/builder": ["./packages/lexical-builder/src/index.ts"],
       "@lexical/clipboard": ["./packages/lexical-clipboard/src/index.ts"],
       "@lexical/code": ["./packages/lexical-code/src/index.ts"],
       "@lexical/devtools-core": [
@@ -181,6 +182,7 @@
       "lexical/src/__tests__/utils": [
         "./packages/lexical/src/__tests__/utils/index.tsx"
       ],
+      "@lexical/builder/src": ["./packages/lexical-builder/src"],
       "@lexical/clipboard/src": ["./packages/lexical-clipboard/src"],
       "@lexical/code/src": ["./packages/lexical-code/src"],
       "@lexical/devtools-core/src": ["./packages/lexical-devtools-core/src"],

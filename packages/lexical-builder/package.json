@@ -1,0 +1,44 @@
+{
+  "name": "@lexical/builder",
+  "description": "[EXPERIMENTAL] A high-level way to manage Lexical config and plug-ins for any framework",
+  "keywords": [
+    "lexical",
+    "editor",
+    "builder",
+    "configuration",
+    "plugin",
+    "plug-in"
+  ],
+  "version": "0.15.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facebook/lexical.git",
+    "directory": "packages/lexical-builder"
+  },
+  "main": "LexicalBuilder.js",
+  "types": "index.d.ts",
+  "bugs": {
+    "url": "https://github.com/facebook/lexical/issues"
+  },
+  "homepage": "https://github.com/facebook/lexical#readme",
+  "sideEffects": false,
+  "module": "LexicalBuilder.mjs",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./index.d.ts",
+        "development": "./LexicalBuilder.dev.mjs",
+        "production": "./LexicalBuilder.prod.mjs",
+        "node": "./LexicalBuilder.node.mjs",
+        "default": "./LexicalBuilder.mjs"
+      },
+      "require": {
+        "types": "./index.d.ts",
+        "development": "./LexicalBuilder.dev.js",
+        "production": "./LexicalBuilder.prod.js",
+        "default": "./LexicalBuilder.js"
+      }
+    }
+  }
+}

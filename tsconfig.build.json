@@ -7,6 +7,7 @@
     "strict": true,
     "paths": {
       "lexical": ["./packages/lexical/src/index.ts"],
+      "@lexical/builder": ["./packages/lexical-builder/src/index.ts"],
       "@lexical/clipboard": ["./packages/lexical-clipboard/src/index.ts"],
       "@lexical/code": ["./packages/lexical-code/src/index.ts"],
       "@lexical/devtools-core": [
