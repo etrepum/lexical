@@ -6,5 +6,18 @@
  *
  */
 
-/** @experimental */
-export class LexicalBuilder {}
+export {type AutoFocusConfig, AutoFocusPlan} from './AutoFocusPlan';
+export {DragonPlan} from './DragonPlan';
+export {type HistoryConfig, HistoryPlan} from './HistoryPlan';
+export {LexicalBuilder} from './LexicalBuilder';
+export {PlainTextPlan} from './PlainTextPlan';
+export {type ReactConfig, ReactPlan} from './ReactPlan';
+export {RichTextPlan} from './RichTextPlan';
+export {
+  type AnyLexicalPlan,
+  type AnyLexicalPlanArgument,
+  type EditorHandle,
+  type LexicalPlan,
+  type LexicalPlanArgument,
+  type LexicalPlanConfig,
+} from './types';

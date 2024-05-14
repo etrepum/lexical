@@ -1,0 +1,21 @@
+{
+  "name": "@lexical/vanilla-js-plan-example",
+  "private": true,
+  "version": "0.15.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "preinstall": "node ./scripts/vendor.mjs"
+  },
+  "dependencies": {
+    "@lexical/builder": "file:vendor/lexical-builder-0.15.0.tgz",
+    "emoji-datasource-facebook": "15.1.2",
+    "lexical": "0.15.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vite": "^5.2.11"
+  }
+}
