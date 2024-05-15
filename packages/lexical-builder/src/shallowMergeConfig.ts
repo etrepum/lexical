@@ -7,7 +7,10 @@
  */
 import type {PlanConfigBase} from './types';
 
-export function shallowMergeConfig<T extends PlanConfigBase>(a: T, b?: T): T {
+export function shallowMergeConfig<T extends PlanConfigBase>(
+  a: T,
+  b?: Partial<T>,
+): T {
   if (!b || a === b) {
     return a;
   }

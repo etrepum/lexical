@@ -6,14 +6,15 @@
  *
  */
 
-import type {LexicalPlan} from './types';
+import {definePlan} from './definePlan';
+import {safeCast} from './safeCast';
 
 export interface AutoFocusConfig {
   defaultSelection?: 'rootStart' | 'rootEnd';
 }
 
-export const AutoFocusPlan: LexicalPlan<AutoFocusConfig> = {
-  config: {},
+export const AutoFocusPlan = definePlan({
+  config: safeCast<AutoFocusConfig>({}),
   name: '@lexical/builder/AutoFocusPlan',
   register(editor, {defaultSelection}) {
     return editor.registerRootListener((rootElement) => {
@@ -36,4 +37,4 @@ export const AutoFocusPlan: LexicalPlan<AutoFocusConfig> = {
       );
     });
   },
-};
+});

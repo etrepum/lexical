@@ -53,14 +53,14 @@ export function useReactDecorators(
 
     for (let i = 0; i < decoratorKeys.length; i++) {
       const nodeKey = decoratorKeys[i];
-      const reactDecorator = (
-        <ErrorBoundary onError={(e) => editor._onError(e)}>
-          <Suspense fallback={null}>{decorators[nodeKey]}</Suspense>
-        </ErrorBoundary>
-      );
       const element = editor.getElementByKey(nodeKey);
 
       if (element !== null) {
+        const reactDecorator = (
+          <ErrorBoundary onError={(e) => editor._onError(e)}>
+            <Suspense fallback={null}>{decorators[nodeKey]}</Suspense>
+          </ErrorBoundary>
+        );
         decoratedPortals.push(createPortal(reactDecorator, element, nodeKey));
       }
     }

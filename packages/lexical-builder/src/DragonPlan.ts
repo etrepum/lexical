@@ -6,12 +6,12 @@
  *
  */
 
-import type {LexicalPlan} from './types';
-
 import {registerDragonSupport} from '@lexical/dragon';
 
-export const DragonPlan: LexicalPlan = {
+import {definePlan} from './definePlan';
+
+export const DragonPlan = definePlan({
   config: {},
   name: '@lexical/dragon',
   register: registerDragonSupport,
-};
+});

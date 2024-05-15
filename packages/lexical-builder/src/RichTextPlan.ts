@@ -6,14 +6,14 @@
  *
  */
 
-import type {LexicalPlan} from './types';
-
 import {HeadingNode, QuoteNode, registerRichText} from '@lexical/rich-text';
 
-export const RichTextPlan: LexicalPlan = {
+import {definePlan} from './definePlan';
+
+export const RichTextPlan = definePlan({
   config: {},
   conflictsWith: ['@lexical/plain-text'],
   name: '@lexical/rich-text',
   nodes: [HeadingNode, QuoteNode],
   register: registerRichText,
-};
+});

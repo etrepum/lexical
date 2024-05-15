@@ -9,27 +9,41 @@
 import type {CreateEditorArgs, EditorState, LexicalEditor} from 'lexical';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyLexicalPlan = LexicalPlan<any>;
+export type AnyLexicalPlan = LexicalPlan<any, string>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyLexicalPlanArgument = LexicalPlanArgument<any>;
+export type AnyLexicalPlanArgument = LexicalPlanArgument<any, string>;
 export type PlanConfigBase = Record<never, never>;
 
-type NormalizedLexicalPlanArgument<Config extends PlanConfigBase> = [
-  LexicalPlan<Config>,
-  Config,
-  ...Config[],
-];
+export type NormalizedLexicalPlanArgument<
+  Config extends PlanConfigBase,
+  Name extends string,
+> = [LexicalPlan<Config, Name>, Config, ...Config[]];
 
-export type LexicalPlanArgument<Config extends PlanConfigBase> =
-  | LexicalPlan<Config>
-  | NormalizedLexicalPlanArgument<Config>;
+export interface LexicalPlanRegistry {}
+
+export interface RegisterState {
+  signal: AbortSignal;
+  getPeerConfig<Name extends keyof LexicalPlanRegistry>(
+    name: string,
+  ): undefined | LexicalPlanConfig<LexicalPlanRegistry[Name]>;
+  getDependencyConfig<Dependency extends AnyLexicalPlan>(
+    dep: Dependency,
+  ): LexicalPlanConfig<Dependency>;
+}
+
+export type LexicalPlanArgument<
+  Config extends PlanConfigBase,
+  Name extends string,
+> = LexicalPlan<Config, Name> | NormalizedLexicalPlanArgument<Config, Name>;
 
 export interface LexicalPlan<
-  Config extends PlanConfigBase = Record<string, never>,
+  Config extends PlanConfigBase = PlanConfigBase,
+  Name extends string = string,
 > {
-  name: string;
+  name: Name;
   conflictsWith?: string[];
   dependencies?: AnyLexicalPlanArgument[];
+  peerDependencies?: {[k in keyof LexicalPlanRegistry]?: LexicalPeerConfig<k>};
 
   disableEvents?: CreateEditorArgs['disableEvents'];
   parentEditor?: CreateEditorArgs['parentEditor'];
@@ -43,12 +57,21 @@ export interface LexicalPlan<
   $initialEditorState?: InitialEditorStateType;
   config: Config;
   mergeConfig?: (a: Config, b?: Partial<Config>) => Config;
-  register?: (editor: LexicalEditor, config: Config) => () => void;
-  // TODO decorate protocol
+  register?: (
+    editor: LexicalEditor,
+    config: Config,
+    state: RegisterState,
+  ) => () => void;
 }
 
-export type LexicalPlanConfig<Plan extends AnyLexicalPlan> =
-  Plan extends LexicalPlan<infer Config> ? Config : never;
+export type LexicalPeerConfig<Name extends keyof LexicalPlanRegistry | string> =
+  [Name] extends [keyof LexicalPlanRegistry]
+    ? LexicalPlanRegistry[Name]
+    : PlanConfigBase;
+
+export type LexicalPlanConfig<Plan extends AnyLexicalPlan> = Plan['config'];
+
+export type LexicalPlanName<Plan extends AnyLexicalPlan> = Plan['name'];
 
 export interface EditorHandle {
   editor: LexicalEditor;

@@ -11,17 +11,21 @@ import {
   registerHistory,
 } from '@lexical/history';
 
-import {LexicalPlan} from './types';
+import {definePlan} from './definePlan';
+import {safeCast} from './safeCast';
 
 export interface HistoryConfig {
   delay: number;
   createInitialHistoryState: () => HistoryState;
 }
 
-export const HistoryPlan: LexicalPlan<HistoryConfig> = {
-  config: {createInitialHistoryState: createEmptyHistoryState, delay: 300},
+export const HistoryPlan = definePlan({
+  config: safeCast<HistoryConfig>({
+    createInitialHistoryState: createEmptyHistoryState,
+    delay: 300,
+  }),
   name: '@lexical/builder/HistoryPlan',
   register(editor, {delay, createInitialHistoryState}) {
     return registerHistory(editor, createInitialHistoryState(), delay);
   },
-};
+});

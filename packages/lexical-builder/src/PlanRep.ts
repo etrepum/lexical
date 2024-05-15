@@ -6,17 +6,44 @@
  *
  */
 
-import type {AnyLexicalPlan, LexicalPlanConfig} from './types';
+import type {LexicalBuilder} from './LexicalBuilder';
+import type {
+  AnyLexicalPlan,
+  LexicalPlanConfig,
+  LexicalPlanRegistry,
+} from './types';
+
+import invariant from 'shared/invariant';
 
 import {shallowMergeConfig} from './shallowMergeConfig';
 
 export class PlanRep<Plan extends AnyLexicalPlan> {
+  builder: LexicalBuilder;
   configs: Set<LexicalPlanConfig<Plan>>;
   _config?: LexicalPlanConfig<Plan>;
   plan: Plan;
-  constructor(plan: Plan) {
+  constructor(builder: LexicalBuilder, plan: Plan) {
+    this.builder = builder;
     this.plan = plan;
     this.configs = new Set();
+  }
+  getPeerConfig<Name extends keyof LexicalPlanRegistry>(
+    name: string,
+  ): undefined | LexicalPlanConfig<LexicalPlanRegistry[Name]> {
+    const rep = this.builder.planNameMap.get(name);
+    return rep && rep.getConfig();
+  }
+  getDependencyConfig<Dependency extends AnyLexicalPlan>(
+    dep: Dependency,
+  ): LexicalPlanConfig<Dependency> {
+    const pair = this.builder.planMap.get(dep);
+    invariant(
+      pair !== undefined,
+      'LexicalPlanBuilder: Plan %s missing dependency plan %s to be in registry',
+      this.plan.name,
+      dep.name,
+    );
+    return pair[1].getConfig();
   }
   getConfig(): LexicalPlanConfig<Plan> {
     if (this._config) {

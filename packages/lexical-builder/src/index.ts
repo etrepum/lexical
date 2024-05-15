@@ -7,17 +7,37 @@
  */
 
 export {type AutoFocusConfig, AutoFocusPlan} from './AutoFocusPlan';
+export {configPlan, definePlan} from './definePlan';
 export {DragonPlan} from './DragonPlan';
 export {type HistoryConfig, HistoryPlan} from './HistoryPlan';
 export {LexicalBuilder} from './LexicalBuilder';
 export {PlainTextPlan} from './PlainTextPlan';
-export {type ReactConfig, ReactPlan} from './ReactPlan';
+export {
+  type DecoratorComponentProps,
+  type DecoratorComponentType,
+  type EditorChildrenComponentProps,
+  type EditorChildrenComponentType,
+  type EditorComponentProps,
+  type EditorComponentType,
+  LexicalPlanComposer,
+  type LexicalPlanComposerProps,
+  type ReactConfig,
+  ReactPlan,
+} from './ReactPlan';
 export {RichTextPlan} from './RichTextPlan';
 export {
   type AnyLexicalPlan,
   type AnyLexicalPlanArgument,
   type EditorHandle,
+  type InitialEditorStateType,
+  type LexicalPeerConfig,
   type LexicalPlan,
   type LexicalPlanArgument,
   type LexicalPlanConfig,
+  type LexicalPlanName,
+  type LexicalPlanRegistry,
+  type NormalizedLexicalPlanArgument,
+  type PlanConfigBase,
+  type RegisterState,
 } from './types';
+export {type ErrorBoundaryType} from './useReactDecorators';

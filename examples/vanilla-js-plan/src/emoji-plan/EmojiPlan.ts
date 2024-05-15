@@ -6,7 +6,7 @@
  *
  */
 
-import {LexicalPlan} from '@lexical/builder';
+import {definePlan} from '@lexical/builder';
 import {LexicalEditor, TextNode} from 'lexical';
 
 import {$createEmojiNode, EmojiNode} from './EmojiNode';
@@ -44,11 +44,11 @@ function $textNodeTransform(node: TextNode): void {
   targetNode.replace(emojiNode);
 }
 
-export const EmojiPlan: LexicalPlan = {
+export const EmojiPlan = definePlan({
   config: {},
   name: '@lexical/examples/vanilla-js/emoji-plan',
   nodes: [EmojiNode],
   register(editor: LexicalEditor) {
     return editor.registerNodeTransform(TextNode, $textNodeTransform);
   },
-};
+});

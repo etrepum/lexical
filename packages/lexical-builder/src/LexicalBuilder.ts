@@ -90,8 +90,17 @@ export class LexicalBuilder {
         );
         this.conflicts.set(name, plan.name);
       }
+      // TODO detect circular dependencies
       for (const dep of plan.dependencies || []) {
         phase = Math.max(phase, 1 + this.addPlan(dep));
+      }
+      for (const [depName, cfg] of Object.entries(
+        plan.peerDependencies || {},
+      )) {
+        const dep = this.planNameMap.get(depName);
+        if (dep) {
+          phase = Math.max(phase, 1 + this.addPlan([dep.plan, cfg]));
+        }
       }
       invariant(
         this.phases.length >= phase,
@@ -100,7 +109,7 @@ export class LexicalBuilder {
       if (this.phases.length === phase) {
         this.phases.push(new Map());
       }
-      planRep = new PlanRep(plan);
+      planRep = new PlanRep(this, plan);
       invariant(
         !this.planNameMap.has(plan.name),
         'LexicalBuilder: Multiple plans registered with name %s, names must be unique',
@@ -124,15 +133,24 @@ export class LexicalBuilder {
 
   registerEditor(editor: LexicalEditor): () => void {
     const cleanups: (() => void)[] = [];
+    const controller = new AbortController();
     for (const planRep of this.sortedPlanReps()) {
       if (planRep.plan.register) {
-        cleanups.push(planRep.plan.register(editor, planRep.getConfig()));
+        cleanups.push(
+          planRep.plan.register(editor, planRep.getConfig(), {
+            getDependencyConfig: planRep.getDependencyConfig.bind(planRep),
+            getPeerConfig: planRep.getPeerConfig.bind(planRep),
+            signal: controller.signal,
+          }),
+        );
       }
     }
     return () => {
-      for (const f of cleanups) {
-        f();
+      for (let i = cleanups.length - 1; i >= 0; i--) {
+        cleanups[i]();
       }
+      cleanups.length = 0;
+      controller.abort();
     };
   }
 
