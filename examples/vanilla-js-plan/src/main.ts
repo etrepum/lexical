@@ -11,30 +11,53 @@ import {
   DragonPlan,
   HistoryPlan,
   LexicalBuilder,
+  mountReactPluginComponent,
+  mountReactPluginHost,
+  ReactPluginHostPlan,
   RichTextPlan,
 } from '@lexical/builder';
+import {TreeView} from '@lexical/react/LexicalTreeView';
 import {LexicalEditor} from 'lexical';
 
 import {$prepopulatedRichText} from './$prepopulatedRichText';
 import {EmojiPlan} from './emoji-plan/EmojiPlan';
 
-const editorRef = document.getElementById('lexical-editor');
-const stateRef = document.getElementById(
-  'lexical-state',
-) as HTMLTextAreaElement;
-
-const {editor} = LexicalBuilder.fromPlans({
+const editorHandle = LexicalBuilder.fromPlans({
   $initialEditorState: $prepopulatedRichText,
   config: {},
-  dependencies: [DragonPlan, RichTextPlan, HistoryPlan, EmojiPlan],
+  dependencies: [
+    DragonPlan,
+    RichTextPlan,
+    HistoryPlan,
+    EmojiPlan,
+    ReactPluginHostPlan,
+  ],
   name: '@lexical/examples/vanilla-js-plan',
   namespace: 'Vanilla JS Plan Demo',
   onError: (error: Error) => {
     throw error;
   },
-  register: (_editor: LexicalEditor) =>
-    _editor.registerUpdateListener(({editorState}) => {
-      stateRef!.value = JSON.stringify(editorState.toJSON(), undefined, 2);
-    }),
+  register: (editor: LexicalEditor) => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    mountReactPluginHost(editor, el);
+    mountReactPluginComponent(editor, {
+      Component: TreeView,
+      domNode: document.getElementById('lexical-state')!,
+      key: 'tree-view',
+      props: {
+        editor,
+        timeTravelButtonClassName: 'debug-timetravel-button',
+        timeTravelPanelButtonClassName: 'debug-timetravel-panel-button',
+        timeTravelPanelClassName: 'debug-timetravel-panel',
+        timeTravelPanelSliderClassName: 'debug-timetravel-panel-slider',
+        treeTypeButtonClassName: 'debug-treetype-button',
+        viewClassName: 'tree-view-output',
+      },
+    });
+    return () => {
+      el.remove();
+    };
+  },
 }).buildEditor();
-editor.setRootElement(editorRef);
+editorHandle.editor.setRootElement(document.getElementById('lexical-editor'));

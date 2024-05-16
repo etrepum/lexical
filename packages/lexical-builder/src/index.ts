@@ -24,6 +24,16 @@ export {
   type ReactConfig,
   ReactPlan,
 } from './ReactPlan';
+export {
+  type HostMountCommandArg,
+  type MountPluginCommandArg,
+  mountReactPluginComponent,
+  mountReactPluginElement,
+  mountReactPluginHost,
+  REACT_MOUNT_PLUGIN_COMMAND,
+  REACT_PLUGIN_HOST_MOUNT_COMMAND,
+  ReactPluginHostPlan,
+} from './ReactPluginHostPlan';
 export {RichTextPlan} from './RichTextPlan';
 export {
   type AnyLexicalPlan,

@@ -67,10 +67,10 @@ export interface ReactConfig {
     | JSX.Element;
   ErrorBoundary: ErrorBoundaryType;
   EditorChildrenComponent: EditorChildrenComponentType;
-  setComposerContext: (
-    context: undefined | LexicalComposerContextWithEditor,
+  setComponent: (
+    component: undefined | EditorComponentType,
+    context: LexicalComposerContextWithEditor,
   ) => void;
-  setComponent: (component: undefined | EditorComponentType) => void;
   decorators: readonly DecoratorComponentType[];
 }
 
@@ -206,7 +206,6 @@ export const ReactPlan = definePlan({
     decorators: [],
     placeholder: null,
     setComponent: notImplemented,
-    setComposerContext: notImplemented,
   }),
   mergeConfig(a, b) {
     const config = shallowMergeConfig(a, b);
@@ -221,11 +220,9 @@ export const ReactPlan = definePlan({
       editor,
       {getTheme: () => editor._config.theme},
     ];
-    config.setComposerContext(context);
-    config.setComponent(buildEditorComponent(context, config));
+    config.setComponent(buildEditorComponent(context, config), context);
     return () => {
-      config.setComponent(undefined);
-      config.setComposerContext(undefined);
+      config.setComponent(undefined, context);
     };
   },
 });
