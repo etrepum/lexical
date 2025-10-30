@@ -418,16 +418,11 @@ const NO_LEGACY_CONFIG: Partial<DOMImportConfig> = {
   overrides: [
     importOverride('#text', $convertTextDOMNode),
     importOverride('br', () => ({node: $createLineBreakNode()})),
-    importOverride('*', function $overrideCreateParagraphFromBlock(dom) {
-      if (isBlockDomNode(dom)) {
-        $addImportContextFinalizer($unwrapBlockDOM);
-        return {
-          node: $applyTextAlignToElement($createParagraphNode()),
-        };
-      }
-    }),
     ...formatOverrides,
     ...listOverrides,
+    importOverride('p', (dom) => ({
+      node: $applyTextAlignToElement($createParagraphNode()),
+    })),
     importOverride('li', (dom) => {
       const node = $applyTextAlignToElement($createListItemNode());
       let ariaChecked: boolean | undefined;

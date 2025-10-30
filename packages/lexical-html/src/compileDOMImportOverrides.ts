@@ -7,6 +7,7 @@
  */
 import type {
   AnyImportStateConfigPairOrUpdater,
+  ChildEmitterConfig,
   ContextRecord,
   DOMImportConfig,
   DOMImportConfigMatch,
@@ -15,13 +16,16 @@ import type {
   DOMImportOutput,
   DOMTextWrapMode,
   DOMWhiteSpaceCollapse,
+  StatefulNodeEmitter,
 } from './types';
 
 import {
+  $copyNode,
+  $createParagraphNode,
   $isBlockElementNode,
   $isElementNode,
   $isRootOrShadowRoot,
-  ArtificialNode__DO_NOT_USE,
+  isBlockDomNode,
   isDOMDocumentNode,
   isHTMLElement,
   type LexicalEditor,
@@ -29,7 +33,6 @@ import {
 } from 'lexical';
 import invariant from 'shared/invariant';
 
-import {$unwrapArtificialNodes} from './$unwrapArtificialNodes';
 import {
   ALWAYS_NULL,
   DOMImportContextSymbol,
@@ -44,7 +47,9 @@ import {
   popOwnContextValue,
   updateContextFromPairs,
 } from './ContextRecord';
+import {$createChildEmitter, $createRootEmitter} from './EmitterState';
 import {
+  $applyTextAlignToElement,
   $getImportContextValue,
   ImportChildContext,
   ImportContextArtificialNodes,
@@ -161,7 +166,7 @@ type ImportStackEntry = [
   dom: Node,
   ctx: ContextRecord<typeof DOMImportContextSymbol>,
   $importNode: DOMImportExtensionOutput['$importNode'],
-  $appendChild: NonNullable<DOMImportOutput['$appendChild']>,
+  parentEmitter: StatefulNodeEmitter<unknown>,
 ];
 
 function parseDOMWhiteSpaceCollapseFromNode(
@@ -237,27 +242,37 @@ function compileImportNodes(
   return function $importNodes(
     rootOrDocument: ParentNode | Document,
   ): LexicalNode[] {
-    const artificialNodes: ArtificialNode__DO_NOT_USE[] = [];
-    const nodes: LexicalNode[] = [];
     const rootNode = isDOMDocumentNode(rootOrDocument)
       ? rootOrDocument.body
       : rootOrDocument;
+    const emitterConfig: ChildEmitterConfig = {
+      $copyBlock: $copyNode,
+      $createBlockNode: (node) =>
+        $applyTextAlignToElement(
+          node ? node.createParentElementNode() : $createParagraphNode(),
+        ),
+    };
+    const $rootEmitterState = $createRootEmitter();
     const stack: ImportStackEntry[] = [
       [
         rootNode,
         updateContextFromPairs(createChildContext(undefined), [
-          contextValue(ImportContextArtificialNodes, artificialNodes),
+          contextValue(
+            ImportContextArtificialNodes,
+            $rootEmitterState.artificialNodes,
+          ),
         ]),
         () => ({node: null}),
-        (node) => {
-          nodes.push(node);
-        },
+        $rootEmitterState,
       ],
     ];
     for (let entry = stack.pop(); entry; entry = stack.pop()) {
-      const [node, ctx, fn, $parentAppendChild] = entry;
-      ctx[ImportContextDOMNode.key] = node;
-      parseDOMWhiteSpaceCollapseFromNode(ctx, node);
+      const [dom, ctx, fn, parentEmitter] = entry;
+      const isFinalizer = Object.hasOwn(ctx, ImportContextDOMNode.key);
+      if (!isFinalizer) {
+        ctx[ImportContextDOMNode.key] = dom;
+        parseDOMWhiteSpaceCollapseFromNode(ctx, dom);
+      }
       let childContext:
         | undefined
         | ContextRecord<typeof DOMImportContextSymbol>;
@@ -274,43 +289,49 @@ function compileImportNodes(
       const output = $withFullContext(
         DOMImportContextSymbol,
         ctx,
-        fn.bind(null, node),
+        fn.bind(null, dom),
         editor,
       );
-      let children: NodeListOf<ChildNode> | readonly ChildNode[] =
-        isHTMLElement(node) ? node.childNodes : EMPTY_ARRAY;
-      let $appendChild = $parentAppendChild;
       updateChildContext(popOwnContextValue(ctx, ImportChildContext));
-      delete ctx[ImportChildContext.key];
+      let childEmitter: null | StatefulNodeEmitter<void> = null;
+      const finalizers = popOwnContextValue(ctx, ImportContextFinalizers) || [];
+      const closeAction =
+        !output && isBlockDomNode(dom) ? 'softBreak' : undefined;
+      const outputNode = output ? output.node : null;
+      const currentLexicalNode = Array.isArray(outputNode)
+        ? outputNode[outputNode.length - 1] || null
+        : outputNode;
+      const children: NodeListOf<ChildNode> | readonly ChildNode[] =
+        (output && output.childNodes) ||
+        (isHTMLElement(dom) ? dom.childNodes : EMPTY_ARRAY);
+      if (children.length > 0) {
+        childEmitter = $createChildEmitter(
+          parentEmitter,
+          $isElementNode(currentLexicalNode) ? currentLexicalNode : null,
+          closeAction,
+          emitterConfig,
+        );
+        const closeChildEmitter = childEmitter.close.bind(childEmitter);
+        finalizers.push((node) => {
+          closeChildEmitter();
+          return node;
+        });
+      }
       if (output) {
-        const outputNode = output.node;
-        if (output.$appendChild) {
-          $appendChild = output.$appendChild;
-        } else if (Array.isArray(outputNode)) {
-          $appendChild = (childNode, _dom) => outputNode.push(childNode);
-        } else if ($isElementNode(outputNode)) {
-          $appendChild = (childNode, _dom) => outputNode.append(childNode);
-        }
-        children = output.childNodes || children;
-        const finalizers = popOwnContextValue(ctx, ImportContextFinalizers);
-        if (finalizers && finalizers.length > 0) {
+        if (finalizers.length > 0) {
           stack.push([
-            node,
+            dom,
             ctx,
             makeFinalizer(outputNode, finalizers),
-            $parentAppendChild,
+            parentEmitter,
           ]);
         } else if (outputNode) {
           for (const addNode of Array.isArray(outputNode)
             ? outputNode
             : [outputNode]) {
-            $parentAppendChild(addNode, node as ChildNode);
+            parentEmitter.$emitNode(addNode);
           }
         }
-
-        const currentLexicalNode = Array.isArray(outputNode)
-          ? outputNode[outputNode.length - 1] || null
-          : outputNode;
         const hasBlockAncestorLexicalNode = $getImportContextValue(
           ImportContextHasBlockAncestorLexicalNode,
         );
@@ -336,19 +357,21 @@ function compileImportNodes(
           ]);
         }
       }
-      // Push children in reverse so they are popped off the stack in-order
-      for (let i = children.length - 1; i >= 0; i--) {
-        const childDom = children[i];
-        stack.push([
-          childDom,
-          createChildContext(childContext || ctx),
-          $importNode,
-          $appendChild,
-        ]);
+      if (childEmitter) {
+        // Push children in reverse so they are popped off the stack in-order
+        for (let i = children.length - 1; i >= 0; i--) {
+          stack.push([
+            children[i],
+            createChildContext(childContext || ctx),
+            $importNode,
+            childEmitter,
+          ]);
+        }
+      } else if (closeAction) {
+        parentEmitter[closeAction]();
       }
     }
-    $unwrapArtificialNodes(artificialNodes);
-    return nodes;
+    return $rootEmitterState.close();
   };
 }
 

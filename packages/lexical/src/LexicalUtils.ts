@@ -1478,7 +1478,15 @@ export function getWindow(editor: LexicalEditor): Window {
   return windowObj;
 }
 
-export function $isInlineElementOrDecoratorNode(node: LexicalNode): boolean {
+const InlineNodeBrand: unique symbol = Symbol.for('@lexical/InlineNodeBrand');
+
+export function $isInlineElementOrDecoratorNode<T>(node: LexicalNode): node is (
+  | ElementNode
+  | DecoratorNode<T>
+) & {
+  isInline(): true;
+  [InlineNodeBrand]: never;
+} {
   return (
     ($isElementNode(node) && node.isInline()) ||
     ($isDecoratorNode(node) && node.isInline())

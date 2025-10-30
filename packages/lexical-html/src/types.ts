@@ -16,6 +16,7 @@ import type {
   BaseSelection,
   DOMExportOutput,
   ElementDOMSlot,
+  ElementNode,
   Klass,
   LexicalEditor,
   LexicalNode,
@@ -78,7 +79,19 @@ export type AnyImportStateConfig = ImportStateConfig<any>;
 export interface DOMImportOutput {
   node: null | LexicalNode | LexicalNode[];
   childNodes?: NodeListOf<ChildNode> | readonly ChildNode[];
-  $appendChild?: (node: LexicalNode, dom: ChildNode) => void;
+}
+
+export type NodeEmitter = (node: LexicalNode) => void;
+
+export interface StatefulNodeEmitter<Result> {
+  $emitNode(node: LexicalNode): void;
+  softBreak(): void;
+  close(): Result;
+}
+
+export interface ChildEmitterConfig {
+  $createBlockNode: (node: LexicalNode) => ElementNode;
+  $copyBlock: <T extends ElementNode>(node: T) => T;
 }
 
 export type DOMImportFunction<T extends Node> = (

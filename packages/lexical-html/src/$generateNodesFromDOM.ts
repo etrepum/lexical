@@ -73,7 +73,7 @@ export function $generateNodesFromDOM(
   const elements = isDOMDocumentNode(dom)
     ? dom.body.childNodes
     : dom.childNodes;
-  let lexicalNodes: Array<LexicalNode> = [];
+  const lexicalNodes: Array<LexicalNode> = [];
   const allArtificialNodes: Array<ArtificialNode__DO_NOT_USE> = [];
   for (const element of elements) {
     if (!IGNORE_TAGS.has(element.nodeName)) {
@@ -84,7 +84,9 @@ export function $generateNodesFromDOM(
         false,
       );
       if (lexicalNode !== null) {
-        lexicalNodes = lexicalNodes.concat(lexicalNode);
+        for (const node of lexicalNode) {
+          lexicalNodes.push(node);
+        }
       }
     }
   }
@@ -101,7 +103,7 @@ export function $createNodesFromDOM(
   forChildMap: Map<string, DOMChildConversion> = new Map(),
   parentLexicalNode?: LexicalNode | null | undefined,
 ): Array<LexicalNode> {
-  let lexicalNodes: Array<LexicalNode> = [];
+  const lexicalNodes: Array<LexicalNode> = [];
 
   if (IGNORE_TAGS.has(node.nodeName)) {
     return lexicalNodes;
@@ -200,11 +202,13 @@ export function $createNodesFromDOM(
     if (childLexicalNodes.length > 0) {
       // If it hasn't been converted to a LexicalNode, we hoist its children
       // up to the same level as it.
-      lexicalNodes = lexicalNodes.concat(childLexicalNodes);
+      for (const childNode of childLexicalNodes) {
+        lexicalNodes.push(childNode);
+      }
     } else {
       if (isBlockDomNode(node) && isDomNodeBetweenTwoInlineNodes(node)) {
         // Empty block dom node that hasnt been converted, we replace it with a linebreak if its between inline nodes
-        lexicalNodes = lexicalNodes.concat($createLineBreakNode());
+        lexicalNodes.push($createLineBreakNode());
       }
     }
   } else {
