@@ -10,12 +10,63 @@ import {
   $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
+  $isLineBreakNode,
   $isParagraphNode,
+  $isTextNode,
   LexicalNode,
 } from 'lexical';
-import {describe, expect, test} from 'vitest';
+import {
+  $createTestShadowRootNode,
+  TestShadowRootNode,
+} from 'lexical/src/__tests__/utils';
+import {assert, describe, expect, test} from 'vitest';
 
 import {$createChildEmitter, $createRootEmitter} from '../../EmitterState';
+import {StatefulNodeEmitter} from '../../types';
+
+const $withChildEmitter =
+  (...args: Parameters<typeof $createChildEmitter>) =>
+  (f: (v: ReturnType<typeof $createChildEmitter>) => void) => {
+    const emitter = $createChildEmitter(...args);
+    f(emitter);
+    emitter.close();
+  };
+
+type EmitTree = [
+  parent: LexicalNode | null,
+  children: (LexicalNode | EmitTree)[],
+];
+
+function $emitTree(
+  emitter: StatefulNodeEmitter<unknown>,
+  tree: EmitTree,
+): void {
+  const [parent, children] = tree;
+  if (parent) {
+    emitter.$emitNode(parent);
+  }
+  $withChildEmitter(
+    emitter,
+    parent,
+    parent ? undefined : 'softBreak',
+  )((childEmitter) => {
+    for (const child of children) {
+      if (Array.isArray(child)) {
+        $emitTree(childEmitter, child);
+      } else {
+        childEmitter.$emitNode(child);
+      }
+    }
+  });
+}
+
+function $emitTrees(trees: EmitTree[]): LexicalNode[] {
+  const emitter = $createRootEmitter();
+  for (const tree of trees) {
+    $emitTree(emitter, tree);
+  }
+  return emitter.close();
+}
 
 describe('$createRootEmitter', () => {
   test('Can emit a series of inline nodes', () => {
@@ -61,7 +112,7 @@ describe('$createRootEmitter', () => {
     const editor = buildEditorFromExtensions();
     editor.update(
       () => {
-        const nodes: [parent: LexicalNode | null, children: LexicalNode[]][] = [
+        const nodes: EmitTree[] = [
           [$createParagraphNode(), []],
           [null, [$createTextNode('soft break after')]],
           [
@@ -74,22 +125,7 @@ describe('$createRootEmitter', () => {
           ],
           [$createParagraphNode(), [$createTextNode('paragraph')]],
         ];
-        const emitter = $createRootEmitter();
-        for (const [parent, children] of nodes) {
-          if (parent) {
-            emitter.$emitNode(parent);
-          }
-          const childEmitter = $createChildEmitter(
-            emitter,
-            parent,
-            parent ? undefined : 'softBreak',
-          );
-          for (const child of children) {
-            childEmitter.$emitNode(child);
-          }
-          childEmitter.close();
-        }
-        const list = emitter.close();
+        const list = $emitTrees(nodes);
         const expectedTopLevel = nodes.flatMap(([parent, children]) =>
           parent ? [parent] : children,
         );
@@ -107,95 +143,72 @@ describe('$createRootEmitter', () => {
       {discrete: true},
     );
   });
-  // test('$softBreak creates a newline between inline nodes', () => {
-  //   const editor = buildEditorFromExtensions();
-  //   editor.update(
-  //     () => {
-  //       const [hello, world] = [
-  //         $createTextNode('hello'),
-  //         $createTextNode('world'),
-  //       ];
-  //       const emitter = $createRootEmitter();
-  //       emitter.$softBreak();
-  //       emitter.$emitNode(hello);
-  //       emitter.$softBreak();
-  //       emitter.$emitNode(world);
-  //       emitter.$softBreak();
-  //       const list = emitter.close();
-  //       assert($isParagraphNode(list[0]), 'list has a ParagraphNode');
-  //       expect(list).toHaveLength(1);
-  //       const children = list[0].getChildren();
-  //       expect(children[0]).toBe(hello);
-  //       assert($isLineBreakNode(children[1]), '$isLineBreakNode');
-  //       expect(children[2]).toBe(world);
-  //       expect(children).toHaveLength(3);
-  //     },
-  //     {discrete: true},
-  //   );
-  // });
-  // test('$emitNode returns a block emitter', () => {
-  //   const editor = buildEditorFromExtensions();
-  //   editor.update(() => {
-  //     const emitter = $createRootEmitter();
-  //     const pEmitter = emitter.$emitNode($createParagraphNode());
-  //     pEmitter.$emitNode($createTextNode('this is in p0'));
-  //     pEmitter.$softBreak();
-  //     pEmitter.$emitNode($createTextNode('has soft break'));
-  //     emitter.$emitNode($createTextNode('lifted to p1'));
-  //     const list = emitter.close();
-  //     assert($isParagraphNode(list[0]), 'list[0] is a ParagraphNode');
-  //     assert($isParagraphNode(list[1]), 'list[1] is a ParagraphNode');
-  //     expect(list.map((n) => n.getTextContent())).toEqual([
-  //       'this is in p0\nhas soft break',
-  //       'lifted to p1',
-  //     ]);
-  //   });
-  // });
-  // test('$emitNode returns a shadow root emitter', () => {
-  //   const editor = buildEditorFromExtensions({
-  //     name: 'root',
-  //     nodes: [TestShadowRootNode],
-  //   });
-  //   editor.update(
-  //     () => {
-  //       const emitter = $createRootEmitter();
-  //       const sEmitter = emitter.$emitNode($createTestShadowRootNode());
-  //       const pEmitter = sEmitter.$emitNode($createParagraphNode());
-  //       pEmitter.$emitNode($createTextNode('this is in p0'));
-  //       pEmitter.$emitNode($createTestShadowRootNode());
-  //       pEmitter.$emitNode($createTextNode('p0 got split into p1'));
-  //       sEmitter.$emitNode($createTextNode('lifted to p2'));
-  //       const list = emitter.close();
-  //       assert(
-  //         list[0] instanceof TestShadowRootNode,
-  //         'list[0] is a TestShadowRootNode',
-  //       );
-  //       expect(list).toHaveLength(1);
-  //       const shadowList = list[0].getChildren();
-  //       assert(
-  //         $isParagraphNode(shadowList[0]),
-  //         'shadowList[0] is a ParagraphNode',
-  //       );
-  //       assert(
-  //         shadowList[1] instanceof TestShadowRootNode,
-  //         'shadowList[1] is a TestShadowRootNode',
-  //       );
-  //       assert(
-  //         $isParagraphNode(shadowList[2]),
-  //         'shadowList[2] is a ParagraphNode',
-  //       );
-  //       assert(
-  //         $isParagraphNode(shadowList[3]),
-  //         'shadowList[2] is a ParagraphNode',
-  //       );
-  //       expect(shadowList.map((n) => n.getTextContent())).toEqual([
-  //         'this is in p0',
-  //         '', // shadow
-  //         'p0 got split into p1',
-  //         'lifted to p2',
-  //       ]);
-  //     },
-  //     {discrete: true},
-  //   );
-  // });
+  test('softBreak creates a newline between inline nodes on close', () => {
+    const editor = buildEditorFromExtensions();
+    editor.update(
+      () => {
+        const inlines = ['hello', 'world'].map((text) => $createTextNode(text));
+        const list = $emitTrees(inlines.map((v) => [null, [v]]));
+        expect(list.filter($isTextNode)).toEqual(inlines);
+        expect($isLineBreakNode(list[1])).toBe(true);
+        expect(list).toHaveLength(3);
+      },
+      {discrete: true},
+    );
+  });
+  test('$emitNode returns a shadow root emitter', () => {
+    const editor = buildEditorFromExtensions({
+      name: 'root',
+      nodes: [TestShadowRootNode],
+    });
+    editor.update(
+      () => {
+        const list = $emitTrees([
+          [
+            $createTestShadowRootNode(),
+            [
+              [
+                $createParagraphNode(),
+                [
+                  $createTextNode('this is in p0'),
+                  $createTestShadowRootNode(),
+                  $createTextNode('p0 got split into p1'),
+                ],
+              ],
+              $createTextNode('lifted to p2'),
+            ],
+          ],
+        ]);
+        assert(
+          list[0] instanceof TestShadowRootNode,
+          'list[0] is a TestShadowRootNode',
+        );
+        expect(list).toHaveLength(1);
+        const shadowList = list[0].getChildren();
+        assert(
+          $isParagraphNode(shadowList[0]),
+          'shadowList[0] is a ParagraphNode',
+        );
+        assert(
+          shadowList[1] instanceof TestShadowRootNode,
+          'shadowList[1] is a TestShadowRootNode',
+        );
+        assert(
+          $isParagraphNode(shadowList[2]),
+          'shadowList[2] is a ParagraphNode',
+        );
+        assert(
+          $isParagraphNode(shadowList[3]),
+          'shadowList[2] is a ParagraphNode',
+        );
+        expect(shadowList.map((n) => n.getTextContent())).toEqual([
+          'this is in p0',
+          '', // shadow
+          'p0 got split into p1',
+          'lifted to p2',
+        ]);
+      },
+      {discrete: true},
+    );
+  });
 });
