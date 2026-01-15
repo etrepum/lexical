@@ -6,6 +6,7 @@
  *
  */
 
+import {Signal, signal} from '@lexical/extension';
 import {
   $findMatchingParent,
   $insertFirst,
@@ -17,16 +18,20 @@ import {
   $createParagraphNode,
   $getNearestNodeFromDOMNode,
   $getPreviousSelection,
+  $getRoot,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
+  $setSelection,
   CLICK_COMMAND,
   COMMAND_PRIORITY_EDITOR,
+  COMMAND_PRIORITY_LOW,
   ElementNode,
   isDOMNode,
   LexicalEditor,
   NodeKey,
+  SELECT_ALL_COMMAND,
   SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
 } from 'lexical';
 import invariant from 'shared/invariant';
@@ -43,6 +48,7 @@ import {
 import {$isTableNode, TableNode} from './LexicalTableNode';
 import {$getTableAndElementByKey, TableObserver} from './LexicalTableObserver';
 import {$isTableRowNode, TableRowNode} from './LexicalTableRowNode';
+import {$createTableSelectionFrom} from './LexicalTableSelection';
 import {
   $findTableNode,
   applyTableHandlers,
@@ -56,18 +62,17 @@ import {
   $getNodeTriplet,
 } from './LexicalTableUtils';
 
-function $insertTableCommandListener({
-  rows,
-  columns,
-  includeHeaders,
-}: InsertTableCommandPayload): boolean {
+function $insertTable(
+  {rows, columns, includeHeaders}: InsertTableCommandPayload,
+  hasNestedTables: boolean,
+): boolean {
   const selection = $getSelection() || $getPreviousSelection();
   if (!selection || !$isRangeSelection(selection)) {
     return false;
   }
 
   // Prevent nested tables by checking if we're already inside a table
-  if ($findTableNode(selection.anchor.getNode())) {
+  if (!hasNestedTables && $findTableNode(selection.anchor.getNode())) {
     return false;
   }
 
@@ -141,6 +146,22 @@ function $tableTransform(node: TableNode) {
       rowNode.append(newCell);
     }
   }
+  const colWidths = node.getColWidths();
+  const columnCount = node.getColumnCount();
+  if (colWidths && colWidths.length !== columnCount) {
+    let newColWidths: number[] | undefined = undefined;
+    if (columnCount < colWidths.length) {
+      newColWidths = colWidths.slice(0, columnCount);
+    } else if (colWidths.length > 0) {
+      // Repeat the last column width.
+      const fillWidth = colWidths[colWidths.length - 1];
+      newColWidths = [
+        ...colWidths,
+        ...Array(columnCount - colWidths.length).fill(fillWidth),
+      ];
+    }
+    node.setColWidths(newColWidths);
+  }
 }
 
 function $tableClickCommand(event: MouseEvent): boolean {
@@ -163,6 +184,60 @@ function $tableClickCommand(event: MouseEvent): boolean {
     return false;
   }
   blockNode.select(0);
+  return true;
+}
+
+function $tableSelectAllCommand(): boolean {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    return false;
+  }
+
+  // Check if the selection is inside a table
+  const anchorNode = selection.anchor.getNode();
+  const tableNode = $findTableNode(anchorNode);
+  if (tableNode === null) {
+    return false;
+  }
+
+  // CRITICAL: Only intercept if table is the ONLY child of root
+  // This is required to reproduce the bug: table must be the only content, no empty paragraphs
+  // This prevents breaking other tests that expect RangeSelection when there's content outside table
+  const root = $getRoot();
+  if (!root.is(tableNode.getParent()) || root.getChildrenSize() !== 1) {
+    return false;
+  }
+
+  // At this point, table is the only child
+  // This is the exact scenario from issue #8074: table is the only content in editor
+
+  // Get the table map to find first and last cells (handles merged cells correctly)
+  const [tableMap] = $computeTableMapSkipCellCheck(tableNode, null, null);
+  if (tableMap.length === 0 || tableMap[0].length === 0) {
+    return false;
+  }
+
+  // Get the first cell (top-left)
+  const firstCellMap = tableMap[0][0];
+  if (!firstCellMap || !firstCellMap.cell) {
+    return false;
+  }
+
+  // Get the last cell (bottom-right)
+  const lastRow = tableMap[tableMap.length - 1];
+  const lastCellMap = lastRow[lastRow.length - 1];
+  if (!lastCellMap || !lastCellMap.cell) {
+    return false;
+  }
+
+  // Create a TableSelection that selects all cells
+  const tableSelection = $createTableSelectionFrom(
+    tableNode,
+    firstCellMap.cell,
+    lastCellMap.cell,
+  );
+  $setSelection(tableSelection);
+
   return true;
 }
 
@@ -302,21 +377,32 @@ export function registerTableSelectionObserver(
  * @param editor The editor
  * @returns An unregister callback
  */
-export function registerTablePlugin(editor: LexicalEditor): () => void {
+export function registerTablePlugin(
+  editor: LexicalEditor,
+  options?: {hasNestedTables?: Signal<boolean>},
+): () => void {
   if (!editor.hasNodes([TableNode])) {
     invariant(false, 'TablePlugin: TableNode is not registered on editor');
   }
 
+  const {hasNestedTables = signal(false)} = options ?? {};
+
   return mergeRegister(
     editor.registerCommand(
       INSERT_TABLE_COMMAND,
-      $insertTableCommandListener,
+      (payload) => {
+        return $insertTable(payload, hasNestedTables.peek());
+      },
       COMMAND_PRIORITY_EDITOR,
     ),
     editor.registerCommand(
       SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
       ({nodes, selection}, dispatchEditor) => {
-        if (editor !== dispatchEditor || !$isRangeSelection(selection)) {
+        if (
+          hasNestedTables.peek() ||
+          editor !== dispatchEditor ||
+          !$isRangeSelection(selection)
+        ) {
           return false;
         }
         const isInsideTableCell =
@@ -324,6 +410,11 @@ export function registerTablePlugin(editor: LexicalEditor): () => void {
         return isInsideTableCell && nodes.some($isTableNode);
       },
       COMMAND_PRIORITY_EDITOR,
+    ),
+    editor.registerCommand(
+      SELECT_ALL_COMMAND,
+      $tableSelectAllCommand,
+      COMMAND_PRIORITY_LOW,
     ),
     editor.registerCommand(
       CLICK_COMMAND,

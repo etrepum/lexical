@@ -50,7 +50,7 @@ type IntentionallyMarkedAsDirtyElement = boolean;
 
 let subTreeTextContent = '';
 let subTreeTextFormat: number | null = null;
-let subTreeTextStyle: string = '';
+let subTreeTextStyle: string | null = null;
 let editorTextContent = '';
 let activeEditorConfig: EditorConfig;
 let activeEditor: LexicalEditor;
@@ -290,8 +290,6 @@ function $createChildren(
     if (node !== null && $isTextNode(node)) {
       if (subTreeTextFormat === null) {
         subTreeTextFormat = node.getFormat();
-      }
-      if (subTreeTextStyle === '') {
         subTreeTextStyle = node.getStyle();
       }
     }
@@ -359,7 +357,7 @@ function reconcileTextFormat(element: ElementNode): void {
 
 function reconcileTextStyle(element: ElementNode): void {
   if (
-    subTreeTextStyle !== '' &&
+    subTreeTextStyle != null &&
     subTreeTextStyle !== element.__textStyle &&
     !activeEditorStateReadOnly
   ) {
@@ -373,7 +371,7 @@ function $reconcileChildrenWithDirection(
   dom: HTMLElement,
 ): void {
   subTreeTextFormat = null;
-  subTreeTextStyle = '';
+  subTreeTextStyle = null;
   $reconcileChildren(
     prevElement,
     nextElement,
@@ -441,8 +439,6 @@ function $reconcileChildren(
     if ($isTextNode(nextChildNode)) {
       if (subTreeTextFormat === null) {
         subTreeTextFormat = nextChildNode.getFormat();
-      }
-      if (subTreeTextStyle === '') {
         subTreeTextStyle = nextChildNode.getStyle();
       }
     }
@@ -750,8 +746,6 @@ function $reconcileNodeChildren(
     if (node !== null && $isTextNode(node)) {
       if (subTreeTextFormat === null) {
         subTreeTextFormat = node.getFormat();
-      }
-      if (subTreeTextStyle === '') {
         subTreeTextStyle = node.getStyle();
       }
     }

@@ -27,7 +27,11 @@ import {
 } from '.';
 import {FULL_RECONCILE, NO_DIRTY_NODES} from './LexicalConstants';
 import {cloneEditorState, createEmptyEditorState} from './LexicalEditorState';
-import {addRootElementEvents, removeRootElementEvents} from './LexicalEvents';
+import {
+  addRootElementEvents,
+  registerDefaultCommandHandlers,
+  removeRootElementEvents,
+} from './LexicalEvents';
 import {flushRootMutations, initMutationObserver} from './LexicalMutations';
 import {LexicalNode} from './LexicalNode';
 import {createSharedNodeState, SharedNodeState} from './LexicalNodeState';
@@ -748,6 +752,8 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     editor._pendingEditorState = initialEditorState;
     editor._dirtyType = FULL_RECONCILE;
   }
+
+  registerDefaultCommandHandlers(editor);
 
   return editor;
 }

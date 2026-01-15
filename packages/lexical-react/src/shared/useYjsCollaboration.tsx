@@ -170,6 +170,8 @@ export function useYjsCollaboration(
     onBootstrap,
   );
 
+  useAwareness(binding, provider);
+
   return useYjsCursors(binding, cursorsContainerRef);
 }
 
@@ -251,7 +253,6 @@ export function useYjsCollaborationV2__EXPERIMENTAL(
 
   useEffect(() => {
     const {root} = binding;
-    const {awareness} = provider;
 
     if (diffSnapshots) {
       renderSnapshot__EXPERIMENTAL(
@@ -300,15 +301,9 @@ export function useYjsCollaborationV2__EXPERIMENTAL(
       },
     );
 
-    const onAwarenessUpdate = () => {
-      syncCursorPositions(binding, provider);
-    };
-    awareness.on('update', onAwarenessUpdate);
-
     return () => {
       root.unobserveDeep(onYjsTreeChanges);
       removeListener();
-      awareness.off('update', onAwarenessUpdate);
     };
   }, [binding, provider, editor, diffSnapshots]);
 
@@ -321,6 +316,8 @@ export function useYjsCollaborationV2__EXPERIMENTAL(
     awarenessData,
     onBootstrap,
   );
+
+  useAwareness(binding, provider);
 
   return binding;
 }
@@ -421,6 +418,47 @@ function useProvider(
       COMMAND_PRIORITY_EDITOR,
     );
   }, [connect, disconnect, editor]);
+
+  // Clear awareness state immediately when tab is refreshed or closed
+  // This prevents ghost cursors from appearing for several seconds after disconnect
+  // See: https://github.com/facebook/lexical/issues/8061
+  useEffect(() => {
+    const clearAwarenessState = () => {
+      // Immediately clear local awareness state to signal disconnection
+      // This broadcasts to other clients that this client has disconnected,
+      // causing them to remove the cursor immediately instead of waiting for timeout
+      try {
+        provider.awareness.setLocalState(null);
+      } catch (_e) {
+        // Ignore errors during cleanup (e.g., if provider is already disconnected)
+      }
+    };
+
+    // Use both beforeunload and pagehide for maximum browser compatibility
+    // beforeunload: fires before page unloads (may be cancelable)
+    // pagehide: fires when page is being unloaded (more reliable, especially on mobile)
+    window.addEventListener('beforeunload', clearAwarenessState);
+    window.addEventListener('pagehide', clearAwarenessState);
+
+    return () => {
+      window.removeEventListener('beforeunload', clearAwarenessState);
+      window.removeEventListener('pagehide', clearAwarenessState);
+    };
+  }, [provider]);
+}
+
+function useAwareness(binding: Binding | BindingV2, provider: Provider) {
+  useEffect(() => {
+    const {awareness} = provider;
+    const onAwarenessUpdate = () => {
+      syncCursorPositions(binding, provider);
+    };
+    awareness.on('update', onAwarenessUpdate);
+
+    return () => {
+      awareness.off('update', onAwarenessUpdate);
+    };
+  }, [binding, provider]);
 }
 
 export function useYjsCursors(
