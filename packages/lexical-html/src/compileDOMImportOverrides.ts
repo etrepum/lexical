@@ -382,8 +382,12 @@ function matchHasTag<T extends string>(
   return match.tag === tag;
 }
 
-function compileImportNode(editor: LexicalEditor, config: DOMImportConfig) {
-  let $importNode = config.compileLegacyImportNode(editor);
+function compileImportNode(
+  editor: LexicalEditor,
+  config: DOMImportConfig,
+  $importNodeFallback: (node: Node) => DOMImportOutput | null | undefined,
+) {
+  let $importNode = $importNodeFallback;
   let importer: TagImport | MatchesImport<'*'> = new TagImport();
   const sortedOverrides = config.overrides.sort(importOverrideSort);
   for (const match of sortedOverrides) {
@@ -405,9 +409,12 @@ export function compileDOMImportOverrides(
   editor: LexicalEditor,
   config: DOMImportConfig,
 ): DOMImportExtensionOutput {
-  const $importNode = compileImportNode(editor, config);
+  const $legacyImportNode = config.compileLegacyImportNode(editor);
+  const $importNode = compileImportNode(editor, config, $legacyImportNode);
   return {
     $importNode,
     $importNodes: compileImportNodes(editor, $importNode),
+    $legacyImportNode,
+    $legacyImportNodes: compileImportNodes(editor, $legacyImportNode),
   };
 }

@@ -191,6 +191,10 @@ export interface DOMImportConfigMatch {
 export interface DOMImportExtensionOutput {
   $importNode: (node: Node) => null | undefined | DOMImportOutput;
   $importNodes: (root: ParentNode | Document) => LexicalNode[];
+  /** @deprecated */
+  $legacyImportNode: (node: Node) => null | undefined | DOMImportOutput;
+  /** @deprecated */
+  $legacyImportNodes: (root: ParentNode | Document) => LexicalNode[];
 }
 
 export type DOMWhiteSpaceCollapse = keyof typeof DOMWhiteSpaceCollapseKeys;

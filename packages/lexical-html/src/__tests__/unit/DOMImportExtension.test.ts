@@ -303,25 +303,21 @@ describe('DOMImportExtension', () => {
               DOMImportExtension,
             ).output.$importNodes(doc);
 
-            // Compare legacy $generateNodesFromDOM to $generateNodes
+            // Compare legacy $generateNodesFromDOM to $importNodes
             const legacyNodes = $generateNodesFromDOM(editor, doc);
             function $getComparisonJSON(
               a: LexicalNode,
             ): Record<string, unknown> {
-              const exported: Record<string, unknown> = a.exportJSON();
-              const json: Record<string, unknown> = {type: exported.type};
-              for (const k of Object.keys(exported)) {
-                if (
-                  exported[k] !== undefined &&
-                  k !== 'version' &&
-                  k !== 'type'
-                ) {
-                  json[k] = exported[k];
+              const json: Record<string, unknown> = a.exportJSON();
+              for (const k of Object.keys(json)) {
+                if (json[k] === undefined) {
+                  delete json[k];
                 }
               }
-              return $isElementNode(a) && a.getChildrenSize() > 0
-                ? {...json, children: a.getChildren().map($getComparisonJSON)}
-                : json;
+              if ($isElementNode(a)) {
+                json.children = a.getChildren().map($getComparisonJSON);
+              }
+              return json;
             }
             expect(nodes.map($getComparisonJSON)).toEqual(
               legacyNodes.map($getComparisonJSON),
