@@ -526,6 +526,7 @@ export class ElementNode extends LexicalNode {
       const child = children[i];
       textContent += child.getTextContent();
       if (
+        // this is an inline $textContentRequiresDoubleLinebreakAtEnd(child)
         $isElementNode(child) &&
         i !== childrenLength - 1 &&
         !child.isInline()
@@ -543,6 +544,7 @@ export class ElementNode extends LexicalNode {
       const child = children[i];
       textContentSize += child.getTextContentSize();
       if (
+        // This is an inline $textContentRequiresDoubleLinebreakAtEnd(child)
         $isElementNode(child) &&
         i !== childrenLength - 1 &&
         !child.isInline()

@@ -378,3 +378,9 @@ export {
   safeCast,
   shallowMergeConfig,
 } from './extension-core';
+export {
+  addClassNamesToElement,
+  normalizeClassNames,
+  removeClassNamesFromElement,
+} from './utils/classNames';
+export {mergeRegister} from './utils/mergeRegister';
