@@ -188,11 +188,15 @@ export interface DOMImportConfigMatch {
   readonly $import: DOMImportFunction<Node>;
 }
 
+export type DOMImportNodeFn = (
+  node: Node,
+) => null | undefined | DOMImportOutput;
+
 export interface DOMImportExtensionOutput {
-  $importNode: (node: Node) => null | undefined | DOMImportOutput;
+  $importNode: DOMImportNodeFn;
   $importNodes: (root: ParentNode | Document) => LexicalNode[];
   /** @deprecated */
-  $legacyImportNode: (node: Node) => null | undefined | DOMImportOutput;
+  $legacyImportNode: DOMImportNodeFn;
   /** @deprecated */
   $legacyImportNodes: (root: ParentNode | Document) => LexicalNode[];
 }

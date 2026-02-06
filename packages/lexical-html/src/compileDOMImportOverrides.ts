@@ -13,6 +13,7 @@ import type {
   DOMImportConfigMatch,
   DOMImportContextFinalizer,
   DOMImportExtensionOutput,
+  DOMImportNodeFn,
   DOMImportOutput,
   DOMTextWrapMode,
   DOMWhiteSpaceCollapse,
@@ -34,7 +35,6 @@ import {
 import invariant from 'shared/invariant';
 
 import {
-  ALWAYS_NULL,
   DOMImportContextSymbol,
   DOMTextWrapModeKeys,
   DOMWhiteSpaceCollapseKeys,
@@ -61,7 +61,19 @@ import {
   ImportContextWhiteSpaceCollapse,
 } from './ImportContext';
 
-class MatchesImport<Tag extends string> {
+/** @internal */
+interface TagImporter {
+  push(match: DOMImportConfigMatch): void;
+  compile($nextImport: DOMImportNodeFn, editor: LexicalEditor): DOMImportNodeFn;
+}
+
+/**
+ * @internal
+ * An importer that wraps an array of {@link DOMImportConfigMatch} by a common
+ * tag name (or `'*'` for any tag). This is
+ * primarily used to facilitate the {@link TagMapImport} optimization.
+ */
+class CommonTagImport<Tag extends string> implements TagImporter {
   tag: Tag;
   matches: DOMImportConfigMatch[] = [];
   constructor(tag: Tag) {
@@ -70,43 +82,39 @@ class MatchesImport<Tag extends string> {
   push(match: DOMImportConfigMatch) {
     invariant(
       match.tag === this.tag,
-      'MatchesImport.push: match tag %s !== this tag %s',
+      'CommonTagImport.push: match tag %s !== this tag %s',
       match.tag,
       this.tag,
     );
     this.matches.push(match);
   }
   compile(
-    $nextImport: (node: Node) => null | undefined | DOMImportOutput,
+    $nextImport: DOMImportNodeFn,
     editor: LexicalEditor,
-  ): (node: Node) => null | undefined | DOMImportOutput {
+  ): DOMImportNodeFn {
+    if (this.matches.length === 0) {
+      return $nextImport;
+    }
     const {matches, tag} = this;
     return (node) => {
       const el = isHTMLElement(node) ? node : null;
       const $importAt = (start: number): null | undefined | DOMImportOutput => {
         let rval: undefined | null | DOMImportOutput;
-        let $importFallback = $nextImport;
-        for (
-          let i = start;
-          i >= 0 && !rval && $importFallback !== ALWAYS_NULL;
-          i--
-        ) {
-          const match = matches[i];
-          if (match) {
-            const {$import, selector} = matches[i];
-            if (!selector || (el && el.matches(selector))) {
-              rval = $import(
-                node,
-                () => {
-                  $importFallback = ALWAYS_NULL;
-                  return $importAt(i - 1);
-                },
-                editor,
-              );
-            }
+        let explicitNextCall = false;
+        for (let i = start; i >= 0 && !rval && !explicitNextCall; i--) {
+          const {$import, selector} = matches[i];
+          if (!selector || (el && el.matches(selector))) {
+            rval = $import(
+              node,
+              () => {
+                explicitNextCall = true;
+                return $importAt(i - 1);
+              },
+              editor,
+            );
           }
         }
-        return rval || $importFallback(node);
+        return explicitNextCall || rval ? rval : $nextImport(node);
       };
 
       return $importAt(
@@ -118,30 +126,31 @@ class MatchesImport<Tag extends string> {
   }
 }
 
-class TagImport {
-  tags: Map<string, MatchesImport<string>> = new Map();
+class TagMapImport implements TagImporter {
+  tags: Map<string, CommonTagImport<string>> = new Map();
   push(match: DOMImportConfigMatch) {
     invariant(
       match.tag !== '*',
-      'TagImport can not handle wildcard tag %s',
+      'TagMapImport can not handle wildcard tag %s',
       match.tag,
     );
-    const matches = this.tags.get(match.tag) || new MatchesImport(match.tag);
+    const matches = this.tags.get(match.tag) || new CommonTagImport(match.tag);
     this.tags.set(match.tag, matches);
     matches.push(match);
   }
   compile(
-    $nextImport: (node: Node) => null | undefined | DOMImportOutput,
+    $nextImport: DOMImportNodeFn,
     editor: LexicalEditor,
-  ): DOMImportExtensionOutput['$importNode'] {
-    const compiled = new Map<string, DOMImportExtensionOutput['$importNode']>();
+  ): DOMImportNodeFn {
+    if (this.tags.size === 0) {
+      return $nextImport;
+    }
+    const compiled = new Map<string, DOMImportNodeFn>();
     for (const [tag, matches] of this.tags.entries()) {
       compiled.set(tag, matches.compile($nextImport, editor));
     }
-    return compiled.size === 0
-      ? $nextImport
-      : (node: Node) =>
-          (compiled.get(node.nodeName.toLowerCase()) || $nextImport)(node);
+    return (node: Node) =>
+      (compiled.get(node.nodeName.toLowerCase()) || $nextImport)(node);
   }
 }
 
@@ -165,7 +174,7 @@ function importOverrideSort(
 type ImportStackEntry = [
   dom: Node,
   ctx: ContextRecord<typeof DOMImportContextSymbol>,
-  $importNode: DOMImportExtensionOutput['$importNode'],
+  $importNode: DOMImportNodeFn,
   parentEmitter: StatefulNodeEmitter<unknown>,
 ];
 
@@ -237,7 +246,7 @@ function makeFinalizer(
 
 function compileImportNodes(
   editor: LexicalEditor,
-  $importNode: DOMImportExtensionOutput['$importNode'],
+  $importNode: DOMImportNodeFn,
 ) {
   return function $importNodes(
     rootOrDocument: ParentNode | Document,
@@ -385,20 +394,20 @@ function matchHasTag<T extends string>(
 function compileImportNode(
   editor: LexicalEditor,
   config: DOMImportConfig,
-  $importNodeFallback: (node: Node) => DOMImportOutput | null | undefined,
+  $importNodeFallback: DOMImportNodeFn,
 ) {
   let $importNode = $importNodeFallback;
-  let importer: TagImport | MatchesImport<'*'> = new TagImport();
+  let importer: TagMapImport | CommonTagImport<'*'> = new TagMapImport();
   const sortedOverrides = config.overrides.sort(importOverrideSort);
   for (const match of sortedOverrides) {
     if (matchHasTag(match, '*')) {
-      if (importer instanceof TagImport) {
+      if (importer instanceof TagMapImport) {
         $importNode = importer.compile($importNode, editor);
-        importer = new MatchesImport(match.tag);
+        importer = new CommonTagImport(match.tag);
       }
-    } else if (importer instanceof MatchesImport) {
+    } else if (importer instanceof CommonTagImport) {
       $importNode = importer.compile($importNode, editor);
-      importer = new TagImport();
+      importer = new TagMapImport();
     }
     importer.push(match);
   }
