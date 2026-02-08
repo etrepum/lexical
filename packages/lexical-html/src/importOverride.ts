@@ -8,6 +8,7 @@
 import type {
   DOMImportConfigMatch,
   DOMImportFunction,
+  DOMImportTag,
   NodeNameToType,
 } from './types';
 
@@ -18,14 +19,14 @@ import type {
  * @__NO_SIDE_EFFECTS__
  */
 
-export function importOverride<T extends string>(
+export function importOverride<T extends DOMImportTag>(
   tag: T,
   $import: DOMImportFunction<NodeNameToType<T>>,
-  options: Omit<DOMImportConfigMatch, 'tag' | '$import'> = {},
-): DOMImportConfigMatch {
+  options: Omit<DOMImportConfigMatch<DOMImportTag>, 'tag' | '$import'> = {},
+): DOMImportConfigMatch<T> {
   return {
     ...options,
     $import: $import as DOMImportFunction<Node>,
-    tag: tag.toLowerCase(),
+    tag: tag.toLowerCase() as T,
   };
 }

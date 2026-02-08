@@ -15,6 +15,7 @@ import type {
   DOMImportExtensionOutput,
   DOMImportNodeFn,
   DOMImportOutput,
+  DOMImportTag,
   DOMTextWrapMode,
   DOMWhiteSpaceCollapse,
   StatefulNodeEmitter,
@@ -62,8 +63,8 @@ import {
 } from './ImportContext';
 
 /** @internal */
-interface TagImporter {
-  push(match: DOMImportConfigMatch): void;
+interface TagImporter<T extends DOMImportTag> {
+  push(tag: T, match: DOMImportConfigMatch<T>): void;
   compile($nextImport: DOMImportNodeFn, editor: LexicalEditor): DOMImportNodeFn;
 }
 
@@ -73,17 +74,17 @@ interface TagImporter {
  * tag name (or `'*'` for any tag). This is
  * primarily used to facilitate the {@link TagMapImport} optimization.
  */
-class CommonTagImport<Tag extends string> implements TagImporter {
+class CommonTagImport<Tag extends string> implements TagImporter<Tag> {
   tag: Tag;
-  matches: DOMImportConfigMatch[] = [];
+  matches: DOMImportConfigMatch<Tag>[] = [];
   constructor(tag: Tag) {
     this.tag = tag;
   }
-  push(match: DOMImportConfigMatch) {
+  push(tag: Tag, match: DOMImportConfigMatch<Tag>) {
     invariant(
-      match.tag === this.tag,
+      tag === this.tag,
       'CommonTagImport.push: match tag %s !== this tag %s',
-      match.tag,
+      tag,
       this.tag,
     );
     this.matches.push(match);
@@ -126,17 +127,13 @@ class CommonTagImport<Tag extends string> implements TagImporter {
   }
 }
 
-class TagMapImport implements TagImporter {
+class TagMapImport implements TagImporter<DOMImportTag> {
   tags: Map<string, CommonTagImport<string>> = new Map();
-  push(match: DOMImportConfigMatch) {
-    invariant(
-      match.tag !== '*',
-      'TagMapImport can not handle wildcard tag %s',
-      match.tag,
-    );
-    const matches = this.tags.get(match.tag) || new CommonTagImport(match.tag);
-    this.tags.set(match.tag, matches);
-    matches.push(match);
+  push(tag: DOMImportTag, match: DOMImportConfigMatch<DOMImportTag>) {
+    invariant(tag !== '*', 'TagMapImport can not handle wildcard tag %s', tag);
+    const matches = this.tags.get(tag) || new CommonTagImport(tag);
+    this.tags.set(tag, matches);
+    matches.push(tag, match);
   }
   compile(
     $nextImport: DOMImportNodeFn,
@@ -165,8 +162,8 @@ class TagMapImport implements TagImporter {
  * (e.g. the initial implementation).
  */
 function importOverrideSort(
-  a: DOMImportConfigMatch,
-  b: DOMImportConfigMatch,
+  a: DOMImportConfigMatch<DOMImportTag>,
+  b: DOMImportConfigMatch<DOMImportTag>,
 ): number {
   return (a.priority || 0) - (b.priority || 0);
 }
@@ -384,11 +381,16 @@ function compileImportNodes(
   };
 }
 
-function matchHasTag<T extends string>(
-  match: DOMImportConfigMatch,
-  tag: T,
-): match is DOMImportConfigMatch & {tag: T} {
-  return match.tag === tag;
+function flatTags(
+  tag: DOMImportTag | readonly DOMImportTag[],
+): readonly DOMImportTag[] {
+  if (typeof tag === 'string') {
+    return [tag];
+  } else if (tag.includes('*')) {
+    return ['*'];
+  } else {
+    return tag;
+  }
 }
 
 function compileImportNode(
@@ -400,16 +402,21 @@ function compileImportNode(
   let importer: TagMapImport | CommonTagImport<'*'> = new TagMapImport();
   const sortedOverrides = config.overrides.sort(importOverrideSort);
   for (const match of sortedOverrides) {
-    if (matchHasTag(match, '*')) {
-      if (importer instanceof TagMapImport) {
-        $importNode = importer.compile($importNode, editor);
-        importer = new CommonTagImport(match.tag);
+    for (const tag of flatTags(match.tag)) {
+      if (tag === '*') {
+        if (importer instanceof TagMapImport) {
+          $importNode = importer.compile($importNode, editor);
+          importer = new CommonTagImport('*');
+        }
+        importer.push('*', match as DOMImportConfigMatch<'*'>);
+      } else {
+        if (importer instanceof CommonTagImport) {
+          $importNode = importer.compile($importNode, editor);
+          importer = new TagMapImport();
+        }
+        importer.push(tag.toLowerCase(), match);
       }
-    } else if (importer instanceof CommonTagImport) {
-      $importNode = importer.compile($importNode, editor);
-      importer = new TagMapImport();
     }
-    importer.push(match);
   }
   return importer.compile($importNode, editor);
 }

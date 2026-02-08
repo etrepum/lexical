@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import type {DOMImportExtensionOutput, DOMImportOutput} from './types';
+import type {DOMImportNodeFn, DOMImportOutput} from './types';
 
 import {type LexicalEditor, type LexicalNode} from 'lexical';
 
@@ -20,9 +20,7 @@ import {
   ImportContextParentLexicalNode,
 } from './ImportContext';
 
-export function compileLegacyImportDOM(
-  editor: LexicalEditor,
-): DOMImportExtensionOutput['$importNode'] {
+export function compileLegacyImportDOM(editor: LexicalEditor): DOMImportNodeFn {
   return (node) => {
     if (IGNORE_TAGS.has(node.nodeName)) {
       return {childNodes: EMPTY_ARRAY, node: null};

@@ -48,6 +48,7 @@ export type {
   DOMImportFunction,
   DOMImportNodeFn,
   DOMImportOutput,
+  DOMImportTag,
   DOMRenderConfig,
   DOMRenderExtensionOutput,
   DOMRenderMatch,

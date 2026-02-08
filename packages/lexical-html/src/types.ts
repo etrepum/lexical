@@ -176,13 +176,14 @@ export interface DOMRenderMatch<T extends LexicalNode> {
 
 /** @internal @experimental */
 export interface DOMImportConfig {
-  overrides: DOMImportConfigMatch[];
-  compileLegacyImportNode: (
-    editor: LexicalEditor,
-  ) => DOMImportExtensionOutput['$importNode'];
+  overrides: DOMImportConfigMatch<DOMImportTag>[];
+  compileLegacyImportNode: (editor: LexicalEditor) => DOMImportNodeFn;
 }
-export interface DOMImportConfigMatch {
-  readonly tag: '*' | '#text' | '#cdata-section' | '#comment' | (string & {});
+
+export type DOMImportTag = keyof NodeNameMap | (string & {});
+
+export interface DOMImportConfigMatch<Tag extends DOMImportTag> {
+  readonly tag: Tag | Tag[];
   readonly selector?: string;
   readonly priority?: 0 | 1 | 2 | 3 | 4;
   readonly $import: DOMImportFunction<Node>;
