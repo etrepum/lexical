@@ -26,6 +26,7 @@ import {
   $insertNodes,
   $isRangeSelection,
   $setState,
+  KEY_ENTER_COMMAND,
 } from 'lexical';
 import {describe, expect, it} from 'vitest';
 
@@ -408,17 +409,14 @@ describe('Markdown', () => {
     {
       html: '<p><b><strong style="white-space: pre-wrap;">Hello </strong></b><s><b><strong style="white-space: pre-wrap;">world</strong></b></s><span style="white-space: pre-wrap;">!</span></p>',
       md: '**Hello ~~world~~**!',
-      mdAfterExport: '**Hello&#32;~~world~~**!',
     },
     {
       html: '<p><s><b><strong style="white-space: pre-wrap;">Hello </strong></b></s><s><i><b><strong style="white-space: pre-wrap;">world</strong></b></i></s><s><span style="white-space: pre-wrap;">!</span></s></p>',
       md: '**~~Hello *world*~~**~~!~~',
-      mdAfterExport: '**~~Hello&#32;*world*~~**~~!~~',
     },
     {
       html: '<p><i><em style="white-space: pre-wrap;">Hello </em></i><i><b><strong style="white-space: pre-wrap;">world</strong></b></i><i><em style="white-space: pre-wrap;">!</em></i></p>',
       md: '*Hello **world**!*',
-      mdAfterExport: '*Hello&#32;**world**!*',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">hello world</span></p>',
@@ -604,29 +602,38 @@ describe('Markdown', () => {
       html: '<p><span style="white-space: pre-wrap;">Text </span><b><strong style="white-space: pre-wrap;">boldstart </strong></b><a href="https://lexical.dev"><b><strong style="white-space: pre-wrap;">text</strong></b></a><b><strong style="white-space: pre-wrap;"> boldend</strong></b><span style="white-space: pre-wrap;"> text</span></p>',
       md: 'Text **boldstart [text](https://lexical.dev) boldend** text',
       mdAfterExport:
-        'Text **boldstart&#32;**[**text**](https://lexical.dev)**&#32;boldend** text',
+        'Text **boldstart** [**text**](https://lexical.dev) **boldend** text',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">Text </span><b><strong style="white-space: pre-wrap;">boldstart </strong></b><a href="https://lexical.dev"><b><code spellcheck="false" style="white-space: pre-wrap;"><strong>text</strong></code></b></a><b><strong style="white-space: pre-wrap;"> boldend</strong></b><span style="white-space: pre-wrap;"> text</span></p>',
       md: 'Text **boldstart [`text`](https://lexical.dev) boldend** text',
       mdAfterExport:
-        'Text **boldstart&#32;**[**`text`**](https://lexical.dev)**&#32;boldend** text',
+        'Text **boldstart** [**`text`**](https://lexical.dev) **boldend** text',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">It </span><s><i><b><strong style="white-space: pre-wrap;">works </strong></b></i></s><a href="https://lexical.io"><s><i><b><strong style="white-space: pre-wrap;">with links</strong></b></i></s></a><span style="white-space: pre-wrap;"> too</span></p>',
       md: 'It ~~___works [with links](https://lexical.io)___~~ too',
       mdAfterExport:
-        'It ***~~works&#32;~~***[***~~with links~~***](https://lexical.io) too',
+        'It ***~~works~~*** [***~~with links~~***](https://lexical.io) too',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">It </span><s><i><b><strong style="white-space: pre-wrap;">works </strong></b></i></s><a href="https://lexical.io"><s><i><b><strong style="white-space: pre-wrap;">with links</strong></b></i></s></a><s><i><b><strong style="white-space: pre-wrap;"> too</strong></b></i></s><span style="white-space: pre-wrap;">!</span></p>',
       md: 'It ~~___works [with links](https://lexical.io) too___~~!',
       mdAfterExport:
-        'It ***~~works&#32;~~***[***~~with links~~***](https://lexical.io)***~~&#32;too~~***!',
+        'It ***~~works~~*** [***~~with links~~***](https://lexical.io) ***~~too~~***!',
     },
     {
       html: '<p><a href="https://lexical.dev"><span style="white-space: pre-wrap;">link</span></a><a href="https://lexical.dev"><span style="white-space: pre-wrap;">link2</span></a></p>',
       md: '[link](https://lexical.dev)[link2](https://lexical.dev)',
+    },
+    {
+      // Test that importRegExp is not too greedy when there are multiple link patterns
+      html: '<p><a href="https://a.example.com"><span style="white-space: pre-wrap;">a</span></a><span style="white-space: pre-wrap;"> </span><a href="https://b.example.com"><span style="white-space: pre-wrap;">b</span></a></p>',
+      md: '[a](https://a.example.com) [b](https://b.example.com)',
+    },
+    {
+      html: '<p><span style="white-space: pre-wrap;">[foo </span><a href="/uri"><span style="white-space: pre-wrap;">bar</span></a><span style="white-space: pre-wrap;">](/uri)</span></p>',
+      md: '[foo [bar](/uri)](/uri)',
     },
     {
       // Import only: <mark>...</mark> is exported as ==...== in markdown.
@@ -685,6 +692,7 @@ describe('Markdown', () => {
     {
       html: '<p><b><strong style="white-space: pre-wrap;">&nbsp;</strong></b></p>',
       md: '**&#160;**',
+      mdAfterExport: '\xA0',
     },
     {
       html: '<p><a href="https://lexical.dev"><span style="white-space: pre-wrap;">[h]ello</span></a><a href="https://lexical.dev"><span style="white-space: pre-wrap;">h[e]llo</span></a></p>',
@@ -709,12 +717,11 @@ describe('Markdown', () => {
     {
       html: '<p><a href="https://lexical.dev"><b><strong style="white-space: pre-wrap;">link</strong></b></a><b><strong style="white-space: pre-wrap;">text</strong></b></p>',
       md: '[**link**](https://lexical.dev)**text**',
-      mdAfterExport: '[**link**](https://lexical.dev)**text**',
     },
     {
       html: '<p><b><strong style="white-space: pre-wrap;">text </strong></b><a href="https://lexical.dev"><b><strong style="white-space: pre-wrap;">link</strong></b></a></p>',
       md: '**text [link](https://lexical.dev)**',
-      mdAfterExport: '**text&#32;**[**link**](https://lexical.dev)',
+      mdAfterExport: '**text** [**link**](https://lexical.dev)',
     },
     {
       html: '<p><i><em style="white-space: pre-wrap;">text</em></i><i><b><strong style="white-space: pre-wrap;">text</strong></b></i></p>',
@@ -728,7 +735,7 @@ describe('Markdown', () => {
     {
       html: '<p><b><strong style="white-space: pre-wrap;">foo </strong></b><a href="/url"><i><b><strong style="white-space: pre-wrap;">bar</strong></b></i></a></p>',
       md: '**foo [*bar*](/url)**',
-      mdAfterExport: '**foo&#32;**[***bar***](/url)',
+      mdAfterExport: '**foo** [***bar***](/url)',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">*foo </span><i><em style="white-space: pre-wrap;">bar baz</em></i></p>',
@@ -738,12 +745,26 @@ describe('Markdown', () => {
     {
       html: '<p><i><em style="white-space: pre-wrap;">a </em></i><i><code spellcheck="false" style="white-space: pre-wrap;"><em>*</em></code></i><i><em style="white-space: pre-wrap;"> b </em></i><i><code spellcheck="false" style="white-space: pre-wrap;"><em>x</em></code></i></p>',
       md: '*a `*` b `x`*',
-      mdAfterExport: '*a&#32;`*`&#32;b&#32;`x`*',
     },
     {
       html: '<p><span style="white-space: pre-wrap;">_foo_bar</span></p>',
       md: '_foo_bar',
       mdAfterExport: '\\_foo\\_bar',
+    },
+    {
+      html: '<p><b><strong style="white-space: pre-wrap;">Hello </strong></b><s><b><strong style="white-space: pre-wrap;">world</strong></b></s><span style="white-space: pre-wrap;">!</span></p>',
+      md: '**Hello&#32;~~world~~**!',
+      mdAfterExport: '**Hello ~~world~~**!',
+    },
+    {
+      html: '<p><i><em style="white-space: pre-wrap;">Hello </em></i><i><b><strong style="white-space: pre-wrap;">world</strong></b></i><i><em style="white-space: pre-wrap;">!</em></i></p>',
+      md: '*Hello&#32;**world**!*',
+      mdAfterExport: '*Hello **world**!*',
+    },
+    {
+      html: '<p><s><b><strong style="white-space: pre-wrap;">Hello </strong></b></s><s><i><b><strong style="white-space: pre-wrap;">world</strong></b></i></s><s><span style="white-space: pre-wrap;">!</span></s></p>',
+      md: '**~~Hello&#32;*world*~~**~~!~~',
+      mdAfterExport: '**~~Hello *world*~~**~~!~~',
     },
   ];
 
@@ -1183,6 +1204,141 @@ describe('Markdown', () => {
         );
         expect(markdownString).toBe('+ hello');
       });
+    });
+  });
+
+  describe('Enter key triggers', () => {
+    it('should create an empty code block when ``` is typed and Enter is pressed', () => {
+      const editor = createHeadlessEditor({
+        nodes: [
+          HeadingNode,
+          ListNode,
+          ListItemNode,
+          QuoteNode,
+          CodeNode,
+          LinkNode,
+        ],
+      });
+
+      registerMarkdownShortcuts(editor, TRANSFORMERS);
+
+      editor.update(
+        () => {
+          const root = $getRoot();
+          const paragraph = $createParagraphNode();
+          root.append(paragraph);
+          paragraph.selectEnd();
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            selection.insertText('```');
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          editor.dispatchCommand(KEY_ENTER_COMMAND, null);
+        },
+        {discrete: true},
+      );
+
+      expect(editor.read(() => $generateHtmlFromNodes(editor))).toBe(
+        '<pre spellcheck="false"></pre>',
+      );
+    });
+
+    it('should create a code block with language when ```javascript is typed and Enter is pressed', () => {
+      const editor = createHeadlessEditor({
+        nodes: [
+          HeadingNode,
+          ListNode,
+          ListItemNode,
+          QuoteNode,
+          CodeNode,
+          LinkNode,
+        ],
+      });
+
+      registerMarkdownShortcuts(editor, TRANSFORMERS);
+
+      editor.update(
+        () => {
+          const root = $getRoot();
+          const paragraph = $createParagraphNode();
+          root.append(paragraph);
+          paragraph.selectEnd();
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            selection.insertText('```javascript');
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          editor.dispatchCommand(KEY_ENTER_COMMAND, null);
+        },
+        {discrete: true},
+      );
+
+      expect(editor.read(() => $generateHtmlFromNodes(editor))).toBe(
+        '<pre spellcheck="false" data-language="javascript"></pre>',
+      );
+    });
+
+    it('should not transform on Enter when replace returns false', () => {
+      const CANCELED_CODE: MultilineElementTransformer = {
+        dependencies: [CodeNode],
+        regExpEnd: {
+          optional: true,
+          regExp: /^[ \t]*`{3,}$/,
+        },
+        regExpStart: /^`{3,}(\w+)?/,
+        replace: () => {
+          return false;
+        },
+        type: 'multiline-element',
+      };
+
+      const editor = createHeadlessEditor({
+        nodes: [
+          HeadingNode,
+          ListNode,
+          ListItemNode,
+          QuoteNode,
+          CodeNode,
+          LinkNode,
+        ],
+      });
+
+      registerMarkdownShortcuts(editor, [CANCELED_CODE]);
+
+      editor.update(
+        () => {
+          const root = $getRoot();
+          const paragraph = $createParagraphNode();
+          root.append(paragraph);
+          paragraph.selectEnd();
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            selection.insertText('```');
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          editor.dispatchCommand(KEY_ENTER_COMMAND, null);
+        },
+        {discrete: true},
+      );
+
+      expect(editor.read(() => $generateHtmlFromNodes(editor))).toBe(
+        '<p><span style="white-space: pre-wrap;">```</span></p>',
+      );
     });
   });
 });

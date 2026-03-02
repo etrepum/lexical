@@ -97,6 +97,7 @@ export async function initialize({
   hasLinkAttributes,
   hasNestedTables,
   hasFitNestedTables,
+  shouldDisableFocusOnClickChecklist,
   showNestedEditorTreeView,
   tableCellMerge,
   tableCellBackgroundColor,
@@ -133,6 +134,8 @@ export async function initialize({
   appSettings.hasLinkAttributes = !!hasLinkAttributes;
   appSettings.hasNestedTables = !!hasNestedTables;
   appSettings.hasFitNestedTables = !!hasFitNestedTables;
+  appSettings.shouldDisableFocusOnClickChecklist =
+    !!shouldDisableFocusOnClickChecklist;
   if (tableCellMerge !== undefined) {
     appSettings.tableCellMerge = tableCellMerge;
   }
@@ -788,9 +791,19 @@ export async function insertDateTime(page) {
   await sleep(500);
 }
 
-export function getExpectedDateTimeHtml({selected = false} = {}) {
+export function getExpectedDateTimeHtml({selected = false, formats = []} = {}) {
   const now = new Date();
   const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // DateTimeNode displays a limited set of formats
+  const formatToClassname = {
+    bold: 'bold',
+    highlight: 'highlight',
+    italic: 'italic',
+    strikethrough: 'strikethrough',
+    underline: 'underline',
+  };
+
   return html`
     <span
       contenteditable="false"
@@ -798,8 +811,9 @@ export function getExpectedDateTimeHtml({selected = false} = {}) {
       data-lexical-datetime="${date.toString()}"
       data-lexical-decorator="true">
       <div
-        class="dateTimePill ${selected ? 'selected' : ''}"
-        style="cursor: pointer; width: fit-content;">
+        class="dateTimePill ${selected ? 'selected' : ''} ${formats
+          .map((f) => formatToClassname[f] || '')
+          .join(' ')}">
         ${date.toDateString()}
       </div>
     </span>

@@ -300,6 +300,7 @@ export {
   resetRandomKey,
   setDOMUnmanaged,
   setNodeIndentFromDOM,
+  toggleTextFormatType,
 } from './LexicalUtils';
 export {ArtificialNode__DO_NOT_USE} from './nodes/ArtificialNode';
 export {$isDecoratorNode, DecoratorNode} from './nodes/LexicalDecoratorNode';
@@ -335,6 +336,8 @@ export {$createTextNode, $isTextNode, TextNode} from './nodes/LexicalTextNode';
 // Update Tags
 export {
   COLLABORATION_TAG,
+  COMPOSITION_END_TAG,
+  COMPOSITION_START_TAG,
   HISTORIC_TAG,
   HISTORY_MERGE_TAG,
   HISTORY_PUSH_TAG,
