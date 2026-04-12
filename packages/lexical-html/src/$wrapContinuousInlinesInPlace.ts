@@ -5,33 +5,21 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {
-  $isBlockElementNode,
-  type ElementFormatType,
-  type ElementNode,
-  type LexicalNode,
-} from 'lexical';
+import {type ElementNode, type LexicalNode} from 'lexical';
 
 export function $wrapContinuousInlinesInPlace(
-  domNode: Node,
   nodes: LexicalNode[],
   $createWrapperFn: () => ElementNode,
 ): void {
-  const textAlign = (domNode as HTMLElement).style
-    .textAlign as ElementFormatType;
-  // wrap contiguous inline child nodes in para
   let j = 0;
   for (let i = 0, wrapper: undefined | ElementNode; i < nodes.length; i++) {
     const node = nodes[i];
-    if ($isBlockElementNode(node)) {
-      if (textAlign && !node.getFormat()) {
-        node.setFormat(textAlign);
-      }
+    if (!node.isInline()) {
       wrapper = undefined;
       nodes[j++] = node;
     } else {
       if (!wrapper) {
-        nodes[j++] = wrapper = $createWrapperFn().setFormat(textAlign);
+        nodes[j++] = wrapper = $createWrapperFn();
       }
       wrapper.append(node);
     }

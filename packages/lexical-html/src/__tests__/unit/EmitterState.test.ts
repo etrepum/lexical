@@ -7,6 +7,13 @@
  */
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {
+  $createListItemNode,
+  $createListNode,
+  $isListItemNode,
+  $isListNode,
+  ListExtension,
+} from '@lexical/list';
+import {
   $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
@@ -19,7 +26,8 @@ import {
   $createTestShadowRootNode,
   TestShadowRootNode,
 } from 'lexical/src/__tests__/utils';
-import {assert, describe, expect, test} from 'vitest';
+import {ParagraphNode} from 'packages/lexical/Lexical';
+import {assert, describe, expect, test, vi} from 'vitest';
 
 import {$createChildEmitter, $createRootEmitter} from '../../EmitterState';
 import {StatefulNodeEmitter} from '../../types';
@@ -60,6 +68,10 @@ function $emitTree(
   });
 }
 
+function $t(...args: EmitTree): EmitTree {
+  return args;
+}
+
 function $emitTrees(trees: EmitTree[]): LexicalNode[] {
   const emitter = $createRootEmitter();
   for (const tree of trees) {
@@ -98,12 +110,25 @@ describe('$createRootEmitter', () => {
           $createTextNode('world'),
           $createParagraphNode(),
         ];
-        const emitter = $createRootEmitter();
+        const $createBlockNode = vi.fn($createParagraphNode);
+        const emitter = $createRootEmitter($createBlockNode);
         for (const node of mixed) {
           emitter.$emitNode(node);
         }
         const list = emitter.close();
-        expect(list).toEqual(mixed);
+        expect($createBlockNode).toHaveBeenCalledOnce();
+        const firstParagraph = $createBlockNode.mock.results[0].value;
+        const lastParagraph = mixed.at(-1);
+        assert(
+          $isParagraphNode(firstParagraph),
+          'firstParagraph must be a ParagraphNode',
+        );
+        assert(
+          $isParagraphNode(lastParagraph),
+          'lastParagraph must be a ParagraphNode',
+        );
+        expect(list).toEqual([firstParagraph, lastParagraph]);
+        expect(firstParagraph.getChildren()).toEqual(mixed.slice(0, -1));
       },
       {discrete: true},
     );
@@ -207,6 +232,39 @@ describe('$createRootEmitter', () => {
           'p0 got split into p1',
           'lifted to p2',
         ]);
+      },
+      {discrete: true},
+    );
+  });
+  test('blocks are flattened', () => {
+    const editor = buildEditorFromExtensions({
+      dependencies: [ListExtension],
+      name: 'root',
+    });
+    editor.update(
+      () => {
+        // <ul><li><p>first</p></li><li><p>second</p></li></ul>
+        const list = $emitTrees([
+          $t($createListNode(), [
+            $t($createListItemNode(), [
+              $t($createParagraphNode(), [$createTextNode('first')]),
+            ]),
+            $t($createListItemNode(), [
+              $t($createParagraphNode(), [$createTextNode('second')]),
+            ]),
+          ]),
+        ]);
+        expect(list).toHaveLength(1);
+        assert($isListNode(list[0]), 'ListNode');
+        const listItems = list[0].getChildren();
+        expect(listItems).toHaveLength(2);
+        listItems.forEach((li, i) => {
+          assert($isListItemNode(li), `listItems[${i}] is a ListItemNode`);
+          expect(li.getTextContent()).toEqual(['first', 'second'][i]);
+          const children = li.getChildren();
+          expect(children).toHaveLength(1);
+          assert($isTextNode(children[0]), 'children[0] is a TextNode');
+        });
       },
       {discrete: true},
     );

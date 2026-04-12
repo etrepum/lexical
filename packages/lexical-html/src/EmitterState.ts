@@ -20,6 +20,7 @@ import {
 } from 'lexical';
 
 import {$unwrapArtificialNodes} from './$unwrapArtificialNodes';
+import {$wrapContinuousInlinesInPlace} from './$wrapContinuousInlinesInPlace';
 
 type SOFT_BREAK_STATE = 'canSoftBreak' | 'shouldSoftBreak';
 
@@ -57,20 +58,38 @@ abstract class BaseEmitter<T extends ElementNode, Result>
   }
 }
 
+function $hasInlineAndBlockNodes(children: readonly LexicalNode[]): boolean {
+  if (children.length > 1) {
+    for (let i = 1, state = children[0].isInline(); i < children.length; i++) {
+      const nextState = children[i].isInline();
+      if (state !== nextState) {
+        return true;
+      }
+      state = nextState;
+    }
+  }
+  return false;
+}
+
 class RootEmitter extends BaseEmitter<
   ArtificialNode__DO_NOT_USE,
   LexicalNode[]
 > {
   artificialNodes: ArtificialNode__DO_NOT_USE[];
-  constructor() {
+  $createBlockNode: () => ElementNode;
+  constructor($createBlockNode: () => ElementNode) {
     super(new ArtificialNode__DO_NOT_USE());
     this.artificialNodes = [];
+    this.$createBlockNode = $createBlockNode;
   }
   close() {
     $unwrapArtificialNodes(this.artificialNodes);
     this.artificialNodes.length = 0;
     const children = this.element.getChildren();
     this.element.clear();
+    if ($hasInlineAndBlockNodes(children)) {
+      $wrapContinuousInlinesInPlace(children, this.$createBlockNode);
+    }
     return children;
   }
   $createArtificialNode(): ArtificialNode__DO_NOT_USE {
@@ -167,10 +186,12 @@ class BlockEmitter<T extends ElementNode> extends BaseEmitter<T, void> {
   close(): void {}
 }
 
-export function $createRootEmitter(): StatefulNodeEmitter<LexicalNode[]> & {
+export function $createRootEmitter(
+  $createBlockNode = $createParagraphNode,
+): StatefulNodeEmitter<LexicalNode[]> & {
   artificialNodes: ArtificialNode__DO_NOT_USE[];
 } {
-  return new RootEmitter();
+  return new RootEmitter($createBlockNode);
 }
 
 const DEFAULT_EMITTER_CONFIG: ChildEmitterConfig = {

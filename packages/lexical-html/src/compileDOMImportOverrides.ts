@@ -258,7 +258,7 @@ function compileImportNodes(
           node ? node.createParentElementNode() : $createParagraphNode(),
         ),
     };
-    const $rootEmitterState = $createRootEmitter();
+    const $rootEmitterState = $createRootEmitter($createParagraphNode);
     const stack: ImportStackEntry[] = [
       [
         rootNode,
