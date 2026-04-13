@@ -5,12 +5,47 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-export {
-  $generateDOMFromNodes,
-  $generateDOMFromRoot,
-  $generateHtmlFromNodes,
-} from './$generateDOMFromNodes';
-export {$generateNodesFromDOM} from './$generateNodesFromDOM';
+
+import type {
+  BaseSelection,
+  DOMChildConversion,
+  EditorDOMRenderConfig,
+  ElementFormatType,
+  LexicalEditor,
+  LexicalNode,
+} from 'lexical';
+
+import {$sliceSelectedTextNodeContent} from '@lexical/selection';
+import {
+  $createLineBreakNode,
+  $createParagraphNode,
+  $getEditor,
+  $getEditorDOMRenderConfig,
+  $getRoot,
+  $isBlockElementNode,
+  $isElementNode,
+  $isRootOrShadowRoot,
+  $isTextNode,
+  ArtificialNode__DO_NOT_USE,
+  ElementNode,
+  isBlockDomNode,
+  isDocumentFragment,
+  isDOMDocumentNode,
+  isHTMLElement,
+} from 'lexical';
+import invariant from 'shared/invariant';
+
+import {$unwrapArtificialNodes} from './$unwrapArtificialNodes';
+import {IGNORE_TAGS} from './constants';
+import {contextValue} from './ContextRecord';
+import {getConversionFunction} from './getConversionFunction';
+import {isDomNodeBetweenTwoInlineNodes} from './isDomNodeBetweenTwoInlineNodes';
+import {
+  $withRenderContext,
+  RenderContextExport,
+  RenderContextRoot,
+} from './RenderContext';
+
 export {contextUpdater, contextValue} from './ContextRecord';
 export {DOMImportExtension} from './DOMImportExtension';
 export {domOverride} from './domOverride';
@@ -56,3 +91,341 @@ export type {
   NodeNameMap,
   NodeNameToType,
 } from './types';
+
+/**
+ * How you parse your html string to get a document is left up to you. In the browser you can use the native
+ * DOMParser API to generate a document (see clipboard.ts), but to use in a headless environment you can use JSDom
+ * or an equivalent library and pass in the document here.
+ */
+export function $generateNodesFromDOM(
+  editor: LexicalEditor,
+  dom: Document | ParentNode,
+): Array<LexicalNode> {
+  const elements = isDOMDocumentNode(dom)
+    ? dom.body.childNodes
+    : dom.childNodes;
+  let lexicalNodes: Array<LexicalNode> = [];
+  const allArtificialNodes: Array<ArtificialNode__DO_NOT_USE> = [];
+  for (const element of elements) {
+    if (!IGNORE_TAGS.has(element.nodeName)) {
+      const lexicalNode = $createNodesFromDOM(
+        element,
+        editor,
+        allArtificialNodes,
+        false,
+      );
+      if (lexicalNode !== null) {
+        lexicalNodes = lexicalNodes.concat(lexicalNode);
+      }
+    }
+  }
+  $unwrapArtificialNodes(allArtificialNodes);
+
+  return lexicalNodes;
+}
+
+export function $generateHtmlFromNodes(
+  editor: LexicalEditor,
+  selection: BaseSelection | null = null,
+): string {
+  if (
+    typeof document === 'undefined' ||
+    (typeof window === 'undefined' && typeof global.window === 'undefined')
+  ) {
+    invariant(
+      false,
+      'To use $generateHtmlFromNodes in headless mode please initialize a headless browser implementation such as JSDom or use withDOM from @lexical/headless/dom before calling this function.',
+    );
+  }
+  return $generateDOMFromNodes(document.createElement('div'), selection, editor)
+    .innerHTML;
+}
+
+export function $generateDOMFromNodes<T extends HTMLElement | DocumentFragment>(
+  container: T,
+  selection: null | BaseSelection = null,
+  editor: LexicalEditor = $getEditor(),
+): T {
+  return $withRenderContext(
+    [contextValue(RenderContextExport, true)],
+    editor,
+  )(() => {
+    const root = $getRoot();
+    const domConfig = $getEditorDOMRenderConfig(editor);
+
+    const parentElementAppend = container.append.bind(container);
+    for (const topLevelNode of root.getChildren()) {
+      $appendNodesToHTML(
+        editor,
+        topLevelNode,
+        parentElementAppend,
+        selection,
+        domConfig,
+      );
+    }
+    return container;
+  });
+}
+
+export function $generateDOMFromRoot<T extends HTMLElement | DocumentFragment>(
+  container: T,
+  root: LexicalNode = $getRoot(),
+): T {
+  const editor = $getEditor();
+  return $withRenderContext(
+    [
+      contextValue(RenderContextExport, true),
+      contextValue(RenderContextRoot, true),
+    ],
+    editor,
+  )(() => {
+    const selection = null;
+    const domConfig = $getEditorDOMRenderConfig(editor);
+    const parentElementAppend = container.append.bind(container);
+    $appendNodesToHTML(editor, root, parentElementAppend, selection, domConfig);
+    return container;
+  });
+}
+
+function $appendNodesToHTML(
+  editor: LexicalEditor,
+  currentNode: LexicalNode,
+  parentElementAppend: (element: Node) => void,
+  selection: BaseSelection | null = null,
+  domConfig: EditorDOMRenderConfig = $getEditorDOMRenderConfig(editor),
+): boolean {
+  let shouldInclude = domConfig.$shouldInclude(currentNode, selection, editor);
+  const shouldExclude = domConfig.$shouldExclude(
+    currentNode,
+    selection,
+    editor,
+  );
+  let target = currentNode;
+
+  if (selection !== null && $isTextNode(currentNode)) {
+    target = $sliceSelectedTextNodeContent(selection, currentNode, 'clone');
+  }
+  const exportProps = domConfig.$exportDOM(target, editor);
+  const {element, after, append, $getChildNodes} = exportProps;
+
+  if (!element) {
+    return false;
+  }
+
+  const fragment = document.createDocumentFragment();
+  const children = $getChildNodes
+    ? $getChildNodes()
+    : $isElementNode(target)
+      ? target.getChildren()
+      : [];
+
+  const fragmentAppend = fragment.append.bind(fragment);
+  for (const childNode of children) {
+    const shouldIncludeChild = $appendNodesToHTML(
+      editor,
+      childNode,
+      fragmentAppend,
+      selection,
+      domConfig,
+    );
+
+    if (
+      !shouldInclude &&
+      shouldIncludeChild &&
+      domConfig.$extractWithChild(
+        currentNode,
+        childNode,
+        selection,
+        'html',
+        editor,
+      )
+    ) {
+      shouldInclude = true;
+    }
+  }
+
+  if (shouldInclude && !shouldExclude) {
+    if (isHTMLElement(element) || isDocumentFragment(element)) {
+      if (append) {
+        append(fragment);
+      } else {
+        element.append(fragment);
+      }
+    }
+    parentElementAppend(element);
+
+    if (after) {
+      const newElement = after.call(target, element);
+      if (newElement) {
+        if (isDocumentFragment(element)) {
+          element.replaceChildren(newElement);
+        } else {
+          element.replaceWith(newElement);
+        }
+      }
+    }
+  } else {
+    parentElementAppend(fragment);
+  }
+
+  return shouldInclude;
+}
+
+function $wrapContinuousInlines(
+  domNode: Node,
+  nodes: Array<LexicalNode>,
+  $createWrapperFn: () => ElementNode,
+): Array<LexicalNode> {
+  const textAlign = (domNode as HTMLElement).style
+    .textAlign as ElementFormatType;
+  const out: Array<LexicalNode> = [];
+  let continuousInlines: Array<LexicalNode> = [];
+  // wrap contiguous inline child nodes in para
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    if ($isBlockElementNode(node)) {
+      if (textAlign && !node.getFormat()) {
+        node.setFormat(textAlign);
+      }
+      out.push(node);
+    } else {
+      continuousInlines.push(node);
+      if (
+        i === nodes.length - 1 ||
+        (i < nodes.length - 1 && $isBlockElementNode(nodes[i + 1]))
+      ) {
+        const wrapper = $createWrapperFn();
+        wrapper.setFormat(textAlign);
+        wrapper.append(...continuousInlines);
+        out.push(wrapper);
+        continuousInlines = [];
+      }
+    }
+  }
+  return out;
+}
+
+export function $createNodesFromDOM(
+  node: Node,
+  editor: LexicalEditor,
+  allArtificialNodes: Array<ArtificialNode__DO_NOT_USE>,
+  hasBlockAncestorLexicalNode: boolean,
+  forChildMap: Map<string, DOMChildConversion> = new Map(),
+  parentLexicalNode?: LexicalNode | null | undefined,
+): Array<LexicalNode> {
+  let lexicalNodes: Array<LexicalNode> = [];
+
+  if (IGNORE_TAGS.has(node.nodeName)) {
+    return lexicalNodes;
+  }
+
+  let currentLexicalNode = null;
+  const transformFunction = getConversionFunction(node, editor);
+  const transformOutput = transformFunction
+    ? transformFunction(node as HTMLElement)
+    : null;
+  let postTransform = null;
+
+  if (transformOutput !== null) {
+    postTransform = transformOutput.after;
+    const transformNodes = transformOutput.node;
+    currentLexicalNode = Array.isArray(transformNodes)
+      ? transformNodes[transformNodes.length - 1]
+      : transformNodes;
+
+    if (currentLexicalNode !== null) {
+      for (const [, forChildFunction] of forChildMap) {
+        currentLexicalNode = forChildFunction(
+          currentLexicalNode,
+          parentLexicalNode,
+        );
+
+        if (!currentLexicalNode) {
+          break;
+        }
+      }
+
+      if (currentLexicalNode) {
+        lexicalNodes.push(
+          ...(Array.isArray(transformNodes)
+            ? transformNodes
+            : [currentLexicalNode]),
+        );
+      }
+    }
+
+    if (transformOutput.forChild != null) {
+      forChildMap.set(node.nodeName, transformOutput.forChild);
+    }
+  }
+
+  // If the DOM node doesn't have a transformer, we don't know what
+  // to do with it but we still need to process any childNodes.
+  const children = node.childNodes;
+  let childLexicalNodes = [];
+
+  const hasBlockAncestorLexicalNodeForChildren =
+    currentLexicalNode != null && $isRootOrShadowRoot(currentLexicalNode)
+      ? false
+      : (currentLexicalNode != null &&
+          $isBlockElementNode(currentLexicalNode)) ||
+        hasBlockAncestorLexicalNode;
+
+  for (let i = 0; i < children.length; i++) {
+    childLexicalNodes.push(
+      ...$createNodesFromDOM(
+        children[i],
+        editor,
+        allArtificialNodes,
+        hasBlockAncestorLexicalNodeForChildren,
+        new Map(forChildMap),
+        currentLexicalNode,
+      ),
+    );
+  }
+
+  if (postTransform != null) {
+    childLexicalNodes = postTransform(childLexicalNodes);
+  }
+
+  if (isBlockDomNode(node)) {
+    if (!hasBlockAncestorLexicalNodeForChildren) {
+      childLexicalNodes = $wrapContinuousInlines(
+        node,
+        childLexicalNodes,
+        $createParagraphNode,
+      );
+    } else {
+      childLexicalNodes = $wrapContinuousInlines(
+        node,
+        childLexicalNodes,
+        () => {
+          const artificialNode = new ArtificialNode__DO_NOT_USE();
+          allArtificialNodes.push(artificialNode);
+          return artificialNode;
+        },
+      );
+    }
+  }
+
+  if (currentLexicalNode == null) {
+    if (childLexicalNodes.length > 0) {
+      // If it hasn't been converted to a LexicalNode, we hoist its children
+      // up to the same level as it.
+      lexicalNodes = lexicalNodes.concat(childLexicalNodes);
+    } else {
+      if (isBlockDomNode(node) && isDomNodeBetweenTwoInlineNodes(node)) {
+        // Empty block dom node that hasnt been converted, we replace it with a linebreak if its between inline nodes
+        lexicalNodes = lexicalNodes.concat($createLineBreakNode());
+      }
+    }
+  } else {
+    if ($isElementNode(currentLexicalNode)) {
+      // If the current node is a ElementNode after conversion,
+      // we can append all the children to it.
+      currentLexicalNode.append(...childLexicalNodes);
+    }
+  }
+
+  return lexicalNodes;
+}
