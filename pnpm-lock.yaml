@@ -526,6 +526,9 @@ importers:
 
   packages/lexical-html:
     dependencies:
+      '@lexical/extension':
+        specifier: workspace:*
+        version: link:../lexical-extension
       '@lexical/selection':
         specifier: workspace:*
         version: link:../lexical-selection

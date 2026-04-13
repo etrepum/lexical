@@ -9,6 +9,7 @@
 import type {
   CommandPayloadType,
   EditorConfig,
+  EditorDOMRenderConfig,
   EditorThemeClasses,
   Klass,
   LexicalCommand,
@@ -63,7 +64,7 @@ import {
   RTL_REGEX,
   TEXT_TYPE_TO_FORMAT,
 } from './LexicalConstants';
-import {LexicalEditor} from './LexicalEditor';
+import {DEFAULT_EDITOR_DOM_CONFIG, LexicalEditor} from './LexicalEditor';
 import {flushRootMutations} from './LexicalMutations';
 import {
   $isEphemeral,
@@ -2271,4 +2272,10 @@ export function $createChildrenArray(
     nodeKey = node.__next;
   }
   return children;
+}
+
+export function $getEditorDOMRenderConfig(
+  editor: LexicalEditor = $getEditor(),
+): EditorDOMRenderConfig {
+  return editor._config.dom || DEFAULT_EDITOR_DOM_CONFIG;
 }

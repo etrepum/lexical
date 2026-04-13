@@ -411,4 +411,9 @@ export interface InitialEditorConfig {
    * to update the editor (once).
    */
   $initialEditorState?: InitialEditorStateType;
+  /**
+   * @internal @experimental
+   * Overrides for DOM rendering configuration
+   */
+  dom?: CreateEditorArgs['dom'];
 }
