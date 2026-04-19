@@ -346,8 +346,23 @@ const config: Config = {
     './plugins/webpack-buffer',
     async function webpackLexicalModules() {
       return {
-        configureWebpack() {
+        configureWebpack(_config, _isServer, {currentBundler}) {
+          const plugins = [];
+          if (!process.env.FB_INTERNAL) {
+            // The docusaurus-plugin-internaldocs-fb client module makes a
+            // `fetch('https://staticdocs.thefacebook.com/ping')` request and
+            // posts to `window.parent`. Both are meaningful only inside the
+            // Meta intranet, so on the public site we replace the module with
+            // a no-op to avoid the ERR_NAME_NOT_RESOLVED console error.
+            plugins.push(
+              new currentBundler.instance.NormalModuleReplacementPlugin(
+                /docusaurus-plugin-internaldocs-fb[\\/]module(\.js)?$/,
+                path.resolve(__dirname, 'src/stubs/internaldocs-fb-module.js'),
+              ),
+            );
+          }
           return {
+            plugins,
             resolve: {
               alias: {
                 ...buildLexicalWebpackAliases(),
