@@ -102,6 +102,7 @@ export function LexicalNestedComposer({
   const [parentEditor, {getTheme: getParentTheme}] = parentContext;
 
   const composerContext: [LexicalEditor, LexicalComposerContextType] = useMemo(
+    /* eslint-disable react-hooks/immutability */
     () => {
       const composerTheme: EditorThemeClasses | undefined =
         initialTheme || getParentTheme() || undefined;
@@ -176,6 +177,7 @@ export function LexicalNestedComposer({
 
       return [initialEditor, context];
     },
+    /* eslint-enable react-hooks/immutability */
 
     // We only do this for init
     // eslint-disable-next-line react-hooks/exhaustive-deps
