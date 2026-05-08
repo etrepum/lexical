@@ -416,6 +416,62 @@ function $reconcileChildren(
   subTreeTextContent = '';
   const dom: HTMLElement & LexicalPrivateDOM = slot.element;
 
+  if (
+    prevChildrenSize === nextChildrenSize &&
+    prevChildrenSize > 0 &&
+    prevElement.__first === nextElement.__first &&
+    prevElement.__last === nextElement.__last &&
+    !activeEditor._cloneNotNeeded.has(prevElement.__key)
+  ) {
+    let nodeKey: NodeKey | null = prevElement.__first;
+    let i = 0;
+    while (nodeKey !== null) {
+      const node = activeNextNodeMap.get(nodeKey);
+      if (node === undefined) {
+        break;
+      }
+      const isDirty =
+        treatAllNodesAsDirty ||
+        activeDirtyLeaves.has(nodeKey) ||
+        activeDirtyElements.has(nodeKey);
+      if (isDirty) {
+        $reconcileNode(nodeKey, dom);
+      } else {
+        // Subtree is structurally and content-clean — accumulate the
+        // cached text from the existing DOM rather than walking back
+        // through `$reconcileNode`.
+        let text: string;
+        if ($isElementNode(node)) {
+          const childDom = activePrevKeyToDOMMap.get(nodeKey) as
+            | (HTMLElement & LexicalPrivateDOM)
+            | undefined;
+          const cached = childDom && childDom.__lexicalTextContent;
+          text = typeof cached === 'string' ? cached : node.getTextContent();
+        } else {
+          text = node.getTextContent();
+        }
+        subTreeTextContent += text;
+      }
+      if ($isTextNode(node)) {
+        if (subTreeTextFormat === null) {
+          subTreeTextFormat = node.getFormat();
+          subTreeTextStyle = node.getStyle();
+        }
+      } else if (
+        $isElementNode(node) &&
+        i < nextChildrenSize - 1 &&
+        !node.isInline()
+      ) {
+        subTreeTextContent += DOUBLE_LINE_BREAK;
+      }
+      nodeKey = node.__next;
+      i++;
+    }
+    dom.__lexicalTextContent = subTreeTextContent;
+    subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
+    return;
+  }
+
   if (prevChildrenSize === 1 && nextChildrenSize === 1) {
     const prevFirstChildKey: NodeKey = prevElement.__first!;
     const nextFirstChildKey: NodeKey = nextElement.__first!;
