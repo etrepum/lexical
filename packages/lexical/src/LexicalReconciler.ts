@@ -63,6 +63,7 @@ let activeDirtyLeaves: Set<NodeKey>;
 let activePrevNodeMap: NodeMap;
 let activeNextNodeMap: NodeMap;
 let activePrevKeyToDOMMap: Map<NodeKey, HTMLElement>;
+let activeDirtyChildrenByParent: Map<NodeKey, Set<NodeKey>>;
 let mutatedNodes: MutatedNodes;
 let activeEditorDOMRenderConfig: EditorDOMRenderConfig;
 
@@ -405,6 +406,119 @@ function $reconcileChildrenWithDirection(
   reconcileTextStyle(nextElement);
 }
 
+// Compute a node's text length using only the previous editor state. The
+// public `getTextContent()` chain routes through `getLatest()` (TextNode) or
+// `getActiveEditor()` (ElementNode), both of which resolve via the *next*
+// node map and return the wrong length for nodes dirtied during this update.
+// Read instance fields directly instead, falling back to the DOM cache for
+// previously reconciled subtrees.
+function $prevSubtreeTextLength(key: NodeKey): number {
+  const node = activePrevNodeMap.get(key);
+  if (node === undefined) {
+    return 0;
+  }
+  if ($isTextNode(node)) {
+    return node.__text.length;
+  }
+  if (!$isElementNode(node)) {
+    // LineBreakNode / DecoratorNode and other leaves. Built-in implementations
+    // are state-invariant (`'\n'` constant / empty default); custom subclasses
+    // that route through `getLatest()` will resolve via the next state — that
+    // is a known caller contract for any node that opts in to the suffix
+    // fast path.
+    return node.getTextContent().length;
+  }
+  const childDom = activePrevKeyToDOMMap.get(key) as
+    | (HTMLElement & LexicalPrivateDOM)
+    | undefined;
+  const cached = childDom && childDom.__lexicalTextContent;
+  if (typeof cached === 'string') {
+    return cached.length;
+  }
+  let total = 0;
+  let childKey: NodeKey | null = node.__first;
+  while (childKey !== null) {
+    const childNode = activePrevNodeMap.get(childKey);
+    if (childNode === undefined) {
+      break;
+    }
+    total += $prevSubtreeTextLength(childKey);
+    if (
+      $isElementNode(childNode) &&
+      !childNode.isInline() &&
+      childNode.__next !== null
+    ) {
+      total += DOUBLE_LINE_BREAK.length;
+    }
+    childKey = childNode.__next;
+  }
+  return total;
+}
+
+function $buildDirtyChildrenByParent(): Map<NodeKey, Set<NodeKey>> {
+  const map = new Map<NodeKey, Set<NodeKey>>();
+  const addToMap = (key: NodeKey): void => {
+    const node = activeNextNodeMap.get(key);
+    if (node === undefined) {
+      return;
+    }
+    const parentKey = node.__parent;
+    if (parentKey === null) {
+      return;
+    }
+    let set = map.get(parentKey);
+    if (set === undefined) {
+      set = new Set();
+      map.set(parentKey, set);
+    }
+    set.add(key);
+  };
+  for (const key of activeDirtyElements.keys()) {
+    addToMap(key);
+  }
+  for (const key of activeDirtyLeaves) {
+    addToMap(key);
+  }
+  return map;
+}
+
+// Returns the key of the first child in the K-element suffix if all dirty
+// children form a contiguous suffix of `parent` (and 0 < K < total children).
+// Returns null otherwise — caller falls back to the full-walk fast path.
+function $suffixStartIfContiguous(
+  parent: ElementNode,
+  dirty: Set<NodeKey>,
+): NodeKey | null {
+  const k = dirty.size;
+  if (k === 0 || k >= parent.__size) {
+    return null;
+  }
+  let cur: NodeKey | null = parent.__last;
+  let suffixStart: NodeKey | null = null;
+  let i = 0;
+  while (cur !== null && i < k) {
+    if (!dirty.has(cur)) {
+      return null;
+    }
+    suffixStart = cur;
+    const node = activeNextNodeMap.get(cur);
+    if (node === undefined) {
+      return null;
+    }
+    cur = node.__prev;
+    i++;
+  }
+  if (i !== k) {
+    return null;
+  }
+  // The element immediately before the suffix must be non-dirty
+  // (cur === null is excluded by the k < parent.__size check above).
+  if (cur !== null && dirty.has(cur)) {
+    return null;
+  }
+  return suffixStart;
+}
+
 function $reconcileChildren(
   prevElement: ElementNode,
   nextElement: ElementNode,
@@ -423,6 +537,95 @@ function $reconcileChildren(
     prevElement.__last === nextElement.__last &&
     !activeEditor._cloneNotNeeded.has(prevElement.__key)
   ) {
+    // Suffix-incremental fast path: when the dirty children form a
+    // contiguous suffix and the parent already has a valid cached text,
+    // splice the new suffix into the cache instead of walking every child.
+    // The non-dirty prefix (and its DLB into the suffix) stays untouched,
+    // so format/style propagation — which captures the first text descendant
+    // — is unaffected.
+    const cachedParentText = dom.__lexicalTextContent;
+    const dirtyChildren = activeDirtyChildrenByParent.get(prevElement.__key);
+    if (
+      !treatAllNodesAsDirty &&
+      typeof cachedParentText === 'string' &&
+      dirtyChildren !== undefined
+    ) {
+      const suffixStartKey = $suffixStartIfContiguous(
+        prevElement,
+        dirtyChildren,
+      );
+      if (suffixStartKey !== null) {
+        const k = dirtyChildren.size;
+        let oldSuffixLength = 0;
+        let cur: NodeKey | null = suffixStartKey;
+        let i = 0;
+        while (cur !== null && i < k) {
+          const prevNode = activePrevNodeMap.get(cur);
+          if (prevNode === undefined) {
+            break;
+          }
+          oldSuffixLength += $prevSubtreeTextLength(cur);
+          if (i < k - 1 && $isElementNode(prevNode) && !prevNode.isInline()) {
+            oldSuffixLength += DOUBLE_LINE_BREAK.length;
+          }
+          const nextNodeForLink = activeNextNodeMap.get(cur);
+          cur = nextNodeForLink ? nextNodeForLink.__next : null;
+          i++;
+        }
+
+        cur = suffixStartKey;
+        i = 0;
+        while (cur !== null && i < k) {
+          const node = activeNextNodeMap.get(cur);
+          if (node === undefined) {
+            break;
+          }
+          $reconcileNode(cur, dom);
+          cur = node.__next;
+          i++;
+        }
+
+        let newSuffix = '';
+        cur = suffixStartKey;
+        i = 0;
+        while (cur !== null && i < k) {
+          const node = activeNextNodeMap.get(cur);
+          if (node === undefined) {
+            break;
+          }
+          let text: string;
+          if ($isElementNode(node)) {
+            const childDom = activePrevKeyToDOMMap.get(cur) as
+              | (HTMLElement & LexicalPrivateDOM)
+              | undefined;
+            const cached = childDom && childDom.__lexicalTextContent;
+            text = typeof cached === 'string' ? cached : node.getTextContent();
+          } else {
+            text = node.getTextContent();
+          }
+          newSuffix += text;
+          if (i < k - 1 && $isElementNode(node) && !node.isInline()) {
+            newSuffix += DOUBLE_LINE_BREAK;
+          }
+          cur = node.__next;
+          i++;
+        }
+
+        const newParentText =
+          cachedParentText.slice(0, cachedParentText.length - oldSuffixLength) +
+          newSuffix;
+        dom.__lexicalTextContent = newParentText;
+        subTreeTextContent = previousSubTreeTextContent + newParentText;
+        // First text descendant lives in the non-dirty prefix, so the parent's
+        // textFormat / textStyle invariant didn't change. Discard whatever the
+        // recursive `$reconcileNode` calls left in these module-level slots
+        // so the caller's `reconcileTextFormat` / `reconcileTextStyle` no-ops.
+        subTreeTextFormat = null;
+        subTreeTextStyle = null;
+        return;
+      }
+    }
+
     let nodeKey: NodeKey | null = prevElement.__first;
     let i = 0;
     while (nodeKey !== null) {
@@ -909,6 +1112,7 @@ export function $reconcileRoot(
   activeNextNodeMap = nextEditorState._nodeMap;
   activeEditorStateReadOnly = nextEditorState._readOnly;
   activePrevKeyToDOMMap = cloneMap(editor._keyToDOMMap);
+  activeDirtyChildrenByParent = $buildDirtyChildrenByParent();
   // We keep track of mutated nodes so we can trigger mutation
   // listeners later in the update cycle.
   const currentMutatedNodes = new Map();
@@ -934,6 +1138,8 @@ export function $reconcileRoot(
   activeEditorConfig = undefined;
   // @ts-ignore
   activePrevKeyToDOMMap = undefined;
+  // @ts-ignore
+  activeDirtyChildrenByParent = undefined;
   // @ts-ignore
   mutatedNodes = undefined;
   activeEditorDOMRenderConfig = DEFAULT_EDITOR_DOM_CONFIG;

@@ -15,6 +15,7 @@ import {
   $getRoot,
   type NodeMutation,
   ParagraphNode,
+  TextNode,
 } from 'lexical';
 import {afterEach, describe, expect, test, vi} from 'vitest';
 
@@ -454,6 +455,246 @@ describe('LexicalReconciler', () => {
         const para = $getRoot().getFirstChildOrThrow<ParagraphNode>();
         const dom = editor.getElementByKey(para.getKey());
         expect(dom!.style.paddingInlineStart).toBe('');
+      });
+    });
+  });
+
+  describe('children fast path: contiguous-suffix incremental update', () => {
+    function createReconcilerEditor() {
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        defineExtension({name: 'reconciler-suffix-test'}),
+      );
+      editor.setRootElement(document.createElement('div'));
+      return editor;
+    }
+
+    test('typing at the end of the last paragraph keeps prefix DLB', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['alpha', 'beta', 'gamma']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('alpha\n\nbeta\n\ngamma');
+      });
+
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
+          const text = last.getFirstChildOrThrow<TextNode>();
+          text.setTextContent(text.getTextContent() + '!');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('alpha\n\nbeta\n\ngamma!');
+      });
+    });
+
+    test('multiple contiguous dirty children at the end', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['a', 'b', 'c', 'd']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          const root = $getRoot();
+          const c = root.getChildAtIndex<ParagraphNode>(2)!;
+          const d = root.getChildAtIndex<ParagraphNode>(3)!;
+          c.getFirstChildOrThrow<TextNode>().setTextContent('cc');
+          d.getFirstChildOrThrow<TextNode>().setTextContent('dd');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\ncc\n\ndd');
+      });
+    });
+
+    test('non-contiguous dirty children take the existing fast path', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['x', 'y', 'z']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          const root = $getRoot();
+          root
+            .getChildAtIndex<ParagraphNode>(0)!
+            .getFirstChildOrThrow<TextNode>()
+            .setTextContent('xx');
+          root
+            .getChildAtIndex<ParagraphNode>(2)!
+            .getFirstChildOrThrow<TextNode>()
+            .setTextContent('zz');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('xx\n\ny\n\nzz');
+      });
+    });
+
+    test('format toggle on the last paragraph propagates to __textFormat', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['head', 'foot']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
+          last.getFirstChildOrThrow<TextNode>().toggleFormat('bold');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const root = $getRoot();
+        const head = root.getFirstChildOrThrow<ParagraphNode>();
+        const foot = root.getLastChildOrThrow<ParagraphNode>();
+        // Each paragraph's __textFormat is sourced from its own first text
+        // descendant — head is unchanged (its first text is plain), foot now
+        // reflects the toggled bold flag.
+        expect(head.getTextFormat()).toBe(0);
+        expect(foot.getTextFormat()).not.toBe(0);
+        expect(root.__cachedText).toBe('head\n\nfoot');
+      });
+    });
+
+    test('empty trailing paragraph contributes zero length', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          root.append(
+            $createParagraphNode().append($createTextNode('hello')),
+            $createParagraphNode(),
+          );
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('hello\n\n');
+      });
+
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
+          last.append($createTextNode('world'));
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('hello\n\nworld');
+      });
+    });
+
+    test('linebreak-bounded text nodes update suffix without extra DLB', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          para.append(
+            $createTextNode('top'),
+            $createLineBreakNode(),
+            $createTextNode('bottom'),
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('top\nbottom');
+      });
+
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow<ParagraphNode>();
+          para.getLastChildOrThrow<TextNode>().setTextContent('BOTTOM!');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('top\nBOTTOM!');
+      });
+    });
+
+    // Regression: $prevSubtreeTextLength must read the previous-state instance
+    // text directly. Routing through getTextContent() would resolve via
+    // getLatest() → next state, miscomputing oldSuffixLength when the dirty
+    // tail TextNode's length actually changed.
+    test('TextNode-direct-child suffix with length change: prefix preserved', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          para.append(
+            $createTextNode('hello '),
+            $createTextNode('world').toggleFormat('bold'),
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('hello world');
+      });
+
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow<ParagraphNode>();
+          para.getLastChildOrThrow<TextNode>().setTextContent('world!!');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('hello world!!');
       });
     });
   });
