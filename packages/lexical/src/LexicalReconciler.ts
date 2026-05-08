@@ -14,7 +14,12 @@ import type {
   MutationListeners,
   RegisteredNodes,
 } from './LexicalEditor';
-import type {LexicalPrivateDOM, NodeKey, NodeMap} from './LexicalNode';
+import type {
+  LexicalNode,
+  LexicalPrivateDOM,
+  NodeKey,
+  NodeMap,
+} from './LexicalNode';
 import type {ElementDOMSlot, ElementNode} from './nodes/LexicalElementNode';
 
 import invariant from 'shared/invariant';
@@ -52,6 +57,39 @@ type IntentionallyMarkedAsDirtyElement = boolean;
 /**
  * @internal
  *
+ * A reconcile-managed cache of `getTextContentSize()` keyed on node
+ * identity. The reconciler sets this on every reconciled node at the end
+ * of `$reconcileNode`, so the previous editor state's nodes always carry a
+ * valid cached size from the cycle that just committed. `getWritable()`
+ * clones produce a fresh instance whose entry is missing, so writable
+ * nodes never carry a stale label across mutations.
+ *
+ * Backed by a `WeakMap` rather than a Symbol property so the cache survives
+ * `Object.freeze(node)` in dev mode without needing to opt the property out
+ * of the freeze.
+ *
+ * Suffix-incremental fast path reads this off the previous-state instance
+ * to get the pre-reconcile size of dirty children in O(1), avoiding both
+ * the `getLatest()` -> next-state trap and a recursive prev-tree walk.
+ */
+const cachedTextSizeMap = new WeakMap<LexicalNode, number>();
+
+function $cachedTextSize(node: LexicalNode): number {
+  let cached = cachedTextSizeMap.get(node);
+  if (cached === undefined) {
+    cached = node.getTextContentSize();
+    cachedTextSizeMap.set(node, cached);
+  }
+  return cached;
+}
+
+function $setCachedTextSize(node: LexicalNode, size: number): void {
+  cachedTextSizeMap.set(node, size);
+}
+
+/**
+ * @internal
+ *
  * Bench-only escape hatch. When `skipChildrenFastPath` is true the children
  * fast paths in `$reconcileChildren` are skipped and the general path
  * (`$reconcileNodeChildren`) runs instead — used by `editorCycle.bench.ts`
@@ -75,7 +113,7 @@ let activeDirtyElements: Map<NodeKey, IntentionallyMarkedAsDirtyElement>;
 let activeDirtyLeaves: Set<NodeKey>;
 let activePrevNodeMap: NodeMap;
 let activeNextNodeMap: NodeMap;
-let activePrevKeyToDOMMap: Map<NodeKey, HTMLElement>;
+let activePrevKeyToDOMMap: Map<NodeKey, HTMLElement & LexicalPrivateDOM>;
 let activeDirtyChildrenByParent: Map<NodeKey, Set<NodeKey>>;
 let mutatedNodes: MutatedNodes;
 let activeEditorDOMRenderConfig: EditorDOMRenderConfig;
@@ -292,6 +330,22 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
 
   activeEditorDOMRenderConfig.$decorateDOM(node, null, dom, activeEditor);
 
+  // Same cached-text-size invariant as $reconcileNode — every node leaving
+  // a reconciler entry point in the next state carries a current label.
+  let createdCachedSize: number;
+  if ($isElementNode(node)) {
+    const cachedText = (dom as HTMLElement & LexicalPrivateDOM)
+      .__lexicalTextContent;
+    createdCachedSize =
+      typeof cachedText === 'string'
+        ? cachedText.length
+        : node.getTextContentSize();
+  } else if ($isTextNode(node)) {
+    createdCachedSize = node.__text.length;
+  } else {
+    createdCachedSize = node.getTextContentSize();
+  }
+  $setCachedTextSize(node, createdCachedSize);
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(node);
@@ -419,55 +473,6 @@ function $reconcileChildrenWithDirection(
   reconcileTextStyle(nextElement);
 }
 
-// Compute a node's text length using only the previous editor state. The
-// public `getTextContent()` chain routes through `getLatest()` (TextNode) or
-// `getActiveEditor()` (ElementNode), both of which resolve via the *next*
-// node map and return the wrong length for nodes dirtied during this update.
-// Read instance fields directly instead, falling back to the DOM cache for
-// previously reconciled subtrees.
-function $prevSubtreeTextLength(key: NodeKey): number {
-  const node = activePrevNodeMap.get(key);
-  if (node === undefined) {
-    return 0;
-  }
-  if ($isTextNode(node)) {
-    return node.__text.length;
-  }
-  if (!$isElementNode(node)) {
-    // LineBreakNode / DecoratorNode and other leaves. Built-in implementations
-    // are state-invariant (`'\n'` constant / empty default); custom subclasses
-    // that route through `getLatest()` will resolve via the next state — that
-    // is a known caller contract for any node that opts in to the suffix
-    // fast path.
-    return node.getTextContent().length;
-  }
-  const childDom = activePrevKeyToDOMMap.get(key) as
-    | (HTMLElement & LexicalPrivateDOM)
-    | undefined;
-  const cached = childDom && childDom.__lexicalTextContent;
-  if (typeof cached === 'string') {
-    return cached.length;
-  }
-  let total = 0;
-  let childKey: NodeKey | null = node.__first;
-  while (childKey !== null) {
-    const childNode = activePrevNodeMap.get(childKey);
-    if (childNode === undefined) {
-      break;
-    }
-    total += $prevSubtreeTextLength(childKey);
-    if (
-      $isElementNode(childNode) &&
-      !childNode.isInline() &&
-      childNode.__next !== null
-    ) {
-      total += DOUBLE_LINE_BREAK.length;
-    }
-    childKey = childNode.__next;
-  }
-  return total;
-}
-
 function $buildDirtyChildrenByParent(): Map<NodeKey, Set<NodeKey>> {
   const map = new Map<NodeKey, Set<NodeKey>>();
   const addToMap = (key: NodeKey): void => {
@@ -578,7 +583,7 @@ function $reconcileChildren(
           if (prevNode === undefined) {
             break;
           }
-          oldSuffixLength += $prevSubtreeTextLength(cur);
+          oldSuffixLength += $cachedTextSize(prevNode);
           if (i < k - 1 && $isElementNode(prevNode) && !prevNode.isInline()) {
             oldSuffixLength += DOUBLE_LINE_BREAK.length;
           }
@@ -609,9 +614,7 @@ function $reconcileChildren(
           }
           let text: string;
           if ($isElementNode(node)) {
-            const childDom = activePrevKeyToDOMMap.get(cur) as
-              | (HTMLElement & LexicalPrivateDOM)
-              | undefined;
+            const childDom = activePrevKeyToDOMMap.get(cur);
             const cached = childDom && childDom.__lexicalTextContent;
             text = typeof cached === 'string' ? cached : node.getTextContent();
           } else {
@@ -659,9 +662,7 @@ function $reconcileChildren(
         // through `$reconcileNode`.
         let text: string;
         if ($isElementNode(node)) {
-          const childDom = activePrevKeyToDOMMap.get(nodeKey) as
-            | (HTMLElement & LexicalPrivateDOM)
-            | undefined;
+          const childDom = activePrevKeyToDOMMap.get(nodeKey);
           const cached = childDom && childDom.__lexicalTextContent;
           text = typeof cached === 'string' ? cached : node.getTextContent();
         } else {
@@ -962,6 +963,23 @@ function $reconcileNode(
     dom,
     activeEditor,
   );
+  // Maintain the cached-text-size invariant: every reconciled node carries
+  // a current label so the next cycle's reads of the previous-state
+  // instance are O(1) and never need to fall through to a recursive walk
+  // that would resolve via `getLatest()` -> next state.
+  let cachedSize: number;
+  if ($isElementNode(nextNode)) {
+    const cachedText = dom.__lexicalTextContent;
+    cachedSize =
+      typeof cachedText === 'string'
+        ? cachedText.length
+        : nextNode.getTextContentSize();
+  } else if ($isTextNode(nextNode)) {
+    cachedSize = nextNode.__text.length;
+  } else {
+    cachedSize = nextNode.getTextContentSize();
+  }
+  $setCachedTextSize(nextNode, cachedSize);
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(nextNode);

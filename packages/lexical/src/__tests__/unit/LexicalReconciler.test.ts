@@ -13,10 +13,12 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $isParagraphNode,
+  $isTextNode,
   type NodeMutation,
   ParagraphNode,
-  TextNode,
 } from 'lexical';
+import invariant from 'shared/invariant';
 import {afterEach, describe, expect, test, vi} from 'vitest';
 
 import {$getReconciledDirection} from '../../LexicalReconciler';
@@ -488,8 +490,10 @@ describe('LexicalReconciler', () => {
 
       editor.update(
         () => {
-          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
-          const text = last.getFirstChildOrThrow<TextNode>();
+          const last = $getRoot().getLastChildOrThrow();
+          invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+          const text = last.getFirstChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
           text.setTextContent(text.getTextContent() + '!');
         },
         {discrete: true},
@@ -516,10 +520,16 @@ describe('LexicalReconciler', () => {
       editor.update(
         () => {
           const root = $getRoot();
-          const c = root.getChildAtIndex<ParagraphNode>(2)!;
-          const d = root.getChildAtIndex<ParagraphNode>(3)!;
-          c.getFirstChildOrThrow<TextNode>().setTextContent('cc');
-          d.getFirstChildOrThrow<TextNode>().setTextContent('dd');
+          const c = root.getChildAtIndex(2);
+          const d = root.getChildAtIndex(3);
+          invariant($isParagraphNode(c), 'c must be a ParagraphNode');
+          invariant($isParagraphNode(d), 'd must be a ParagraphNode');
+          const cText = c.getFirstChildOrThrow();
+          const dText = d.getFirstChildOrThrow();
+          invariant($isTextNode(cText), 'cText must be a TextNode');
+          invariant($isTextNode(dText), 'dText must be a TextNode');
+          cText.setTextContent('cc');
+          dText.setTextContent('dd');
         },
         {discrete: true},
       );
@@ -545,14 +555,16 @@ describe('LexicalReconciler', () => {
       editor.update(
         () => {
           const root = $getRoot();
-          root
-            .getChildAtIndex<ParagraphNode>(0)!
-            .getFirstChildOrThrow<TextNode>()
-            .setTextContent('xx');
-          root
-            .getChildAtIndex<ParagraphNode>(2)!
-            .getFirstChildOrThrow<TextNode>()
-            .setTextContent('zz');
+          const first = root.getChildAtIndex(0);
+          const third = root.getChildAtIndex(2);
+          invariant($isParagraphNode(first), 'first must be a ParagraphNode');
+          invariant($isParagraphNode(third), 'third must be a ParagraphNode');
+          const firstText = first.getFirstChildOrThrow();
+          const thirdText = third.getFirstChildOrThrow();
+          invariant($isTextNode(firstText), 'firstText must be a TextNode');
+          invariant($isTextNode(thirdText), 'thirdText must be a TextNode');
+          firstText.setTextContent('xx');
+          thirdText.setTextContent('zz');
         },
         {discrete: true},
       );
@@ -577,16 +589,21 @@ describe('LexicalReconciler', () => {
 
       editor.update(
         () => {
-          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
-          last.getFirstChildOrThrow<TextNode>().toggleFormat('bold');
+          const last = $getRoot().getLastChildOrThrow();
+          invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+          const text = last.getFirstChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.toggleFormat('bold');
         },
         {discrete: true},
       );
 
       editor.read(() => {
         const root = $getRoot();
-        const head = root.getFirstChildOrThrow<ParagraphNode>();
-        const foot = root.getLastChildOrThrow<ParagraphNode>();
+        const head = root.getFirstChildOrThrow();
+        const foot = root.getLastChildOrThrow();
+        invariant($isParagraphNode(head), 'head must be a ParagraphNode');
+        invariant($isParagraphNode(foot), 'foot must be a ParagraphNode');
         // Each paragraph's __textFormat is sourced from its own first text
         // descendant — head is unchanged (its first text is plain), foot now
         // reflects the toggled bold flag.
@@ -616,7 +633,8 @@ describe('LexicalReconciler', () => {
 
       editor.update(
         () => {
-          const last = $getRoot().getLastChildOrThrow<ParagraphNode>();
+          const last = $getRoot().getLastChildOrThrow();
+          invariant($isParagraphNode(last), 'last must be a ParagraphNode');
           last.append($createTextNode('world'));
         },
         {discrete: true},
@@ -650,8 +668,11 @@ describe('LexicalReconciler', () => {
 
       editor.update(
         () => {
-          const para = $getRoot().getFirstChildOrThrow<ParagraphNode>();
-          para.getLastChildOrThrow<TextNode>().setTextContent('BOTTOM!');
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const text = para.getLastChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.setTextContent('BOTTOM!');
         },
         {discrete: true},
       );
@@ -661,10 +682,10 @@ describe('LexicalReconciler', () => {
       });
     });
 
-    // Regression: $prevSubtreeTextLength must read the previous-state instance
-    // text directly. Routing through getTextContent() would resolve via
-    // getLatest() → next state, miscomputing oldSuffixLength when the dirty
-    // tail TextNode's length actually changed.
+    // Regression: prev-state size must come from the cached label on the
+    // previous-state node instance. Going through `getTextContent()` would
+    // resolve via `getLatest()` -> next state and miscompute oldSuffixLength
+    // when the dirty tail TextNode's length actually changed.
     test('TextNode-direct-child suffix with length change: prefix preserved', () => {
       using editor = createReconcilerEditor();
 
@@ -687,8 +708,11 @@ describe('LexicalReconciler', () => {
 
       editor.update(
         () => {
-          const para = $getRoot().getFirstChildOrThrow<ParagraphNode>();
-          para.getLastChildOrThrow<TextNode>().setTextContent('world!!');
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const text = para.getLastChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.setTextContent('world!!');
         },
         {discrete: true},
       );

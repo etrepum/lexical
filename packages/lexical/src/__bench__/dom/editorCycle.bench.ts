@@ -6,11 +6,12 @@
  *
  */
 
-import type {LexicalEditor, ParagraphNode} from '../../';
+import type {LexicalEditor} from '../../';
 
+import invariant from 'shared/invariant';
 import {bench, describe} from 'vitest';
 
-import {$createTextNode, $getRoot} from '../../';
+import {$createTextNode, $getRoot, $isParagraphNode} from '../../';
 import {createTestEditor} from '../../__tests__/utils';
 import {__benchOnly} from '../../LexicalReconciler';
 import {attachToDOM, buildLargeDoc} from './_utils';
@@ -27,7 +28,8 @@ for (const size of SIZES) {
         () => {
           const last = $getRoot().getLastChild();
           if (last) {
-            (last as ParagraphNode).append($createTextNode(`x${cycle++}`));
+            invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+            last.append($createTextNode(`x${cycle++}`));
           }
         },
         {discrete: true},
