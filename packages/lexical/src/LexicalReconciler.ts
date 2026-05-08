@@ -49,6 +49,19 @@ import {
 
 type IntentionallyMarkedAsDirtyElement = boolean;
 
+/**
+ * @internal
+ *
+ * Bench-only escape hatch. When `skipChildrenFastPath` is true the children
+ * fast paths in `$reconcileChildren` are skipped and the general path
+ * (`$reconcileNodeChildren`) runs instead — used by `editorCycle.bench.ts`
+ * to produce a head-to-head A/B against the legacy walk in a single
+ * `vitest bench` run. Has no effect when false (default).
+ */
+export const __benchOnly = {
+  skipChildrenFastPath: false,
+};
+
 let subTreeTextContent = '';
 let subTreeTextFormat: number | null = null;
 let subTreeTextStyle: string | null = null;
@@ -531,6 +544,7 @@ function $reconcileChildren(
   const dom: HTMLElement & LexicalPrivateDOM = slot.element;
 
   if (
+    !__benchOnly.skipChildrenFastPath &&
     prevChildrenSize === nextChildrenSize &&
     prevChildrenSize > 0 &&
     prevElement.__first === nextElement.__first &&

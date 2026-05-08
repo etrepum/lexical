@@ -12,6 +12,7 @@ import {bench, describe} from 'vitest';
 
 import {$createTextNode, $getRoot} from '../../';
 import {createTestEditor} from '../../__tests__/utils';
+import {__benchOnly} from '../../LexicalReconciler';
 import {attachToDOM, buildLargeDoc} from './_utils';
 
 const SIZES = [1000, 5000] as const;
@@ -21,20 +22,39 @@ for (const size of SIZES) {
     let editor: LexicalEditor;
     let cycle = 0;
 
+    const typeOneChar = (): void => {
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChild();
+          if (last) {
+            (last as ParagraphNode).append($createTextNode(`x${cycle++}`));
+          }
+        },
+        {discrete: true},
+      );
+    };
+
     bench(
-      'editor.update with 1 mutation',
+      'with children fast path',
       () => {
-        editor.update(
-          () => {
-            const root = $getRoot();
-            const last = root.getLastChild();
-            if (last) {
-              const t = $createTextNode(`x${cycle++}`);
-              (last as ParagraphNode).append(t);
-            }
-          },
-          {discrete: true},
-        );
+        __benchOnly.skipChildrenFastPath = false;
+        typeOneChar();
+      },
+      {
+        setup: () => {
+          editor = createTestEditor();
+          attachToDOM(editor);
+          buildLargeDoc(editor, size);
+          cycle = 0;
+        },
+      },
+    );
+
+    bench(
+      'without children fast path (general path)',
+      () => {
+        __benchOnly.skipChildrenFastPath = true;
+        typeOneChar();
       },
       {
         setup: () => {
