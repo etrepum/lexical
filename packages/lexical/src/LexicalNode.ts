@@ -36,6 +36,7 @@ import {
   type Prettify,
   type RequiredNodeStateConfig,
 } from './LexicalNodeState';
+import {CACHED_TEXT_SIZE_KEY} from './LexicalReconciler';
 import {
   $getSelection,
   $isNodeSelection,
@@ -430,6 +431,14 @@ export function $markEphemeral<T extends LexicalNode>(
   return node;
 }
 
+/** @internal */
+const NON_ENUMERABLE_PROP_DESC: PropertyDescriptor = {
+  configurable: true,
+  enumerable: false,
+  value: undefined,
+  writable: true,
+};
+
 export class LexicalNode {
   /** @internal Allow us to look up the type including static props */
   declare ['constructor']: KlassConstructor<typeof LexicalNode>;
@@ -596,23 +605,11 @@ export class LexicalNode {
     this.__parent = null;
     this.__prev = null;
     this.__next = null;
-    Object.defineProperty(this, '__state', {
-      configurable: true,
-      enumerable: false,
-      value: undefined,
-      writable: true,
-    });
+    Object.defineProperty(this, '__state', NON_ENUMERABLE_PROP_DESC);
     // Pre-initialize the reconciler's cached-text-size slot so subsequent
     // assignments on the V8 hot path slot into a stable hidden class
-    // instead of triggering per-instance shape transitions. (Owned by
-    // LexicalReconciler; the Symbol key literal is duplicated there —
-    // keep them in sync.)
-    Object.defineProperty(this, Symbol.for('@lexical/CachedTextSize'), {
-      configurable: true,
-      enumerable: false,
-      value: undefined,
-      writable: true,
-    });
+    // instead of triggering per-instance shape transitions.
+    Object.defineProperty(this, CACHED_TEXT_SIZE_KEY, NON_ENUMERABLE_PROP_DESC);
     $setNodeKey(this, key);
 
     if (__DEV__) {

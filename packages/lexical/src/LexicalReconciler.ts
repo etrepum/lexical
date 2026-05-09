@@ -60,26 +60,23 @@ type IntentionallyMarkedAsDirtyElement = boolean;
  * A reconcile-managed cache of `getTextContentSize()` for leaf nodes.
  *
  * Stored as a Symbol-keyed property on the node instance itself so that
- * read/write are direct slot access. The slot is pre-allocated as a
- * non-enumerable property in the LexicalNode constructor so all instances
- * share the same V8 hidden-class shape and the setter is a stable inline
- * cache hit instead of a per-instance shape transition. (The Symbol key
- * literal is duplicated at the LexicalNode constructor — keep them in
- * sync.)
+ * read/write are direct slot access. The slot is pre-allocated to
+ * `undefined` as a non-enumerable property in the LexicalNode constructor
+ * so all instances share the same V8 hidden-class shape and the setter is
+ * a stable inline cache hit instead of a per-instance shape transition.
  *
  * ElementNodes already carry their computed text content in
  * `dom.__lexicalTextContent` (written at the end of `$reconcileChildren`),
  * so we never set this on ElementNodes — `$cachedTextSize` routes them to
- * the DOM cache instead, which avoids writing to element instances that
- * propagated-dirty paths can leave frozen across cycles
- * (`internalMarkParentElementsAsDirty` does not call `getWritable`).
+ * the DOM cache instead.
  *
- * Leaf writes are skipped when the instance is already frozen in DEV.
- * Cross-parent moves can pass an already-frozen leaf back through
- * `$createNode` / `$reconcileNode`; the frozen instance still carries a
- * valid Symbol from its prior reconcile cycle. A leaf that genuinely needs
- * a new size went through `getWritable()` and produced a fresh (writable)
- * clone via `static clone(node)` -> ctor -> fresh undefined slot.
+ * Leaf writes are skipped when the slot is already not `undefined`. The
+ * setter is only re-entered for the same instance via cross-parent moves
+ * (where the leaf is reused in a new parent without going through
+ * `getWritable` — text is unchanged, so the prior cycle's value is still
+ * correct). A leaf whose text actually changed went through
+ * `getWritable()` and produced a fresh clone via `static clone(node)` ->
+ * ctor -> fresh `undefined` slot, so the setter writes through normally.
  *
  * The reconciler sets this on every reconciled leaf at the end of
  * `$reconcileNode` (and on every newly-created leaf in `$createNode`), so
@@ -90,9 +87,9 @@ type IntentionallyMarkedAsDirtyElement = boolean;
  * to get the pre-reconcile size of dirty children in O(1), avoiding both
  * the `getLatest()` -> next-state trap and a recursive prev-tree walk.
  */
-const CACHED_TEXT_SIZE = Symbol.for('@lexical/CachedTextSize');
+export const CACHED_TEXT_SIZE_KEY = Symbol.for('@lexical/CachedTextSize');
 
-type WithCachedTextSize = LexicalNode & {[CACHED_TEXT_SIZE]?: number};
+type WithCachedTextSize = LexicalNode & {[CACHED_TEXT_SIZE_KEY]?: number};
 
 function $cachedTextSize(node: LexicalNode): number {
   if ($isElementNode(node)) {
@@ -112,7 +109,7 @@ function $cachedTextSize(node: LexicalNode): number {
     );
     return cached.length;
   }
-  const cached = (node as WithCachedTextSize)[CACHED_TEXT_SIZE];
+  const cached = (node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY];
   invariant(
     cached !== undefined,
     'cachedTextSize: missing entry for leaf node of type %s — the cache ' +
@@ -129,10 +126,15 @@ function $setCachedTextSize(node: LexicalNode): void {
   if ($isElementNode(node)) {
     return;
   }
-  if (__DEV__ && Object.isFrozen(node)) {
+  // Skip if a value is already cached on this instance. The setter is only
+  // re-entered for the same instance via cross-parent moves (where the leaf
+  // is reused in a new parent without going through `getWritable` — text is
+  // unchanged so the prior cycle's value is still correct), and that's
+  // exactly the case where the instance is also frozen in DEV.
+  if ((node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY] !== undefined) {
     return;
   }
-  (node as WithCachedTextSize)[CACHED_TEXT_SIZE] = $isTextNode(node)
+  (node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY] = $isTextNode(node)
     ? node.__text.length
     : node.getTextContentSize();
 }
