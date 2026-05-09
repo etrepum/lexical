@@ -589,6 +589,165 @@ function $suffixStartIfContiguous(
   return suffixStart;
 }
 
+// Suffix-incremental fast path for `sizeDelta` ∈ {-1, +1}.
+// Handles the common cases etrepum prioritized:
+//   - sizeDelta=+1, K=2: append a new TextNode, or split that grows by 1.
+//     Last 2 children dirty; corresponding prev tail is 1 child.
+//   - sizeDelta=-1, K=1: backspace at a node boundary (merge into prev).
+//     Last 1 child dirty; corresponding prev tail is 2 children.
+// Returns true if the cache was spliced and DOM mutated; false if the caller
+// must fall through to the general path (K mismatch, boundary mismatch, or
+// out-of-order suffix overlap).
+function $tryReconcileSuffixWithSizeDelta(
+  prevElement: ElementNode,
+  nextElement: ElementNode,
+  dom: HTMLElement & LexicalPrivateDOM,
+  cachedParentText: string,
+  suffixStartKey: NodeKey,
+  k: number,
+  sizeDelta: number,
+): boolean {
+  if ((sizeDelta === 1 && k !== 2) || (sizeDelta === -1 && k !== 1)) {
+    return false;
+  }
+  const kPrime = k - sizeDelta;
+  let prevSuffixStartKey: NodeKey | null = prevElement.__last;
+  for (let i = 0; i < kPrime - 1; i++) {
+    if (prevSuffixStartKey === null) {
+      return false;
+    }
+    const node = activePrevNodeMap.get(prevSuffixStartKey);
+    if (node === undefined) {
+      return false;
+    }
+    prevSuffixStartKey = node.__prev;
+  }
+  if (prevSuffixStartKey === null) {
+    return false;
+  }
+  const nextStartNode = activeNextNodeMap.get(suffixStartKey);
+  const prevStartNode = activePrevNodeMap.get(prevSuffixStartKey);
+  if (nextStartNode === undefined || prevStartNode === undefined) {
+    return false;
+  }
+  // Boundary identity: the node immediately before the suffix in next must
+  // match the corresponding node in prev. Both null (suffix starts at first
+  // child) is a match too.
+  if (nextStartNode.__prev !== prevStartNode.__prev) {
+    return false;
+  }
+  const nextSuffixKeys: NodeKey[] = [];
+  let cur: NodeKey | null = suffixStartKey;
+  for (let i = 0; i < k; i++) {
+    if (cur === null) {
+      return false;
+    }
+    nextSuffixKeys.push(cur);
+    const node = activeNextNodeMap.get(cur);
+    cur = node ? node.__next : null;
+  }
+  const prevSuffixKeys: NodeKey[] = [];
+  cur = prevSuffixStartKey;
+  for (let i = 0; i < kPrime; i++) {
+    if (cur === null) {
+      return false;
+    }
+    prevSuffixKeys.push(cur);
+    const node = activePrevNodeMap.get(cur);
+    cur = node ? node.__next : null;
+  }
+  // Two-pointer walk to validate ordering and plan ops in next-order.
+  // Bail if a key is in both suffixes but at different positions (reorder).
+  const prevSet = new Set(prevSuffixKeys);
+  const nextSet = new Set(nextSuffixKeys);
+  type SuffixOp =
+    | {kind: 'reconcile'; key: NodeKey}
+    | {kind: 'create'; key: NodeKey; nextIndex: number}
+    | {kind: 'destroy'; key: NodeKey};
+  const ops: SuffixOp[] = [];
+  let pi = 0;
+  let ni = 0;
+  while (pi < kPrime && ni < k) {
+    if (nextSuffixKeys[ni] === prevSuffixKeys[pi]) {
+      ops.push({key: nextSuffixKeys[ni], kind: 'reconcile'});
+      pi++;
+      ni++;
+    } else if (!nextSet.has(prevSuffixKeys[pi])) {
+      ops.push({key: prevSuffixKeys[pi], kind: 'destroy'});
+      pi++;
+    } else if (!prevSet.has(nextSuffixKeys[ni])) {
+      ops.push({key: nextSuffixKeys[ni], kind: 'create', nextIndex: ni});
+      ni++;
+    } else {
+      return false;
+    }
+  }
+  while (pi < kPrime) {
+    ops.push({key: prevSuffixKeys[pi++], kind: 'destroy'});
+  }
+  while (ni < k) {
+    ops.push({key: nextSuffixKeys[ni], kind: 'create', nextIndex: ni});
+    ni++;
+  }
+  let oldSuffixLength = 0;
+  for (let i = 0; i < kPrime; i++) {
+    const prevNode = activePrevNodeMap.get(prevSuffixKeys[i]);
+    if (prevNode === undefined) {
+      return false;
+    }
+    oldSuffixLength += $cachedTextSize(prevNode);
+    if (i < kPrime - 1 && $isElementNode(prevNode) && !prevNode.isInline()) {
+      oldSuffixLength += DOUBLE_LINE_BREAK.length;
+    }
+  }
+  for (const op of ops) {
+    if (op.kind === 'reconcile') {
+      $reconcileNode(op.key, dom);
+    } else if (op.kind === 'destroy') {
+      $destroyNode(op.key, dom);
+    } else {
+      let beforeDOM: Node | null = null;
+      for (let j = op.nextIndex + 1; j < k; j++) {
+        const siblingDOM = activeEditor._keyToDOMMap.get(nextSuffixKeys[j]);
+        if (siblingDOM !== undefined) {
+          beforeDOM = siblingDOM;
+          break;
+        }
+      }
+      const childSlot = activeEditorDOMRenderConfig
+        .$getDOMSlot(nextElement, dom, activeEditor)
+        .withBefore(beforeDOM);
+      $createNode(op.key, childSlot);
+    }
+  }
+  let newSuffix = '';
+  for (let i = 0; i < k; i++) {
+    const node = activeNextNodeMap.get(nextSuffixKeys[i]);
+    if (node === undefined) {
+      return false;
+    }
+    let text: string;
+    if ($isElementNode(node)) {
+      const childDom = activeEditor._keyToDOMMap.get(nextSuffixKeys[i]) as
+        | (HTMLElement & LexicalPrivateDOM)
+        | undefined;
+      const cached = childDom && childDom.__lexicalTextContent;
+      text = typeof cached === 'string' ? cached : node.getTextContent();
+    } else {
+      text = node.getTextContent();
+    }
+    newSuffix += text;
+    if (i < k - 1 && $isElementNode(node) && !node.isInline()) {
+      newSuffix += DOUBLE_LINE_BREAK;
+    }
+  }
+  const newParentText =
+    cachedParentText.slice(0, cachedParentText.length - oldSuffixLength) +
+    newSuffix;
+  dom.__lexicalTextContent = newParentText;
+  return true;
+}
+
 function $reconcileChildren(
   prevElement: ElementNode,
   nextElement: ElementNode,
@@ -600,13 +759,20 @@ function $reconcileChildren(
   subTreeTextContent = '';
   const dom: HTMLElement & LexicalPrivateDOM = slot.element;
 
+  const sizeDelta = nextChildrenSize - prevChildrenSize;
   if (
     !__benchOnly.skipChildrenFastPath &&
-    prevChildrenSize === nextChildrenSize &&
+    Math.abs(sizeDelta) <= 1 &&
     prevChildrenSize >= MIN_FAST_PATH_CHILDREN &&
     prevElement.__first === nextElement.__first &&
-    prevElement.__last === nextElement.__last &&
-    !activeEditor._cloneNotNeeded.has(prevElement.__key)
+    // For sizeDelta=0 the existing same-size path requires both endpoints
+    // to match and the parent to not be cloned in this cycle (preserves
+    // its prior conservative invariants). For sizeDelta=±1 the parent is
+    // always cloned (its `__size` mutation goes through `getWritable`), so
+    // that check would dead-code the size-delta branch.
+    (sizeDelta !== 0 ||
+      (prevElement.__last === nextElement.__last &&
+        !activeEditor._cloneNotNeeded.has(prevElement.__key)))
   ) {
     // Suffix-incremental fast path: when the dirty children form a
     // contiguous suffix and the parent already has a valid cached text,
@@ -622,124 +788,154 @@ function $reconcileChildren(
       dirtyChildren !== undefined
     ) {
       const suffixStartKey = $suffixStartIfContiguous(
-        prevElement,
+        nextElement,
         dirtyChildren,
       );
       if (suffixStartKey !== null) {
         const k = dirtyChildren.size;
-        let oldSuffixLength = 0;
-        let cur: NodeKey | null = suffixStartKey;
-        let i = 0;
-        while (cur !== null && i < k) {
-          const prevNode = activePrevNodeMap.get(cur);
-          if (prevNode === undefined) {
-            break;
+        if (sizeDelta === 0) {
+          let oldSuffixLength = 0;
+          let cur: NodeKey | null = suffixStartKey;
+          let i = 0;
+          while (cur !== null && i < k) {
+            const prevNode = activePrevNodeMap.get(cur);
+            if (prevNode === undefined) {
+              break;
+            }
+            oldSuffixLength += $cachedTextSize(prevNode);
+            if (i < k - 1 && $isElementNode(prevNode) && !prevNode.isInline()) {
+              oldSuffixLength += DOUBLE_LINE_BREAK.length;
+            }
+            const nextNodeForLink = activeNextNodeMap.get(cur);
+            cur = nextNodeForLink ? nextNodeForLink.__next : null;
+            i++;
           }
-          oldSuffixLength += $cachedTextSize(prevNode);
-          if (i < k - 1 && $isElementNode(prevNode) && !prevNode.isInline()) {
-            oldSuffixLength += DOUBLE_LINE_BREAK.length;
-          }
-          const nextNodeForLink = activeNextNodeMap.get(cur);
-          cur = nextNodeForLink ? nextNodeForLink.__next : null;
-          i++;
-        }
 
-        cur = suffixStartKey;
-        i = 0;
-        while (cur !== null && i < k) {
-          const node = activeNextNodeMap.get(cur);
-          if (node === undefined) {
-            break;
+          cur = suffixStartKey;
+          i = 0;
+          while (cur !== null && i < k) {
+            const node = activeNextNodeMap.get(cur);
+            if (node === undefined) {
+              break;
+            }
+            $reconcileNode(cur, dom);
+            cur = node.__next;
+            i++;
           }
-          $reconcileNode(cur, dom);
-          cur = node.__next;
-          i++;
-        }
 
-        let newSuffix = '';
-        cur = suffixStartKey;
-        i = 0;
-        while (cur !== null && i < k) {
-          const node = activeNextNodeMap.get(cur);
-          if (node === undefined) {
-            break;
+          let newSuffix = '';
+          cur = suffixStartKey;
+          i = 0;
+          while (cur !== null && i < k) {
+            const node = activeNextNodeMap.get(cur);
+            if (node === undefined) {
+              break;
+            }
+            let text: string;
+            if ($isElementNode(node)) {
+              const childDom = activePrevKeyToDOMMap.get(cur);
+              const cached = childDom && childDom.__lexicalTextContent;
+              text =
+                typeof cached === 'string' ? cached : node.getTextContent();
+            } else {
+              text = node.getTextContent();
+            }
+            newSuffix += text;
+            if (i < k - 1 && $isElementNode(node) && !node.isInline()) {
+              newSuffix += DOUBLE_LINE_BREAK;
+            }
+            cur = node.__next;
+            i++;
           }
+
+          const newParentText =
+            cachedParentText.slice(
+              0,
+              cachedParentText.length - oldSuffixLength,
+            ) + newSuffix;
+          dom.__lexicalTextContent = newParentText;
+          subTreeTextContent = previousSubTreeTextContent + newParentText;
+          // First text descendant lives in the non-dirty prefix, so the parent's
+          // textFormat / textStyle invariant didn't change. Discard whatever the
+          // recursive `$reconcileNode` calls left in these module-level slots
+          // so the caller's `reconcileTextFormat` / `reconcileTextStyle` no-ops.
+          subTreeTextFormat = null;
+          subTreeTextStyle = null;
+          return;
+        }
+        if (
+          $tryReconcileSuffixWithSizeDelta(
+            prevElement,
+            nextElement,
+            dom,
+            cachedParentText,
+            suffixStartKey,
+            k,
+            sizeDelta,
+          )
+        ) {
+          subTreeTextContent =
+            previousSubTreeTextContent + (dom.__lexicalTextContent ?? '');
+          subTreeTextFormat = null;
+          subTreeTextStyle = null;
+          return;
+        }
+        // Bail: helper rejected the size-delta candidate (K mismatch,
+        // boundary mismatch, or out-of-order suffix overlap). Fall through
+        // to the outer general path.
+      }
+    }
+
+    if (sizeDelta === 0) {
+      let nodeKey: NodeKey | null = prevElement.__first;
+      let i = 0;
+      while (nodeKey !== null) {
+        const node = activeNextNodeMap.get(nodeKey);
+        if (node === undefined) {
+          break;
+        }
+        const isDirty =
+          treatAllNodesAsDirty ||
+          activeDirtyLeaves.has(nodeKey) ||
+          activeDirtyElements.has(nodeKey);
+        if (isDirty) {
+          $reconcileNode(nodeKey, dom);
+        } else {
+          // Subtree is structurally and content-clean — accumulate the
+          // cached text from the existing DOM rather than walking back
+          // through `$reconcileNode`.
           let text: string;
           if ($isElementNode(node)) {
-            const childDom = activePrevKeyToDOMMap.get(cur);
+            const childDom = activePrevKeyToDOMMap.get(nodeKey);
             const cached = childDom && childDom.__lexicalTextContent;
             text = typeof cached === 'string' ? cached : node.getTextContent();
           } else {
             text = node.getTextContent();
           }
-          newSuffix += text;
-          if (i < k - 1 && $isElementNode(node) && !node.isInline()) {
-            newSuffix += DOUBLE_LINE_BREAK;
+          subTreeTextContent += text;
+        }
+        if ($isTextNode(node)) {
+          if (subTreeTextFormat === null) {
+            subTreeTextFormat = node.getFormat();
+            subTreeTextStyle = node.getStyle();
           }
-          cur = node.__next;
-          i++;
+        } else if (
+          $isElementNode(node) &&
+          i < nextChildrenSize - 1 &&
+          !node.isInline()
+        ) {
+          subTreeTextContent += DOUBLE_LINE_BREAK;
         }
-
-        const newParentText =
-          cachedParentText.slice(0, cachedParentText.length - oldSuffixLength) +
-          newSuffix;
-        dom.__lexicalTextContent = newParentText;
-        subTreeTextContent = previousSubTreeTextContent + newParentText;
-        // First text descendant lives in the non-dirty prefix, so the parent's
-        // textFormat / textStyle invariant didn't change. Discard whatever the
-        // recursive `$reconcileNode` calls left in these module-level slots
-        // so the caller's `reconcileTextFormat` / `reconcileTextStyle` no-ops.
-        subTreeTextFormat = null;
-        subTreeTextStyle = null;
-        return;
+        nodeKey = node.__next;
+        i++;
       }
+      dom.__lexicalTextContent = subTreeTextContent;
+      subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
+      return;
     }
-
-    let nodeKey: NodeKey | null = prevElement.__first;
-    let i = 0;
-    while (nodeKey !== null) {
-      const node = activeNextNodeMap.get(nodeKey);
-      if (node === undefined) {
-        break;
-      }
-      const isDirty =
-        treatAllNodesAsDirty ||
-        activeDirtyLeaves.has(nodeKey) ||
-        activeDirtyElements.has(nodeKey);
-      if (isDirty) {
-        $reconcileNode(nodeKey, dom);
-      } else {
-        // Subtree is structurally and content-clean — accumulate the
-        // cached text from the existing DOM rather than walking back
-        // through `$reconcileNode`.
-        let text: string;
-        if ($isElementNode(node)) {
-          const childDom = activePrevKeyToDOMMap.get(nodeKey);
-          const cached = childDom && childDom.__lexicalTextContent;
-          text = typeof cached === 'string' ? cached : node.getTextContent();
-        } else {
-          text = node.getTextContent();
-        }
-        subTreeTextContent += text;
-      }
-      if ($isTextNode(node)) {
-        if (subTreeTextFormat === null) {
-          subTreeTextFormat = node.getFormat();
-          subTreeTextStyle = node.getStyle();
-        }
-      } else if (
-        $isElementNode(node) &&
-        i < nextChildrenSize - 1 &&
-        !node.isInline()
-      ) {
-        subTreeTextContent += DOUBLE_LINE_BREAK;
-      }
-      nodeKey = node.__next;
-      i++;
-    }
-    dom.__lexicalTextContent = subTreeTextContent;
-    subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
-    return;
+    // sizeDelta !== 0 with no successful suffix-incremental path: fall
+    // through to the outer general walk (`$reconcileNodeChildren`), which
+    // handles arbitrary size changes.
   }
 
   if (prevChildrenSize === 1 && nextChildrenSize === 1) {

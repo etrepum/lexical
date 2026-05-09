@@ -728,6 +728,75 @@ describe('LexicalReconciler', () => {
     // across cycles, so any cache mechanism that can't refresh on a frozen-
     // from-prev-cycle instance — e.g. Symbol-keyed property + skip-if-frozen —
     // would read a stale cycle-0 size in cycle 2+ and produce a wrong splice.
+    // Append a new paragraph at the end of a multi-paragraph root: root
+    // children grow by 1, with the previous last paragraph cloned for its
+    // `__next` link update and the appended paragraph dirty as new — so the
+    // root's reconcile sees `sizeDelta=+1` and `K=2` dirty children at the
+    // suffix. Verifies the generalized suffix path correctly destroys nothing,
+    // reconciles the formerly-last paragraph, creates the new one, and
+    // splices the cached text.
+    test('append paragraph at end of multi-paragraph root (size+1, K=2)', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['a', 'b', 'c', 'd', 'e']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\nc\n\nd\n\ne');
+      });
+
+      editor.update(
+        () => {
+          $getRoot().append(
+            $createParagraphNode().append($createTextNode('f')),
+          );
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\nc\n\nd\n\ne\n\nf');
+      });
+    });
+
+    // Remove the last paragraph from a multi-paragraph root: root children
+    // shrink by 1, with the new last paragraph cloned for its `__next` link
+    // update and the removed paragraph absent from next — so the root's
+    // reconcile sees `sizeDelta=-1` and `K=1` dirty child at the suffix.
+    // Verifies the generalized suffix path destroys the removed paragraph,
+    // reconciles the new last, and splices the cached text.
+    test('remove last paragraph of multi-paragraph root (size-1, K=1)', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['a', 'b', 'c', 'd', 'e']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\nc\n\nd\n\ne');
+      });
+
+      editor.update(
+        () => {
+          $getRoot().getLastChildOrThrow().remove();
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\nc\n\nd');
+      });
+    });
+
     test('sustained typing on the same paragraph stays correct (cache freshness)', () => {
       using editor = createReconcilerEditor();
       let textKey = '';
