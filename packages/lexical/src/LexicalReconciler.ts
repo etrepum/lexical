@@ -291,7 +291,8 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
     }
   }
 
-  const dom = activeEditorDOMRenderConfig.$createDOM(node, activeEditor);
+  const dom: HTMLElement & LexicalPrivateDOM =
+    activeEditorDOMRenderConfig.$createDOM(node, activeEditor);
   storeDOMWithKey(key, dom, activeEditor);
 
   // This helps preserve the text, and stops spell check tools from
@@ -314,7 +315,7 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
       // Empty element: $createChildren's `dom.__lexicalTextContent` write is
       // skipped, so set the cache explicitly. Keeps the children fast paths'
       // cached-text reads from needing a `getTextContent()` fallback.
-      (dom as HTMLElement & LexicalPrivateDOM).__lexicalTextContent = '';
+      dom.__lexicalTextContent = '';
     } else {
       const endIndex = childrenSize - 1;
       const children = $createChildrenArray(node, activeNextNodeMap);
@@ -358,10 +359,7 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
 
   // Same cached-text-size invariant as $reconcileNode — every node leaving
   // a reconciler entry point in the next state carries a current label.
-  $setCachedTextSize(
-    node,
-    $computeCachedTextSize(node, dom as HTMLElement & LexicalPrivateDOM),
-  );
+  $setCachedTextSize(node, $computeCachedTextSize(node, dom));
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(node);

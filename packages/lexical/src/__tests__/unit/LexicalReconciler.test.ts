@@ -12,6 +12,7 @@ import {
   $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
+  $getNodeByKey,
   $getRoot,
   $isParagraphNode,
   $isTextNode,
@@ -720,6 +721,52 @@ describe('LexicalReconciler', () => {
       editor.read(() => {
         expect($getRoot().__cachedText).toBe('hello world!!');
       });
+    });
+
+    // Verifies the cached-text-size invariant under sustained typing on the
+    // same paragraph. The paragraph instance is propagated-dirty (not cloned)
+    // across cycles, so any cache mechanism that can't refresh on a frozen-
+    // from-prev-cycle instance — e.g. Symbol-keyed property + skip-if-frozen —
+    // would read a stale cycle-0 size in cycle 2+ and produce a wrong splice.
+    test('sustained typing on the same paragraph stays correct (cache freshness)', () => {
+      using editor = createReconcilerEditor();
+      let textKey = '';
+
+      // Multi-paragraph layout so the root-level suffix path actually fires
+      // (K=1 dirty child of root, parent.__size=3 — suffix detection passes,
+      // unlike a single-child root which falls through to Layer 1+2).
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          root.append(
+            $createParagraphNode().append($createTextNode('alpha')),
+            $createParagraphNode().append($createTextNode('beta')),
+          );
+          const para = $createParagraphNode();
+          const text = $createTextNode('x');
+          textKey = text.getKey();
+          para.append(text);
+          root.append(para);
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('alpha\n\nbeta\n\nx');
+      });
+
+      for (const next of ['xy', 'xyz', 'xyzz']) {
+        editor.update(
+          () => {
+            const text = $getNodeByKey(textKey);
+            invariant($isTextNode(text), 'text must be a TextNode');
+            text.setTextContent(next);
+          },
+          {discrete: true},
+        );
+        editor.read(() => {
+          expect($getRoot().__cachedText).toBe(`alpha\n\nbeta\n\n${next}`);
+        });
+      }
     });
   });
 });
