@@ -310,7 +310,12 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
     if (indent !== 0) {
       setElementIndent(dom, indent);
     }
-    if (childrenSize !== 0) {
+    if (childrenSize === 0) {
+      // Empty element: $createChildren's `dom.__lexicalTextContent` write is
+      // skipped, so set the cache explicitly. Keeps the children fast paths'
+      // cached-text reads from needing a `getTextContent()` fallback.
+      (dom as HTMLElement & LexicalPrivateDOM).__lexicalTextContent = '';
+    } else {
       const endIndex = childrenSize - 1;
       const children = $createChildrenArray(node, activeNextNodeMap);
       $createChildren(
