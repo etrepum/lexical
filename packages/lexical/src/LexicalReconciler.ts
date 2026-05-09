@@ -138,6 +138,15 @@ function $setCachedTextSize(node: LexicalNode): void {
 }
 
 /**
+ * Minimum children count for the suffix-incremental fast path to engage.
+ * The fast path adds bookkeeping (cache lookups, suffix walks, splice) that
+ * a few-children parent's general walk would beat — gate by a threshold so
+ * the overhead only kicks in where the prefix preservation pays for it.
+ * Tuned via `editorCycle.bench`.
+ */
+const MIN_FAST_PATH_CHILDREN = 4;
+
+/**
  * @internal
  *
  * Bench-only escape hatch. When `skipChildrenFastPath` is true the children
@@ -594,7 +603,7 @@ function $reconcileChildren(
   if (
     !__benchOnly.skipChildrenFastPath &&
     prevChildrenSize === nextChildrenSize &&
-    prevChildrenSize > 0 &&
+    prevChildrenSize >= MIN_FAST_PATH_CHILDREN &&
     prevElement.__first === nextElement.__first &&
     prevElement.__last === nextElement.__last &&
     !activeEditor._cloneNotNeeded.has(prevElement.__key)
@@ -977,27 +986,31 @@ function $reconcileNode(
     subTreeTextContent += text;
   }
 
-  if (
-    !activeEditorStateReadOnly &&
-    $isRootNode(nextNode) &&
-    nextNode.__cachedText !== subTreeTextContent
-  ) {
-    // Cache the latest text content.
-    const nextRootNode = nextNode.getWritable();
-    nextRootNode.__cachedText = subTreeTextContent;
-    // This invariant from #8099 is left commented out for performance reasons
-    // if (__DEV__) {
-    //   const computedTextContent =
-    //     ElementNode.prototype.getTextContent.call(nextRootNode);
-    //   devInvariant(
-    //     computedTextContent === subTreeTextContent,
-    //     'LexicalReconciler: Computed nextRootNode.getTextContent() does not match nextRootNode.__cachedText %s !== %s (dom.__lexicalTextContent %s)',
-    //     JSON.stringify(computedTextContent),
-    //     JSON.stringify(subTreeTextContent),
-    //     JSON.stringify(dom.__lexicalTextContent),
-    //   );
-    // }
-    nextNode = nextRootNode;
+  if (!activeEditorStateReadOnly && $isRootNode(nextNode)) {
+    // Re-fetch the latest root: a child reconcile (e.g. `reconcileTextFormat`
+    // calling `setTextFormat` on the parent) can clone the root mid-cycle,
+    // leaving the local `nextNode` pointing at a stale instance whose
+    // `__cachedText` would no-op the comparison below while the actual root
+    // in the map carries `null` (RootNode constructor's default).
+    const latestRoot = nextNode.getLatest();
+    if (latestRoot.__cachedText !== subTreeTextContent) {
+      // Cache the latest text content.
+      const nextRootNode = latestRoot.getWritable();
+      nextRootNode.__cachedText = subTreeTextContent;
+      // This invariant from #8099 is left commented out for performance reasons
+      // if (__DEV__) {
+      //   const computedTextContent =
+      //     ElementNode.prototype.getTextContent.call(nextRootNode);
+      //   devInvariant(
+      //     computedTextContent === subTreeTextContent,
+      //     'LexicalReconciler: Computed nextRootNode.getTextContent() does not match nextRootNode.__cachedText %s !== %s (dom.__lexicalTextContent %s)',
+      //     JSON.stringify(computedTextContent),
+      //     JSON.stringify(subTreeTextContent),
+      //     JSON.stringify(dom.__lexicalTextContent),
+      //   );
+      // }
+      nextNode = nextRootNode;
+    }
   }
 
   activeEditorDOMRenderConfig.$decorateDOM(
