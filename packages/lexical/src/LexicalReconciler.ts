@@ -75,16 +75,37 @@ type IntentionallyMarkedAsDirtyElement = boolean;
 const cachedTextSizeMap = new WeakMap<LexicalNode, number>();
 
 function $cachedTextSize(node: LexicalNode): number {
-  let cached = cachedTextSizeMap.get(node);
-  if (cached === undefined) {
-    cached = node.getTextContentSize();
-    cachedTextSizeMap.set(node, cached);
-  }
+  const cached = cachedTextSizeMap.get(node);
+  invariant(
+    cached !== undefined,
+    'cachedTextSize: missing entry for node of type %s — the cache invariant ' +
+      'requires every node leaving $reconcileNode / $createNode to carry a ' +
+      'current label, but this node has none. Falling through to ' +
+      'getTextContentSize() here would resolve via getLatest() -> next state ' +
+      'and silently miscompute prev sizes.',
+    node.getType(),
+  );
   return cached;
 }
 
 function $setCachedTextSize(node: LexicalNode, size: number): void {
   cachedTextSizeMap.set(node, size);
+}
+
+function $computeCachedTextSize(
+  node: LexicalNode,
+  dom: HTMLElement & LexicalPrivateDOM,
+): number {
+  if ($isElementNode(node)) {
+    const cachedText = dom.__lexicalTextContent;
+    return typeof cachedText === 'string'
+      ? cachedText.length
+      : node.getTextContentSize();
+  }
+  if ($isTextNode(node)) {
+    return node.__text.length;
+  }
+  return node.getTextContentSize();
 }
 
 /**
@@ -332,20 +353,10 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
 
   // Same cached-text-size invariant as $reconcileNode — every node leaving
   // a reconciler entry point in the next state carries a current label.
-  let createdCachedSize: number;
-  if ($isElementNode(node)) {
-    const cachedText = (dom as HTMLElement & LexicalPrivateDOM)
-      .__lexicalTextContent;
-    createdCachedSize =
-      typeof cachedText === 'string'
-        ? cachedText.length
-        : node.getTextContentSize();
-  } else if ($isTextNode(node)) {
-    createdCachedSize = node.__text.length;
-  } else {
-    createdCachedSize = node.getTextContentSize();
-  }
-  $setCachedTextSize(node, createdCachedSize);
+  $setCachedTextSize(
+    node,
+    $computeCachedTextSize(node, dom as HTMLElement & LexicalPrivateDOM),
+  );
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(node);
@@ -967,19 +978,7 @@ function $reconcileNode(
   // a current label so the next cycle's reads of the previous-state
   // instance are O(1) and never need to fall through to a recursive walk
   // that would resolve via `getLatest()` -> next state.
-  let cachedSize: number;
-  if ($isElementNode(nextNode)) {
-    const cachedText = dom.__lexicalTextContent;
-    cachedSize =
-      typeof cachedText === 'string'
-        ? cachedText.length
-        : nextNode.getTextContentSize();
-  } else if ($isTextNode(nextNode)) {
-    cachedSize = nextNode.__text.length;
-  } else {
-    cachedSize = nextNode.getTextContentSize();
-  }
-  $setCachedTextSize(nextNode, cachedSize);
+  $setCachedTextSize(nextNode, $computeCachedTextSize(nextNode, dom));
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(nextNode);
