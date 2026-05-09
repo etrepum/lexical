@@ -455,6 +455,8 @@ export class LexicalNode {
   __next: null | NodeKey;
   /** @internal */
   __state?: NodeState<this>;
+  /** @internal */
+  [CACHED_TEXT_SIZE_KEY]?: number;
 
   // Flow doesn't support abstract classes unfortunately, so we can't _force_
   // subclasses of Node to implement statics. All subclasses of Node should have

@@ -89,17 +89,15 @@ type IntentionallyMarkedAsDirtyElement = boolean;
  */
 export const CACHED_TEXT_SIZE_KEY = Symbol.for('@lexical/CachedTextSize');
 
-type WithCachedTextSize = LexicalNode & {[CACHED_TEXT_SIZE_KEY]?: number};
-
 function $cachedTextSize(node: LexicalNode): number {
   if ($isElementNode(node)) {
     const keyedDom = activePrevKeyToDOMMap.get(node.__key);
     // Route through `$getDOMSlot` for symmetry with the rest of the
     // reconciler — TableNode and similar wrap the keyed DOM, and the
     // text-content cache is written on the inner slot element.
-    const slotEl = keyedDom
-      ? (activeEditorDOMRenderConfig.$getDOMSlot(node, keyedDom, activeEditor)
-          .element as HTMLElement & LexicalPrivateDOM)
+    const slotEl: undefined | (HTMLElement & LexicalPrivateDOM) = keyedDom
+      ? activeEditorDOMRenderConfig.$getDOMSlot(node, keyedDom, activeEditor)
+          .element
       : undefined;
     const cached = slotEl && slotEl.__lexicalTextContent;
     invariant(
@@ -109,15 +107,16 @@ function $cachedTextSize(node: LexicalNode): number {
     );
     return cached.length;
   }
-  const cached = (node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY];
+  const cached = node[CACHED_TEXT_SIZE_KEY];
+  // $reconcileNode and $createNode set the size on every leaf they touch, so a
+  // missing entry here means the invariant was broken upstream. Falling back to
+  // getTextContentSize() would resolve via getLatest() against the next state
+  // and silently miscompute prev sizes — fail loudly instead.
   invariant(
     cached !== undefined,
-    'cachedTextSize: missing entry for leaf node of type %s — the cache ' +
-      'invariant requires every leaf leaving $reconcileNode / $createNode to ' +
-      'carry a current label, but this node has none. Falling through to ' +
-      'getTextContentSize() here would resolve via getLatest() -> next state ' +
-      'and silently miscompute prev sizes.',
+    'cachedTextSize: missing entry for leaf %s key %s',
     node.getType(),
+    node.__key,
   );
   return cached;
 }
@@ -131,10 +130,10 @@ function $setCachedTextSize(node: LexicalNode): void {
   // is reused in a new parent without going through `getWritable` — text is
   // unchanged so the prior cycle's value is still correct), and that's
   // exactly the case where the instance is also frozen in DEV.
-  if ((node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY] !== undefined) {
+  if (node[CACHED_TEXT_SIZE_KEY] !== undefined) {
     return;
   }
-  (node as WithCachedTextSize)[CACHED_TEXT_SIZE_KEY] = $isTextNode(node)
+  node[CACHED_TEXT_SIZE_KEY] = $isTextNode(node)
     ? node.__text.length
     : node.getTextContentSize();
 }
@@ -529,28 +528,26 @@ function $reconcileChildrenWithDirection(
 
 function $buildDirtyChildrenByParent(): Map<NodeKey, Set<NodeKey>> {
   const map = new Map<NodeKey, Set<NodeKey>>();
-  const addToMap = (key: NodeKey): void => {
-    const node = activeNextNodeMap.get(key);
-    if (node === undefined) {
-      return;
+  const addKeysToMap = (keys: Iterable<NodeKey>): void => {
+    for (const key of keys) {
+      const node = activeNextNodeMap.get(key);
+      if (node === undefined) {
+        continue;
+      }
+      const parentKey = node.__parent;
+      if (parentKey === null) {
+        continue;
+      }
+      let set = map.get(parentKey);
+      if (set === undefined) {
+        set = new Set();
+        map.set(parentKey, set);
+      }
+      set.add(key);
     }
-    const parentKey = node.__parent;
-    if (parentKey === null) {
-      return;
-    }
-    let set = map.get(parentKey);
-    if (set === undefined) {
-      set = new Set();
-      map.set(parentKey, set);
-    }
-    set.add(key);
   };
-  for (const key of activeDirtyElements.keys()) {
-    addToMap(key);
-  }
-  for (const key of activeDirtyLeaves) {
-    addToMap(key);
-  }
+  addKeysToMap(activeDirtyElements.keys());
+  addKeysToMap(activeDirtyLeaves);
   return map;
 }
 
@@ -591,15 +588,20 @@ function $suffixStartIfContiguous(
   return suffixStart;
 }
 
-// Suffix-incremental fast path for `sizeDelta` ∈ {-1, +1}.
-// Handles the common cases etrepum prioritized:
-//   - sizeDelta=+1, K=2: append a new TextNode, or split that grows by 1.
-//     Last 2 children dirty; corresponding prev tail is 1 child.
-//   - sizeDelta=-1, K=1: backspace at a node boundary (merge into prev).
-//     Last 1 child dirty; corresponding prev tail is 2 children.
-// Returns true if the cache was spliced and DOM mutated; false if the caller
-// must fall through to the general path (K mismatch, boundary mismatch, or
-// out-of-order suffix overlap).
+// Suffix-incremental fast path for ±1 children-size mutations.
+// Two structural patterns are supported (others bail to the general path):
+//   - sizeDelta=+1, K=2: append at end, or end-split where one node
+//     becomes two. Last 2 children of `nextElement` are dirty; one prev
+//     child corresponds.
+//   - sizeDelta=-1, K=1: boundary-collapse (e.g. backspace at the start
+//     of a block merging into the previous). Last 1 child of `nextElement`
+//     is dirty; two prev children correspond.
+// (The same-size sizeDelta=0 case is inlined in `$reconcileChildren` and
+// uses the same splice math with a simpler suffix walk.)
+//
+// Returns true if the cache was spliced and DOM mutated; false on bail
+// (K mismatch, boundary mismatch, or out-of-order suffix overlap), in
+// which case the caller falls through to `$reconcileNodeChildren`.
 function $tryReconcileSuffixWithSizeDelta(
   prevElement: ElementNode,
   nextElement: ElementNode,
@@ -609,9 +611,20 @@ function $tryReconcileSuffixWithSizeDelta(
   k: number,
   sizeDelta: number,
 ): boolean {
-  if ((sizeDelta === 1 && k !== 2) || (sizeDelta === -1 && k !== 1)) {
+  // Caller invariant: this helper only handles ±1 children-size mutations.
+  // Bailing on anything else preserves defense-in-depth in case the
+  // upstream gate ever loosens.
+  if (sizeDelta !== 1 && sizeDelta !== -1) {
     return false;
   }
+  // Only the two patterns above are supported; e.g. K=3 dirty after a
+  // split-into-three, or K=1 with sizeDelta=+1 (pure append with no
+  // sibling cloned for `__next` link), all bail.
+  const expectedK = sizeDelta === 1 ? 2 : 1;
+  if (k !== expectedK) {
+    return false;
+  }
+  // K' = K − sizeDelta: delta=+1, K=2 → K'=1; delta=-1, K=1 → K'=2.
   const kPrime = k - sizeDelta;
   let prevSuffixStartKey: NodeKey | null = prevElement.__last;
   for (let i = 0; i < kPrime - 1; i++) {

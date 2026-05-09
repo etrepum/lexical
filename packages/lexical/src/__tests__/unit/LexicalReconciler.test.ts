@@ -837,5 +837,84 @@ describe('LexicalReconciler', () => {
         });
       }
     });
+
+    // Sustained appends: each cycle exercises the size+1 / K=2 branch on
+    // the root reconcile (the previous last paragraph is cloned for its
+    // `__next` link update, the appended one is dirty as new). Verifies
+    // that the root cached text stays accurate across many cycles, the
+    // way the corresponding sustained-typing test does for the same-size
+    // branch.
+    test('sustained appends stay correct across cycles (cache freshness, size+1)', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['a', 'b', 'c', 'd']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe('a\n\nb\n\nc\n\nd');
+      });
+
+      const labels = ['e', 'f', 'g', 'h', 'i'];
+      let expectedText = 'a\n\nb\n\nc\n\nd';
+      for (const label of labels) {
+        editor.update(
+          () => {
+            $getRoot().append(
+              $createParagraphNode().append($createTextNode(label)),
+            );
+          },
+          {discrete: true},
+        );
+        expectedText = `${expectedText}\n\n${label}`;
+        editor.read(() => {
+          expect($getRoot().__cachedText).toBe(expectedText);
+        });
+      }
+    });
+
+    // Sustained removes: each cycle exercises the size-1 / K=1 branch on
+    // the root reconcile (the new last paragraph is cloned for its
+    // `__next` link update, the removed one is gone in next). Same
+    // freshness assertion as the append counterpart.
+    test('sustained removes stay correct across cycles (cache freshness, size-1)', () => {
+      using editor = createReconcilerEditor();
+
+      const labels = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of labels) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        expect($getRoot().__cachedText).toBe(labels.join('\n\n'));
+      });
+
+      // Remove 3 trailing paragraphs one cycle at a time. Stop while the
+      // root still has 4 children so the MIN gate keeps the fast path
+      // engaged the whole time.
+      const remaining = labels.slice();
+      for (let i = 0; i < 3; i++) {
+        editor.update(
+          () => {
+            $getRoot().getLastChildOrThrow().remove();
+          },
+          {discrete: true},
+        );
+        remaining.pop();
+        editor.read(() => {
+          expect($getRoot().__cachedText).toBe(remaining.join('\n\n'));
+        });
+      }
+    });
   });
 });
