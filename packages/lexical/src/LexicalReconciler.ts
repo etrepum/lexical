@@ -57,30 +57,67 @@ type IntentionallyMarkedAsDirtyElement = boolean;
 /**
  * @internal
  *
- * A reconcile-managed cache of `getTextContentSize()` keyed on node
- * identity. The reconciler sets this on every reconciled node at the end
- * of `$reconcileNode`, so the previous editor state's nodes always carry a
- * valid cached size from the cycle that just committed. `getWritable()`
- * clones produce a fresh instance whose entry is missing, so writable
- * nodes never carry a stale label across mutations.
+ * A reconcile-managed cache of `getTextContentSize()` for leaf nodes.
  *
- * Backed by a `WeakMap` rather than a Symbol property so the cache survives
- * `Object.freeze(node)` in dev mode without needing to opt the property out
- * of the freeze.
+ * Stored as a Symbol-keyed property on the node instance itself so that
+ * read/write are direct slot access. The slot is pre-allocated as a
+ * non-enumerable property in the LexicalNode constructor so all instances
+ * share the same V8 hidden-class shape and the setter is a stable inline
+ * cache hit instead of a per-instance shape transition. (The Symbol key
+ * literal is duplicated at the LexicalNode constructor — keep them in
+ * sync.)
+ *
+ * ElementNodes already carry their computed text content in
+ * `dom.__lexicalTextContent` (written at the end of `$reconcileChildren`),
+ * so we never set this on ElementNodes — `$cachedTextSize` routes them to
+ * the DOM cache instead, which avoids writing to element instances that
+ * propagated-dirty paths can leave frozen across cycles
+ * (`internalMarkParentElementsAsDirty` does not call `getWritable`).
+ *
+ * Leaf writes are skipped when the instance is already frozen in DEV.
+ * Cross-parent moves can pass an already-frozen leaf back through
+ * `$createNode` / `$reconcileNode`; the frozen instance still carries a
+ * valid Symbol from its prior reconcile cycle. A leaf that genuinely needs
+ * a new size went through `getWritable()` and produced a fresh (writable)
+ * clone via `static clone(node)` -> ctor -> fresh undefined slot.
+ *
+ * The reconciler sets this on every reconciled leaf at the end of
+ * `$reconcileNode` (and on every newly-created leaf in `$createNode`), so
+ * the previous editor state's leaves always carry a valid cached size from
+ * the cycle that just committed.
  *
  * Suffix-incremental fast path reads this off the previous-state instance
  * to get the pre-reconcile size of dirty children in O(1), avoiding both
  * the `getLatest()` -> next-state trap and a recursive prev-tree walk.
  */
-const cachedTextSizeMap = new WeakMap<LexicalNode, number>();
+const CACHED_TEXT_SIZE = Symbol.for('@lexical/CachedTextSize');
+
+type WithCachedTextSize = LexicalNode & {[CACHED_TEXT_SIZE]?: number};
 
 function $cachedTextSize(node: LexicalNode): number {
-  const cached = cachedTextSizeMap.get(node);
+  if ($isElementNode(node)) {
+    const keyedDom = activePrevKeyToDOMMap.get(node.__key);
+    // Route through `$getDOMSlot` for symmetry with the rest of the
+    // reconciler — TableNode and similar wrap the keyed DOM, and the
+    // text-content cache is written on the inner slot element.
+    const slotEl = keyedDom
+      ? (activeEditorDOMRenderConfig.$getDOMSlot(node, keyedDom, activeEditor)
+          .element as HTMLElement & LexicalPrivateDOM)
+      : undefined;
+    const cached = slotEl && slotEl.__lexicalTextContent;
+    invariant(
+      typeof cached === 'string',
+      'cachedTextSize: missing __lexicalTextContent for ElementNode of type %s',
+      node.getType(),
+    );
+    return cached.length;
+  }
+  const cached = (node as WithCachedTextSize)[CACHED_TEXT_SIZE];
   invariant(
     cached !== undefined,
-    'cachedTextSize: missing entry for node of type %s — the cache invariant ' +
-      'requires every node leaving $reconcileNode / $createNode to carry a ' +
-      'current label, but this node has none. Falling through to ' +
+    'cachedTextSize: missing entry for leaf node of type %s — the cache ' +
+      'invariant requires every leaf leaving $reconcileNode / $createNode to ' +
+      'carry a current label, but this node has none. Falling through to ' +
       'getTextContentSize() here would resolve via getLatest() -> next state ' +
       'and silently miscompute prev sizes.',
     node.getType(),
@@ -88,24 +125,16 @@ function $cachedTextSize(node: LexicalNode): number {
   return cached;
 }
 
-function $setCachedTextSize(node: LexicalNode, size: number): void {
-  cachedTextSizeMap.set(node, size);
-}
-
-function $computeCachedTextSize(
-  node: LexicalNode,
-  dom: HTMLElement & LexicalPrivateDOM,
-): number {
+function $setCachedTextSize(node: LexicalNode): void {
   if ($isElementNode(node)) {
-    const cachedText = dom.__lexicalTextContent;
-    return typeof cachedText === 'string'
-      ? cachedText.length
-      : node.getTextContentSize();
+    return;
   }
-  if ($isTextNode(node)) {
-    return node.__text.length;
+  if (__DEV__ && Object.isFrozen(node)) {
+    return;
   }
-  return node.getTextContentSize();
+  (node as WithCachedTextSize)[CACHED_TEXT_SIZE] = $isTextNode(node)
+    ? node.__text.length
+    : node.getTextContentSize();
 }
 
 /**
@@ -359,7 +388,7 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
 
   // Same cached-text-size invariant as $reconcileNode — every node leaving
   // a reconciler entry point in the next state carries a current label.
-  $setCachedTextSize(node, $computeCachedTextSize(node, dom));
+  $setCachedTextSize(node);
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(node);
@@ -981,7 +1010,7 @@ function $reconcileNode(
   // a current label so the next cycle's reads of the previous-state
   // instance are O(1) and never need to fall through to a recursive walk
   // that would resolve via `getLatest()` -> next state.
-  $setCachedTextSize(nextNode, $computeCachedTextSize(nextNode, dom));
+  $setCachedTextSize(nextNode);
   if (__DEV__) {
     // Freeze the node in DEV to prevent accidental mutations
     Object.freeze(nextNode);

@@ -602,6 +602,17 @@ export class LexicalNode {
       value: undefined,
       writable: true,
     });
+    // Pre-initialize the reconciler's cached-text-size slot so subsequent
+    // assignments on the V8 hot path slot into a stable hidden class
+    // instead of triggering per-instance shape transitions. (Owned by
+    // LexicalReconciler; the Symbol key literal is duplicated there —
+    // keep them in sync.)
+    Object.defineProperty(this, Symbol.for('@lexical/CachedTextSize'), {
+      configurable: true,
+      enumerable: false,
+      value: undefined,
+      writable: true,
+    });
     $setNodeKey(this, key);
 
     if (__DEV__) {
