@@ -46,6 +46,7 @@ import {EditorState} from './LexicalEditorState';
 import {cloneMap} from './LexicalGenMap';
 import {
   $createChildrenArray,
+  $isRootOrShadowRoot,
   cloneDecorators,
   getElementByKeyOrThrow,
   setMutatedNode,
