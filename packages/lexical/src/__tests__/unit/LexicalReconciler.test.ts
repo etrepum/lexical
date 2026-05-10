@@ -7,6 +7,7 @@
  */
 
 import {buildEditorFromExtensions, defineExtension} from '@lexical/extension';
+import {$createLinkNode, LinkExtension} from '@lexical/link';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
   $createLineBreakNode,
@@ -14,6 +15,7 @@ import {
   $createTextNode,
   $getNodeByKey,
   $getRoot,
+  $isElementNode,
   $isParagraphNode,
   $isTextNode,
   type NodeMutation,
@@ -1118,6 +1120,166 @@ describe('LexicalReconciler', () => {
         // "x". paragraph.__textFormat must reflect that — it's used by
         // selection inheritance and JSON serialization.
         expect(para.getTextFormat()).not.toBe(0);
+      });
+    });
+
+    function createReconcilerEditorWithLink() {
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        LinkExtension,
+        defineExtension({name: 'reconciler-suffix-test-with-link'}),
+      );
+      editor.setRootElement(document.createElement('div'));
+      return editor;
+    }
+
+    // Regression: the general same-size walk (taken when the parent has many
+    // children but suffix-incremental can't fire because no contiguous tail
+    // is preserved) must capture both the format/style and the key of the
+    // first direct TextNode child, so `dom.__lexicalFirstTextKey` is written
+    // for the next cycle's `$resolveSuffixPathFormat` to find. If the key is
+    // missing, the next cycle's helper takes the "no prefix text descendant"
+    // branch and propagates the wrong text's format to the parent.
+    test('general same-size walk caches first-text key on the parent DOM', () => {
+      using editor = createReconcilerEditor();
+
+      // 4 direct TextNode children with *distinct* formats so lexical's
+      // TextNode normalization doesn't merge them after the cycle-2
+      // style sweep. Without this, the 4 children collapse to 1 and
+      // `paragraph.__size` drops below MIN_FAST_PATH_CHILDREN — the wrong
+      // path for this regression. First child 'a' stays format-0 so the
+      // assertion (`paragraph.__textFormat === 0`) reflects 'a's format.
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          para.append(
+            $createTextNode('a'),
+            $createTextNode('b').toggleFormat('bold'),
+            $createTextNode('c').toggleFormat('italic'),
+            $createTextNode('d').toggleFormat('code'),
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      // Cycle 2: re-style every child. All 4 children dirty → suffix-
+      // incremental bails (`$suffixStartIfContiguous` returns null when
+      // dirty.size >= parent.__size) → general same-size walk runs →
+      // `dom.__lexicalFirstTextKey` must be written from the post-walk
+      // module state. The C1 fix is exactly this capture site.
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          for (const child of para.getChildren()) {
+            invariant($isTextNode(child), 'child must be a TextNode');
+            child.setStyle('color: red');
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // Confirm normalization didn't merge the children.
+        expect(para.getChildren()).toHaveLength(4);
+        const firstChildKey = para.getFirstChildOrThrow().__key;
+        const dom = editor.getElementByKey(para.__key) as
+          | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+          | null;
+        expect(dom?.__lexicalFirstTextKey).toBe(firstChildKey);
+        expect(para.getTextFormat()).toBe(0);
+      });
+
+      // Cycle 3: format-toggle only the last child. 1 dirty child + 4-child
+      // parent → suffix-incremental fires → `$resolveSuffixPathFormat`
+      // reads the cached first-text key from cycle 2. If C1's capture were
+      // missing, that key would be null and the helper would take the
+      // "no prefix text" branch, propagating the last child's format up.
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const last = para.getLastChildOrThrow();
+          invariant($isTextNode(last), 'last must be a TextNode');
+          last.toggleFormat('underline');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // First text descendant 'a' is still format 0 — parent must reflect
+        // that, not 'd's (code | underline).
+        expect(para.getTextFormat()).toBe(0);
+      });
+    });
+
+    // Regression: the suffix walks (both the same-size loop in
+    // `$reconcileChildren` and the ops loop in `$tryReconcileSuffixWithSizeDelta`)
+    // recursively reconcile element children, and `$reconcileChildrenWithDirection`
+    // resets the module state at entry. Without save/restore, each iteration
+    // clobbers the previous one and the walk ends with the *last* suffix
+    // element child's first-text descendant, not the first. When the prefix
+    // has no text descendant, the parent then gets the wrong text's format
+    // propagated up.
+    test('suffix walk keeps the leftmost first-text descriptor across element-child iterations', () => {
+      using editor = createReconcilerEditorWithLink();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          // Prefix has no text descendants (3 line breaks). Suffix has two
+          // links carrying text — X bold, Y italic. Total 5 inline children
+          // ≥ MIN_FAST_PATH_CHILDREN.
+          const linkX = $createLinkNode('https://x.example');
+          linkX.append($createTextNode('X').toggleFormat('bold'));
+          const linkY = $createLinkNode('https://y.example');
+          linkY.append($createTextNode('Y').toggleFormat('italic'));
+          para.append(
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            linkX,
+            linkY,
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          // Dirty the text inside both links by re-styling. Dirty propagation
+          // marks the parent link (and paragraph) as dirty too, so each link
+          // goes through the suffix walk's recursive reconcile — that's where
+          // the previous-iteration module state would get clobbered.
+          for (const child of para.getChildren()) {
+            if ($isElementNode(child)) {
+              const innerText = child.getFirstChild();
+              if (innerText !== null && $isTextNode(innerText)) {
+                innerText.setStyle('color: red');
+              }
+            }
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // First text descendant in DFS order is X (bold). Parent must
+        // reflect X's format, not Y's.
+        const TEXT_FORMAT_BOLD = 1;
+        expect(para.getTextFormat()).toBe(TEXT_FORMAT_BOLD);
       });
     });
   });

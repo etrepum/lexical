@@ -730,6 +730,16 @@ function $tryReconcileSuffixWithSizeDelta(
     }
   }
   for (const op of ops) {
+    // Save before recursing because `$reconcileNode` enters
+    // `$reconcileChildrenWithDirection` for ElementNode children, which
+    // resets the three module vars at entry; without save/restore each op
+    // would clobber the previous one and the parent would end up with the
+    // *last* suffix child's first-text descriptor instead of the first.
+    // (For `create` ops `$createChildren` doesn't reset, so save/restore is
+    // inert there — kept for symmetry.)
+    const savedFormat = subTreeTextFormat;
+    const savedStyle = subTreeTextStyle;
+    const savedFirstTextKey = subTreeFirstTextKey;
     if (op.kind === 'reconcile') {
       $reconcileNode(op.key, dom);
     } else if (op.kind === 'destroy') {
@@ -748,10 +758,6 @@ function $tryReconcileSuffixWithSizeDelta(
         .withBefore(beforeDOM);
       $createNode(op.key, childSlot);
     }
-    // Capture format/style + first-text key from direct TextNode suffix
-    // children, mirroring the capture in $reconcileNodeChildren so the
-    // parent's `$resolveSuffixPathFormat` call can fall back to
-    // suffix-derived values when the prefix has no text descendant.
     if (op.kind !== 'destroy') {
       const opNode = activeNextNodeMap.get(op.key);
       if (opNode && $isTextNode(opNode) && subTreeTextFormat === null) {
@@ -759,6 +765,13 @@ function $tryReconcileSuffixWithSizeDelta(
         subTreeTextStyle = opNode.getStyle();
         subTreeFirstTextKey = opNode.__key;
       }
+    }
+    if (savedFirstTextKey !== null) {
+      // An earlier op already adopted the first-text descendant; restore
+      // it so only the leftmost wins.
+      subTreeTextFormat = savedFormat;
+      subTreeTextStyle = savedStyle;
+      subTreeFirstTextKey = savedFirstTextKey;
     }
   }
   let newSuffix = '';
@@ -924,15 +937,26 @@ function $reconcileChildren(
             if (node === undefined) {
               break;
             }
+            // Save before recursing because `$reconcileChildrenWithDirection`
+            // resets the three module vars at entry; without save/restore each
+            // iteration would clobber the previous one and the parent would
+            // end up with the *last* suffix child's first-text descriptor
+            // instead of the first.
+            const savedFormat = subTreeTextFormat;
+            const savedStyle = subTreeTextStyle;
+            const savedFirstTextKey = subTreeFirstTextKey;
             $reconcileNode(cur, dom);
-            // Capture format/style + first-text key from direct TextNode
-            // suffix children. ElementNode suffix children populate these
-            // via their own recursive `$reconcileChildrenWithDirection`
-            // scope, which leaks the value back through the module state.
             if ($isTextNode(node) && subTreeTextFormat === null) {
               subTreeTextFormat = node.getFormat();
               subTreeTextStyle = node.getStyle();
               subTreeFirstTextKey = node.__key;
+            }
+            if (savedFirstTextKey !== null) {
+              // An earlier suffix iteration already adopted the first-text
+              // descendant; restore it so only the leftmost wins.
+              subTreeTextFormat = savedFormat;
+              subTreeTextStyle = savedStyle;
+              subTreeFirstTextKey = savedFirstTextKey;
             }
             cur = node.__next;
             i++;
@@ -1031,6 +1055,7 @@ function $reconcileChildren(
           if (subTreeTextFormat === null) {
             subTreeTextFormat = node.getFormat();
             subTreeTextStyle = node.getStyle();
+            subTreeFirstTextKey = node.__key;
           }
         } else if (
           $isElementNode(node) &&
