@@ -292,7 +292,7 @@ export function $getReconciledDirection(
     return null;
   }
   const parent = node.getParentOrThrow();
-  if (!$isRootNode(parent) || parent.__dir !== null) {
+  if (!$isRootOrShadowRoot(parent) || parent.__dir !== null) {
     return null;
   }
   return 'auto';
