@@ -163,6 +163,7 @@ export const __benchOnly = {
 let subTreeTextContent = '';
 let subTreeTextFormat: number | null = null;
 let subTreeTextStyle: string | null = null;
+let subTreeFirstTextKey: NodeKey | null = null;
 let activeEditorConfig: EditorConfig;
 let activeEditor: LexicalEditor;
 let activeEditorNodes: RegisteredNodes;
@@ -355,6 +356,7 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
       // skipped, so set the cache explicitly. Keeps the children fast paths'
       // cached-text reads from needing a `getTextContent()` fallback.
       dom.__lexicalTextContent = '';
+      dom.__lexicalFirstTextKey = null;
     } else {
       const endIndex = childrenSize - 1;
       const children = $createChildrenArray(node, activeNextNodeMap);
@@ -432,6 +434,7 @@ function $createChildren(
       if (subTreeTextFormat === null) {
         subTreeTextFormat = node.getFormat();
         subTreeTextStyle = node.getStyle();
+        subTreeFirstTextKey = node.__key;
       }
     } else if (
       // inline $textContentRequiresDoubleLinebreakAtEnd
@@ -444,6 +447,7 @@ function $createChildren(
   }
   const dom: HTMLElement & LexicalPrivateDOM = slot.element;
   dom.__lexicalTextContent = subTreeTextContent;
+  dom.__lexicalFirstTextKey = subTreeFirstTextKey;
   subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
 }
 
@@ -517,13 +521,22 @@ function $reconcileChildrenWithDirection(
 ): void {
   subTreeTextFormat = null;
   subTreeTextStyle = null;
+  subTreeFirstTextKey = null;
   $reconcileChildren(
     prevElement,
     nextElement,
     activeEditorDOMRenderConfig.$getDOMSlot(nextElement, dom, activeEditor),
   );
-  reconcileTextFormat(nextElement);
-  reconcileTextStyle(nextElement);
+  if (!$isRootOrShadowRoot(nextElement)) {
+    // RootNode / ShadowRootNode never expose `__textFormat` / `__textStyle`
+    // to user code: `LexicalElementNode.exportJSON` excludes them (#7968)
+    // and selection inheritance only reads element format/style for
+    // empty-element anchors gated on `!isRootTextContentEmpty`. Skipping
+    // reconcile here keeps the invariant aligned and sidesteps the
+    // suffix-fast-path's stale-format edge case at the root level.
+    reconcileTextFormat(nextElement);
+    reconcileTextStyle(nextElement);
+  }
 }
 
 function $buildDirtyChildrenByParent(): Map<NodeKey, Set<NodeKey>> {
@@ -734,6 +747,18 @@ function $tryReconcileSuffixWithSizeDelta(
         .withBefore(beforeDOM);
       $createNode(op.key, childSlot);
     }
+    // Capture format/style + first-text key from direct TextNode suffix
+    // children, mirroring the capture in $reconcileNodeChildren so the
+    // parent's `$resolveSuffixPathFormat` call can fall back to
+    // suffix-derived values when the prefix has no text descendant.
+    if (op.kind !== 'destroy') {
+      const opNode = activeNextNodeMap.get(op.key);
+      if (opNode && $isTextNode(opNode) && subTreeTextFormat === null) {
+        subTreeTextFormat = opNode.getFormat();
+        subTreeTextStyle = opNode.getStyle();
+        subTreeFirstTextKey = opNode.__key;
+      }
+    }
   }
   let newSuffix = '';
   for (let i = 0; i < k; i++) {
@@ -761,6 +786,71 @@ function $tryReconcileSuffixWithSizeDelta(
     newSuffix;
   dom.__lexicalTextContent = newParentText;
   return true;
+}
+
+/**
+ * Decide whether the post-suffix-walk values of `subTreeTextFormat` /
+ * `subTreeTextStyle` should be kept (the prefix has no text descendant
+ * and the suffix carries the canonical first text) or replaced with the
+ * prev-cycle's canonical values (the prefix is still authoritative).
+ *
+ * The cached `__lexicalFirstTextKey` on `dom` is the deep TextNode key
+ * recorded when this element's children were last walked. We climb its
+ * ancestor chain in next-state until we reach a direct child of
+ * `nextElement`, then probe `dirtyChildren`: if that direct child is
+ * dirty (or the cached key is missing from the next map), the cached
+ * key has been moved into the suffix's subtree or destroyed, so the
+ * suffix-derived values are authoritative. Otherwise the prefix is
+ * canonical and we recover format/style from the live text node, which
+ * lets `reconcileTextFormat` / `reconcileTextStyle` no-op via their
+ * existing equality check against the parent's `__textFormat` /
+ * `__textStyle`.
+ *
+ * Walk depth is bounded by tree depth from the text node to the
+ * reconciled element (typically 1 — text directly under a paragraph).
+ * Always refreshes the cache for the next cycle.
+ */
+function $resolveSuffixPathFormat(
+  nextElement: ElementNode,
+  dom: HTMLElement & LexicalPrivateDOM,
+  dirtyChildren: Set<NodeKey>,
+): void {
+  const cachedFirstTextKey = dom.__lexicalFirstTextKey;
+  if (cachedFirstTextKey != null) {
+    const parentKey = nextElement.__key;
+    let ancestor: NodeKey | null = cachedFirstTextKey;
+    while (ancestor !== null) {
+      const node = activeNextNodeMap.get(ancestor);
+      if (node === undefined) {
+        ancestor = null;
+        break;
+      }
+      if (node.__parent === parentKey) {
+        break;
+      }
+      ancestor = node.__parent;
+    }
+    if (ancestor !== null && !dirtyChildren.has(ancestor)) {
+      const textNode = activeNextNodeMap.get(cachedFirstTextKey);
+      if ($isTextNode(textNode)) {
+        // Prefix carries the canonical first text descendant. Recover
+        // format/style from the live next-state node — `reconcileTextFormat`
+        // will compare against `nextElement.__textFormat` and no-op when
+        // the prev cycle's value is still correct.
+        subTreeTextFormat = textNode.getFormat();
+        subTreeTextStyle = textNode.getStyle();
+        // Cache key is unchanged this cycle.
+        return;
+      }
+    }
+  }
+  // Either no prev text descendant, ancestor not found, or ancestor is
+  // dirty. Keep the suffix-derived `subTreeTextFormat` / `subTreeTextStyle`
+  // so reconcileTextFormat updates the parent (or no-ops on root /
+  // shadow root via the gate). Refresh the cache to reflect this cycle's
+  // first text descendant, recorded by the recursive suffix-child walks
+  // into `subTreeFirstTextKey`.
+  dom.__lexicalFirstTextKey = subTreeFirstTextKey;
 }
 
 function $reconcileChildren(
@@ -834,6 +924,15 @@ function $reconcileChildren(
               break;
             }
             $reconcileNode(cur, dom);
+            // Capture format/style + first-text key from direct TextNode
+            // suffix children. ElementNode suffix children populate these
+            // via their own recursive `$reconcileChildrenWithDirection`
+            // scope, which leaks the value back through the module state.
+            if ($isTextNode(node) && subTreeTextFormat === null) {
+              subTreeTextFormat = node.getFormat();
+              subTreeTextStyle = node.getStyle();
+              subTreeFirstTextKey = node.__key;
+            }
             cur = node.__next;
             i++;
           }
@@ -870,12 +969,11 @@ function $reconcileChildren(
             ) + newSuffix;
           dom.__lexicalTextContent = newParentText;
           subTreeTextContent = previousSubTreeTextContent + newParentText;
-          // First text descendant lives in the non-dirty prefix, so the parent's
-          // textFormat / textStyle invariant didn't change. Discard whatever the
-          // recursive `$reconcileNode` calls left in these module-level slots
-          // so the caller's `reconcileTextFormat` / `reconcileTextStyle` no-ops.
-          subTreeTextFormat = null;
-          subTreeTextStyle = null;
+          // Recover the canonical first-text format/style for this parent.
+          // If the prefix carries it, `reconcileTextFormat` no-ops via
+          // equality. If the prefix has no text descendant, the
+          // suffix-derived values stay and propagate correctly.
+          $resolveSuffixPathFormat(nextElement, dom, dirtyChildren);
           return;
         }
         if (
@@ -891,8 +989,7 @@ function $reconcileChildren(
         ) {
           subTreeTextContent =
             previousSubTreeTextContent + (dom.__lexicalTextContent ?? '');
-          subTreeTextFormat = null;
-          subTreeTextStyle = null;
+          $resolveSuffixPathFormat(nextElement, dom, dirtyChildren);
           return;
         }
         // Bail: helper rejected the size-delta candidate (K mismatch,
@@ -945,6 +1042,7 @@ function $reconcileChildren(
         i++;
       }
       dom.__lexicalTextContent = subTreeTextContent;
+      dom.__lexicalFirstTextKey = subTreeFirstTextKey;
       subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
       return;
     }
@@ -991,6 +1089,7 @@ function $reconcileChildren(
       if (subTreeTextFormat === null) {
         subTreeTextFormat = nextChildNode.getFormat();
         subTreeTextStyle = nextChildNode.getStyle();
+        subTreeFirstTextKey = nextChildNode.__key;
       }
     }
   } else {
@@ -1047,6 +1146,7 @@ function $reconcileChildren(
   }
 
   dom.__lexicalTextContent = subTreeTextContent;
+  dom.__lexicalFirstTextKey = subTreeFirstTextKey;
   subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
 }
 
@@ -1342,6 +1442,7 @@ function $reconcileNodeChildren(
       if (subTreeTextFormat === null) {
         subTreeTextFormat = node.getFormat();
         subTreeTextStyle = node.getStyle();
+        subTreeFirstTextKey = node.__key;
       }
     } else if (
       // inline $textContentRequiresDoubleLinebreakAtEnd

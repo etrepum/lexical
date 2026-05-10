@@ -242,6 +242,15 @@ export type LexicalUpdateJSON<T extends SerializedLexicalNode> = Omit<
 /** @internal */
 export interface LexicalPrivateDOM {
   __lexicalTextContent?: string | undefined | null;
+  /**
+   * NodeKey of the deep first text descendant (DFS order) of this
+   * element, or `null` if the subtree carries no text descendants.
+   * Maintained alongside `__lexicalTextContent` and used by the
+   * suffix-incremental fast path in `$reconcileChildren` to decide in
+   * O(1) (via the cycle's dirty-children set) whether the prefix still
+   * carries the canonical first text descendant.
+   */
+  __lexicalFirstTextKey?: NodeKey | null | undefined;
   __lexicalLineBreak?: HTMLBRElement | HTMLImageElement | undefined | null;
   __lexicalDir?: 'ltr' | 'rtl' | null | undefined;
   __lexicalUnmanaged?: boolean | undefined;

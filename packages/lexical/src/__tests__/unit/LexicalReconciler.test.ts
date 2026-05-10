@@ -916,5 +916,209 @@ describe('LexicalReconciler', () => {
         });
       }
     });
+
+    // Reconcile intentionally does NOT propagate textFormat / textStyle
+    // to RootNode / ShadowRootNode — `LexicalElementNode.exportJSON`
+    // already excludes them (#7968) and selection inheritance only reads
+    // element format/style for non-root anchors. The
+    // `$reconcileChildrenWithDirection` gate skips the calls entirely so
+    // root never picks up format from a descendant, regardless of which
+    // children fast path runs.
+    test('AUDIT #1: root __textFormat is not propagated from descendants', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          // Three empty paragraphs (no text descendants in the prefix) +
+          // one paragraph with plain text. Total 4 children, which clears
+          // MIN_FAST_PATH_CHILDREN=4 so the suffix path engages.
+          root.append(
+            $createParagraphNode(),
+            $createParagraphNode(),
+            $createParagraphNode(),
+            $createParagraphNode().append($createTextNode('x')),
+          );
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().getTextFormat()).toBe(0);
+      });
+
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChildOrThrow();
+          invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+          const text = last.getFirstChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.toggleFormat('bold');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const root = $getRoot();
+        const last = root.getLastChildOrThrow();
+        invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+        // Inner reconcile of the last paragraph still updates its own
+        // __textFormat — paragraphs are not gated.
+        expect(last.getTextFormat()).not.toBe(0);
+        // Root is intentionally NOT updated — the gate suppresses it.
+        expect(root.getTextFormat()).toBe(0);
+      });
+    });
+
+    // Companion / sanity test: when the prefix DOES have a text
+    // descendant, the suffix-path clear is correct (the parent's
+    // __textFormat is sourced from the prefix and shouldn't change). This
+    // documents what the clear is protecting against, and locks in the
+    // expected behavior so a fix to #1 doesn't regress this case.
+    test('AUDIT #1 control: prefix with text keeps parent __textFormat stable', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          for (const t of ['a', 'b', 'c', 'd']) {
+            root.append($createParagraphNode().append($createTextNode(t)));
+          }
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        expect($getRoot().getTextFormat()).toBe(0);
+      });
+
+      editor.update(
+        () => {
+          const last = $getRoot().getLastChildOrThrow();
+          invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+          const text = last.getFirstChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.toggleFormat('bold');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const root = $getRoot();
+        const last = root.getLastChildOrThrow();
+        invariant($isParagraphNode(last), 'last must be a ParagraphNode');
+        expect(last.getTextFormat()).not.toBe(0);
+        // First text descendant of root is 'a' in the prefix — plain.
+        // root.__textFormat must NOT pick up the suffix's bold.
+        expect(root.getTextFormat()).toBe(0);
+      });
+    });
+
+    // Companion to AUDIT #1 (non-root): when the prefix DOES carry the
+    // canonical first text descendant, the suffix path must NOT bubble
+    // the suffix's format up to the parent. The cached __lexicalFirstTextKey
+    // identifies the prefix child as authoritative via the dirty-set probe.
+    test('AUDIT #1 (non-root) control: prefix with text keeps paragraph __textFormat stable', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          // Plain text first, then 3 line breaks, then a final text. The
+          // first text descendant is the plain "head" — paragraph's
+          // __textFormat must reflect 0 even after the trailing text is
+          // bolded.
+          para.append(
+            $createTextNode('head'),
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createTextNode('tail'),
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        expect(para.getTextFormat()).toBe(0);
+      });
+
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const tail = para.getLastChildOrThrow();
+          invariant($isTextNode(tail), 'tail must be a TextNode');
+          tail.toggleFormat('bold');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // First text descendant ("head") is in the non-dirty prefix, so
+        // its format (0) wins. The bolded "tail" is in the suffix and
+        // must NOT bubble to the parent.
+        expect(para.getTextFormat()).toBe(0);
+      });
+    });
+
+    // Audit finding #1 (non-root variant): the same bug reproduces on a
+    // *paragraph* whose prefix has no text descendants — e.g. line breaks
+    // followed by a text node. Skipping `reconcileTextFormat` for
+    // `$isRootOrShadowRoot` would not fix this case, since the paragraph's
+    // own __textFormat is read by selection logic and JSON serialization.
+    test('AUDIT #1 (non-root): paragraph with linebreak-only prefix leaks stale __textFormat', () => {
+      using editor = createReconcilerEditor();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          // Three line breaks (non-text leaves, no text descendants in the
+          // prefix) + a final text node "x". 4 inline children total, so
+          // MIN_FAST_PATH_CHILDREN=4 is met when this paragraph is the
+          // reconcile parent.
+          para.append(
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createTextNode('x'),
+          );
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        expect(para.getTextFormat()).toBe(0);
+      });
+
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const text = para.getLastChildOrThrow();
+          invariant($isTextNode(text), 'text must be a TextNode');
+          text.toggleFormat('bold');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // First (and only) text descendant of the paragraph is the bold
+        // "x". paragraph.__textFormat must reflect that — it's used by
+        // selection inheritance and JSON serialization.
+        expect(para.getTextFormat()).not.toBe(0);
+      });
+    });
   });
 });
