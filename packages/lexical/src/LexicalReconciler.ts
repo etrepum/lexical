@@ -92,15 +92,10 @@ export const CACHED_TEXT_SIZE_KEY = Symbol.for('@lexical/CachedTextSize');
 
 function $cachedTextSize(node: LexicalNode): number {
   if ($isElementNode(node)) {
-    const keyedDom = activePrevKeyToDOMMap.get(node.__key);
-    // Route through `$getDOMSlot` for symmetry with the rest of the
-    // reconciler — TableNode and similar wrap the keyed DOM, and the
-    // text-content cache is written on the inner slot element.
-    const slotEl: undefined | (HTMLElement & LexicalPrivateDOM) = keyedDom
-      ? activeEditorDOMRenderConfig.$getDOMSlot(node, keyedDom, activeEditor)
-          .element
-      : undefined;
-    const cached = slotEl && slotEl.__lexicalTextContent;
+    const keyedDom = activePrevKeyToDOMMap.get(node.__key) as
+      | (HTMLElement & LexicalPrivateDOM)
+      | undefined;
+    const cached = keyedDom && keyedDom.__lexicalTextContent;
     invariant(
       typeof cached === 'string',
       'cachedTextSize: missing __lexicalTextContent for ElementNode of type %s',
@@ -203,12 +198,12 @@ function $endCaptureGuard(saved: CaptureGuard): void {
 // text still wins over a later dirty sibling. Only fires when the
 // caller hasn't already captured one.
 function $bubbleChildFirstText(
-  childDom: HTMLElement & LexicalPrivateDOM,
+  childKeyedDom: HTMLElement & LexicalPrivateDOM,
 ): void {
   if (subTreeFirstTextKey !== null) {
     return;
   }
-  const childFirstKey = childDom.__lexicalFirstTextKey;
+  const childFirstKey = childKeyedDom.__lexicalFirstTextKey;
   if (childFirstKey == null) {
     return;
   }
@@ -407,9 +402,9 @@ function $createNode(key: NodeKey, slot: ElementDOMSlot | null): HTMLElement {
       setElementIndent(dom, indent);
     }
     if (childrenSize === 0) {
-      // Empty element: $createChildren's `dom.__lexicalTextContent` write is
-      // skipped, so set the cache explicitly. Keeps the children fast paths'
-      // cached-text reads from needing a `getTextContent()` fallback.
+      // Empty element: $createChildren's cache write is skipped, so set
+      // the cache explicitly on the keyed DOM. Symmetric with the
+      // (keyed-DOM) writes in $createChildren / $reconcileChildren.
       dom.__lexicalTextContent = '';
       dom.__lexicalFirstTextKey = null;
     } else {
@@ -510,9 +505,14 @@ function $createChildren(
     }
     $endCaptureGuard(saved);
   }
-  const dom: HTMLElement & LexicalPrivateDOM = slot.element;
-  dom.__lexicalTextContent = subTreeTextContent;
-  dom.__lexicalFirstTextKey = subTreeFirstTextKey;
+  // Cache lives on the keyed DOM (outer wrapper) for wrapping elements;
+  // identical to `slot.element` otherwise. Look up rather than thread a
+  // parameter — the element's DOM is already in the map via
+  // `storeDOMWithKey` by the time we get here.
+  const cacheDom = activeEditor._keyToDOMMap.get(element.__key) as HTMLElement &
+    LexicalPrivateDOM;
+  cacheDom.__lexicalTextContent = subTreeTextContent;
+  cacheDom.__lexicalFirstTextKey = subTreeFirstTextKey;
   subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
   // Outer-scope leftmost-wins: if the caller already had a first text
   // captured, restore it. Otherwise leave this walk's first-text in the
@@ -835,10 +835,10 @@ function $tryReconcileSuffixWithSizeDelta(
     }
     let text: string;
     if ($isElementNode(node)) {
-      const childDom = activeEditor._keyToDOMMap.get(nextSuffixKeys[i]) as
+      const childKeyedDom = activeEditor._keyToDOMMap.get(nextSuffixKeys[i]) as
         | (HTMLElement & LexicalPrivateDOM)
         | undefined;
-      const cached = childDom && childDom.__lexicalTextContent;
+      const cached = childKeyedDom && childKeyedDom.__lexicalTextContent;
       text = typeof cached === 'string' ? cached : node.getTextContent();
     } else {
       text = node.getTextContent();
@@ -929,7 +929,16 @@ function $reconcileChildren(
   const prevChildrenSize = prevElement.__size;
   const nextChildrenSize = nextElement.__size;
   subTreeTextContent = '';
+  // `dom` is `slot.element` (the inner DOM where children live and where
+  // DOM operations target). `cacheDom` is the keyed DOM (outer wrapper
+  // for nodes that wrap, identical to `dom` otherwise) and holds the
+  // `__lexicalTextContent` / `__lexicalFirstTextKey` caches for this
+  // element. Keeping them split lets wrapping nodes (TableNode etc.)
+  // route cache R/W to the outer DOM while DOM ops stay on the slot.
   const dom: HTMLElement & LexicalPrivateDOM = slot.element;
+  const cacheDom = activeEditor._keyToDOMMap.get(
+    nextElement.__key,
+  ) as HTMLElement & LexicalPrivateDOM;
 
   const sizeDelta = nextChildrenSize - prevChildrenSize;
   if (
@@ -952,7 +961,7 @@ function $reconcileChildren(
     // The non-dirty prefix (and its DLB into the suffix) stays untouched,
     // so format/style propagation — which captures the first text descendant
     // — is unaffected.
-    const cachedParentText = dom.__lexicalTextContent;
+    const cachedParentText = cacheDom.__lexicalTextContent;
     const dirtyChildren = activeDirtyChildrenByParent.get(prevElement.__key);
     if (
       !treatAllNodesAsDirty &&
@@ -1012,8 +1021,11 @@ function $reconcileChildren(
             }
             let text: string;
             if ($isElementNode(node)) {
-              const childDom = activePrevKeyToDOMMap.get(cur);
-              const cached = childDom && childDom.__lexicalTextContent;
+              const childKeyedDom = activePrevKeyToDOMMap.get(cur) as
+                | (HTMLElement & LexicalPrivateDOM)
+                | undefined;
+              const cached =
+                childKeyedDom && childKeyedDom.__lexicalTextContent;
               text =
                 typeof cached === 'string' ? cached : node.getTextContent();
             } else {
@@ -1032,20 +1044,20 @@ function $reconcileChildren(
               0,
               cachedParentText.length - oldSuffixLength,
             ) + newSuffix;
-          dom.__lexicalTextContent = newParentText;
+          cacheDom.__lexicalTextContent = newParentText;
           subTreeTextContent = previousSubTreeTextContent + newParentText;
           // Recover the canonical first-text format/style for this parent.
           // If the prefix carries it, `reconcileTextFormat` no-ops via
           // equality. If the prefix has no text descendant, the
           // suffix-derived values stay and propagate correctly.
-          $resolveSuffixPathFormat(nextElement, dom, dirtyChildren);
+          $resolveSuffixPathFormat(nextElement, cacheDom, dirtyChildren);
           return;
         }
         if (
           $tryReconcileSuffixWithSizeDelta(
             prevElement,
             nextElement,
-            dom,
+            cacheDom,
             cachedParentText,
             suffixStartKey,
             k,
@@ -1053,8 +1065,8 @@ function $reconcileChildren(
           )
         ) {
           subTreeTextContent =
-            previousSubTreeTextContent + (dom.__lexicalTextContent ?? '');
-          $resolveSuffixPathFormat(nextElement, dom, dirtyChildren);
+            previousSubTreeTextContent + (cacheDom.__lexicalTextContent ?? '');
+          $resolveSuffixPathFormat(nextElement, cacheDom, dirtyChildren);
           return;
         }
         // Bail: helper rejected the size-delta candidate (K mismatch,
@@ -1083,17 +1095,17 @@ function $reconcileChildren(
           // cached text from the existing DOM rather than walking back
           // through `$reconcileNode`.
           let text: string;
-          let childDom: undefined | (HTMLElement & LexicalPrivateDOM);
+          let childKeyedDom: undefined | (HTMLElement & LexicalPrivateDOM);
           if ($isElementNode(node)) {
-            childDom = activePrevKeyToDOMMap.get(nodeKey);
-            const cached = childDom && childDom.__lexicalTextContent;
+            childKeyedDom = activePrevKeyToDOMMap.get(nodeKey);
+            const cached = childKeyedDom && childKeyedDom.__lexicalTextContent;
             text = typeof cached === 'string' ? cached : node.getTextContent();
           } else {
             text = node.getTextContent();
           }
           subTreeTextContent += text;
-          if (childDom !== undefined) {
-            $bubbleChildFirstText(childDom);
+          if (childKeyedDom !== undefined) {
+            $bubbleChildFirstText(childKeyedDom);
           }
         }
         if ($isTextNode(node)) {
@@ -1113,8 +1125,8 @@ function $reconcileChildren(
         nodeKey = node.__next;
         i++;
       }
-      dom.__lexicalTextContent = subTreeTextContent;
-      dom.__lexicalFirstTextKey = subTreeFirstTextKey;
+      cacheDom.__lexicalTextContent = subTreeTextContent;
+      cacheDom.__lexicalFirstTextKey = subTreeFirstTextKey;
       subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
       return;
     }
@@ -1217,8 +1229,8 @@ function $reconcileChildren(
     }
   }
 
-  dom.__lexicalTextContent = subTreeTextContent;
-  dom.__lexicalFirstTextKey = subTreeFirstTextKey;
+  cacheDom.__lexicalTextContent = subTreeTextContent;
+  cacheDom.__lexicalFirstTextKey = subTreeFirstTextKey;
   subTreeTextContent = previousSubTreeTextContent + subTreeTextContent;
 }
 
