@@ -3,12 +3,61 @@ name: After Approval
 on:
   pull_request_review:
     types: [submitted]
+  pull_request:
+    types: [synchronize, reopened]
+    paths-ignore:
+      - 'packages/lexical-website/**'
+      - 'packages/*/README.md'
 
-permissions: {}
+permissions:
+  pull-requests: read
+
+concurrency:
+  # Only cancel an in-progress run when a newer commit lands on the same ref.
+  # Other events (review submitted, reopened, manual re-runs) get a distinct
+  # group so they never cancel a run that is already underway.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' && 'commit' || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
+  check_approval:
+    # Skip when the extended-tests label is present; tests-extended.yml already
+    # handles that case on every synchronize.
+    if: github.repository_owner == 'facebook' && !contains(github.event.pull_request.labels.*.name, 'extended-tests')
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.check.outputs.approved }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request_review" ]; then
+            if [ "$REVIEW_STATE" = "approved" ]; then
+              echo "approved=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "approved=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          # On synchronize/reopened, fall back to the PR's current review
+          # decision so that pushing new commits to an already-approved PR
+          # re-runs the extended tests.
+          DECISION=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviewDecision --jq .reviewDecision)
+          if [ "$DECISION" = "APPROVED" ]; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+          fi
+
   pre_job:
-    if: (github.event.review.state == 'approved' && !contains(github.event.pull_request.labels.*.name, 'extended-tests'))
+    needs: check_approval
+    if: needs.check_approval.outputs.approved == 'true'
     runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
@@ -20,12 +69,13 @@ jobs:
           skip_after_successful_duplicate: 'true'
           do_not_skip: '["pull_request", "merge_group"]'
           paths_ignore: '["packages/lexical-website/**", "packages/*/README.md", "examples/**"]'
+
   e2e-tests:
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true' && (github.event.review.state == 'approved' && !contains(github.event.pull_request.labels.*.name, 'extended-tests'))
+    needs: [check_approval, pre_job]
+    if: needs.check_approval.outputs.approved == 'true' && needs.pre_job.outputs.should_skip != 'true'
     uses: ./.github/workflows/call-e2e-all-tests.yml
 
   integration-tests:
-    needs: pre_job
-    if: needs.pre_job.outputs.should_skip != 'true' && (github.event.review.state == 'approved' && !contains(github.event.pull_request.labels.*.name, 'extended-tests'))
+    needs: [check_approval, pre_job]
+    if: needs.check_approval.outputs.approved == 'true' && needs.pre_job.outputs.should_skip != 'true'
     uses: ./.github/workflows/call-integration-tests.yml
