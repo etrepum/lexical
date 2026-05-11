@@ -11,6 +11,7 @@ on:
 
 permissions:
   pull-requests: read
+  actions: read
 
 concurrency:
   # Only cancel an in-progress run when a newer commit lands on the same ref.
@@ -30,57 +31,65 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           REVIEW_STATE: ${{ github.event.review.state }}
           HAS_EXTENDED_TESTS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'extended-tests') }}
           HAS_DEPENDENCIES_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_FILE: tests-extended.yml
         run: |
           set -euo pipefail
-          # Run whenever a gating label is present.
+
+          gate_open=false
+          # A gating label opens the gate on any trigger.
           if [ "$HAS_EXTENDED_TESTS_LABEL" = "true" ] || [ "$HAS_DEPENDENCIES_LABEL" = "true" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # Run when a review was just submitted as an approval.
-          if [ "$EVENT_NAME" = "pull_request_review" ]; then
+            gate_open=true
+          elif [ "$EVENT_NAME" = "pull_request_review" ]; then
+            # An approval review opens the gate.
             if [ "$REVIEW_STATE" = "approved" ]; then
-              echo "should_run=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              gate_open=true
             fi
-            exit 0
-          fi
-          # On synchronize/reopened with no gating label, run if the PR is
-          # currently approved so new commits to an approved PR are tested.
-          DECISION=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviewDecision --jq .reviewDecision)
-          if [ "$DECISION" = "APPROVED" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            # For pull_request synchronize/reopened with no gating label, run
+            # if the PR is currently approved so new commits to an approved
+            # PR still get tested.
+            DECISION=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviewDecision --jq .reviewDecision)
+            if [ "$DECISION" = "APPROVED" ]; then
+              gate_open=true
+            fi
           fi
 
-  pre_job:
-    needs: check_should_run
-    if: needs.check_should_run.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      should_skip: ${{ steps.skip_check.outputs.should_skip }}
-    steps:
-      - id: skip_check
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          concurrent_skipping: 'same_content_newer'
-          skip_after_successful_duplicate: 'true'
-          do_not_skip: '["pull_request", "merge_group"]'
-          paths_ignore: '["packages/lexical-website/**", "packages/*/README.md", "examples/**"]'
+          if [ "$gate_open" != "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Dedup: skip if another run of this workflow is already in progress
+          # or has completed successfully on the same commit. A previous failed
+          # run does not block a fresh attempt.
+          OTHER_RUNS=$(gh api \
+            "repos/$REPO/actions/workflows/$WORKFLOW_FILE/runs?head_sha=$HEAD_SHA&per_page=100" \
+            --jq "[.workflow_runs[]
+                   | select(.id != $CURRENT_RUN_ID)
+                   | select(.status == \"in_progress\"
+                            or .status == \"queued\"
+                            or .conclusion == \"success\")]
+                  | length")
+          if [ "$OTHER_RUNS" -gt 0 ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
 
   e2e-tests:
-    needs: [check_should_run, pre_job]
-    if: needs.check_should_run.outputs.should_run == 'true' && needs.pre_job.outputs.should_skip != 'true'
+    needs: check_should_run
+    if: needs.check_should_run.outputs.should_run == 'true'
     uses: ./.github/workflows/call-e2e-all-tests.yml
 
   integration-tests:
-    needs: [check_should_run, pre_job]
-    if: needs.check_should_run.outputs.should_run == 'true' && needs.pre_job.outputs.should_skip != 'true'
+    needs: check_should_run
+    if: needs.check_should_run.outputs.should_run == 'true'
     uses: ./.github/workflows/call-integration-tests.yml
