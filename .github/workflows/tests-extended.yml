@@ -6,25 +6,81 @@ on:
     paths-ignore:
       - 'packages/lexical-website/**'
       - 'packages/*/README.md'
+  pull_request_review:
+    types: [submitted]
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 concurrency:
   # Only cancel an in-progress run when a newer commit lands on the same ref.
-  # Other events (labeled, reopened, manual approval re-runs, etc.) get a
-  # distinct group so they never cancel a run that is already underway.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && github.event.action != 'synchronize' && github.run_id || 'commit' }}
+  # Other events (labeled, reopened, review submitted) get a distinct group so
+  # they never cancel a run that is already underway.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' && 'commit' || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  check_should_run:
+    if: github.repository_owner == 'facebook'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          HAS_EXTENDED_TESTS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'extended-tests') }}
+          HAS_DEPENDENCIES_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'dependencies') }}
+        run: |
+          set -euo pipefail
+          # Run whenever a gating label is present.
+          if [ "$HAS_EXTENDED_TESTS_LABEL" = "true" ] || [ "$HAS_DEPENDENCIES_LABEL" = "true" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Run when a review was just submitted as an approval.
+          if [ "$EVENT_NAME" = "pull_request_review" ]; then
+            if [ "$REVIEW_STATE" = "approved" ]; then
+              echo "should_run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          # On synchronize/reopened with no gating label, run if the PR is
+          # currently approved so new commits to an approved PR are tested.
+          DECISION=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviewDecision --jq .reviewDecision)
+          if [ "$DECISION" = "APPROVED" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  pre_job:
+    needs: check_should_run
+    if: needs.check_should_run.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          concurrent_skipping: 'same_content_newer'
+          skip_after_successful_duplicate: 'true'
+          do_not_skip: '["pull_request", "merge_group"]'
+          paths_ignore: '["packages/lexical-website/**", "packages/*/README.md", "examples/**"]'
+
   e2e-tests:
-    if: github.repository_owner == 'facebook' &&
-      (contains(github.event.pull_request.labels.*.name, 'extended-tests') ||
-      contains(github.event.pull_request.labels.*.name, 'dependencies'))
+    needs: [check_should_run, pre_job]
+    if: needs.check_should_run.outputs.should_run == 'true' && needs.pre_job.outputs.should_skip != 'true'
     uses: ./.github/workflows/call-e2e-all-tests.yml
 
   integration-tests:
-    if: github.repository_owner == 'facebook' &&
-      (contains(github.event.pull_request.labels.*.name, 'extended-tests') ||
-      contains(github.event.pull_request.labels.*.name, 'dependencies'))
+    needs: [check_should_run, pre_job]
+    if: needs.check_should_run.outputs.should_run == 'true' && needs.pre_job.outputs.should_skip != 'true'
     uses: ./.github/workflows/call-integration-tests.yml
