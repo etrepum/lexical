@@ -1300,6 +1300,10 @@ describe('LexicalReconciler', () => {
           const root = $getRoot().clear();
           const para = $createParagraphNode();
           const linkA = $createLinkNode('https://a.example');
+          // textA carries bold so the post-cycle-2 assertion
+          // distinguishes leftmost-wins (paragraph reflects bold) from
+          // both "no propagation" (would stay at construct default 0)
+          // and "later-dirty wins" (would reflect textC's code).
           linkA.append($createTextNode('a').toggleFormat('bold'));
           const linkB = $createLinkNode('https://b.example');
           linkB.append($createTextNode('b').toggleFormat('italic'));
@@ -1350,21 +1354,20 @@ describe('LexicalReconciler', () => {
         const linkA = para.getChildAtIndex(0);
         invariant($isElementNode(linkA), 'linkA must be element');
         const textAKey = linkA.getFirstChildOrThrow().__key;
-        // Bug: Layer 2 walks all 4 link children, only linkC recurses.
-        // linkC's reset+capture leaks textC's format/key to the parent
-        // scope. Iter 4 (linkD) is not dirty so it doesn't overwrite.
-        // After the walk:
+        // Bug shape: Layer 2 walks all 4 link children, only linkC
+        // recurses. linkC's reset+capture leaks textC's format/key to
+        // the parent scope. After the walk:
         //   - subTreeFirstTextKey = textC_key, NOT textA_key.
         //   - reconcileTextFormat(P) sets P.__textFormat to textC's
         //     format (code), even though the first DFS text descendant
-        //     (textA, plain) didn't change.
+        //     (textA, bold) didn't change.
         //
-        // Expected (if Layer 2 had the suffix-walk save/restore fix):
-        //   - dom.__lexicalFirstTextKey === textAKey (leftmost wins).
-        //   - para.getTextFormat() === 0 (textA's format, unchanged).
+        // Expected with the leftmost-wins fix:
+        //   - dom.__lexicalFirstTextKey === textAKey.
+        //   - para.getTextFormat() === BOLD (textA's format).
+        const TEXT_FORMAT_BOLD = 1;
         expect(dom?.__lexicalFirstTextKey).toBe(textAKey);
-        expect(para.getTextFormat()).toBe(0);
-        // Sanity: the actual current values demonstrate the bug.
+        expect(para.getTextFormat()).toBe(TEXT_FORMAT_BOLD);
         void TEXT_FORMAT_CODE;
       });
     });
