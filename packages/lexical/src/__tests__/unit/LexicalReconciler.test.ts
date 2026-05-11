@@ -10,6 +10,7 @@ import {buildEditorFromExtensions, defineExtension} from '@lexical/extension';
 import {$createLinkNode, LinkExtension} from '@lexical/link';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
+  $applyNodeReplacement,
   $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
@@ -18,8 +19,11 @@ import {
   $isElementNode,
   $isParagraphNode,
   $isTextNode,
+  type ElementDOMSlot,
+  ElementNode,
   type NodeMutation,
   ParagraphNode,
+  type SerializedElementNode,
 } from 'lexical';
 import invariant from 'shared/invariant';
 import {afterEach, describe, expect, test, vi} from 'vitest';
@@ -1430,6 +1434,131 @@ describe('LexicalReconciler', () => {
         // first-text key wins.
         expect(dom?.__lexicalFirstTextKey).toBe(textAKey);
       });
+    });
+
+    // AUDIT-4: when an ElementNode wraps its keyed DOM in an outer element
+    // (TableNode wraps a <table> in a scrollable <div>; this test uses a
+    // simpler `<main><section>...</section></main>` wrapper to keep
+    // setup self-contained), the cache is written to the slot.element
+    // (inner `<section>`), not the keyed DOM (outer `<main>`).
+    //
+    // `$bubbleChildFirstText(dom)` in `$reconcileNode`'s !isDirty branches
+    // reads `dom.__lexicalFirstTextKey` directly off the keyed DOM. For
+    // wrapper elements the keyed DOM has no cache, so the bubble silently
+    // skips and the parent's first-text capture loses this child.
+    //
+    // When the wrapper element is the leftmost child carrying the
+    // canonical first text descendant, this means the parent's
+    // `__lexicalFirstTextKey` is wrong, and `reconcileTextFormat` picks
+    // up a later dirty sibling's format instead.
+    test('AUDIT-4: $bubbleChildFirstText misses cache on elements with wrapping DOM', () => {
+      class WrapperElementNode extends ElementNode {
+        static getType(): string {
+          return 'audit_wrapper';
+        }
+        static clone(node: WrapperElementNode): WrapperElementNode {
+          return new WrapperElementNode(node.__key);
+        }
+        createDOM(): HTMLElement {
+          const el = document.createElement('main');
+          el.appendChild(document.createElement('section'));
+          return el;
+        }
+        updateDOM(): boolean {
+          return false;
+        }
+        getDOMSlot(dom: HTMLElement): ElementDOMSlot {
+          return super
+            .getDOMSlot(dom)
+            .withElement(dom.querySelector('section')!);
+        }
+        isInline(): boolean {
+          return true;
+        }
+        exportJSON(): SerializedElementNode {
+          throw new Error('Not implemented');
+        }
+        static importJSON(): WrapperElementNode {
+          throw new Error('Not implemented');
+        }
+      }
+      function $createWrapperElementNode(): WrapperElementNode {
+        return $applyNodeReplacement(new WrapperElementNode());
+      }
+
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        LinkExtension,
+        defineExtension({
+          name: 'wrapper-audit',
+          nodes: [WrapperElementNode],
+        }),
+      );
+      editor.setRootElement(document.createElement('div'));
+
+      try {
+        editor.update(
+          () => {
+            const root = $getRoot().clear();
+            const para = $createParagraphNode();
+            // Wrapper element (with internal slot != keyed DOM) at the
+            // head, carrying the canonical first text descendant (textA,
+            // bold). 4 inline children → Layer 2 walk on para in cycle 2.
+            const wrapper = $createWrapperElementNode();
+            wrapper.append($createTextNode('a').toggleFormat('bold'));
+            const linkB = $createLinkNode('https://b.example');
+            linkB.append($createTextNode('b').toggleFormat('italic'));
+            const linkC = $createLinkNode('https://c.example');
+            linkC.append($createTextNode('c').toggleFormat('code'));
+            const linkD = $createLinkNode('https://d.example');
+            linkD.append($createTextNode('d').toggleFormat('underline'));
+            para.append(wrapper, linkB, linkC, linkD);
+            root.append(para);
+          },
+          {discrete: true},
+        );
+
+        // Cycle 2: dirty only the middle link's text. Suffix attempt
+        // bails (non-contiguous). Layer 2 walks. The wrapper element is
+        // non-dirty: `$bubbleChildFirstText(wrapper.keyedDOM)` should
+        // pick up the cached first-text key from the wrapper's section
+        // (inner slot), but reads keyed DOM (outer main) which has no
+        // cache.
+        editor.update(
+          () => {
+            const para = $getRoot().getFirstChildOrThrow();
+            invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+            const linkC = para.getChildAtIndex(2);
+            invariant($isElementNode(linkC), 'linkC must be element');
+            const textC = linkC.getFirstChildOrThrow();
+            invariant($isTextNode(textC), 'textC must be text');
+            textC.setStyle('color: red');
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const wrapper = para.getChildAtIndex(0);
+          invariant($isElementNode(wrapper), 'wrapper must be element');
+          const textAKey = wrapper.getFirstChildOrThrow().__key;
+          const TEXT_FORMAT_BOLD = 1;
+          // First DFS text descendant is textA inside the wrapper. The
+          // parent's __textFormat must reflect bold.
+          expect(para.getTextFormat()).toBe(TEXT_FORMAT_BOLD);
+          // The keyed DOM (outer main) has no cache. We verify the bug
+          // shape by reading the parent's __lexicalFirstTextKey: it
+          // should be textA's key (from wrapper) but is the dirty child's
+          // text key because the bubble silently skipped the wrapper.
+          const paraDom = editor.getElementByKey(para.__key) as
+            | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+            | null;
+          expect(paraDom?.__lexicalFirstTextKey).toBe(textAKey);
+        });
+      } finally {
+        editor.dispose();
+      }
     });
   });
 });
