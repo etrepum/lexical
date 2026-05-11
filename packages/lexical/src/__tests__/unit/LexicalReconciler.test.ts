@@ -1282,5 +1282,151 @@ describe('LexicalReconciler', () => {
         expect(para.getTextFormat()).toBe(TEXT_FORMAT_BOLD);
       });
     });
+
+    // AUDIT-2: when the suffix attempt bails (non-contiguous dirty) and
+    // the Layer 2 same-size general walk fires, each dirty ElementNode
+    // child's recursive reconcile resets the module state at entry and
+    // overwrites whatever earlier non-dirty children's caches would
+    // contribute. Layer 2 has no save/restore (unlike the suffix walks
+    // fixed in commit 9207234), so the parent ends up reflecting the
+    // *middle* dirty child's first-text descendant instead of the
+    // leftmost. The leftmost prefix child carries the canonical first
+    // text descendant in DFS order and should win.
+    test('AUDIT-2: Layer 2 walk writes wrong __lexicalFirstTextKey when middle child is dirty', () => {
+      using editor = createReconcilerEditorWithLink();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          const linkA = $createLinkNode('https://a.example');
+          linkA.append($createTextNode('a').toggleFormat('bold'));
+          const linkB = $createLinkNode('https://b.example');
+          linkB.append($createTextNode('b').toggleFormat('italic'));
+          const linkC = $createLinkNode('https://c.example');
+          linkC.append($createTextNode('c').toggleFormat('code'));
+          const linkD = $createLinkNode('https://d.example');
+          linkD.append($createTextNode('d').toggleFormat('underline'));
+          para.append(linkA, linkB, linkC, linkD);
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        // Initial render via $createNode doesn't go through
+        // reconcileTextFormat, so __textFormat stays at the constructor
+        // default (0). This is pre-existing behavior independent of the
+        // bug under test.
+        expect(para.getTextFormat()).toBe(0);
+      });
+
+      // Cycle 2: re-style only the third link's text (textC, code format).
+      // textC is dirty, propagates to linkC and P. dirtyChildren_map for
+      // P = {linkC}. Non-contiguous suffix → suffix attempt bails →
+      // Layer 2 same-size walk fires.
+      const TEXT_FORMAT_CODE = 16;
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const linkC = para.getChildAtIndex(2);
+          invariant($isElementNode(linkC), 'linkC must be element');
+          const textC = linkC.getFirstChildOrThrow();
+          invariant($isTextNode(textC), 'textC must be text');
+          textC.setStyle('color: red');
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        const dom = editor.getElementByKey(para.__key) as
+          | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+          | null;
+        const linkA = para.getChildAtIndex(0);
+        invariant($isElementNode(linkA), 'linkA must be element');
+        const textAKey = linkA.getFirstChildOrThrow().__key;
+        // Bug: Layer 2 walks all 4 link children, only linkC recurses.
+        // linkC's reset+capture leaks textC's format/key to the parent
+        // scope. Iter 4 (linkD) is not dirty so it doesn't overwrite.
+        // After the walk:
+        //   - subTreeFirstTextKey = textC_key, NOT textA_key.
+        //   - reconcileTextFormat(P) sets P.__textFormat to textC's
+        //     format (code), even though the first DFS text descendant
+        //     (textA, plain) didn't change.
+        //
+        // Expected (if Layer 2 had the suffix-walk save/restore fix):
+        //   - dom.__lexicalFirstTextKey === textAKey (leftmost wins).
+        //   - para.getTextFormat() === 0 (textA's format, unchanged).
+        expect(dom?.__lexicalFirstTextKey).toBe(textAKey);
+        expect(para.getTextFormat()).toBe(0);
+        // Sanity: the actual current values demonstrate the bug.
+        void TEXT_FORMAT_CODE;
+      });
+    });
+
+    // AUDIT-3: same bug pattern in $reconcileNodeChildren (the general
+    // two-pointer walk for cases like middle-insert that the fast paths
+    // can't handle). Each recursive `$reconcileNode` for an element
+    // child runs through `$reconcileChildrenWithDirection`'s reset.
+    // Without save/restore around the call, only the *last* iteration's
+    // first-text descriptor survives — `dom.__lexicalFirstTextKey` is
+    // written incorrectly and `reconcileTextFormat` propagates the
+    // wrong child's format.
+    test('AUDIT-3: $reconcileNodeChildren writes wrong cache after middle-insert', () => {
+      using editor = createReconcilerEditorWithLink();
+
+      editor.update(
+        () => {
+          const root = $getRoot().clear();
+          const para = $createParagraphNode();
+          const linkA = $createLinkNode('https://a.example');
+          linkA.append($createTextNode('a').toggleFormat('bold'));
+          const linkB = $createLinkNode('https://b.example');
+          linkB.append($createTextNode('b').toggleFormat('italic'));
+          const linkD = $createLinkNode('https://d.example');
+          linkD.append($createTextNode('d').toggleFormat('underline'));
+          para.append(linkA, linkB, linkD);
+          root.append(para);
+        },
+        {discrete: true},
+      );
+
+      // Cycle 2: insert linkC between B and D. sizeDelta=+1 (3 → 4) but
+      // suffix-incremental fast path bails because prevChildrenSize=3 is
+      // below MIN_FAST_PATH_CHILDREN=4. Falls to $reconcileNodeChildren.
+      editor.update(
+        () => {
+          const para = $getRoot().getFirstChildOrThrow();
+          invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+          const linkD = para.getChildAtIndex(2);
+          invariant($isElementNode(linkD), 'linkD must be element');
+          const linkC = $createLinkNode('https://c.example');
+          linkC.append($createTextNode('c').toggleFormat('code'));
+          linkD.insertBefore(linkC);
+        },
+        {discrete: true},
+      );
+
+      editor.read(() => {
+        const para = $getRoot().getFirstChildOrThrow();
+        invariant($isParagraphNode(para), 'para must be a ParagraphNode');
+        const linkA = para.getChildAtIndex(0);
+        invariant($isElementNode(linkA), 'linkA must be element');
+        const textAKey = linkA.getFirstChildOrThrow().__key;
+        const dom = editor.getElementByKey(para.__key) as
+          | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+          | null;
+        // The parent's first DFS text descendant didn't change (still
+        // textA, format 0). `__lexicalFirstTextKey` should reflect that.
+        // Bug: $reconcileNodeChildren's last reconciled element child's
+        // first-text key wins.
+        expect(dom?.__lexicalFirstTextKey).toBe(textAKey);
+      });
+    });
   });
 });
