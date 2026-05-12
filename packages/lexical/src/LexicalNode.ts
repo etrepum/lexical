@@ -36,6 +36,7 @@ import {
   type Prettify,
   type RequiredNodeStateConfig,
 } from './LexicalNodeState';
+import {CACHED_TEXT_SIZE_KEY} from './LexicalReconciler';
 import {
   $getSelection,
   $isNodeSelection,
@@ -241,6 +242,15 @@ export type LexicalUpdateJSON<T extends SerializedLexicalNode> = Omit<
 /** @internal */
 export interface LexicalPrivateDOM {
   __lexicalTextContent?: string | undefined | null;
+  /**
+   * NodeKey of the deep first text descendant (DFS order) of this
+   * element, or `null` if the subtree carries no text descendants.
+   * Maintained alongside `__lexicalTextContent` and used by the
+   * suffix-incremental fast path in `$reconcileChildren` to decide in
+   * O(1) (via the cycle's dirty-children set) whether the prefix still
+   * carries the canonical first text descendant.
+   */
+  __lexicalFirstTextKey?: NodeKey | null | undefined;
   __lexicalLineBreak?: HTMLBRElement | HTMLImageElement | undefined | null;
   __lexicalDir?: 'ltr' | 'rtl' | null | undefined;
   __lexicalUnmanaged?: boolean | undefined;
@@ -430,6 +440,14 @@ export function $markEphemeral<T extends LexicalNode>(
   return node;
 }
 
+/** @internal */
+const NON_ENUMERABLE_PROP_DESC: PropertyDescriptor = {
+  configurable: true,
+  enumerable: false,
+  value: undefined,
+  writable: true,
+};
+
 export class LexicalNode {
   /** @internal Allow us to look up the type including static props */
   declare ['constructor']: KlassConstructor<typeof LexicalNode>;
@@ -446,6 +464,8 @@ export class LexicalNode {
   __next: null | NodeKey;
   /** @internal */
   __state?: NodeState<this>;
+  /** @internal */
+  [CACHED_TEXT_SIZE_KEY]?: number;
 
   // Flow doesn't support abstract classes unfortunately, so we can't _force_
   // subclasses of Node to implement statics. All subclasses of Node should have
@@ -596,12 +616,11 @@ export class LexicalNode {
     this.__parent = null;
     this.__prev = null;
     this.__next = null;
-    Object.defineProperty(this, '__state', {
-      configurable: true,
-      enumerable: false,
-      value: undefined,
-      writable: true,
-    });
+    Object.defineProperty(this, '__state', NON_ENUMERABLE_PROP_DESC);
+    // Pre-initialize the reconciler's cached-text-size slot so subsequent
+    // assignments on the V8 hot path slot into a stable hidden class
+    // instead of triggering per-instance shape transitions.
+    Object.defineProperty(this, CACHED_TEXT_SIZE_KEY, NON_ENUMERABLE_PROP_DESC);
     $setNodeKey(this, key);
 
     if (__DEV__) {

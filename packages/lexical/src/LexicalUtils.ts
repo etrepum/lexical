@@ -2147,9 +2147,10 @@ export function $setFormatFromDOM<T extends ElementNode>(
  * Mark this node as unmanaged by lexical's mutation observer like
  * decorator nodes
  */
-export function setDOMUnmanaged(elementDom: HTMLElement): void {
-  const el: HTMLElement & LexicalPrivateDOM = elementDom;
-  el.__lexicalUnmanaged = true;
+export function setDOMUnmanaged(
+  elementDom: HTMLElement & LexicalPrivateDOM,
+): void {
+  elementDom.__lexicalUnmanaged = true;
 }
 
 /**
@@ -2157,9 +2158,8 @@ export function setDOMUnmanaged(elementDom: HTMLElement): void {
  *
  * True if this DOM node was marked with {@link setDOMUnmanaged}
  */
-export function isDOMUnmanaged(elementDom: Node): boolean {
-  const el: Node & LexicalPrivateDOM = elementDom;
-  return el.__lexicalUnmanaged === true;
+export function isDOMUnmanaged(elementDom: Node & LexicalPrivateDOM): boolean {
+  return elementDom.__lexicalUnmanaged === true;
 }
 
 /**
