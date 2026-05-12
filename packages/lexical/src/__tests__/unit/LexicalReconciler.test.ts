@@ -1560,5 +1560,143 @@ describe('LexicalReconciler', () => {
         editor.dispose();
       }
     });
+
+    // AUDIT-5: when a wrapping ElementNode (keyed DOM != slot.element) is
+    // the *parent* whose children mutate via the suffix size-delta fast
+    // path, the helper's `$reconcileNode` / `$destroyNode` calls must
+    // target `slot.element` (the actual DOM parent of the children), not
+    // the outer keyed DOM where the text-content cache lives.
+    //
+    // Pre-fix, the helper received only `cacheDom` and routed it to both
+    // roles. For wrapping parents the child's `parentNode` is the inner
+    // slot, so `$destroyNode`'s `dom.parentNode === parentDOM` guard
+    // failed silently and the orphan stayed in the DOM (size-delta=-1).
+    // The `$reconcileNode` path's `parentDOM.replaceChild` would throw on
+    // any `$updateDOM`-returning-true reconcile for the same reason.
+    test('AUDIT-5: size-delta suffix routes DOM ops to slot.element on wrapping parents', () => {
+      class BlockWrapperElementNode extends ElementNode {
+        static getType(): string {
+          return 'audit_block_wrapper';
+        }
+        static clone(node: BlockWrapperElementNode): BlockWrapperElementNode {
+          return new BlockWrapperElementNode(node.__key);
+        }
+        createDOM(): HTMLElement {
+          const el = document.createElement('div');
+          el.className = 'block-wrapper';
+          const inner = document.createElement('section');
+          inner.className = 'inner-slot';
+          el.appendChild(inner);
+          return el;
+        }
+        updateDOM(): boolean {
+          return false;
+        }
+        getDOMSlot(dom: HTMLElement): ElementDOMSlot {
+          return super
+            .getDOMSlot(dom)
+            .withElement(dom.querySelector('section')!);
+        }
+        exportJSON(): SerializedElementNode {
+          throw new Error('Not implemented');
+        }
+        static importJSON(): BlockWrapperElementNode {
+          throw new Error('Not implemented');
+        }
+      }
+      function $createBlockWrapperElementNode(): BlockWrapperElementNode {
+        return $applyNodeReplacement(new BlockWrapperElementNode());
+      }
+
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        defineExtension({
+          name: 'block-wrapper-audit',
+          nodes: [BlockWrapperElementNode],
+        }),
+      );
+      editor.setRootElement(document.createElement('div'));
+
+      try {
+        // Cycle 1: wrapper with 4 paragraph children (>= MIN_FAST_PATH_CHILDREN).
+        editor.update(
+          () => {
+            const root = $getRoot().clear();
+            const wrapper = $createBlockWrapperElementNode();
+            for (let i = 0; i < 4; i++) {
+              wrapper.append(
+                $createParagraphNode().append($createTextNode(`p${i}`)),
+              );
+            }
+            root.append(wrapper);
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const wrapper = $getRoot().getFirstChildOrThrow();
+          invariant($isElementNode(wrapper), 'wrapper');
+          const outerDom = editor.getElementByKey(wrapper.__key)!;
+          const innerSlot = outerDom.querySelector('section')!;
+          expect(innerSlot.children.length).toBe(4);
+          expect(outerDom.children.length).toBe(1);
+        });
+
+        // Cycle 2: append a 5th paragraph at the end (sizeDelta=+1, K=2).
+        // The suffix size-delta helper fires; pre-fix this routed
+        // $createNode through the helper's own $getDOMSlot call (still
+        // correct), but in the mixed reconcile/create ops case the
+        // $reconcileNode call would also fire with the wrong parent.
+        editor.update(
+          () => {
+            const wrapper = $getRoot().getFirstChildOrThrow();
+            invariant($isElementNode(wrapper), 'wrapper');
+            wrapper.append(
+              $createParagraphNode().append($createTextNode('p4')),
+            );
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const wrapper = $getRoot().getFirstChildOrThrow();
+          invariant($isElementNode(wrapper), 'wrapper');
+          const outerDom = editor.getElementByKey(wrapper.__key)!;
+          const innerSlot = outerDom.querySelector('section')!;
+          expect(innerSlot.children.length).toBe(5);
+          expect(innerSlot.textContent).toBe('p0p1p2p3p4');
+          expect(outerDom.children.length).toBe(1);
+        });
+
+        // Cycle 3: remove the last paragraph (sizeDelta=-1, K=1).
+        // The destroy op fires. Pre-fix, $destroyNode(op.key, cacheDom)
+        // was called with the outer `<div>`; the removed paragraph's
+        // parentNode is the inner `<section>`, so the guard at
+        // `dom.parentNode === parentDOM` failed silently — the
+        // `<p>` stayed in the DOM as an unmapped orphan. Post-fix,
+        // slot.element (= inner `<section>`) is passed; removeChild
+        // succeeds and the DOM child count matches the node count.
+        editor.update(
+          () => {
+            const wrapper = $getRoot().getFirstChildOrThrow();
+            invariant($isElementNode(wrapper), 'wrapper');
+            wrapper.getLastChildOrThrow().remove();
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const wrapper = $getRoot().getFirstChildOrThrow();
+          invariant($isElementNode(wrapper), 'wrapper');
+          const outerDom = editor.getElementByKey(wrapper.__key)!;
+          const innerSlot = outerDom.querySelector('section')!;
+          expect(innerSlot.children.length).toBe(4);
+          expect(innerSlot.textContent).toBe('p0p1p2p3');
+          expect(outerDom.children.length).toBe(1);
+        });
+      } finally {
+        editor.dispose();
+      }
+    });
   });
 });

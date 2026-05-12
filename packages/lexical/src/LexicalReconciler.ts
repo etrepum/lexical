@@ -197,6 +197,13 @@ function $endCaptureGuard(saved: CaptureGuard): void {
 // the caller's scope so a non-dirty prefix carrying the canonical first
 // text still wins over a later dirty sibling. Only fires when the
 // caller hasn't already captured one.
+//
+// `__lexicalFirstTextKey` is a reconciler-maintained cache that
+// `$createNode` / `$reconcileNode` set on every element's outer keyed
+// DOM. `null` means "this element has no text descendant" (legitimate —
+// empty element, decorator); `undefined` means the cache is missing,
+// which is an invariant violation worth surfacing loudly rather than
+// silently falling through and losing the leftmost-wins capture.
 function $bubbleChildFirstText(
   childKeyedDom: HTMLElement & LexicalPrivateDOM,
 ): void {
@@ -204,7 +211,11 @@ function $bubbleChildFirstText(
     return;
   }
   const childFirstKey = childKeyedDom.__lexicalFirstTextKey;
-  if (childFirstKey == null) {
+  invariant(
+    childFirstKey !== undefined,
+    '$bubbleChildFirstText: missing __lexicalFirstTextKey on element keyed DOM',
+  );
+  if (childFirstKey === null) {
     return;
   }
   const textNode = activeNextNodeMap.get(childFirstKey);
@@ -687,12 +698,19 @@ function $suffixStartIfContiguous(
 function $tryReconcileSuffixWithSizeDelta(
   prevElement: ElementNode,
   nextElement: ElementNode,
-  dom: HTMLElement & LexicalPrivateDOM,
+  slot: ElementDOMSlot,
+  cacheDom: HTMLElement & LexicalPrivateDOM,
   cachedParentText: string,
   suffixStartKey: NodeKey,
   k: number,
   sizeDelta: number,
 ): boolean {
+  // `slot.element` is the inner DOM where children live and where DOM
+  // operations (replaceChild / removeChild / insertBefore) must target;
+  // `cacheDom` is the outer keyed DOM that holds the parent's text-content
+  // cache. For non-wrapping ElementNodes they're the same element; for
+  // wrapping nodes (e.g. TableNode with a scrollable wrapper) they differ
+  // and routing each role to the right element matters for correctness.
   // Caller invariant: this helper only handles ±1 children-size mutations.
   // Bailing on anything else preserves defense-in-depth in case the
   // upstream gate ever loosens.
@@ -800,9 +818,9 @@ function $tryReconcileSuffixWithSizeDelta(
   for (const op of ops) {
     const saved = $beginCaptureGuard();
     if (op.kind === 'reconcile') {
-      $reconcileNode(op.key, dom);
+      $reconcileNode(op.key, slot.element);
     } else if (op.kind === 'destroy') {
-      $destroyNode(op.key, dom);
+      $destroyNode(op.key, slot.element);
     } else {
       let beforeDOM: Node | null = null;
       for (let j = op.nextIndex + 1; j < k; j++) {
@@ -812,10 +830,7 @@ function $tryReconcileSuffixWithSizeDelta(
           break;
         }
       }
-      const childSlot = activeEditorDOMRenderConfig
-        .$getDOMSlot(nextElement, dom, activeEditor)
-        .withBefore(beforeDOM);
-      $createNode(op.key, childSlot);
+      $createNode(op.key, slot.withBefore(beforeDOM));
     }
     if (op.kind !== 'destroy') {
       const opNode = activeNextNodeMap.get(op.key);
@@ -851,7 +866,7 @@ function $tryReconcileSuffixWithSizeDelta(
   const newParentText =
     cachedParentText.slice(0, cachedParentText.length - oldSuffixLength) +
     newSuffix;
-  dom.__lexicalTextContent = newParentText;
+  cacheDom.__lexicalTextContent = newParentText;
   return true;
 }
 
@@ -946,14 +961,14 @@ function $reconcileChildren(
     Math.abs(sizeDelta) <= 1 &&
     prevChildrenSize >= MIN_FAST_PATH_CHILDREN &&
     prevElement.__first === nextElement.__first &&
-    // For sizeDelta=0 the existing same-size path requires both endpoints
-    // to match and the parent to not be cloned in this cycle (preserves
-    // its prior conservative invariants). For sizeDelta=±1 the parent is
-    // always cloned (its `__size` mutation goes through `getWritable`), so
-    // that check would dead-code the size-delta branch.
-    (sizeDelta !== 0 ||
-      (prevElement.__last === nextElement.__last &&
-        !activeEditor._cloneNotNeeded.has(prevElement.__key)))
+    // For sizeDelta=0 the parent must not have been cloned this cycle —
+    // any structural mutation that keeps size constant (mid-list swap,
+    // replace-one-with-another) routes through `getWritable()` on the
+    // parent and lands it in `_cloneNotNeeded`, so this single check
+    // already covers a stale `__last`. For sizeDelta=±1 the parent is
+    // always cloned (its `__size` mutation goes through `getWritable`),
+    // so the same check would dead-code the size-delta branch.
+    (sizeDelta !== 0 || !activeEditor._cloneNotNeeded.has(prevElement.__key))
   ) {
     // Suffix-incremental fast path: when the dirty children form a
     // contiguous suffix and the parent already has a valid cached text,
@@ -1057,6 +1072,7 @@ function $reconcileChildren(
           $tryReconcileSuffixWithSizeDelta(
             prevElement,
             nextElement,
+            slot,
             cacheDom,
             cachedParentText,
             suffixStartKey,
