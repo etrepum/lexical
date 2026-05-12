@@ -2015,5 +2015,322 @@ describe('LexicalReconciler', () => {
         editor.dispose();
       }
     });
+
+    // AUDIT-8 (probe): nested wrapping elements - a BlockWrapper containing
+    // 4+ child wrappers (each with its own keyed/inner-slot split), with
+    // one inner wrapper's text re-styled. Exercises:
+    //   - parent (outer BlockWrapper)'s cacheDom = its keyed DOM (outer
+    //     `<div>`), DOM ops on slot.element (inner `<section>`).
+    //   - dirty child reconcile recurses; child's $reconcileChildren uses
+    //     its own cacheDom (child's keyed DOM, also outer `<div>`).
+    //   - $bubbleChildFirstText on non-dirty wrapper children reads from
+    //     keyed DOM (post AUDIT-4 fix).
+    //
+    // No bug expected — this is a coverage probe to confirm the cache
+    // plumbing handles nested-wrapper structure without misrouting.
+    test('AUDIT-8 (probe): nested wrapping parents + suffix path + $bubbleChildFirstText', () => {
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        defineExtension({
+          name: 'nested-wrapper-audit',
+          nodes: [BlockWrapperElementNode],
+        }),
+      );
+      editor.setRootElement(document.createElement('div'));
+
+      try {
+        // Cycle 1: outer wrapper containing 4 inner wrappers, each with
+        // a paragraph + text. 4 children at outer level = MIN_FAST_PATH.
+        const innerWrapperKeys: NodeKey[] = [];
+        editor.update(
+          () => {
+            const root = $getRoot().clear();
+            const outer = $createBlockWrapperElementNode();
+            for (let i = 0; i < 4; i++) {
+              const inner = $createBlockWrapperElementNode();
+              inner.append(
+                $createParagraphNode().append($createTextNode(`t${i}`)),
+              );
+              outer.append(inner);
+              innerWrapperKeys.push(inner.__key);
+            }
+            root.append(outer);
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const outer = $getRoot().getFirstChildOrThrow();
+          invariant($isElementNode(outer), 'outer');
+          const outerDom = editor.getElementByKey(outer.__key) as
+            | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+            | null;
+          const outerInnerSlot = outerDom!.querySelector('section')!;
+          // Outer wrapper's inner slot has 4 child wrappers.
+          expect(outerInnerSlot.children.length).toBe(4);
+          // First text descendant of outer is t0 inside the first inner
+          // wrapper's paragraph.
+          const inner0 = outer.getChildAtIndex(0);
+          invariant($isElementNode(inner0), 'inner0');
+          const para0 = inner0.getFirstChildOrThrow();
+          invariant($isElementNode(para0), 'para0');
+          const t0Key = para0.getFirstChildOrThrow().__key;
+          expect(outerDom?.__lexicalFirstTextKey).toBe(t0Key);
+        });
+
+        // Cycle 2: re-style the LAST inner wrapper's text. dirty = {t3}.
+        // Propagation: para3, inner3, outer dirty. dirtyChildren for
+        // outer = {inner3}. Contiguous suffix K=1, sizeDelta=0 → same-
+        // size suffix-incremental path.
+        editor.update(
+          () => {
+            const inner3 = $getNodeByKey(innerWrapperKeys[3]);
+            invariant($isElementNode(inner3), 'inner3');
+            const para3 = inner3.getFirstChildOrThrow();
+            invariant($isElementNode(para3), 'para3');
+            const t3 = para3.getFirstChildOrThrow();
+            invariant($isTextNode(t3), 't3');
+            t3.setStyle('color: red');
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const outer = $getRoot().getFirstChildOrThrow();
+          invariant($isElementNode(outer), 'outer');
+          const outerDom = editor.getElementByKey(outer.__key) as
+            | (HTMLElement & {__lexicalFirstTextKey?: unknown})
+            | null;
+          // First text descendant unchanged: t0, format 0. The cached
+          // first-text key should still be t0 (prefix-canonical via
+          // $resolveSuffixPathFormat).
+          const inner0 = outer.getChildAtIndex(0);
+          invariant($isElementNode(inner0), 'inner0');
+          const para0 = inner0.getFirstChildOrThrow();
+          invariant($isElementNode(para0), 'para0');
+          const t0Key = para0.getFirstChildOrThrow().__key;
+          expect(outerDom?.__lexicalFirstTextKey).toBe(t0Key);
+
+          // Outer's text content reflects all 4 inner wrappers (block-
+          // level, so DLB between siblings).
+          expect(outer.getTextContent()).toBe('t0\n\nt1\n\nt2\n\nt3');
+        });
+      } finally {
+        editor.dispose();
+      }
+    });
+
+    // AUDIT-9 (probe): cross-parent move from wrapping parent A to
+    // wrapping parent B. Both parents go through the size-delta suffix
+    // helper (A loses one child, sizeDelta=-1; B gains one, sizeDelta=+1).
+    // The moved child's DOM is reused, $createNode's cross-parent branch
+    // (slot.insertChild + recursive $reconcileNode) fires.
+    //
+    // No bug expected — this exercises the slot/cacheDom split in the
+    // helper across both parents and the DOM-reuse path for wrapping
+    // parents.
+    test('AUDIT-9 (probe): cross-parent move between wrapping parents', () => {
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        defineExtension({
+          name: 'cross-parent-wrapper-audit',
+          nodes: [BlockWrapperElementNode],
+        }),
+      );
+      editor.setRootElement(document.createElement('div'));
+
+      try {
+        let parentAKey: NodeKey = '';
+        let parentBKey: NodeKey = '';
+        let movedKey: NodeKey = '';
+
+        // Cycle 1: two wrapping parents, each with 4 paragraph children.
+        editor.update(
+          () => {
+            const root = $getRoot().clear();
+            const parentA = $createBlockWrapperElementNode();
+            for (let i = 0; i < 4; i++) {
+              parentA.append(
+                $createParagraphNode().append($createTextNode(`a${i}`)),
+              );
+            }
+            parentAKey = parentA.__key;
+            const parentB = $createBlockWrapperElementNode();
+            for (let i = 0; i < 4; i++) {
+              const p = $createParagraphNode().append($createTextNode(`b${i}`));
+              parentB.append(p);
+              if (i === 3) {
+                movedKey = p.__key;
+              }
+            }
+            parentBKey = parentB.__key;
+            root.append(parentA, parentB);
+          },
+          {discrete: true},
+        );
+
+        const movedPreDom = editor.getElementByKey(movedKey) as HTMLElement;
+        expect(movedPreDom).not.toBeNull();
+
+        // Cycle 2: move parentB's LAST child (b3) to parentA. Both
+        // parents become dirty with size delta.
+        //   parentB: sizeDelta=-1, the moved-from-tail case. Helper
+        //   engages with K=1; ops=[reconcile(parentB.__last_new=b2_pre),
+        //   destroy(b3)]. The destroy must go through slot.element of
+        //   parentB.
+        //   parentA: sizeDelta=+1, the appended-at-tail case. Helper
+        //   engages with K=2; ops=[reconcile(parentA.__last_prev=a3),
+        //   create(b3 - cross-parent reuse)]. The create routes through
+        //   slot.withBefore (= parentA.slot.element).
+        editor.update(
+          () => {
+            const parentA = $getNodeByKey(parentAKey);
+            const moved = $getNodeByKey(movedKey);
+            invariant($isElementNode(parentA), 'parentA');
+            invariant($isElementNode(moved) || $isParagraphNode(moved), 'mov');
+            parentA.append(moved);
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const parentA = $getNodeByKey(parentAKey);
+          const parentB = $getNodeByKey(parentBKey);
+          invariant($isElementNode(parentA) && $isElementNode(parentB), '');
+          // parentA now has 5 children.
+          expect(parentA.getChildrenSize()).toBe(5);
+          // parentB now has 3.
+          expect(parentB.getChildrenSize()).toBe(3);
+
+          // Moved DOM should retain identity (no re-create).
+          const movedPostDom = editor.getElementByKey(movedKey);
+          expect(movedPostDom).toBe(movedPreDom);
+
+          // The moved child is under parentA's inner slot now.
+          const parentADom = editor.getElementByKey(parentAKey)!;
+          const parentAInner = parentADom.querySelector('section')!;
+          expect(movedPostDom!.parentNode).toBe(parentAInner);
+          // parentB's inner slot has 3 children, not 4.
+          const parentBDom = editor.getElementByKey(parentBKey)!;
+          const parentBInner = parentBDom.querySelector('section')!;
+          expect(parentBInner.children.length).toBe(3);
+
+          // Text content reflects the move.
+          expect(parentA.getTextContent()).toBe('a0\n\na1\n\na2\n\na3\n\nb3');
+          expect(parentB.getTextContent()).toBe('b0\n\nb1\n\nb2');
+        });
+      } finally {
+        editor.dispose();
+      }
+    });
+
+    // AUDIT-10 (probe): combines AUDIT-5 (wrapping parent, slot vs
+    // cacheDom split) + AUDIT-6 ($updateDOM=true forcing replaceChild in
+    // the same-size suffix path). Two RerenderParagraphs as a K=2
+    // contiguous suffix inside a BlockWrapperElementNode. Each suffix
+    // reconcile triggers replaceChild via $updateDOM=true.
+    //
+    // Pre-AUDIT-5: $reconcileNode(cur, dom) with dom=cacheDom would
+    // throw NotFoundError because child's parentNode is the inner slot,
+    // not the outer cacheDom.
+    // Pre-AUDIT-6: newSuffix builder reading prev keyToDOMMap snapshot
+    // would get the detached old DOM, producing a stale parent cache.
+    //
+    // Tests both: routing AND current-map read.
+    test('AUDIT-10 (probe): wrapping parent + same-size suffix + $updateDOM=true', () => {
+      class RerenderParagraphNode extends ParagraphNode {
+        static getType(): string {
+          return 'audit_rerender_paragraph_10';
+        }
+        static clone(node: RerenderParagraphNode): RerenderParagraphNode {
+          return new RerenderParagraphNode(node.__key);
+        }
+        updateDOM(): boolean {
+          return true;
+        }
+      }
+      function $createRerenderParagraphNode(): RerenderParagraphNode {
+        return $applyNodeReplacement(new RerenderParagraphNode());
+      }
+
+      const editor = buildEditorFromExtensions(
+        RichTextExtension,
+        defineExtension({
+          name: 'audit-10',
+          nodes: [BlockWrapperElementNode, RerenderParagraphNode],
+        }),
+      );
+      editor.setRootElement(document.createElement('div'));
+
+      try {
+        let rN1Key: NodeKey = '';
+        let rN2Key: NodeKey = '';
+        let wrapperKey: NodeKey = '';
+
+        // Cycle 1: wrapper with 2 plain paragraphs + 2 RerenderParagraphs.
+        editor.update(
+          () => {
+            const root = $getRoot().clear();
+            const wrapper = $createBlockWrapperElementNode();
+            wrapper.append(
+              $createParagraphNode().append($createTextNode('p0')),
+              $createParagraphNode().append($createTextNode('p1')),
+            );
+            const rN1 = $createRerenderParagraphNode().append(
+              $createTextNode('pR1'),
+            );
+            const rN2 = $createRerenderParagraphNode().append(
+              $createTextNode('pR2'),
+            );
+            wrapper.append(rN1, rN2);
+            wrapperKey = wrapper.__key;
+            rN1Key = rN1.__key;
+            rN2Key = rN2.__key;
+            root.append(wrapper);
+          },
+          {discrete: true},
+        );
+
+        // Cycle 2: mutate text in both RerenderParagraphs. K=2 contiguous
+        // suffix. sizeDelta=0 → same-size suffix path. Both children's
+        // $updateDOM returns true → replaceChild swaps each DOM. The
+        // newSuffix builder must read from current map; the reconcile
+        // loop must use slot.element as parentDOM.
+        editor.update(
+          () => {
+            const rN1 = $getNodeByKey(rN1Key);
+            const rN2 = $getNodeByKey(rN2Key);
+            invariant(
+              $isElementNode(rN1) && $isElementNode(rN2),
+              'rN1/rN2 elements',
+            );
+            const t1 = rN1.getFirstChildOrThrow();
+            const t2 = rN2.getFirstChildOrThrow();
+            invariant($isTextNode(t1) && $isTextNode(t2), 'texts');
+            t1.setTextContent('NEW_R1');
+            t2.setTextContent('NEW_R2');
+          },
+          {discrete: true},
+        );
+
+        editor.read(() => {
+          const wrapper = $getNodeByKey(wrapperKey);
+          invariant($isElementNode(wrapper), 'wrapper');
+          const expected = 'p0\n\np1\n\nNEW_R1\n\nNEW_R2';
+          expect(wrapper.getTextContent()).toBe(expected);
+          const wrapperDom = editor.getElementByKey(wrapperKey) as
+            | (HTMLElement & {__lexicalTextContent?: string})
+            | null;
+          expect(wrapperDom?.__lexicalTextContent).toBe(expected);
+
+          // DOM count check: the inner slot has 4 children (2 plain + 2
+          // re-rendered).
+          const innerSlot = wrapperDom!.querySelector('section')!;
+          expect(innerSlot.children.length).toBe(4);
+        });
+      } finally {
+        editor.dispose();
+      }
+    });
   });
 });
