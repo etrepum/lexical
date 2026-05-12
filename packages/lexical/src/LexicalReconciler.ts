@@ -854,7 +854,12 @@ function $tryReconcileSuffixWithSizeDelta(
         | (HTMLElement & LexicalPrivateDOM)
         | undefined;
       const cached = childKeyedDom && childKeyedDom.__lexicalTextContent;
-      text = typeof cached === 'string' ? cached : node.getTextContent();
+      invariant(
+        typeof cached === 'string',
+        'tryReconcileSuffixWithSizeDelta: missing __lexicalTextContent on child of type %s after suffix reconcile',
+        node.getType(),
+      );
+      text = cached;
     } else {
       text = node.getTextContent();
     }
@@ -962,12 +967,14 @@ function $reconcileChildren(
     prevChildrenSize >= MIN_FAST_PATH_CHILDREN &&
     prevElement.__first === nextElement.__first &&
     // For sizeDelta=0 the parent must not have been cloned this cycle —
-    // any structural mutation that keeps size constant (mid-list swap,
-    // replace-one-with-another) routes through `getWritable()` on the
-    // parent and lands it in `_cloneNotNeeded`, so this single check
-    // already covers a stale `__last`. For sizeDelta=±1 the parent is
-    // always cloned (its `__size` mutation goes through `getWritable`),
-    // so the same check would dead-code the size-delta branch.
+    // any structural mutation routed through Lexical's mutation API
+    // (insertBefore/insertAfter/replace/remove/append etc.) keeps the
+    // parent in `_cloneNotNeeded` via `getWritable()`, so this single
+    // check already covers a stale `__last` for those cases. Direct
+    // pointer mutation that bypasses `getWritable()` is outside the
+    // contract and not guarded against here. For sizeDelta=±1 the
+    // parent is always cloned (its `__size` mutation goes through
+    // `getWritable`), so the same check would dead-code that branch.
     (sizeDelta !== 0 || !activeEditor._cloneNotNeeded.has(prevElement.__key))
   ) {
     // Suffix-incremental fast path: when the dirty children form a
@@ -1036,13 +1043,25 @@ function $reconcileChildren(
             }
             let text: string;
             if ($isElementNode(node)) {
-              const childKeyedDom = activePrevKeyToDOMMap.get(cur) as
+              // Read from the current keyed DOM map, not the prev snapshot.
+              // The just-completed reconcile loop above can fire
+              // `$reconcileNode`'s `parentDOM.replaceChild` branch when a
+              // dirty child's `$updateDOM` returns true (e.g. `ListNode`
+              // toggling `__tag` / `__listType`); the snapshot would still
+              // point at the detached old DOM whose `__lexicalTextContent`
+              // is from the previous cycle. Mirrors the size-delta helper
+              // at L856.
+              const childKeyedDom = activeEditor._keyToDOMMap.get(cur) as
                 | (HTMLElement & LexicalPrivateDOM)
                 | undefined;
               const cached =
                 childKeyedDom && childKeyedDom.__lexicalTextContent;
-              text =
-                typeof cached === 'string' ? cached : node.getTextContent();
+              invariant(
+                typeof cached === 'string',
+                'reconcileChildren same-size suffix: missing __lexicalTextContent on child of type %s after reconcile',
+                node.getType(),
+              );
+              text = cached;
             } else {
               text = node.getTextContent();
             }
@@ -1080,8 +1099,15 @@ function $reconcileChildren(
             sizeDelta,
           )
         ) {
-          subTreeTextContent =
-            previousSubTreeTextContent + (cacheDom.__lexicalTextContent ?? '');
+          // Helper returns true only after writing cacheDom.__lexicalTextContent
+          // (helper body's final line). Match the PR-wide strict-on-miss
+          // policy rather than masking a future regression with `?? ''`.
+          const newCachedText = cacheDom.__lexicalTextContent;
+          invariant(
+            typeof newCachedText === 'string',
+            'reconcileChildren: $tryReconcileSuffixWithSizeDelta returned true without writing __lexicalTextContent',
+          );
+          subTreeTextContent = previousSubTreeTextContent + newCachedText;
           $resolveSuffixPathFormat(nextElement, cacheDom, dirtyChildren);
           return;
         }
@@ -1115,7 +1141,12 @@ function $reconcileChildren(
           if ($isElementNode(node)) {
             childKeyedDom = activePrevKeyToDOMMap.get(nodeKey);
             const cached = childKeyedDom && childKeyedDom.__lexicalTextContent;
-            text = typeof cached === 'string' ? cached : node.getTextContent();
+            invariant(
+              typeof cached === 'string',
+              'reconcileChildren structurally-clean walk: missing __lexicalTextContent on non-dirty child of type %s',
+              node.getType(),
+            );
+            text = cached;
           } else {
             text = node.getTextContent();
           }
@@ -1280,12 +1311,18 @@ function $reconcileNode(
     let text: string;
     if ($isElementNode(prevNode)) {
       const previousSubTreeTextContent = dom.__lexicalTextContent;
-      if (typeof previousSubTreeTextContent === 'string') {
-        text = previousSubTreeTextContent;
-      } else {
-        text = prevNode.getTextContent();
-        dom.__lexicalTextContent = text;
-      }
+      // Strict invariant — every element reconciled in a previous cycle has
+      // both `__lexicalTextContent` and `__lexicalFirstTextKey` set on its
+      // keyed DOM by `$createNode` / `$reconcileChildren`. A missing cache
+      // here would silently desync the parent text accumulation and pair
+      // with `$bubbleChildFirstText`'s own strict invariant a line below,
+      // so fail loudly here instead.
+      invariant(
+        typeof previousSubTreeTextContent === 'string',
+        'reconcileNode: missing __lexicalTextContent on non-dirty element of type %s',
+        prevNode.getType(),
+      );
+      text = previousSubTreeTextContent;
       // Bubble this clean element's cached first-text descendant up to the
       // caller's scope so a non-dirty prefix carrying the canonical first
       // text still wins over a later dirty sibling whose recursion would
@@ -1353,15 +1390,21 @@ function $reconcileNode(
         $reconcileElementTerminatingLineBreak(prevNode, nextNode, dom);
       }
     } else {
+      // Currently unreachable under normal flow — `getWritable()` always
+      // calls `internalMarkNodeAsDirty` (LexicalNode.ts: getWritable),
+      // so a non-identity (`prevNode !== nextNode`) reconcile implies
+      // `isDirty` is true. Kept as defense-in-depth in case the dirty
+      // propagation contract changes.
       const previousSubTreeTextContent = dom.__lexicalTextContent;
-      let text: string;
-      if (typeof previousSubTreeTextContent === 'string') {
-        text = previousSubTreeTextContent;
-      } else {
-        text = prevNode.getTextContent();
-        dom.__lexicalTextContent = text;
-      }
-      subTreeTextContent += text;
+      // Same strict invariant as the prevNode === nextNode branch above —
+      // the cache is set on every reconciled element and surviving until
+      // here without one means an upstream invariant was broken.
+      invariant(
+        typeof previousSubTreeTextContent === 'string',
+        'reconcileNode: missing __lexicalTextContent on cloned non-dirty element of type %s',
+        prevNode.getType(),
+      );
+      subTreeTextContent += previousSubTreeTextContent;
       // Mirror the prevNode === nextNode branch: bubble this clean element's
       // cached first-text descendant up to the caller's scope.
       $bubbleChildFirstText(dom);
