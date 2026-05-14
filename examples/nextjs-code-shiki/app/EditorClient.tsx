@@ -8,16 +8,15 @@
 'use client';
 
 import {AutoFocusExtension} from '@lexical/extension';
+import {withDOM} from '@lexical/headless/dom';
 import {HistoryExtension} from '@lexical/history';
-import {ContentEditable} from '@lexical/react/LexicalContentEditable';
+import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
 import {LexicalExtensionComposer} from '@lexical/react/LexicalExtensionComposer';
 import {RichTextExtension} from '@lexical/rich-text';
 import {defineExtension} from 'lexical';
 
 import ExampleTheme from './ExampleTheme';
 import {CodeShikiDemoExtension} from './extensions/CodeShikiDemoExtension';
-
-const placeholder = 'Enter some rich text...';
 
 const editorExtension = defineExtension({
   dependencies: [
@@ -31,22 +30,38 @@ const editorExtension = defineExtension({
   theme: ExampleTheme,
 });
 
+function SSRContentEditable() {
+  const [editor] = useLexicalComposerContext();
+  return (
+    <div
+      className="editor-input"
+      suppressHydrationWarning={true}
+      ref={editor.setRootElement.bind(editor)}
+      dangerouslySetInnerHTML={{
+        __html:
+          typeof window === 'undefined'
+            ? withDOM(() => {
+                const root = document.createElement('div');
+                editor.setRootElement(root);
+                const {innerHTML} = root;
+                editor.setRootElement(null);
+                return innerHTML;
+              })
+            : '',
+      }}
+    />
+  );
+}
+
 export default function EditorClient() {
   return (
-    <LexicalExtensionComposer
-      extension={editorExtension}
-      contentEditable={null}>
-      <div className="editor-container">
-        <div className="editor-inner">
-          <ContentEditable
-            className="editor-input"
-            aria-placeholder={placeholder}
-            placeholder={
-              <div className="editor-placeholder">{placeholder}</div>
-            }
-          />
-        </div>
+    <div className="editor-container">
+      <div className="editor-inner">
+        <LexicalExtensionComposer
+          extension={editorExtension}
+          contentEditable={<SSRContentEditable />}
+        />
       </div>
-    </LexicalExtensionComposer>
+    </div>
   );
 }

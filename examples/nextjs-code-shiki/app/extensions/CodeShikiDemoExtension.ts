@@ -11,7 +11,12 @@ import {
   isCodeLanguageLoaded,
   loadCodeLanguage,
 } from '@lexical/code-shiki';
-import {$getRoot, defineExtension} from 'lexical';
+import {
+  $createLineBreakNode,
+  $createTextNode,
+  $getRoot,
+  defineExtension,
+} from 'lexical';
 
 /**
  * Language we dynamically load to exercise the `@shikijs/langs/<lang>`
@@ -45,18 +50,30 @@ function $seedDemo() {
  */
 export const CodeShikiDemoExtension = defineExtension({
   $initialEditorState: $seedDemo,
+  config: {ssr: typeof window === 'undefined'},
   dependencies: [CodeShikiExtension],
   name: '@lexical/nextjs-code-shiki-example/CodeShikiDemo',
-  register(editor) {
+  register(editor, config) {
     let cancelled = false;
-    void Promise.resolve(loadCodeLanguage(DEMO_LANGUAGE)).then(() => {
-      if (cancelled || !isCodeLanguageLoaded(DEMO_LANGUAGE)) {
-        return;
-      }
-      editor.update(() => {
-        $getRoot().selectEnd().insertRawText(`\nLoaded: ${DEMO_LANGUAGE}`);
-      });
-    });
+    if (!config.ssr) {
+      void Promise.resolve(loadCodeLanguage(DEMO_LANGUAGE))
+        .then(() => {
+          if (cancelled || !isCodeLanguageLoaded(DEMO_LANGUAGE)) {
+            return;
+          }
+          editor.update(() => {
+            $getRoot()
+              .selectStart()
+              .insertNodes([
+                $createTextNode(`Loaded: ${DEMO_LANGUAGE}`).toggleFormat(
+                  'bold',
+                ),
+                $createLineBreakNode(),
+              ]);
+          });
+        })
+        .catch(err => console.error(err));
+    }
     return () => {
       cancelled = true;
     };
