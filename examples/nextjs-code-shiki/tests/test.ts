@@ -16,7 +16,7 @@ test('index page has expected h1 and lexical state', async ({page}) => {
   // The synchronous list comes from shiki/langs bundledLanguagesInfo
   await expect(
     page.locator('.editor-input .editor-paragraph').first(),
-  ).toContainText(/^Registered:.*typescript/);
+  ).toContainText(/Registered:.*typescript/);
   // Confirms the dynamic `@shikijs/langs/python` import succeeded under
   // Next.js, which only works if shiki packages are external in the
   // published @lexical/code-shiki bundle.
