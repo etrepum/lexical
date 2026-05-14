@@ -12,13 +12,13 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
+import { CodeHighlightNode, CodeNode } from "@lexical/code-core";
 import {
-  CodeHighlightNode,
-  CodeNode,
-  // TODO: Using deprecated re-exports from @lexical/code-prism to test #8198, this can be refactored after that release
-  getCodeLanguages,
+  getCodeLanguageOptions,
+  isCodeLanguageLoaded,
+  loadCodeLanguage,
   registerCodeHighlighting,
-} from "@lexical/code";
+} from "@lexical/code-shiki";
 
 import * as React from 'react';
 
@@ -42,16 +42,35 @@ const editorConfig = {
 
 const placeholder = 'Enter some rich text...';
 
+const DYNAMIC_LANGUAGE = 'python';
+
 function CodeHighlightingPlugin() {
   const [editor] = useLexicalComposerContext();
   useEffect(() => {
-    registerCodeHighlighting(editor);
+    const dispose = registerCodeHighlighting(editor);
+    const registeredIds = getCodeLanguageOptions().map(([id]) => id);
     editor.update(() => {
       $getRoot()
         .clear()
         .selectEnd()
-        .insertRawText(["Registered:", ...getCodeLanguages()].join("\n"));
+        .insertRawText(["Registered:", ...registeredIds].join("\n"));
     });
+    // Exercise the dynamic @shikijs/langs/<lang> import path: a strict
+    // bundler will only successfully resolve this if `@shikijs/langs` is
+    // external in the published @lexical/code-shiki bundle.
+    let cancelled = false;
+    void Promise.resolve(loadCodeLanguage(DYNAMIC_LANGUAGE)).then(() => {
+      if (cancelled || !isCodeLanguageLoaded(DYNAMIC_LANGUAGE)) {
+        return;
+      }
+      editor.update(() => {
+        $getRoot().selectEnd().insertRawText(`\nLoaded: ${DYNAMIC_LANGUAGE}`);
+      });
+    });
+    return () => {
+      cancelled = true;
+      dispose();
+    };
   }, [editor]);
   return null;
 }
