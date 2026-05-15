@@ -33,7 +33,7 @@ test.describe('Regression test #7266', () => {
 
     if (isCollab) {
       // The contextual menu positioning needs fixing (it's hardcoded to show on the right side)
-      page.setViewportSize({height: 1000, width: 3000});
+      await page.setViewportSize({height: 1000, width: 3000});
     }
 
     await focusEditor(page);
@@ -153,7 +153,7 @@ test.describe('Regression test #7266', () => {
 
     if (isCollab) {
       // The contextual menu positioning needs fixing (it's hardcoded to show on the right side)
-      page.setViewportSize({height: 1000, width: 3000});
+      await page.setViewportSize({height: 1000, width: 3000});
     }
 
     await focusEditor(page);
