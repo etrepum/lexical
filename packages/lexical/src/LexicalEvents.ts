@@ -23,19 +23,30 @@ import invariant from 'shared/invariant';
 import warnOnlyOnce from 'shared/warnOnlyOnce';
 
 import {
+  $caretRangeFromSelection,
+  $getCaretRange,
+  $getCaretRangeInDirection,
+  $getChildCaret,
   $getPreviousSelection,
   $getRoot,
   $getSelection,
+  $getSiblingCaret,
   $isBlockElementNode,
+  $isChildCaret,
   $isDecoratorNode,
   $isElementNode,
   $isLineBreakNode,
   $isNodeSelection,
   $isRangeSelection,
   $isRootNode,
+  $isSiblingCaret,
   $isTabNode,
   $isTextNode,
+  $isTextPointCaret,
+  $normalizeCaret,
+  $rewindSiblingCaret,
   $setCompositionKey,
+  $setSelectionFromCaretRange,
   BLUR_COMMAND,
   CLICK_COMMAND,
   COMMAND_PRIORITY_EDITOR,
@@ -526,16 +537,49 @@ function onClick(event: PointerEvent, editor: LexicalEditor): void {
           // case visually it looks like a single element content is selected, focus node
           // is actually at the beginning of the next element (if present) and any manipulations
           // with selection (formatting) are affecting second element as well
-          const focus = selection.focus;
-          const focusNode = focus.getNode();
-          if (anchorNode !== focusNode) {
-            const parentNode = $findMatchingParent(
-              anchorNode,
-              node => $isElementNode(node) && !node.isInline(),
+          const range = $getCaretRangeInDirection(
+            $caretRangeFromSelection(selection),
+            'next',
+          );
+          let focusCaret = range.focus;
+          // Move it out of the next TextNode if none of it is selected
+          if (
+            $isTextPointCaret(focusCaret) &&
+            range.anchor.origin !== focusCaret.origin &&
+            focusCaret.offset === 0
+          ) {
+            focusCaret = $rewindSiblingCaret(focusCaret.getSiblingCaret());
+          }
+          // Move it behind a single LineBreakNode
+          if (
+            $isSiblingCaret(focusCaret) &&
+            range.anchor.origin !== focusCaret.origin &&
+            $isLineBreakNode(focusCaret.origin)
+          ) {
+            focusCaret = $rewindSiblingCaret(focusCaret);
+          }
+          // Move the focus out of the start of any elements
+          while (
+            $isChildCaret(focusCaret) &&
+            range.anchor.origin !== focusCaret.origin
+          ) {
+            focusCaret = $rewindSiblingCaret(
+              $getSiblingCaret(focusCaret.origin, 'next'),
             );
-            if ($isElementNode(parentNode)) {
-              parentNode.select(0);
+          }
+          if (focusCaret !== range.focus) {
+            // Move it inside the containing element
+            if (
+              $isSiblingCaret(focusCaret) &&
+              $isElementNode(focusCaret.origin)
+            ) {
+              focusCaret = $normalizeCaret(
+                $getChildCaret(focusCaret.origin, 'previous'),
+              ).getFlipped();
             }
+            $setSelectionFromCaretRange(
+              $getCaretRange(range.anchor, $normalizeCaret(focusCaret)),
+            );
           }
         }
       } else if (event.pointerType === 'touch' || event.pointerType === 'pen') {
