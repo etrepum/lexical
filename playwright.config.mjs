@@ -16,9 +16,10 @@ const IS_DEBUG = PWDEBUG === '1';
 const IS_COLLAB =
   E2E_EDITOR_MODE === 'rich-text-with-collab' ||
   E2E_EDITOR_MODE === 'rich-text-with-collab-v2';
-// Having more horizontal space prevents redundant text wraps for tests
-// which affects CMD+ArrowRight/Left navigation
-const viewport = {height: 1000, width: IS_COLLAB ? 2500 : 1250};
+// Collab mode needs extra horizontal space because the contextual menu is
+// hardcoded to the right side; non-collab needs enough room that text
+// doesn't wrap and break CMD+ArrowRight/Left navigation.
+const viewport = {height: 1000, width: IS_COLLAB ? 3000 : 1250};
 
 const config = {
   forbidOnly: IS_CI,
