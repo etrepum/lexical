@@ -39,6 +39,7 @@ import {
   effect,
   namedSignals,
   NormalizeInlineElementsExtension,
+  NormalizeTripleClickSelectionExtension,
   ReadonlySignal,
   signal,
 } from '@lexical/extension';
@@ -1368,7 +1369,11 @@ export const RichTextExtension = defineExtension({
   build: (_editor, config) => namedSignals(config),
   config: safeCast<RichTextConfig>(DEFAULT_RICH_TEXT_CONFIG),
   conflictsWith: ['@lexical/plain-text'],
-  dependencies: [DragonExtension, NormalizeInlineElementsExtension],
+  dependencies: [
+    DragonExtension,
+    NormalizeInlineElementsExtension,
+    NormalizeTripleClickSelectionExtension,
+  ],
   mergeConfig: mergeRichTextConfig,
   name: '@lexical/rich-text',
   nodes: () => [HeadingNode, QuoteNode],
