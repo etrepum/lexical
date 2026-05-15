@@ -8,8 +8,11 @@
 
 import {devices} from '@playwright/test';
 
-const {CI, E2E_EDITOR_MODE} = process.env;
+const {CI, E2E_EDITOR_MODE, PWDEBUG} = process.env;
 const IS_CI = CI === 'true';
+// PWDEBUG=1 is set by Playwright's `--debug` flag before this config loads;
+// retries during a debug run only add confusion (the test already paused once).
+const IS_DEBUG = PWDEBUG === '1';
 const IS_COLLAB =
   E2E_EDITOR_MODE === 'rich-text-with-collab' ||
   E2E_EDITOR_MODE === 'rich-text-with-collab-v2';
@@ -57,7 +60,7 @@ const config = {
       },
     },
   ],
-  retries: IS_CI ? 4 : 1,
+  retries: IS_DEBUG ? 0 : IS_CI ? 4 : 1,
   testIgnore: /\/__tests__\/unit\//,
   timeout: 150000,
   use: {
