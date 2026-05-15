@@ -8,8 +8,14 @@
 
 import {devices} from '@playwright/test';
 
-const {CI} = process.env;
+const {CI, E2E_EDITOR_MODE} = process.env;
 const IS_CI = CI === 'true';
+const IS_COLLAB =
+  E2E_EDITOR_MODE === 'rich-text-with-collab' ||
+  E2E_EDITOR_MODE === 'rich-text-with-collab-v2';
+// Having more horizontal space prevents redundant text wraps for tests
+// which affects CMD+ArrowRight/Left navigation
+const viewport = {height: 1000, width: IS_COLLAB ? 2500 : 1250};
 
 const config = {
   forbidOnly: IS_CI,
@@ -23,6 +29,7 @@ const config = {
           slowMo: 50,
         },
         userAgent: undefined,
+        viewport,
       },
     },
     {
@@ -34,6 +41,7 @@ const config = {
           slowMo: 50,
         },
         userAgent: undefined,
+        viewport,
       },
     },
     {
@@ -45,6 +53,7 @@ const config = {
           slowMo: 50,
         },
         userAgent: undefined,
+        viewport,
       },
     },
   ],
