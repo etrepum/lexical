@@ -950,6 +950,28 @@ test.describe.parallel('Selection', () => {
       .locator('div[contenteditable="true"] > p')
       .first()
       .click({clickCount: 3});
+    const expectedSelection = createHumanReadableSelection(
+      'just after the datetime',
+      {
+        anchorOffset: {desc: 'start of Paragraph 1 text', value: 0},
+        anchorPath: [
+          {desc: 'first paragraph', value: 0},
+          {desc: 'fist span', value: 0},
+          {desc: 'Text node', value: 0},
+        ],
+        focusOffset: {
+          desc: 'end of Paragraph 1 text',
+          value: 'Paragraph 1'.length,
+        },
+        focusPath: [
+          {desc: 'first paragraph', value: 0},
+          {desc: 'fist span', value: 0},
+          {desc: 'Text node', value: 0},
+        ],
+      },
+    );
+
+    await assertSelection(page, expectedSelection);
 
     await click(page, '.block-controls');
     await click(page, '.dropdown .item:has(.icon.h1)');

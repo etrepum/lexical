@@ -54,6 +54,7 @@ export {
 export {
   type NormalizeTripleClickSelectionConfig,
   NormalizeTripleClickSelectionExtension,
+  type NormalizeTripleClickSelectionOutput,
 } from './NormalizeTripleClickSelectionExtension';
 export {SelectionAlwaysOnDisplayExtension} from './SelectionAlwaysOnDisplayExtension';
 export {

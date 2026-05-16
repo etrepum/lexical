@@ -36,10 +36,28 @@ import {
 } from 'lexical';
 
 import {namedSignals} from './namedSignals';
-import {effect} from './signals';
+import {effect, type Signal} from './signals';
 
 export interface NormalizeTripleClickSelectionConfig {
+  /** `true` to disable this extension */
   disabled: boolean;
+  /** The maximum number of msec from the triple click to expect a selection change, default `100` */
+  thresholdMsec: number;
+  /** The clock function used for delay-based merging, default `Date.now` */
+  dateNow: () => number;
+  /** The update function to call when triple click is detected */
+  $fixFocusOverselection: () => void;
+}
+
+export interface NormalizeTripleClickSelectionOutput {
+  /** `true` to disable this extension */
+  disabled: Signal<boolean>;
+  /** The maximum number of msec from the triple click to expect a selection change, default `100` */
+  thresholdMsec: Signal<number>;
+  /** The clock function used for delay-based merging, default `Date.now` */
+  dateNow: Signal<() => number>;
+  /** The update function to call when triple click is detected */
+  $fixFocusOverselection: Signal<() => void>;
 }
 
 const SKIP_TAGS = new Set([
@@ -122,9 +140,13 @@ function $fixFocusOverselection() {
  * in the future and integrated into the core
  */
 export const NormalizeTripleClickSelectionExtension = defineExtension({
-  build: (editor, config, state) => namedSignals(config),
+  build: (editor, config, state): NormalizeTripleClickSelectionOutput =>
+    namedSignals(config),
   config: safeCast<NormalizeTripleClickSelectionConfig>({
+    $fixFocusOverselection,
+    dateNow: Date.now,
     disabled: false,
+    thresholdMsec: 100,
   }),
   name: '@lexical/NormalizeTripleClickSelection',
   register: (editor, config, state) =>
@@ -137,44 +159,39 @@ export const NormalizeTripleClickSelectionExtension = defineExtension({
         if (!rootElement) {
           return;
         }
-        let willTripleClick = false;
-        const onMouseUp = (event: MouseEvent) => {
-          const {ownerDocument} = rootElement;
-          const {defaultView} = ownerDocument;
-          if (!defaultView || !willTripleClick || event.detail !== 3) {
-            return;
+        let lastTripleClick = 0;
+        const refreshTripleClick = (event: null | MouseEvent) => {
+          if (event ? event.detail === 3 : lastTripleClick > 0) {
+            const now = stores.dateNow.peek()();
+            lastTripleClick =
+              (event && event.type === 'mousedown') ||
+              now - lastTripleClick <= stores.thresholdMsec.peek()
+                ? now
+                : 0;
           }
-          queueMicrotask(() => {
-            willTripleClick = false;
-          });
-        };
-        const onMouseDown = (event: MouseEvent) => {
-          const {ownerDocument} = rootElement;
-          const {defaultView} = ownerDocument;
-          if (!defaultView || event.detail !== 3) {
-            return;
-          }
-          willTripleClick = defaultView != null && event.detail === 3;
+          return lastTripleClick;
         };
         return mergeRegister(
           editor.registerCommand(
             SELECTION_CHANGE_COMMAND,
             () => {
-              if (willTripleClick) {
-                willTripleClick = false;
-                $fixFocusOverselection();
+              if (refreshTripleClick(null)) {
+                lastTripleClick = 0;
+                stores.$fixFocusOverselection.peek()();
               }
               return false;
             },
             COMMAND_PRIORITY_BEFORE_CRITICAL,
           ),
           (() => {
-            rootElement.addEventListener('mouseup', onMouseUp, true);
-            rootElement.addEventListener('mousedown', onMouseDown, true);
-            return () => {
-              rootElement.removeEventListener('mouseup', onMouseUp, true);
-              rootElement.removeEventListener('mousedown', onMouseDown, true);
-            };
+            const events = ['mouseup', 'mousedown'] as const;
+            events.forEach(v =>
+              rootElement.addEventListener(v, refreshTripleClick, true),
+            );
+            return () =>
+              events.forEach(v =>
+                rootElement.removeEventListener(v, refreshTripleClick, true),
+              );
           })(),
         );
       });
