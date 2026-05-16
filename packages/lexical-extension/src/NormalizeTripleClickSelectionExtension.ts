@@ -105,15 +105,16 @@ function $fixFocusOverselection() {
         $getSiblingCaret(focusCaret.origin, 'next'),
       );
     }
-    if (focusCaret !== range.focus) {
-      // Move it inside the containing element
-      if ($isSiblingCaret(focusCaret) && $isElementNode(focusCaret.origin)) {
-        focusCaret = $normalizeCaret(
-          $getChildCaret(focusCaret.origin, 'previous'),
-        ).getFlipped();
-      }
+    // Move it inside the containing element
+    if ($isSiblingCaret(focusCaret) && $isElementNode(focusCaret.origin)) {
+      focusCaret = $normalizeCaret(
+        $getChildCaret(focusCaret.origin, 'previous'),
+      ).getFlipped();
+    }
+    focusCaret = $normalizeCaret(focusCaret);
+    if (!focusCaret.isSamePointCaret(range.focus)) {
       const sel = $setSelectionFromCaretRange(
-        $getCaretRange(range.anchor, $normalizeCaret(focusCaret)),
+        $getCaretRange(range.anchor, focusCaret),
       );
       const editor = $getEditor();
       const rootElement = editor.getRootElement();
