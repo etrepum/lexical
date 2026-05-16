@@ -135,10 +135,20 @@ function $fixFocusOverselection() {
 }
 
 /**
- * This extension removes empty inline nodes from the EditorState.
- * This extension is designed to facilitate a smooth migration from
- * the plugin API with the option to disable it, but it may be removed
- * in the future and integrated into the core
+ * This extension handles triple-click events and will move the focus
+ * towards the anchor in certain conditions to meet expectations.
+ * Simply speaking, the focus should prefer to land at the end of a node
+ * rather than the beginning of its next sibling, and it should not skip
+ * over a LineBreakNode.
+ *
+ * In order to fix the result visually and avoid a flash of over-selection
+ * it will also eagerly manipulate the DOM selection directly.
+ *
+ * It is conservative in that it only fires this
+ * `$fixFocusOverselection` callback when it has detected a triple click,
+ * but it provides the function as an output signal so that it can both
+ * be called from other places and it can be replaced or wrapped with
+ * different functionality.
  */
 export const NormalizeTripleClickSelectionExtension = defineExtension({
   build: (editor, config, state): NormalizeTripleClickSelectionOutput =>
