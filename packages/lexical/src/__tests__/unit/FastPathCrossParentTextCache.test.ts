@@ -15,9 +15,46 @@ import {
   $createTextNode,
   $getRoot,
   $isElementNode,
+  ElementNode,
+  type SerializedElementNode,
 } from 'lexical';
 import invariant from 'shared/invariant';
 import {describe, expect, test} from 'vitest';
+
+import {$createTestInlineElementNode, TestInlineElementNode} from '../utils';
+
+// An inline element whose `isInline()` reads node state through `getLatest()`,
+// the idiomatic Lexical getter pattern (`return this.getLatest().__x`). On a
+// previous-state reference whose key is absent from the *active* node map (e.g.
+// the node was removed in this commit), `getLatest()` throws — so the suffix
+// fast path must never call `isInline()` on such a reference outside a read of
+// the previous editor state. Mirrors the hazard fixed for trailing `<br>` in
+// https://github.com/facebook/lexical/pull/8548.
+class GetLatestInlineNode extends ElementNode {
+  static getType(): string {
+    return 'get-latest-inline';
+  }
+  static clone(node: GetLatestInlineNode): GetLatestInlineNode {
+    return new GetLatestInlineNode(node.__key);
+  }
+  static importJSON(
+    serializedNode: SerializedElementNode,
+  ): GetLatestInlineNode {
+    return new GetLatestInlineNode().updateFromJSON(serializedNode);
+  }
+  createDOM(): HTMLElement {
+    return document.createElement('span');
+  }
+  updateDOM(): false {
+    return false;
+  }
+  isInline(): boolean {
+    return this.getLatest().__type === GetLatestInlineNode.getType();
+  }
+  canBeEmpty(): boolean {
+    return false;
+  }
+}
 
 // Regression test for the $reconcileChildren suffix fast path computing a
 // wrong previous-suffix length when a dirty child of the reconciled element
@@ -99,6 +136,96 @@ describe('children fast path: cross-parent move and sibling text cache', () => {
     // does not use the root cache). Read from the committed editor state (not
     // `editor.read`, which would flush any pending update first) so this
     // observation is the same snapshot the reconcile just produced.
+    const {cached, fresh} = editor.getEditorState().read(
+      () => {
+        const root = $getRoot();
+        return {
+          cached: root.getTextContent(),
+          fresh: root
+            .getChildren()
+            .map(child => child.getTextContent())
+            .join('\n\n'),
+        };
+      },
+      {editor},
+    );
+
+    expect(cached).toBe(fresh);
+  });
+
+  // Regression test for the `oldSuffixLength` walk calling `isInline()` on a
+  // previous-state node reference. When an element moves cross-parent, its
+  // previous size is recomputed from the previous editor state. If that
+  // recompute calls `isInline()` (or any `getLatest()`-routing method) on a
+  // child that was *removed* in the same update, `getLatest()` resolves against
+  // the next node map, where the child no longer exists, and throws. The whole
+  // recompute must therefore run inside `prevEditorState.read` so node methods
+  // resolve against the previous state.
+  test('moving an element whose removed child has a getLatest() isInline does not throw', () => {
+    const errors: Error[] = [];
+    using editor = buildEditorFromExtensions({
+      dependencies: [RichTextExtension, LinkExtension],
+      name: 'cross-parent-removed-child',
+      nodes: [TestInlineElementNode, GetLatestInlineNode],
+      onError: e => {
+        errors.push(e);
+      },
+    });
+    editor.setRootElement(document.createElement('div'));
+
+    // P1 has 4 children (engages the fast path) and ends with an inline element
+    // `moved`. The line breaks between the text nodes keep them from being
+    // merged by normalization, so the count stays at 4. `moved` leads with
+    // `inner`, a non-last *element* child whose `isInline()` routes through
+    // `getLatest()`, so the previous-size walk of `moved` reaches it.
+    editor.update(
+      () => {
+        const root = $getRoot().clear();
+
+        const p0 = $createParagraphNode();
+        p0.append($createTextNode('p0'));
+
+        const p1 = $createParagraphNode();
+        const moved = $createTestInlineElementNode();
+        const inner = new GetLatestInlineNode();
+        inner.append($createTextNode('f'));
+        moved.append(inner, $createTextNode('g'));
+        p1.append(
+          $createTextNode('x'),
+          $createLineBreakNode(),
+          $createTextNode('y'),
+          moved,
+        );
+
+        root.append(p0, p1);
+      },
+      {discrete: true},
+    );
+
+    // In one update: move `moved` out of P1 into P0 (cross-parent — its prev
+    // size must be recomputed) AND remove its `inner` child. P1 drops 4 -> 3
+    // children (the size-delta suffix path) and recomputes `moved`'s previous
+    // size; that walk reaches `inner`, which no longer exists in the next state,
+    // so `inner.isInline()` -> `getLatest()` would throw unless the walk runs
+    // against the previous editor state.
+    editor.update(
+      () => {
+        const root = $getRoot();
+        const p0 = root.getFirstChildOrThrow();
+        const p1 = root.getLastChildOrThrow();
+        invariant($isElementNode(p0), 'p0 must be an ElementNode');
+        invariant($isElementNode(p1), 'p1 must be an ElementNode');
+        const moved = p1.getLastChildOrThrow();
+        invariant($isElementNode(moved), 'moved must be an ElementNode');
+        const inner = moved.getFirstChildOrThrow();
+        p0.getFirstChildOrThrow().insertBefore(moved);
+        inner.remove();
+      },
+      {discrete: true},
+    );
+
+    expect(errors).toEqual([]);
+
     const {cached, fresh} = editor.getEditorState().read(
       () => {
         const root = $getRoot();
