@@ -7,6 +7,10 @@ inputs:
   registry-url:
     required: false
     description: 'actions/setup-node: npm registry to use'
+  cache:
+    required: false
+    default: 'pnpm'
+    description: "actions/setup-node cache input. Defaults to 'pnpm' for fast CI; pass '' to disable dependency caching (e.g. in publish workflows, to avoid restoring a cache a lower-privileged run could have poisoned)."
   pnpm-install-args:
     required: false
     default: '--frozen-lockfile'
@@ -19,7 +23,7 @@ runs:
     - name: Use Node.js ${{ inputs.node-version }}
       uses: actions/setup-node@v6
       with:
-        cache: 'pnpm'
+        cache: ${{ inputs.cache }}
         node-version: ${{ inputs.node-version }}
         registry-url: ${{ inputs.registry-url }}
     - name: Install dependencies

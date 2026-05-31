@@ -85,6 +85,10 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
         with:
           node-version: 24.x
+          # No dependency cache on the release path: this job has
+          # contents: write and pushes the version tag/branch. Don't restore a
+          # cache a lower-privileged run could have poisoned.
+          cache: ''
       - run: |
           git config user.name "Lexical GitHub Actions Bot"
           git config user.email "<>"
@@ -116,6 +120,10 @@ jobs:
         with:
           node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
+          # No dependency cache: this job publishes to npm with
+          # id-token: write / NPM_TOKEN. Don't restore a potentially poisoned
+          # cache in the publish path.
+          cache: ''
       - name: Configure npm auth
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
