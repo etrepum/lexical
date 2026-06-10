@@ -40,6 +40,7 @@ import {
 import {
   $createTextNode,
   $isParagraphNode,
+  $isRootOrShadowRoot,
   $isTextNode,
   LexicalNode,
 } from 'lexical';
@@ -115,11 +116,11 @@ export const EMOJI: TextMatchTransformer = {
 };
 
 function escapeInlineEquation(equation: string): string {
-  return equation.replace(/([\\$])/g, '\\$1');
-}
-
-function unescapeInlineEquation(equation: string): string {
-  return equation.replace(/\\([\\$])/g, '$1');
+  // Bare `$` (a KaTeX parse error anyway) is escaped to the KaTeX-valid `\$`
+  // so it can't terminate the markdown delimiter early. Existing escape
+  // sequences and LaTeX commands are kept verbatim so the exported markdown
+  // renders correctly in external renderers.
+  return equation.replace(/(\\.)|\$/gs, (_match, escaped) => escaped ?? '\\$');
 }
 
 export const BLOCK_EQUATION: MultilineElementTransformer = {
@@ -153,21 +154,21 @@ export const EQUATION: TextMatchTransformer = {
       return null;
     }
 
-    const equation = node.getEquation();
-    return node.isInline() ? `$${escapeInlineEquation(equation)}$` : null;
+    // Top-level non-inline equations are exported by BLOCK_EQUATION; this
+    // path covers inline equations and non-inline equations nested inside
+    // another element, which degrade to the inline form rather than losing
+    // their delimiters.
+    return `$${escapeInlineEquation(node.getEquation())}$`;
   },
   importRegExp: /\$((?:\\.|[^$\\\n])+?)\$/,
-  regExp: /^\$\$([^$]+?)\$\$$|(?:^|[^$])\$((?:\\.|[^$\\\n])+?)\$$/,
+  regExp: /^\$\$([^$]+?)\$\$$|(?:^|[^$\\])\$((?:\\.|[^$\\\n])+?)\$$/,
   replace: (textNode, match) => {
     const [, firstEquation, secondEquation] = match;
     const isInline = !match[0].startsWith('$$');
     const equation = firstEquation ?? secondEquation;
-    const equationNode = isInline
-      ? $createEquationNode(unescapeInlineEquation(equation), true)
-      : new EquationNode(equation, false);
     if (isInline) {
-      const prefix =
-        match[0][0] === '$' || match[0][0] === '\\' ? '' : match[0][0];
+      const equationNode = $createEquationNode(equation, true);
+      const prefix = match[0][0] === '$' ? '' : match[0][0];
       if (prefix === '') {
         textNode.replace(equationNode);
       } else {
@@ -175,7 +176,17 @@ export const EQUATION: TextMatchTransformer = {
         textNode.insertAfter(equationNode);
       }
     } else {
-      textNode.getParentOrThrow().replace(equationNode);
+      const parentNode = textNode.getParentOrThrow();
+      // Replacing a parent that has other children (soft line breaks,
+      // formatted siblings, list items) would destroy that content, so only
+      // a sole-child top-level paragraph is converted.
+      if (
+        $isParagraphNode(parentNode) &&
+        parentNode.getChildrenSize() === 1 &&
+        $isRootOrShadowRoot(parentNode.getParent())
+      ) {
+        parentNode.replace($createEquationNode(equation, false));
+      }
     }
   },
   trigger: '$',
