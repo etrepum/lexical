@@ -1,0 +1,322 @@
+diff --git a/packages/lexical-html/src/__tests__/unit/compileDOMRenderConfigOverrides.test.ts b/packages/lexical-html/src/__tests__/unit/compileDOMRenderConfigOverrides.test.ts
+index c1be60d..3c1e017 100644
+--- a/packages/lexical-html/src/__tests__/unit/compileDOMRenderConfigOverrides.test.ts
++++ b/packages/lexical-html/src/__tests__/unit/compileDOMRenderConfigOverrides.test.ts
+@@ -73,6 +73,8 @@ describe('precompileDOMRenderConfigOverrides', () => {
+       $getDOMSlot: [],
+       $getSlotEditable: [],
+       $getSlotTargetElement: [],
++      $onDOMMount: [],
++      $onDOMUpdate: [],
+       $shouldExclude: [],
+       $shouldInclude: [],
+       $updateDOM: [],
+@@ -153,6 +155,8 @@ describe('precompileDOMRenderConfigOverrides', () => {
+       $getDOMSlot: [],
+       $getSlotEditable: [],
+       $getSlotTargetElement: [],
++      $onDOMMount: [],
++      $onDOMUpdate: [],
+       $shouldExclude: [],
+       $shouldInclude: [],
+       $updateDOM: [],
+diff --git a/packages/lexical-html/src/compileDOMRenderConfigOverrides.ts b/packages/lexical-html/src/compileDOMRenderConfigOverrides.ts
+index 7823e7e..a9eeb70 100644
+--- a/packages/lexical-html/src/compileDOMRenderConfigOverrides.ts
++++ b/packages/lexical-html/src/compileDOMRenderConfigOverrides.ts
+@@ -91,6 +91,8 @@ function makePrerender(): PreEditorDOMRenderConfig {
+     $getDOMSlot: [],
+     $getSlotEditable: [],
+     $getSlotTargetElement: [],
++    $onDOMMount: [],
++    $onDOMUpdate: [],
+     $shouldExclude: [],
+     $shouldInclude: [],
+     $updateDOM: [],
+@@ -387,6 +389,8 @@ export function compileDOMRenderConfigOverrides(
+     ignoreNext4,
+   );
+   compilePrerenderKey(prerender, '$getSlotEditable', dom, merge3, ignoreNext3);
++  compilePrerenderKey(prerender, '$onDOMMount', dom, merge3, ignoreNext3);
++  compilePrerenderKey(prerender, '$onDOMUpdate', dom, merge4, ignoreNext4);
+   compilePrerenderKey(prerender, '$updateDOM', dom, merge4, ignoreNext4);
+   compilePrerenderKey(prerender, '$decorateDOM', dom, sequence4, identity);
+   return dom;
+diff --git a/packages/lexical-html/src/types.ts b/packages/lexical-html/src/types.ts
+index da4301c..d77a763 100644
+--- a/packages/lexical-html/src/types.ts
++++ b/packages/lexical-html/src/types.ts
+@@ -444,6 +444,70 @@ export interface DOMRenderMatch<T extends LexicalNode> {
+     $next: () => boolean,
+     editor: LexicalEditor,
+   ) => boolean;
++  /**
++   * Called when the host DOM for this node is first mounted. May return
++   * a cleanup function that is invoked when the node's DOM is unmounted
++   * (same shape as `editor.register*` listeners). For framework
++   * integrations that own the host DOM, this is the entry point for
++   * `createRoot` / first render.
++   *
++   * Use `$decorateDOM` for stateless DOM annotations (attributes,
++   * classes, inline styles). Use `$onDOMMount` / `$onDOMUpdate` when
++   * the consumer needs a per-mount cleanup such as a React root or
++   * an event subscription bound to `hostDom`.
++   *
++   * Timing: runs immediately after the host DOM is registered in the
++   * keyed map and BEFORE the reconciler mounts children into the host.
++   * The reconciler also sets the host-level marker attribute
++   * (`data-lexical-decorator`) and the unmanaged flag AFTER this
++   * callback returns, so the host is half-initialized at mount time —
++   * read those attrs lazily, not
++   * synchronously in the callback body. Callbacks that synchronously
++   * mutate `hostDom`'s child list will race the children mount that
++   * follows — use the asynchronous commit of a framework view, or
++   * schedule any direct DOM work in the cleanup half.
++   *
++   * Teardown order: per-node cleanup runs in `$destroyNode` as part of
++   * the normal unmount flow. On `editor.setRootElement(null)` /
++   * `resetEditor`, cleanups are iterated in node-insertion order
++   * (i.e. parents before children); callbacks that walk the keyed
++   * DOM map at teardown should not assume reverse-tree order.
++   *
++   * @experimental
++   */
++  $onDOMMount?: (
++    node: T,
++    hostDom: HTMLElement,
++    $next: () => void | (() => void),
++    editor: LexicalEditor,
++  ) => void | (() => void);
++  /**
++   * Called when the node updates and the host DOM was preserved (no
++   * `createDOM` recreate). Use this to re-render a framework view
++   * bound to the node. `prevNode` is the previous state. The `$onDOM`
++   * prefix mirrors `$onDOMMount` and avoids colliding with lexical's
++   * top-level `$onUpdate(fn)` free function.
++   *
++   * Timing: runs BEFORE the dirty-children reconcile for this update,
++   * so the same caveat as `$onDOMMount` applies — do not synchronously
++   * rewrite `hostDom`'s direct children from this callback.
++   *
++   * Triggers: fires whenever `$reconcileNode` runs for the host —
++   * this includes reconciles driven by descendant dirtiness (e.g. a
++   * paragraph deep in the subtree was edited) as well as host-level
++   * changes. Consumers that re-render off `node`'s state should
++   * either trust their framework's prop-equality bail-out or memoize
++   * upstream of the re-render call.
++   *
++   * @experimental
++   */
++  $onDOMUpdate?: (
++    node: T,
++    prevNode: T,
++    hostDom: HTMLElement,
++    $next: () => void,
++    editor: LexicalEditor,
++  ) => void;
+   /**
+    * Where a named slot's container should attach, for hosts rendered
+    * entirely in-lexical (no chrome framework). Consulted by the
+diff --git a/packages/lexical/src/LexicalEditor.ts b/packages/lexical/src/LexicalEditor.ts
+index 457dbcc..6123870 100644
+--- a/packages/lexical/src/LexicalEditor.ts
++++ b/packages/lexical/src/LexicalEditor.ts
+@@ -318,6 +318,37 @@ export interface EditorDOMRenderConfig {
+     dom: HTMLElement,
+     editor: LexicalEditor,
+   ) => void;
++  /**
++   * @internal @experimental
++   *
++   * Called when the host DOM for this node is first mounted. May return
++   * a cleanup function that is invoked when the node's DOM is unmounted
++   * — same shape as `editor.register*` listeners. For framework
++   * integrations that own the host DOM, this is the entry point for
++   * `createRoot` / first render.
++   */
++  $onDOMMount: <T extends LexicalNode>(
++    node: T,
++    hostDom: HTMLElement,
++    editor: LexicalEditor,
++  ) => void | (() => void);
++  /**
++   * @internal @experimental
++   *
++   * Called when the node updates and the host DOM was preserved (no
++   * `createDOM` recreate). Use this to re-render a framework view
++   * bound to the node. `prevNode` is the previous state.
++   *
++   * The name carries the `$onDOM` prefix to avoid colliding with
++   * lexical's top-level {@link $onUpdate} free function, which queues
++   * a post-commit callback inside an update transaction.
++   */
++  $onDOMUpdate: <T extends LexicalNode>(
++    node: T,
++    prevNode: T,
++    hostDom: HTMLElement,
++    editor: LexicalEditor,
++  ) => void;
+   /**
+    * @internal @experimental named-slots
+    *
+@@ -701,6 +732,26 @@ export function resetEditor(
+   pendingEditorState: EditorState,
+   options?: ResetEditorOptions,
+ ): void {
++  // Tear down any $onDOMMount cleanups before discarding the node-to-DOM
++  // map. resetEditor clears the DOM tree via `textContent = ''` rather
++  // than walking $destroyNode per node, so the per-node cleanup path in
++  // the reconciler doesn't run here — external resources (e.g. React
++  // roots) need to be released explicitly.
++  if (editor._onDOMMountCleanup.size > 0) {
++    try {
++      for (const cleanup of editor._onDOMMountCleanup.values()) {
++        try {
++          cleanup();
++        } catch (error) {
++          if (error instanceof Error) {
++            editor._onError(error);
++          }
++        }
++      }
++    } finally {
++      editor._onDOMMountCleanup.clear();
++    }
++  }
+   const keyNodeMap = editor._keyToDOMMap;
+   keyNodeMap.clear();
+   editor._editorState = createEmptyEditorState();
+@@ -837,6 +888,8 @@ export const DEFAULT_EDITOR_DOM_CONFIG: EditorDOMRenderConfig = {
+   ): DOMSlotForNode<N> => node.getDOMSlot(dom) as DOMSlotForNode<N>,
+   $getSlotEditable: (_node, _slotName, _editor) => null,
+   $getSlotTargetElement: (_node, _slotName, _hostDom, _editor) => null,
++  $onDOMMount: (_node, _hostDom, _editor) => undefined,
++  $onDOMUpdate: (_node, _prevNode, _hostDom, _editor) => undefined,
+   $shouldExclude: (node, _selection, _editor) =>
+     $isElementNode(node) && node.excludeFromCopy('html'),
+   $shouldInclude: (node, selection, _editor) =>
+@@ -1075,6 +1128,15 @@ export class LexicalEditor {
+   _editable: boolean;
+   /** @internal */
+   _blockCursorElement: null | HTMLDivElement;
++  /**
++   * @internal @experimental
++   *
++   * Cleanup functions returned from {@link EditorDOMRenderConfig.$onDOMMount}.
++   * Keyed by node key. Invoked by the reconciler when the node's DOM is
++   * unmounted, and by {@link resetEditor} when the whole editor is torn
++   * down so external resources (e.g. React roots) get released.
++   */
++  _onDOMMountCleanup: Map<NodeKey, () => void>;
+   /**
+    * @internal @experimental
+    *
+@@ -1154,6 +1216,7 @@ export class LexicalEditor {
+     this._headless = parentEditor !== null && parentEditor._headless;
+     this._window = null;
+     this._blockCursorElement = null;
++    this._onDOMMountCleanup = new Map();
+     this._slotsUsed = false;
+   }
+ 
+diff --git a/packages/lexical/src/LexicalReconciler.ts b/packages/lexical/src/LexicalReconciler.ts
+index 204272b..14c3788 100644
+--- a/packages/lexical/src/LexicalReconciler.ts
++++ b/packages/lexical/src/LexicalReconciler.ts
+@@ -317,6 +317,27 @@ function $destroyNode(key: NodeKey, parentDOM: null | HTMLElement): void {
+     return;
+   }
+ 
++  // Invoke the cleanup returned by `$onDOMMount`, if any. Run before
++  // the DOM-map delete so the cleanup can still read `getElementByKey`
++  // if it needs to (e.g. to unmount a framework view bound to the host
++  // DOM). Errors are routed through `editor._onError` instead of
++  // bubbling so a misbehaving cleanup can't break the rest of the
++  // teardown sweep.
++  const onDOMMountCleanup = activeEditor._onDOMMountCleanup.get(key);
++  if (onDOMMountCleanup !== undefined) {
++    try {
++      try {
++        onDOMMountCleanup();
++      } catch (error) {
++        if (error instanceof Error) {
++          activeEditor._onError(error);
++        }
++      }
++    } finally {
++      activeEditor._onDOMMountCleanup.delete(key);
++    }
++  }
++
+   // This logic is really important, otherwise we will leak DOM nodes
+   // when their corresponding LexicalNodes are removed from the editor state.
+   activeEditor._keyToDOMMap.delete(key);
+@@ -720,8 +741,50 @@ function $createNode(key: NodeKey, slot: DOMSlot | null): HTMLElement {
+   const dom: HTMLElement & LexicalPrivateDOM =
+     activeEditorDOMRenderConfig.$createDOM(node, activeEditor);
+ 
++  // Recreate path safety: when `$updateDOM` returns `true`,
++  // `$reconcileNode` invokes `$createNode(key, null)` for the same key
++  // and then `$destroyNode(key, null)`. `$destroyNode` short-circuits
++  // on `isMoved` (the key is still in the next node map) and skips
++  // cleanup, so the previous mount's cleanup would never run unless we
++  // do it here — and its reference would be overwritten by the new
++  // registration below.
++  //
++  // The invocation is placed BEFORE `storeDOMWithKey` so any cleanup
++  // that reads `editor.getElementByKey(key)` still resolves to the
++  // OLD DOM. (Cleanup observes the OLD DOM still attached to its
++  // parent — `parentDOM.replaceChild` runs after `$createNode`
++  // returns.)
++  const previousOnDOMMountCleanup = activeEditor._onDOMMountCleanup.get(key);
++  if (previousOnDOMMountCleanup !== undefined) {
++    try {
++      try {
++        previousOnDOMMountCleanup();
++      } catch (error) {
++        if (error instanceof Error) {
++          activeEditor._onError(error);
++        }
++      }
++    } finally {
++      activeEditor._onDOMMountCleanup.delete(key);
++    }
++  }
++
+   storeDOMWithKey(key, dom, activeEditor);
+ 
++  // Run the host's `$onDOMMount` immediately after the DOM is
++  // registered. Children mount into this DOM further down — running
++  // before them is intentional: a framework integration that owns the
++  // host DOM (e.g. a React root rendered through `$onDOMMount`) is set
++  // up before its child content reconciles into it.
++  const onDOMMountCleanup = activeEditorDOMRenderConfig.$onDOMMount(
++    node,
++    dom,
++    activeEditor,
++  );
++  if (typeof onDOMMountCleanup === 'function') {
++    activeEditor._onDOMMountCleanup.set(key, onDOMMountCleanup);
++  }
++
+   // This helps preserve the text, and stops spell check tools from
+   // merging or break the spans (which happens if they are missing
+   // this attribute).
+@@ -1763,6 +1826,17 @@ function $reconcileNode(
+     return replacementDOM;
+   }
+ 
++  // DOM was preserved across the update — notify the host so it can
++  // re-render its framework view. Skipped on the recreate path above
++  // because `$destroyNode` + `$createNode` already drive the
++  // unmount/mount cycle.
++  activeEditorDOMRenderConfig.$onDOMUpdate(
++    nextNode,
++    prevNode,
++    dom,
++    activeEditor,
++  );
++
+   if ($isElementNode(prevNode)) {
+     invariant(
+       $isElementNode(nextNode),
