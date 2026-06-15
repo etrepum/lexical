@@ -32,9 +32,9 @@ import {
   $getNodeByKey,
   $getRoot,
   $getSelection,
+  $isElementNode,
   $isParagraphNode,
   $isRangeSelection,
-  $nodesOfType,
   $selectAll,
   INSERT_PARAGRAPH_COMMAND,
   LexicalNode,
@@ -177,10 +177,21 @@ describe('insertList', () => {
       });
 
       editor.read(() => {
-        const lists = $nodesOfType(ListNode).filter(
-          node => node.getListType() === 'number',
-        );
-        expect(lists.length).toBe(2);
+        const numberLists: ListNode[] = [];
+        const stack: LexicalNode[] = [...$getRoot().getChildren()];
+        while (stack.length > 0) {
+          const node = stack.pop();
+          if (node === undefined) {
+            break;
+          }
+          if ($isListNode(node) && node.getListType() === 'number') {
+            numberLists.push(node);
+          }
+          if ($isElementNode(node)) {
+            stack.push(...node.getChildren());
+          }
+        }
+        expect(numberLists.length).toBe(2);
       });
     });
 

@@ -15,7 +15,6 @@ import {
   $getRoot,
   $getState,
   $isTokenOrSegmented,
-  $nodesOfType,
   $onUpdate,
   $setState,
   createEditor,
@@ -401,35 +400,6 @@ describe('LexicalUtils tests', () => {
 
       // @ts-expect-error
       expect(() => $getNodeByKey()).toThrow();
-    });
-
-    test('$nodesOfType', async () => {
-      const {editor} = testEnv;
-      const paragraphKeys: string[] = [];
-
-      const $paragraphKeys = () =>
-        $nodesOfType(ParagraphNode).map(node => node.getKey());
-
-      await editor.update(() => {
-        const root = $getRoot();
-        const paragraph1 = $createParagraphNode();
-        const paragraph2 = $createParagraphNode();
-        $createParagraphNode();
-        root.append(paragraph1, paragraph2);
-        paragraphKeys.push(paragraph1.getKey(), paragraph2.getKey());
-        const currentParagraphKeys = $paragraphKeys();
-        expect(currentParagraphKeys).toHaveLength(paragraphKeys.length);
-        expect(currentParagraphKeys).toEqual(
-          expect.arrayContaining(paragraphKeys),
-        );
-      });
-      editor.getEditorState().read(() => {
-        const currentParagraphKeys = $paragraphKeys();
-        expect(currentParagraphKeys).toHaveLength(paragraphKeys.length);
-        expect(currentParagraphKeys).toEqual(
-          expect.arrayContaining(paragraphKeys),
-        );
-      });
     });
 
     describe('$onUpdate', () => {

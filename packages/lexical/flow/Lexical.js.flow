@@ -38,7 +38,6 @@ declare export var KEY_ESCAPE_COMMAND: LexicalCommand<KeyboardEvent>;
 declare export var KEY_DELETE_COMMAND: LexicalCommand<KeyboardEvent>;
 declare export var KEY_TAB_COMMAND: LexicalCommand<KeyboardEvent>;
 declare export var INSERT_TAB_COMMAND: LexicalCommand<void>;
-declare export var KEY_MODIFIER_COMMAND: LexicalCommand<KeyboardEvent>;
 declare export var INDENT_CONTENT_COMMAND: LexicalCommand<void>;
 declare export var OUTDENT_CONTENT_COMMAND: LexicalCommand<void>;
 declare export var DROP_COMMAND: LexicalCommand<DragEvent>;
@@ -1138,7 +1137,6 @@ declare export function $setCompositionKey(
   compositionKey: null | NodeKey,
 ): void;
 declare export function $setSelection(selection: null | BaseSelection): void;
-declare export function $nodesOfType<T extends LexicalNode>(klass: Class<T>): T[];
 declare export function $getAdjacentNode(
   focus: Point,
   isBackward: boolean,

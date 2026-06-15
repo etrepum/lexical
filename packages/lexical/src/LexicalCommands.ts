@@ -221,11 +221,3 @@ export const FOCUS_COMMAND: LexicalCommand<FocusEvent> =
   /* @__PURE__ */ createCommand('FOCUS_COMMAND');
 export const BLUR_COMMAND: LexicalCommand<FocusEvent> =
   /* @__PURE__ */ createCommand('BLUR_COMMAND');
-/**
- * @deprecated in v0.31.0, use KEY_DOWN_COMMAND and check for modifiers
- * directly.
- *
- * Dispatched after any KeyboardEvent when modifiers are pressed
- */
-export const KEY_MODIFIER_COMMAND: LexicalCommand<KeyboardEvent> =
-  /* @__PURE__ */ createCommand('KEY_MODIFIER_COMMAND');

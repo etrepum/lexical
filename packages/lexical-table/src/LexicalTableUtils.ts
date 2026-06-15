@@ -166,76 +166,6 @@ export function $removeTableRowAtIndex(
   return tableNode;
 }
 
-/**
- * @deprecated This function does not support merged cells. Use {@link $insertTableRowAtSelection} or {@link $insertTableRowAtNode} instead.
- */
-export function $insertTableRow(
-  tableNode: TableNode,
-  targetIndex: number,
-  shouldInsertAfter = true,
-  rowCount: number,
-  table: TableDOMTable,
-): TableNode {
-  const tableRows = tableNode.getChildren();
-
-  if (targetIndex >= tableRows.length || targetIndex < 0) {
-    throw new Error('Table row target index out of range');
-  }
-
-  const targetRowNode = tableRows[targetIndex];
-
-  if ($isTableRowNode(targetRowNode)) {
-    for (let r = 0; r < rowCount; r++) {
-      const tableRowCells = targetRowNode.getChildren();
-      const tableColumnCount = tableRowCells.length;
-      const newTableRowNode = $createTableRowNode();
-
-      for (let c = 0; c < tableColumnCount; c++) {
-        const tableCellFromTargetRow = tableRowCells[c];
-
-        invariant(
-          $isTableCellNode(tableCellFromTargetRow),
-          'Expected table cell',
-        );
-
-        const {above, below} = $getTableCellSiblingsFromTableCellNode(
-          tableCellFromTargetRow,
-          table,
-        );
-
-        let headerState = TableCellHeaderStates.NO_STATUS;
-        const width =
-          (above && above.getWidth()) ||
-          (below && below.getWidth()) ||
-          undefined;
-
-        if (
-          (above && above.hasHeaderState(TableCellHeaderStates.COLUMN)) ||
-          (below && below.hasHeaderState(TableCellHeaderStates.COLUMN))
-        ) {
-          headerState |= TableCellHeaderStates.COLUMN;
-        }
-
-        const tableCellNode = $createTableCellNode(headerState, 1, width);
-
-        tableCellNode.append($createParagraphNode());
-
-        newTableRowNode.append(tableCellNode);
-      }
-
-      if (shouldInsertAfter) {
-        targetRowNode.insertAfter(newTableRowNode);
-      } else {
-        targetRowNode.insertBefore(newTableRowNode);
-      }
-    }
-  } else {
-    throw new Error('Row before insertion index does not exist.');
-  }
-
-  return tableNode;
-}
-
 const getHeaderState = (
   currentState: TableCellHeaderState,
   possibleState: TableCellHeaderState,
@@ -288,11 +218,6 @@ export function $insertTableRowAtSelection(
     );
   }
 }
-
-/**
- * @deprecated renamed to {@link $insertTableRowAtSelection}
- */
-export const $insertTableRow__EXPERIMENTAL = $insertTableRowAtSelection;
 
 /**
  * Inserts a table row before or after the given cell node,
@@ -371,68 +296,6 @@ export function $insertTableRowAtNode(
 }
 
 /**
- * @deprecated This function does not support merged cells. Use {@link $insertTableColumnAtSelection} or {@link $insertTableColumnAtNode} instead.
- */
-export function $insertTableColumn(
-  tableNode: TableNode,
-  targetIndex: number,
-  shouldInsertAfter = true,
-  columnCount: number,
-  table: TableDOMTable,
-): TableNode {
-  const tableRows = tableNode.getChildren();
-
-  const tableCellsToBeInserted = [];
-  for (let r = 0; r < tableRows.length; r++) {
-    const currentTableRowNode = tableRows[r];
-
-    if ($isTableRowNode(currentTableRowNode)) {
-      for (let c = 0; c < columnCount; c++) {
-        const tableRowChildren = currentTableRowNode.getChildren();
-        if (targetIndex >= tableRowChildren.length || targetIndex < 0) {
-          throw new Error('Table column target index out of range');
-        }
-
-        const targetCell = tableRowChildren[targetIndex];
-
-        invariant($isTableCellNode(targetCell), 'Expected table cell');
-
-        const {left, right} = $getTableCellSiblingsFromTableCellNode(
-          targetCell,
-          table,
-        );
-
-        let headerState = TableCellHeaderStates.NO_STATUS;
-
-        if (
-          (left && left.hasHeaderState(TableCellHeaderStates.ROW)) ||
-          (right && right.hasHeaderState(TableCellHeaderStates.ROW))
-        ) {
-          headerState |= TableCellHeaderStates.ROW;
-        }
-
-        const newTableCell = $createTableCellNode(headerState);
-
-        newTableCell.append($createParagraphNode());
-        tableCellsToBeInserted.push({
-          newTableCell,
-          targetCell,
-        });
-      }
-    }
-  }
-  tableCellsToBeInserted.forEach(({newTableCell, targetCell}) => {
-    if (shouldInsertAfter) {
-      targetCell.insertAfter(newTableCell);
-    } else {
-      targetCell.insertBefore(newTableCell);
-    }
-  });
-
-  return tableNode;
-}
-
-/**
  * Inserts a column before or after the current focus cell node,
  * taking into account any spans. If successful, returns the
  * first inserted cell node.
@@ -471,11 +334,6 @@ export function $insertTableColumnAtSelection(
     );
   }
 }
-
-/**
- * @deprecated renamed to {@link $insertTableColumnAtSelection}
- */
-export const $insertTableColumn__EXPERIMENTAL = $insertTableColumnAtSelection;
 
 /**
  * Inserts a column before or after the given cell node,
@@ -579,32 +437,6 @@ export function $insertTableColumnAtNode(
   return firstInsertedCell;
 }
 
-/**
- * @deprecated This function does not support merged cells. Use {@link $deleteTableColumnAtSelection} instead.
- */
-export function $deleteTableColumn(
-  tableNode: TableNode,
-  targetIndex: number,
-): TableNode {
-  const tableRows = tableNode.getChildren();
-
-  for (let i = 0; i < tableRows.length; i++) {
-    const currentTableRowNode = tableRows[i];
-
-    if ($isTableRowNode(currentTableRowNode)) {
-      const tableRowChildren = currentTableRowNode.getChildren();
-
-      if (targetIndex >= tableRowChildren.length || targetIndex < 0) {
-        throw new Error('Table column target index out of range');
-      }
-
-      tableRowChildren[targetIndex].remove();
-    }
-  }
-
-  return tableNode;
-}
-
 export function $deleteTableRowAtSelection(): void {
   const selection = $getSelection();
   invariant(
@@ -705,11 +537,6 @@ export function $deleteTableRowAtSelection(): void {
   }
 }
 
-/**
- * @deprecated renamed to {@link $deleteTableRowAtSelection}
- */
-export const $deleteTableRow__EXPERIMENTAL = $deleteTableRowAtSelection;
-
 export function $deleteTableColumnAtSelection(): void {
   const selection = $getSelection();
   invariant(
@@ -788,11 +615,6 @@ export function $deleteTableColumnAtSelection(): void {
     grid.setColWidths(newColWidths);
   }
 }
-
-/**
- * @deprecated renamed to {@link $deleteTableColumnAtSelection}
- */
-export const $deleteTableColumn__EXPERIMENTAL = $deleteTableColumnAtSelection;
 
 function $moveSelectionToCell(cell: TableCellNode): void {
   const firstDescendant = cell.getFirstDescendant();

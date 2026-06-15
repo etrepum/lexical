@@ -1212,10 +1212,6 @@ export function isMoveDown(event: KeyboardEventModifiers): boolean {
   });
 }
 
-export function isModifier(event: KeyboardEventModifiers): boolean {
-  return event.ctrlKey || event.shiftKey || event.altKey || event.metaKey;
-}
-
 export function isSpace(event: KeyboardEventModifiers): boolean {
   return event.key === ' ';
 }
@@ -1322,32 +1318,6 @@ export function setMutatedNode(
     mutatedNodesByType.set(nodeKey, isMove ? 'updated' : mutation);
   }
 }
-/**
- * @deprecated Use {@link LexicalEditor.registerMutationListener} with `skipInitialization: false` instead.
- */
-export function $nodesOfType<T extends LexicalNode>(klass: Klass<T>): T[] {
-  const klassType = klass.getType();
-  const editorState = getActiveEditorState();
-  if (editorState._readOnly) {
-    const nodes = getCachedTypeToNodeMap(editorState).get(klassType) as
-      | undefined
-      | Map<string, T>;
-    return nodes ? Array.from(nodes.values()) : [];
-  }
-  const nodes = editorState._nodeMap;
-  const nodesOfType: T[] = [];
-  for (const [, node] of nodes) {
-    if (
-      node instanceof klass &&
-      node.__type === klassType &&
-      node.isAttached()
-    ) {
-      nodesOfType.push(node as T);
-    }
-  }
-  return nodesOfType;
-}
-
 function resolveElement(
   element: ElementNode,
   isBackward: boolean,

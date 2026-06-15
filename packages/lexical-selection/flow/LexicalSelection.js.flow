@@ -17,7 +17,6 @@ import type {
   RangeSelection,
   TextNode,
 } from 'lexical';
-declare export function $cloneWithProperties<T extends LexicalNode>(node: T): T;
 /** @deprecated moved to the lexical package */
 declare export function getStyleObjectFromCSS(css: string): {
   [string]: string,
@@ -45,12 +44,6 @@ declare export function $moveCharacter(
   selection: RangeSelection,
   isHoldingShift: boolean,
   isBackward: boolean,
-): void;
-declare export function $selectAll(selection: RangeSelection): void;
-declare export function $wrapNodes(
-  selection: BaseSelection,
-  createElement: () => ElementNode,
-  wrappingElement?: ElementNode,
 ): void;
 declare export function $setBlocksType(
   selection: BaseSelection | null,
@@ -80,9 +73,6 @@ declare export function $trimTextContentFromAnchor(
   anchor: Point,
   delCount: number,
 ): void;
-
-/** @deprecated renamed to {@link $trimTextContentFromAnchor} by @lexical/eslint-plugin rules-of-lexical */
-declare export const trimTextContentFromAnchor: typeof $trimTextContentFromAnchor;
 
 declare export function $ensureForwardRangeSelection(selection: RangeSelection): void;
 

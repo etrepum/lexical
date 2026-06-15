@@ -8,8 +8,6 @@
 
 import {getStyleObjectFromCSS as getStyleObjectFromCSS_} from 'lexical';
 
-import {$trimTextContentFromAnchor} from './lexical-node';
-
 export {
   $addNodeStyle,
   $ensureForwardRangeSelection,
@@ -27,7 +25,6 @@ export {
   $moveCharacter,
   $setBlocksType,
   $shouldOverrideDefaultCharacterSelection,
-  $wrapNodes,
 } from './range-selection';
 export {
   $getComputedStyleForElement,
@@ -39,9 +36,3 @@ export {
 } from './utils';
 /** @deprecated moved to the `lexical` package */
 export const getStyleObjectFromCSS = getStyleObjectFromCSS_;
-/** @deprecated renamed to {@link $trimTextContentFromAnchor} by @lexical/eslint-plugin rules-of-lexical */
-export const trimTextContentFromAnchor = $trimTextContentFromAnchor;
-export {
-  /** @deprecated moved to the lexical package */ $cloneWithProperties,
-  /** @deprecated moved to the lexical package */ $selectAll,
-} from 'lexical';

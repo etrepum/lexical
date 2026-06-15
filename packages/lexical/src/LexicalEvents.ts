@@ -80,7 +80,6 @@ import {
   COMPOSITION_END_COMMAND,
   COMPOSITION_START_COMMAND,
   INPUT_COMMAND,
-  KEY_MODIFIER_COMMAND,
   SELECT_ALL_COMMAND,
 } from './LexicalCommands';
 import {
@@ -135,7 +134,6 @@ import {
   isItalic,
   isLexicalEditor,
   isLineBreak,
-  isModifier,
   isMoveBackward,
   isMoveDown,
   isMoveForward,
@@ -1432,10 +1430,6 @@ function $handleKeyDown(event: KeyboardEvent): boolean {
         dispatchCommand(editor, CUT_COMMAND, event);
       }
     }
-  }
-
-  if (isModifier(event)) {
-    editor.dispatchCommand(KEY_MODIFIER_COMMAND, event);
   }
 
   return true;
