@@ -301,7 +301,12 @@ function $transferStartingElementPointToTextPoint(
   if ($isParagraphNode(placementNode)) {
     placementNode.splice(0, 0, [textNode]);
   } else if (placementNode !== null) {
-    const target = $isRootNode(element)
+    // A shadow root (e.g. a named-slot container) can no more hold inline
+    // content directly than the document root can, so wrap the text in a
+    // block before inserting it as a sibling — typing before a block
+    // DecoratorNode in a slot container must not leave a bare text node as a
+    // direct child of the shadow root (#8712).
+    const target = $isRootOrShadowRoot(element)
       ? $createParagraphNode().append(textNode)
       : textNode;
     placementNode.insertBefore(target);
@@ -1426,17 +1431,23 @@ export class RangeSelection implements BaseSelection {
       $isElementNode(anchorNode) &&
       $getSlotHostKey(anchorNode) !== null
     ) {
-      // A container (shadow-root) value redirects into its first child; an
-      // empty one has no child to redirect into (its caret target is the
-      // reconciler's terminating <br>), so seed a paragraph first —
-      // insertNodes removes the seed again when block content replaces it. A
-      // block-shaped value (virtual shadow root around a single block) needs
-      // no seeding: it IS the block, so the block-finding walk below lands
-      // on it directly.
-      const firstChild = anchorNode.isShadowRoot()
-        ? (anchorNode.getFirstChild() ??
-          anchorNode.append($createParagraphNode()).getFirstChild())
-        : anchorNode.getFirstChild();
+      // A container (shadow-root) value redirects into a child element so the
+      // block-finding walk has a real parented anchor. Redirecting into a leaf
+      // child (a block DecoratorNode) bounces: its selectStart() resolves back
+      // to this element point on the slot root, re-enters this branch and
+      // recurses without end (#8712). So when the container is empty or its
+      // child at the offset is not an ElementNode, seed an empty paragraph to
+      // carry the cursor — insertNodes splices block content in as the
+      // container's children and removes the seed, or fills it with inline
+      // content. A block-shaped value (virtual shadow root around a single
+      // block) needs no seeding: it IS the block, so the block-finding walk
+      // below lands on it directly.
+      let firstChild = anchorNode.getFirstChild();
+      if (anchorNode.isShadowRoot() && !$isElementNode(firstChild)) {
+        const seed = $createParagraphNode();
+        anchorNode.splice(this.anchor.offset, 0, [seed]);
+        firstChild = seed;
+      }
       if (firstChild !== null) {
         firstChild.selectStart();
         const redirected = $getSelection();

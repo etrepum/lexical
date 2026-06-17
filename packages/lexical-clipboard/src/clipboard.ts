@@ -26,8 +26,8 @@ import {
   $getNearestNodeFromDOMNode,
   $getRoot,
   $getSelection,
+  $getSelectionTopLevelNodes,
   $getSlot,
-  $getSlotFrame,
   $getSlotNames,
   $getTextPointCaret,
   $isElementNode,
@@ -619,17 +619,13 @@ export function $generateJSONFromSelectedNodes<
   nodes: SerializedNode[];
 } {
   const nodes: SerializedNode[] = [];
-  const root = $getRoot();
-  // A RangeSelection wholly inside a slot subtree never includes its host
-  // (slots are shadow-root isolated), so a root-children walk would miss the
-  // selected nodes entirely and export an empty payload (cut = data loss).
-  // Walk the selection's slot frame instead; outside slots this is the root.
-  const slotFrame = $isRangeSelection(selection)
-    ? $getSlotFrame(selection.anchor.getNode())
-    : null;
-  const topLevelChildren = (
-    $isElementNode(slotFrame) ? slotFrame : root
-  ).getChildren();
+  // A selection wholly inside a slot subtree never includes its host (slots
+  // are shadow-root isolated), so a root-children walk would miss the selected
+  // nodes entirely and export an empty payload (cut = data loss). This also
+  // covers a NodeSelection of a slotted DecoratorNode, whose slot frame is the
+  // decorator itself. Walk the selection's slot frame instead; outside slots
+  // this is the root.
+  const topLevelChildren = $getSelectionTopLevelNodes(selection);
   for (let i = 0; i < topLevelChildren.length; i++) {
     const topLevelNode = topLevelChildren[i];
     $appendNodesToJSON(editor, selection, topLevelNode, nodes);

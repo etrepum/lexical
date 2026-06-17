@@ -265,6 +265,7 @@ export {
 } from './LexicalSelection';
 export type {SlotName} from './LexicalSlot';
 export {
+  $getSelectionTopLevelNodes,
   $getSlot,
   $getSlotFrame,
   $getSlotHost,

@@ -14,12 +14,20 @@ import type {
   SlotChildNode,
   SlotHostNode,
 } from './LexicalNode';
+import type {BaseSelection} from './LexicalSelection';
 import type {DecoratorNode} from './nodes/LexicalDecoratorNode';
 import type {ElementNode} from './nodes/LexicalElementNode';
 
 import invariant from '@lexical/internal/invariant';
 
-import {$getEditor, $getNodeByKey, $isDecoratorNode, $isElementNode} from '.';
+import {
+  $getEditor,
+  $getNodeByKey,
+  $getRoot,
+  $isDecoratorNode,
+  $isElementNode,
+  $isRangeSelection,
+} from '.';
 import {$removeFromParent, getStaticNodeConfig} from './LexicalUtils';
 
 const __DEV__ = process.env.NODE_ENV !== 'production';
@@ -142,6 +150,38 @@ export function $getSlotFrame(node: LexicalNode): LexicalNode | null {
     current = current.getParent();
   }
   return null;
+}
+
+/**
+ * @internal
+ *
+ * The top-level nodes a selection-driven exporter should walk for `selection`:
+ * the children of the selection's slot frame when the selection lives inside a
+ * slot, or the root's children otherwise. A selection wholly inside a slot
+ * never includes its host (slots are shadow-root isolated), so a plain
+ * root-children walk would miss it and export an empty payload.
+ *
+ * The slot frame is resolved from the RangeSelection anchor or, for a
+ * NodeSelection, from its first node — so a selected DecoratorNode that is
+ * itself a slot value is found (its frame is the decorator, which has no
+ * children channel and is therefore returned as the sole top-level node).
+ */
+export function $getSelectionTopLevelNodes(
+  selection: BaseSelection | null,
+): LexicalNode[] {
+  let slotFrame: LexicalNode | null = null;
+  if (selection !== null) {
+    const refNode = $isRangeSelection(selection)
+      ? selection.anchor.getNode()
+      : selection.getNodes()[0];
+    if (refNode !== undefined) {
+      slotFrame = $getSlotFrame(refNode);
+    }
+  }
+  if (slotFrame === null) {
+    return $getRoot().getChildren();
+  }
+  return $isElementNode(slotFrame) ? slotFrame.getChildren() : [slotFrame];
 }
 
 /**

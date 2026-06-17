@@ -15,6 +15,7 @@ import {buildEditorFromExtensions} from '@lexical/extension';
 import {$generateHtmlFromNodes} from '@lexical/html';
 import {
   $create,
+  $createNodeSelection,
   $createParagraphNode,
   $createRangeSelection,
   $createTextNode,
@@ -27,11 +28,40 @@ import {
   $isTextNode,
   $setSelection,
   $setSlot,
+  DecoratorNode,
   defineExtension,
   ElementNode,
   type SerializedElementNode,
 } from 'lexical';
 import {assert, describe, expect, test} from 'vitest';
+
+// A minimal non-inline (block) DecoratorNode, the shape of HorizontalRuleNode:
+// a valid slot value with no children channel. Exports as <hr> so HTML output
+// is identifiable.
+class BlockDecoratorNode extends DecoratorNode<string> {
+  $config() {
+    return this.config('block_decorator', {extends: DecoratorNode});
+  }
+  createDOM(): HTMLElement {
+    return document.createElement('div');
+  }
+  updateDOM(): boolean {
+    return false;
+  }
+  isInline(): boolean {
+    return false;
+  }
+  exportDOM(): {element: HTMLElement} {
+    return {element: document.createElement('hr')};
+  }
+  decorate(): string {
+    return 'DECOR';
+  }
+}
+
+function $createBlockDecoratorNode(): BlockDecoratorNode {
+  return $create(BlockDecoratorNode);
+}
 
 // A plain shadow-root ElementNode used as a slot value for the positive
 // round-trip test. Mirrors the production playground's slot-value shape
@@ -336,6 +366,56 @@ describe('slot clipboard export', () => {
       expect(html).toContain('Bo');
       expect(html).not.toContain('Body');
       expect(html).not.toContain('UNSELECTED');
+    });
+  });
+
+  // A NodeSelection of a DecoratorNode that is editable *content* inside a
+  // shadow-root slot value (e.g. a HorizontalRule inside the slot's container)
+  // must export on both channels: the decorator is not reachable from the root
+  // (it lives in a slot), so the exporters have to walk into the slot frame to
+  // reach it. Without that, a NodeSelection copy/cut comes up empty (#8712).
+  test('a NodeSelection of in-slot content exports on both channels', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        $initialEditorState: null,
+        name: '[slot-decorator-copy]',
+        nodes: [BlockDecoratorNode, PlainShadowRootNode],
+      }),
+    );
+    let decoratorKey = '';
+    editor.update(
+      () => {
+        const host = $createParagraphNode();
+        host.append($createTextNode('HostChild'));
+        $getRoot().append(host);
+        // the slot value is a shadow-root container; the decorator is content
+        // inside it (like an HR dropped into a PullQuote's quote container)
+        const container = $createPlainShadowRootNode();
+        const decorator = $createBlockDecoratorNode();
+        container.append(decorator);
+        $setSlot(host, 'media', container);
+        decoratorKey = decorator.getKey();
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        const ns = $createNodeSelection();
+        ns.add(decoratorKey);
+        $setSelection(ns);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const selection = $getSelection();
+      const json = $generateJSONFromSelectedNodes(editor, selection);
+      expect(json.nodes).toHaveLength(1);
+      expect(json.nodes[0].type).toBe('block_decorator');
+      // host content stays out of an in-slot copy
+      expect(JSON.stringify(json.nodes)).not.toContain('HostChild');
+      const html = $generateHtmlFromNodes(editor, selection);
+      expect(html).toContain('<hr>');
+      expect(html).not.toContain('HostChild');
     });
   });
 

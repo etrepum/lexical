@@ -26,11 +26,10 @@ import {
   $getEditor,
   $getEditorDOMRenderConfig,
   $getRoot,
-  $getSlotFrame,
+  $getSelectionTopLevelNodes,
   $isBlockElementNode,
   $isElementNode,
   $isNodeSelection,
-  $isRangeSelection,
   $isRootOrShadowRoot,
   $isTextNode,
   ArtificialNode__DO_NOT_USE,
@@ -191,21 +190,16 @@ export function $generateDOMFromNodes<T extends HTMLElement | DocumentFragment>(
     [contextValue(RenderContextExport, true)],
     editor,
   )(() => {
-    const root = $getRoot();
     const domConfig = $getSessionDOMRenderConfig(editor);
 
-    // A RangeSelection wholly inside a slot subtree never includes its host
-    // (slots are shadow-root isolated), so a root-children walk would miss
-    // the selected nodes entirely and export an empty payload. Walk the
-    // selection's slot frame instead; outside slots this is the root.
-    const slotFrame = $isRangeSelection(selection)
-      ? $getSlotFrame(selection.anchor.getNode())
-      : null;
+    // A selection wholly inside a slot subtree never includes its host (slots
+    // are shadow-root isolated), so a root-children walk would miss the
+    // selected nodes entirely and export an empty payload. This also covers a
+    // NodeSelection of a slotted DecoratorNode, whose slot frame is the
+    // decorator itself. Walk the selection's slot frame instead; outside slots
+    // this is the root.
     const parentElementAppend = container.append.bind(container);
-    for (const topLevelNode of ($isElementNode(slotFrame)
-      ? slotFrame
-      : root
-    ).getChildren()) {
+    for (const topLevelNode of $getSelectionTopLevelNodes(selection)) {
       $appendNodesToHTML(
         editor,
         topLevelNode,
