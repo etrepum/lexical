@@ -513,11 +513,13 @@ describe('$handleRichTextDrop across editors', () => {
     });
 
     // Capture the synthetic event dispatched at the source root. The source
-    // editor's actual deletion runs through Lexical's beforeinput handler
-    // which is only registered when CAN_USE_BEFORE_INPUT is true (jsdom does
-    // not expose getTargetRanges on InputEvent), so we verify the dispatch
-    // contract here — the end-to-end deletion is covered by the playground
-    // browser repro.
+    // editor's actual deletion runs through Lexical's beforeinput handler.
+    // That handler is registered (the jsdom test setup polyfills
+    // InputEvent.getTargetRanges, so CAN_USE_BEFORE_INPUT is true), but the
+    // synthetic dispatch does not reproduce the browser's drag selection
+    // context, so the removal is a no-op here and we only verify the dispatch
+    // contract — the end-to-end deletion is covered by the playground browser
+    // repro.
     const observedDispatches: InputEvent[] = [];
     sourceContainer.addEventListener(
       'beforeinput',

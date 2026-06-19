@@ -62,8 +62,9 @@ function createInsertTextBeforeInput(data: string): InputEvent {
     data,
     inputType: 'insertText',
   });
-  // jsdom InputEvent does not expose getTargetRanges; the empty/collapsed
-  // selection path does not need a target range, so return none.
+  // The empty/collapsed selection path does not need a target range, so
+  // override the jsdom setup's InputEvent.getTargetRanges polyfill to return
+  // none for this synthetic event.
   Object.defineProperty(event, 'getTargetRanges', {
     value: () => [],
   });

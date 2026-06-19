@@ -252,6 +252,45 @@ if (isJsdom) {
       };
     }
 
+    // jsdom implements InputEvent but not InputEvent.getTargetRanges(), so
+    // lexical's environment.ts computes CAN_USE_BEFORE_INPUT=false and every
+    // unit test silently runs the legacy, pre-`beforeinput` fallback path. No
+    // browser lexical supports still takes that path: beforeinput +
+    // getTargetRanges() ships in Chrome 60+, Safari 10.1+ and Firefox 87+,
+    // well below the supported floor (Chrome 86+, Safari 15+, Firefox 115+,
+    // Edge 86+). Provide getTargetRanges() so jsdom looks like a supported
+    // browser and the suite exercises the real beforeinput path. We mirror
+    // what a real browser reports — the range(s) the edit will affect, which
+    // for the common insert/replace/delete cases is the current selection —
+    // and degrade to no ranges when nothing is selected (matching the previous
+    // null behavior). Tests can still override getTargetRanges on an
+    // individual event instance.
+    if (!('getTargetRanges' in win.InputEvent.prototype)) {
+      Object.defineProperty(win.InputEvent.prototype, 'getTargetRanges', {
+        configurable: true,
+        value(this: InputEvent): StaticRange[] {
+          const selection = win.document.getSelection();
+          if (
+            selection === null ||
+            selection.rangeCount === 0 ||
+            selection.anchorNode === null
+          ) {
+            return [];
+          }
+          const range = selection.getRangeAt(0);
+          return [
+            new win.StaticRange({
+              endContainer: range.endContainer,
+              endOffset: range.endOffset,
+              startContainer: range.startContainer,
+              startOffset: range.startOffset,
+            }),
+          ];
+        },
+        writable: true,
+      });
+    }
+
     // Patch any iframe realm the first time its window or document is read,
     // so editors mounted inside an iframe see the same stubs. Wrapping the
     // accessors on this realm's HTMLIFrameElement also covers nested iframes,
