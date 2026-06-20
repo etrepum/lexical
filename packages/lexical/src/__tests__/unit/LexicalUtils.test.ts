@@ -23,6 +23,8 @@ import {
   getRegisteredSubtypeMap,
   IS_APPLE,
   isSelectionWithinEditor,
+  Klass,
+  LexicalNode,
   LineBreakNode,
   ParagraphNode,
   resetRandomKey,
@@ -38,6 +40,7 @@ import {
   emptyFunction,
   generateRandomKey,
   getCachedTypeToNodeMap,
+  getStaticNodeConfig,
   getTextDirection,
   isArray,
   isExactShortcutMatch,
@@ -1009,6 +1012,66 @@ describe('getRegisteredSubtypeMap', () => {
     const map = getRegisteredSubtypeMap([TextNodeA]);
     expect(map.has('text')).toBe(false);
     expect([...map.get('text-a')!].sort()).toEqual(['text-a']);
+  });
+});
+
+describe('getStaticNodeConfig prototype guard', () => {
+  // getStaticNodeConfig used to evaluate `PROTOTYPE_CONFIG_METHOD in
+  // klass.prototype` without first checking that `klass.prototype` exists.
+  //
+  // A *valid* LexicalNode subclass always has a `.prototype`, so it never hits
+  // this on its own. The only way to reach the check with a missing prototype
+  // is to feed the node machinery something that is not a real node class, and
+  // therefore has no `.prototype`:
+  //   - a functional component / arrow function (e.g. `() => null`)
+  //   - a bound or otherwise exotic constructor
+  //   - `Function.prototype` itself (reached by walking a constructor chain
+  //     past its top)
+  // In practice this surfaces when a node declares `extends` in its `$config()`
+  // pointing at such a value: createEditor's transform-collection walk follows
+  // that `extends` link straight into getStaticNodeConfig.
+  //
+  // Note what the guard does and does NOT do. It does NOT make this
+  // misconfiguration succeed — the value still isn't a LexicalNode subclass, so
+  // `isAbstractNodeClass()` on the next line still rejects it. What the guard
+  // changes is the *error*: instead of the opaque
+  //   TypeError: Cannot use 'in' operator to search for '$config' in undefined
+  // callers now get Lexical's existing, actionable invariant:
+  //   "<name> (type <unknown>) does not subclass LexicalNode ..."
+
+  test('a prototype-less constructor yields the "does not subclass" error, not an "in" TypeError', () => {
+    const FunctionalComponent = () => null;
+    expect(FunctionalComponent.prototype).toBeUndefined();
+    expect(Function.prototype.prototype).toBeUndefined();
+
+    for (const klass of [FunctionalComponent, Function.prototype]) {
+      const getConfig = () =>
+        getStaticNodeConfig(klass as unknown as Klass<LexicalNode>);
+      expect(getConfig).not.toThrow(/Cannot use 'in' operator/);
+      expect(getConfig).toThrow(/does not subclass LexicalNode/);
+    }
+  });
+
+  test('createEditor reports an actionable error for a node whose $config extends a functional component', () => {
+    // FunctionalComponent is an arrow function: it has no `.prototype`, so the
+    // extends-chain walk lands on a prototype-less value during createEditor.
+    const FunctionalComponent = () => null;
+    class FunctionalExtendsNode extends TextNode {
+      $config() {
+        return this.config('functional-extends', {
+          extends: FunctionalComponent as unknown as Klass<LexicalNode>,
+        });
+      }
+    }
+    const createBrokenEditor = () =>
+      createEditor({
+        nodes: [FunctionalExtendsNode],
+        onError(err) {
+          throw err;
+        },
+      });
+    expect(createBrokenEditor).not.toThrow(/Cannot use 'in' operator/);
+    expect(createBrokenEditor).toThrow(/does not subclass LexicalNode/);
   });
 });
 
