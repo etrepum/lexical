@@ -38,14 +38,16 @@ import {
 // custom transformer.
 const SKIPPED_BLOCK_TAGS = new Set(['hr', 'img', 'input']);
 
-export interface ComarkImportOptions {
-  /**
-   * The element to import into. Defaults to the root node. Its existing
-   * children are replaced.
-   */
-  node?: ElementNode;
+export interface ComarkGenerateNodesOptions {
   /** Transformers to use. Defaults to {@link COMARK_TRANSFORMERS}. */
   transformers?: readonly ComarkTransformer[];
+}
+
+export interface ComarkImportOptions extends ComarkGenerateNodesOptions {
+  /**
+   * The element whose children are replaced. Defaults to the root node.
+   */
+  node?: ElementNode;
 }
 
 function isEmptyParagraph(node: LexicalNode): boolean {
@@ -61,6 +63,11 @@ function isEmptyParagraph(node: LexicalNode): boolean {
   );
 }
 
+/**
+ * Build the recursion helpers used by the transformers. Exposed for the
+ * shortcut engine, which reuses `$importInline` to convert a matched inline
+ * construct into Lexical nodes.
+ */
 export function createImportContext(
   byType: ComarkTransformersByType,
 ): ComarkImportContext {
@@ -108,7 +115,8 @@ export function createImportContext(
     return output;
   };
 
-  const $importBlocks = (children: ComarkNode[], parent: ElementNode): void => {
+  const $importBlocks = (children: ComarkNode[]): LexicalNode[] => {
+    const output: LexicalNode[] = [];
     for (const child of children) {
       if (isComarkComment(child)) {
         continue;
@@ -116,13 +124,22 @@ export function createImportContext(
       if (isComarkText(child)) {
         const paragraph = $createParagraphNode();
         paragraph.append($createTextNode(child));
-        parent.append(paragraph);
+        output.push(paragraph);
         continue;
       }
       const tag = comarkTag(child);
       const element = byType.elementByTag[tag];
-      if (element && element.$importElement(child, parent, ctx) !== false) {
-        continue;
+      if (element) {
+        const result = element.$importElement(child, ctx);
+        if (Array.isArray(result)) {
+          output.push(...result);
+          continue;
+        }
+        if (result) {
+          output.push(result);
+          continue;
+        }
+        // A null result means the transformer declined; fall through.
       }
       if (SKIPPED_BLOCK_TAGS.has(tag)) {
         continue;
@@ -130,8 +147,9 @@ export function createImportContext(
       // Default: a paragraph (covers `p` and any unhandled block element).
       const paragraph = $createParagraphNode();
       paragraph.append(...$importInline(comarkChildren(child), 0));
-      parent.append(paragraph);
+      output.push(paragraph);
     }
+    return output;
   };
 
   const ctx: ComarkImportContext = {
@@ -143,37 +161,49 @@ export function createImportContext(
 }
 
 /**
- * Build Lexical nodes from a parsed comark {@link ComarkTree}. Must be called
- * within an `editor.update()`. To parse a markdown string first, use
- * {@link convertFromComarkString} which awaits comark's async parser.
+ * Convert a parsed comark {@link ComarkTree} into top-level Lexical nodes.
+ *
+ * This is the synchronous core of the import path, mirroring
+ * `$generateNodesFromDOM` from `@lexical/html`. It performs no editor mutation
+ * and returns the generated nodes for the caller to insert, so it must be
+ * called within an `editor.update()` or `editor.read()`.
+ */
+export function $generateNodesFromComarkTree(
+  tree: ComarkTree,
+  options: ComarkGenerateNodesOptions = {},
+): LexicalNode[] {
+  const byType = transformersByType(
+    options.transformers ?? COMARK_TRANSFORMERS,
+  );
+  const nodes = createImportContext(byType).$importBlocks(tree.nodes);
+  // Markdown has no concept of empty paragraphs (blank lines are delimiters),
+  // so drop the stray empty paragraphs left by block separators.
+  return nodes.length > 1
+    ? nodes.filter(node => !isEmptyParagraph(node))
+    : nodes;
+}
+
+/**
+ * Replace the children of `options.node` (default: root) with the Lexical
+ * nodes generated from `tree`, moving the selection to the start. Returns the
+ * inserted nodes. Synchronous — call within an `editor.update()`.
  */
 export function $importComarkTree(
   tree: ComarkTree,
   options: ComarkImportOptions = {},
-): void {
-  const byType = transformersByType(
-    options.transformers ?? COMARK_TRANSFORMERS,
-  );
+): LexicalNode[] {
   const root = options.node ?? $getRoot();
+  const nodes = $generateNodesFromComarkTree(tree, options);
   root.clear();
-
-  const ctx = createImportContext(byType);
-  ctx.$importBlocks(tree.nodes, root);
-
-  // Markdown has no concept of empty paragraphs (blank lines are delimiters),
-  // so drop the stray empty paragraphs left by block separators.
-  for (const child of root.getChildren()) {
-    if (isEmptyParagraph(child) && root.getChildrenSize() > 1) {
-      child.remove();
-    }
+  for (const node of nodes) {
+    root.append(node);
   }
-
   // Guarantee a non-empty container so the editor remains editable.
   if (root.getChildrenSize() === 0 && $isElementNode(root)) {
     root.append($createParagraphNode());
   }
-
   if ($getSelection() !== null) {
     root.selectStart();
   }
+  return nodes;
 }

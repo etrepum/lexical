@@ -110,12 +110,13 @@ function createExportContext(
 }
 
 /**
- * Build a comark {@link ComarkTree} from the current editor state. Must be
- * called within an `editor.read()` or `editor.update()`. To render the tree to
- * a markdown string, use {@link convertToComarkString} which awaits comark's
- * async renderer.
+ * Build a comark {@link ComarkTree} from the current editor state. Mirrors
+ * `$generateDOMFromNodes` from `@lexical/html`: it is the synchronous core of
+ * the export path and must be called within an `editor.read()` or
+ * `editor.update()`. Render the result to markdown with comark's async
+ * `renderMarkdown`.
  */
-export function $exportComarkTree(
+export function $generateComarkTreeFromNodes(
   options: ComarkExportOptions = {},
 ): ComarkTree {
   const byType = transformersByType(

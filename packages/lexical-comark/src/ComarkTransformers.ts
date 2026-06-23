@@ -55,8 +55,8 @@ export interface ComarkImportContext {
    * given accumulated text-format bitmask (see lexical's `TextNode.setFormat`).
    */
   $importInline: (children: ComarkNode[], format: number) => LexicalNode[];
-  /** Append the Lexical equivalent of block-level comark nodes to `parent`. */
-  $importBlocks: (children: ComarkNode[], parent: ElementNode) => void;
+  /** Convert block-level comark nodes into top-level Lexical nodes. */
+  $importBlocks: (children: ComarkNode[]) => LexicalNode[];
 }
 
 /**
@@ -80,14 +80,14 @@ export interface ComarkElementTransformer {
   /** comark tag names handled on import, e.g. `['h1', ..., 'h6']`. */
   readonly comarkTags: readonly string[];
   /**
-   * Build the Lexical node(s) for `element` and append them to `parent`.
-   * Return `false` to decline (the engine will try the next transformer).
+   * Build the Lexical node(s) for `element`, or return `null` to decline (the
+   * engine then falls back to a paragraph). Mirrors the return-nodes contract
+   * of `$generateNodesFromDOM`.
    */
   readonly $importElement: (
     element: ComarkElement,
-    parent: ElementNode,
     ctx: ComarkImportContext,
-  ) => boolean | void;
+  ) => LexicalNode | LexicalNode[] | null;
   /**
    * Produce comark node(s) for a Lexical node, or `null` when this transformer
    * does not handle the node.
@@ -152,10 +152,10 @@ export const HEADING: ComarkElementTransformer = {
     }
     return [node.getTag(), {}, ...ctx.$exportInline(node)];
   },
-  $importElement: (element, parent, ctx) => {
+  $importElement: (element, ctx) => {
     const node = $createHeadingNode(comarkTag(element) as HeadingTagType);
     node.append(...ctx.$importInline(comarkChildren(element), 0));
-    parent.append(node);
+    return node;
   },
   comarkTags: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
   dependencies: [HeadingNode],
@@ -169,7 +169,7 @@ export const QUOTE: ComarkElementTransformer = {
     }
     return ['blockquote', {}, ...ctx.$exportInline(node)];
   },
-  $importElement: (element, parent, ctx) => {
+  $importElement: (element, ctx) => {
     const node = $createQuoteNode();
     // A blockquote contains either inline children (single paragraph) or `p`
     // blocks (multiple paragraphs). Flatten `p` blocks, separating them with a
@@ -187,7 +187,7 @@ export const QUOTE: ComarkElementTransformer = {
         needsSeparator = true;
       }
     }
-    parent.append(node);
+    return node;
   },
   comarkTags: ['blockquote'],
   dependencies: [QuoteNode],
@@ -346,9 +346,7 @@ export const LIST: ComarkElementTransformer = {
     }
     return $exportComarkList(node, ctx);
   },
-  $importElement: (element, parent, ctx) => {
-    parent.append($importComarkList(element, ctx));
-  },
+  $importElement: (element, ctx) => $importComarkList(element, ctx),
   comarkTags: ['ul', 'ol'],
   dependencies: [ListNode, ListItemNode],
   type: 'element',
@@ -366,7 +364,7 @@ export const CODE: ComarkElementTransformer = {
       : {};
     return ['pre', {}, ['code', codeAttrs, text]];
   },
-  $importElement: (element, parent) => {
+  $importElement: element => {
     let language = attrString(element[1], 'language');
     let text = '';
     for (const child of comarkChildren(element)) {
@@ -386,7 +384,7 @@ export const CODE: ComarkElementTransformer = {
     if (text) {
       node.append($createTextNode(text));
     }
-    parent.append(node);
+    return node;
   },
   comarkTags: ['pre'],
   dependencies: [CodeNode],

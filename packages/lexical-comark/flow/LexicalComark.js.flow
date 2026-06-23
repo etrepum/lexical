@@ -9,10 +9,11 @@
 
 import type {
   ElementNode,
-  LexicalEditor,
+  LexicalExtension,
   LexicalNode,
   TextFormatType,
 } from 'lexical';
+import type {NamedSignalsOutput} from '@lexical/extension';
 
 // comark AST tuples. Kept intentionally loose for Flow: an element is
 // `[tag, attributes, ...children]`, text is a `string`.
@@ -37,13 +38,13 @@ export type ComarkTransformersByType = {
 export type ComarkImportContext = {
   transformers: ComarkTransformersByType,
   $importInline: (children: Array<ComarkNode>, format: number) => LexicalNode[],
-  $importBlocks: (children: Array<ComarkNode>, parent: ElementNode) => void,
+  $importBlocks: (children: Array<ComarkNode>) => LexicalNode[],
 };
 
 export type ComarkExportContext = {
   transformers: ComarkTransformersByType,
   $exportInline: (node: ElementNode) => Array<ComarkNode>,
-  $exportBlock: (node: LexicalNode) => ComarkNode | Array<ComarkNode> | null,
+  $exportBlock: (node: LexicalNode) => ComarkNode | null,
 };
 
 export type ComarkElementTransformer = {
@@ -52,13 +53,9 @@ export type ComarkElementTransformer = {
   comarkTags: $ReadOnlyArray<string>,
   $importElement: (
     element: ComarkElement,
-    parent: ElementNode,
     ctx: ComarkImportContext,
-  ) => boolean | void,
-  $exportNode: (
-    node: LexicalNode,
-    ctx: ComarkExportContext,
-  ) => ComarkNode | Array<ComarkNode> | null,
+  ) => LexicalNode | LexicalNode[] | null,
+  $exportNode: (node: LexicalNode, ctx: ComarkExportContext) => ComarkNode | null,
 };
 
 export type ComarkInlineTransformer = {
@@ -70,10 +67,7 @@ export type ComarkInlineTransformer = {
     format: number,
     ctx: ComarkImportContext,
   ) => LexicalNode | LexicalNode[] | null,
-  $exportNode: (
-    node: LexicalNode,
-    ctx: ComarkExportContext,
-  ) => ComarkNode | Array<ComarkNode> | null,
+  $exportNode: (node: LexicalNode, ctx: ComarkExportContext) => ComarkNode | null,
 };
 
 export type ComarkTextFormatTransformer = {
@@ -87,8 +81,7 @@ export type ComarkTransformer =
   | ComarkInlineTransformer
   | ComarkTextFormatTransformer;
 
-export type ComarkImportOptions = {
-  node?: ElementNode,
+export type ComarkGenerateNodesOptions = {
   transformers?: $ReadOnlyArray<ComarkTransformer>,
 };
 
@@ -98,44 +91,43 @@ export type ComarkExportOptions = {
   frontmatter?: {[key: string]: mixed},
 };
 
-export type ComarkShortcutOptions = {
-  transformers?: $ReadOnlyArray<ComarkTransformer>,
+export type ComarkConfig = {
+  disabled: boolean,
+  transformers: $ReadOnlyArray<ComarkTransformer>,
 };
 
-export type ConvertFromComarkOptions = {
-  ...ComarkImportOptions,
+export type ParseMarkdownOptions = {
   parseOptions?: {[key: string]: mixed},
 };
 
-export type ConvertToComarkOptions = {
-  ...ComarkExportOptions,
+export type RenderMarkdownRunOptions = {
+  node?: ElementNode,
+  frontmatter?: {[key: string]: mixed},
   renderOptions?: {[key: string]: mixed},
 };
 
-declare export function convertFromComarkString(
-  editor: LexicalEditor,
-  markdown: string,
-  options?: ConvertFromComarkOptions,
-): Promise<void>;
+export type ComarkImportApply = (target?: ElementNode) => Array<LexicalNode>;
 
-declare export function convertToComarkString(
-  editor: LexicalEditor,
-  options?: ConvertToComarkOptions,
-): Promise<string>;
+export type ComarkExtensionOutput = {
+  ...NamedSignalsOutput<ComarkConfig>,
+  parseMarkdown: (
+    markdown: string,
+    options?: ParseMarkdownOptions,
+  ) => Promise<ComarkImportApply>,
+  $generateNodesFromComarkTree: (
+    tree: ComarkTree,
+    options?: ComarkGenerateNodesOptions,
+  ) => Array<LexicalNode>,
+  $generateComarkTreeFromNodes: (options?: ComarkExportOptions) => ComarkTree,
+  renderMarkdown: (options?: RenderMarkdownRunOptions) => Promise<string>,
+};
 
-declare export function $importComarkTree(
-  tree: ComarkTree,
-  options?: ComarkImportOptions,
-): void;
-
-declare export function $exportComarkTree(
-  options?: ComarkExportOptions,
-): ComarkTree;
-
-declare export function registerComarkShortcuts(
-  editor: LexicalEditor,
-  options?: ComarkShortcutOptions,
-): () => void;
+declare export var ComarkExtension: LexicalExtension<
+  ComarkConfig,
+  '@lexical/comark',
+  ComarkExtensionOutput,
+  mixed,
+>;
 
 declare export var HEADING: ComarkElementTransformer;
 declare export var QUOTE: ComarkElementTransformer;

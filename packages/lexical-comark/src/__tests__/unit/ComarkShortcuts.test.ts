@@ -6,22 +6,19 @@
  *
  */
 
-import {$isCodeNode, CodeExtension} from '@lexical/code-core';
-import {registerComarkShortcuts} from '@lexical/comark';
+import {$isCodeNode} from '@lexical/code-core';
+import {ComarkExtension} from '@lexical/comark';
 import {buildEditorFromExtensions} from '@lexical/extension';
-import {$isLinkNode, LinkExtension} from '@lexical/link';
-import {$isListItemNode, $isListNode, ListExtension} from '@lexical/list';
-import {
-  $isHeadingNode,
-  $isQuoteNode,
-  RichTextExtension,
-} from '@lexical/rich-text';
+import {$isLinkNode} from '@lexical/link';
+import {$isListItemNode, $isListNode} from '@lexical/list';
+import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
 import {
   $getRoot,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
+  configExtension,
   defineExtension,
   KEY_ENTER_COMMAND,
   type LexicalEditor,
@@ -29,19 +26,8 @@ import {
 } from 'lexical';
 import {describe, expect, test} from 'vitest';
 
-const ComarkShortcutTestExtension = defineExtension({
-  dependencies: [
-    RichTextExtension,
-    ListExtension,
-    CodeExtension,
-    LinkExtension,
-  ],
-  name: 'ComarkShortcutTest',
-  register: editor => registerComarkShortcuts(editor),
-});
-
 function createEditor() {
-  return buildEditorFromExtensions([ComarkShortcutTestExtension]);
+  return buildEditorFromExtensions([ComarkExtension]);
 }
 
 /** Let comark's async inline detection + the follow-up update settle. */
@@ -77,7 +63,7 @@ function firstBlock<T>(
   return editor.read(() => read($getRoot().getFirstChild()));
 }
 
-describe('registerComarkShortcuts block shortcuts', () => {
+describe('ComarkExtension block shortcuts', () => {
   test('# space creates a heading', async () => {
     using editor = createEditor();
     await type(editor, '# Title');
@@ -152,7 +138,7 @@ describe('registerComarkShortcuts block shortcuts', () => {
   });
 });
 
-describe('registerComarkShortcuts inline shortcuts', () => {
+describe('ComarkExtension inline shortcuts', () => {
   /** Read the inline leaf children of the first block. */
   function inlineLeaves(editor: LexicalEditor) {
     return editor.read(() => {
@@ -287,5 +273,19 @@ describe('registerComarkShortcuts inline shortcuts', () => {
         type: 'text',
       },
     ]);
+  });
+});
+
+const DisabledComarkExtension = defineExtension({
+  dependencies: [configExtension(ComarkExtension, {disabled: true})],
+  name: '@lexical/comark/test-disabled',
+});
+
+describe('ComarkExtension disabled config', () => {
+  test('does not register shortcuts when disabled', async () => {
+    using editor = buildEditorFromExtensions([DisabledComarkExtension]);
+    await type(editor, '# Title');
+    expect(firstBlock(editor, node => node?.getType())).toBe('paragraph');
+    expect(firstBlock(editor, node => node?.getTextContent())).toBe('# Title');
   });
 });

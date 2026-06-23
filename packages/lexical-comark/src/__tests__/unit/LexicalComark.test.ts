@@ -6,58 +6,57 @@
  *
  */
 
-import {$isCodeNode, CodeExtension} from '@lexical/code-core';
+import {$isCodeNode} from '@lexical/code-core';
+import {ComarkExtension} from '@lexical/comark';
 import {
-  $exportComarkTree,
-  convertFromComarkString,
-  convertToComarkString,
-} from '@lexical/comark';
-import {buildEditorFromExtensions} from '@lexical/extension';
-import {$isLinkNode, LinkExtension} from '@lexical/link';
-import {$isListItemNode, $isListNode, ListExtension} from '@lexical/list';
-import {
-  $isHeadingNode,
-  $isQuoteNode,
-  RichTextExtension,
-} from '@lexical/rich-text';
+  buildEditorFromExtensions,
+  getExtensionDependencyFromEditor,
+  type LexicalExtensionDependency,
+} from '@lexical/extension';
+import {$isLinkNode} from '@lexical/link';
+import {$isListItemNode, $isListNode} from '@lexical/list';
+import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
 import {
   $getRoot,
   $isElementNode,
   $isTextNode,
-  defineExtension,
+  type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
 import {describe, expect, test} from 'vitest';
 
-const ComarkTestExtension = defineExtension({
-  dependencies: [
-    RichTextExtension,
-    ListExtension,
-    CodeExtension,
-    LinkExtension,
-  ],
-  name: 'ComarkTest',
-});
+type ComarkOutput = LexicalExtensionDependency<
+  typeof ComarkExtension
+>['output'];
 
-function createEditor() {
-  return buildEditorFromExtensions([ComarkTestExtension]);
+function comarkOf(editor: LexicalEditor): ComarkOutput {
+  return getExtensionDependencyFromEditor(editor, ComarkExtension).output;
+}
+
+/** Parse markdown and apply it inside an editor.update, the race-free way. */
+async function importMarkdown(
+  editor: LexicalEditor,
+  markdown: string,
+): Promise<void> {
+  const $apply = await comarkOf(editor).parseMarkdown(markdown);
+  editor.update(() => $apply(), {discrete: true});
 }
 
 /** Import markdown, then read a value from the resulting editor state. */
 async function importAndRead<T>(markdown: string, read: () => T): Promise<T> {
-  using editor = createEditor();
-  await convertFromComarkString(editor, markdown);
+  using editor = buildEditorFromExtensions([ComarkExtension]);
+  await importMarkdown(editor, markdown);
   return editor.read(read);
 }
 
 /** Assert that markdown survives an import → export round-trip unchanged. */
 async function expectRoundTrip(markdown: string): Promise<void> {
-  using editor = createEditor();
-  await convertFromComarkString(editor, markdown);
-  expect(await convertToComarkString(editor)).toBe(markdown);
+  using editor = buildEditorFromExtensions([ComarkExtension]);
+  await importMarkdown(editor, markdown);
+  expect(await comarkOf(editor).renderMarkdown()).toBe(markdown);
 }
 
-describe('@lexical/comark import', () => {
+describe('ComarkExtension import', () => {
   test('heading levels', async () => {
     for (let level = 1; level <= 6; level++) {
       const tag = await importAndRead('#'.repeat(level) + ' Title', () => {
@@ -220,7 +219,7 @@ describe('@lexical/comark import', () => {
   });
 });
 
-describe('@lexical/comark export', () => {
+describe('ComarkExtension export', () => {
   test('round-trips headings and inline', () =>
     expectRoundTrip('## Title\n\nHello **bold** and *italic*'));
 
@@ -251,15 +250,17 @@ describe('@lexical/comark export', () => {
   test('round-trips multiple paragraphs', () =>
     expectRoundTrip('first paragraph\n\nsecond paragraph'));
 
-  test('$exportComarkTree returns comark tuples', async () => {
-    using editor = createEditor();
-    await convertFromComarkString(editor, '# Hi');
-    const tree = editor.read(() => $exportComarkTree());
+  test('$generateComarkTreeFromNodes returns comark tuples', async () => {
+    using editor = buildEditorFromExtensions([ComarkExtension]);
+    await importMarkdown(editor, '# Hi');
+    const tree = editor.read(() =>
+      comarkOf(editor).$generateComarkTreeFromNodes(),
+    );
     expect(tree.nodes).toEqual([['h1', {}, 'Hi']]);
   });
 });
 
-describe('@lexical/comark frontmatter', () => {
+describe('ComarkExtension frontmatter', () => {
   test('parses frontmatter without emitting nodes for it', async () => {
     const count = await importAndRead('---\ntitle: Hi\n---\n\n# Body', () =>
       $getRoot().getChildrenSize(),
@@ -268,9 +269,9 @@ describe('@lexical/comark frontmatter', () => {
   });
 
   test('exports frontmatter when provided', async () => {
-    using editor = createEditor();
-    await convertFromComarkString(editor, '# Body');
-    const out = await convertToComarkString(editor, {
+    using editor = buildEditorFromExtensions([ComarkExtension]);
+    await importMarkdown(editor, '# Body');
+    const out = await comarkOf(editor).renderMarkdown({
       frontmatter: {title: 'Hi'},
     });
     expect(out).toBe('---\ntitle: Hi\n---\n\n# Body');

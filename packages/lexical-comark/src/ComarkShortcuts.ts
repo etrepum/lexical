@@ -49,11 +49,6 @@ import {
   transformersByType,
 } from './utils';
 
-export interface ComarkShortcutOptions {
-  /** Transformers to use. Defaults to {@link COMARK_TRANSFORMERS}. */
-  transformers?: readonly ComarkTransformer[];
-}
-
 // Characters that may close an inline markdown construct and are therefore
 // worth handing to comark for streaming detection.
 const INLINE_TRIGGER_CHARS = new Set(['*', '_', '~', '`', ')']);
@@ -362,7 +357,10 @@ function assertDependencies(
 }
 
 /**
- * Register streaming markdown shortcuts on an editor.
+ * @internal
+ *
+ * Register streaming markdown shortcuts on an editor. This is wired up by
+ * {@link ComarkExtension}'s `register`; it is not part of the public API.
  *
  * Block-level shortcuts (`# `, `> `, `- `, `1. `, `[ ] `, and a fenced
  * <code>```</code> on Enter) are applied synchronously the moment their marker
@@ -374,9 +372,8 @@ function assertDependencies(
  */
 export function registerComarkShortcuts(
   editor: LexicalEditor,
-  options: ComarkShortcutOptions = {},
+  transformers: readonly ComarkTransformer[] = COMARK_TRANSFORMERS,
 ): () => void {
-  const transformers = options.transformers ?? COMARK_TRANSFORMERS;
   const byType = transformersByType(transformers);
   assertDependencies(editor, transformers);
 

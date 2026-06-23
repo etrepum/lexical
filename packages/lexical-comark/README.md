@@ -3,45 +3,89 @@
 [![See API Documentation](https://lexical.dev/img/see-api-documentation.svg)](https://lexical.dev/docs/api/modules/lexical_comark)
 
 An alternative to [`@lexical/markdown`](https://www.npmjs.com/package/@lexical/markdown)
-that uses the [comark](https://comark.dev/) parser and renderer instead of the
-hand-written regular-expression engine.
+that uses the [comark](https://comark.dev/) parser and renderer, exposed as a
+single Lexical extension.
 
-It provides two complementary capabilities:
+`ComarkExtension` provides:
 
-- **Full document parsing** — convert a complete Markdown string to and from a
-  Lexical editor state by parsing it into the comark AST (`parse`) and rendering
-  the AST back to Markdown (`renderMarkdown`).
+- **Full document parsing** — parse a Markdown string into the comark AST and
+  build Lexical nodes from it, or snapshot the editor as a comark AST and render
+  it back to Markdown.
 - **Streaming markdown shortcuts** — transform Markdown syntax into rich nodes
   as the user types, using comark's streaming parser. comark's `autoClose`
   feature understands partial input such as `**bol` or `# `, which makes it a
   natural fit for live editing.
 
-Because comark's parser and renderer are asynchronous, the document conversion
-helpers return Promises. The `$`-prefixed helpers operate on an already-parsed
-comark tree and remain synchronous so they can be used inside `editor.update()`
-/ `editor.read()`.
+It depends on the node extensions required by the default transformers
+(`RichTextExtension`, `ListExtension`, `CodeExtension`, `LinkExtension`), so
+adding it to an editor is all that is needed for the standard experience.
 
 ## Usage
 
 ```ts
 import {
-  convertFromComarkString,
-  convertToComarkString,
-  registerComarkShortcuts,
-} from '@lexical/comark';
+  buildEditorFromExtensions,
+  getExtensionDependencyFromEditor,
+} from '@lexical/extension';
+import {ComarkExtension} from '@lexical/comark';
 
-// Import a Markdown document into the editor
-await convertFromComarkString(editor, '# Hello **world**');
+const editor = buildEditorFromExtensions([ComarkExtension]);
+const {output} = getExtensionDependencyFromEditor(editor, ComarkExtension);
 
-// Export the editor contents back to Markdown
-const markdown = await convertToComarkString(editor);
-
-// Transform Markdown shortcuts while typing
-const unregister = registerComarkShortcuts(editor);
+// Streaming markdown shortcuts are registered automatically.
 ```
 
-The set of nodes that participate in conversion and shortcuts is controlled by
-an array of `ComarkTransformer`s, mirroring the design of `@lexical/markdown`.
-The default `COMARK_TRANSFORMERS` cover headings, quotes, lists (including
-check lists), code blocks, links, line breaks and the standard inline text
-formats (bold, italic, strikethrough and inline code).
+### Importing a document
+
+comark's parser is asynchronous. Rather than mutating the editor itself,
+`parseMarkdown` parses off to the side and resolves to a function you call
+inside your own `editor.update()`. The parse touches no editor state, so
+overlapping imports (e.g. fast streaming input) can never race — you decide
+when, and whether, to apply each result.
+
+```ts
+const $apply = await output.parseMarkdown('# Hello **world**');
+editor.update(() => {
+  $apply(); // replaces the root's children, returns the inserted nodes
+});
+```
+
+If you already hold a comark tree (from comark's own `parse`), build nodes
+synchronously with `output.$generateNodesFromComarkTree(tree)` — the analogue of
+`$generateNodesFromDOM` in `@lexical/html`.
+
+### Exporting a document
+
+```ts
+const markdown = await output.renderMarkdown();
+```
+
+The comark tree is captured synchronously inside an `editor.read()`, so this is
+race-free. The synchronous core, `output.$generateComarkTreeFromNodes()` (the
+analogue of `$generateDOMFromNodes`), is available for custom rendering.
+
+## Configuration
+
+`ComarkExtension` exposes two config fields:
+
+- `disabled` (default `false`) — turn the streaming shortcuts off.
+- `transformers` (default `COMARK_TRANSFORMERS`) — the transformers that drive
+  import, export and the shortcuts.
+
+```ts
+import {configExtension, defineExtension} from 'lexical';
+import {ComarkExtension, COMARK_TRANSFORMERS} from '@lexical/comark';
+
+const MyEditorExtension = defineExtension({
+  name: 'my-editor',
+  dependencies: [
+    configExtension(ComarkExtension, {
+      transformers: [...COMARK_TRANSFORMERS /*, your custom transformers */],
+    }),
+  ],
+});
+```
+
+The default transformers cover headings, quotes, ordered/unordered/check lists
+(including nesting), code blocks, links, line breaks and the standard inline
+text formats (bold, italic, strikethrough and inline code).
