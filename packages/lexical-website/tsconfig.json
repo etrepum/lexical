@@ -26,6 +26,7 @@
       "@lexical/code-core": ["../lexical-code-core/src/index.ts"],
       "@lexical/code-prism": ["../lexical-code-prism/src/index.ts"],
       "@lexical/code-shiki": ["../lexical-code-shiki/src/index.ts"],
+      "@lexical/comark": ["../lexical-comark/src/index.ts"],
       "@lexical/devtools-core": ["../lexical-devtools-core/src/index.ts"],
       "@lexical/dragon": ["../lexical-dragon/src/index.ts"],
       "@lexical/eslint-plugin": ["../lexical-eslint-plugin/src/index.ts"],

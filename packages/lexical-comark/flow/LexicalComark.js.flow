@@ -1,0 +1,156 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow strict
+ */
+
+import type {
+  ElementNode,
+  LexicalEditor,
+  LexicalNode,
+  TextFormatType,
+} from 'lexical';
+
+// comark AST tuples. Kept intentionally loose for Flow: an element is
+// `[tag, attributes, ...children]`, text is a `string`.
+export type ComarkElementAttributes = {[key: string]: mixed};
+export type ComarkNode = string | Array<mixed>;
+export type ComarkElement = Array<mixed>;
+export type ComarkTree = {
+  nodes: Array<ComarkNode>,
+  frontmatter: {[key: string]: mixed},
+  meta: {[key: string]: mixed},
+};
+
+export type ComarkTransformersByType = {
+  element: $ReadOnlyArray<ComarkElementTransformer>,
+  inline: $ReadOnlyArray<ComarkInlineTransformer>,
+  textFormat: $ReadOnlyArray<ComarkTextFormatTransformer>,
+  elementByTag: {[tag: string]: ComarkElementTransformer},
+  inlineByTag: {[tag: string]: ComarkInlineTransformer},
+  textFormatByTag: {[tag: string]: ComarkTextFormatTransformer},
+};
+
+export type ComarkImportContext = {
+  transformers: ComarkTransformersByType,
+  $importInline: (children: Array<ComarkNode>, format: number) => LexicalNode[],
+  $importBlocks: (children: Array<ComarkNode>, parent: ElementNode) => void,
+};
+
+export type ComarkExportContext = {
+  transformers: ComarkTransformersByType,
+  $exportInline: (node: ElementNode) => Array<ComarkNode>,
+  $exportBlock: (node: LexicalNode) => ComarkNode | Array<ComarkNode> | null,
+};
+
+export type ComarkElementTransformer = {
+  type: 'element',
+  dependencies: $ReadOnlyArray<Class<LexicalNode>>,
+  comarkTags: $ReadOnlyArray<string>,
+  $importElement: (
+    element: ComarkElement,
+    parent: ElementNode,
+    ctx: ComarkImportContext,
+  ) => boolean | void,
+  $exportNode: (
+    node: LexicalNode,
+    ctx: ComarkExportContext,
+  ) => ComarkNode | Array<ComarkNode> | null,
+};
+
+export type ComarkInlineTransformer = {
+  type: 'inline',
+  dependencies: $ReadOnlyArray<Class<LexicalNode>>,
+  comarkTags: $ReadOnlyArray<string>,
+  $importInline: (
+    element: ComarkElement,
+    format: number,
+    ctx: ComarkImportContext,
+  ) => LexicalNode | LexicalNode[] | null,
+  $exportNode: (
+    node: LexicalNode,
+    ctx: ComarkExportContext,
+  ) => ComarkNode | Array<ComarkNode> | null,
+};
+
+export type ComarkTextFormatTransformer = {
+  type: 'text-format',
+  comarkTag: string,
+  format: TextFormatType,
+};
+
+export type ComarkTransformer =
+  | ComarkElementTransformer
+  | ComarkInlineTransformer
+  | ComarkTextFormatTransformer;
+
+export type ComarkImportOptions = {
+  node?: ElementNode,
+  transformers?: $ReadOnlyArray<ComarkTransformer>,
+};
+
+export type ComarkExportOptions = {
+  node?: ElementNode,
+  transformers?: $ReadOnlyArray<ComarkTransformer>,
+  frontmatter?: {[key: string]: mixed},
+};
+
+export type ComarkShortcutOptions = {
+  transformers?: $ReadOnlyArray<ComarkTransformer>,
+};
+
+export type ConvertFromComarkOptions = {
+  ...ComarkImportOptions,
+  parseOptions?: {[key: string]: mixed},
+};
+
+export type ConvertToComarkOptions = {
+  ...ComarkExportOptions,
+  renderOptions?: {[key: string]: mixed},
+};
+
+declare export function convertFromComarkString(
+  editor: LexicalEditor,
+  markdown: string,
+  options?: ConvertFromComarkOptions,
+): Promise<void>;
+
+declare export function convertToComarkString(
+  editor: LexicalEditor,
+  options?: ConvertToComarkOptions,
+): Promise<string>;
+
+declare export function $importComarkTree(
+  tree: ComarkTree,
+  options?: ComarkImportOptions,
+): void;
+
+declare export function $exportComarkTree(
+  options?: ComarkExportOptions,
+): ComarkTree;
+
+declare export function registerComarkShortcuts(
+  editor: LexicalEditor,
+  options?: ComarkShortcutOptions,
+): () => void;
+
+declare export var HEADING: ComarkElementTransformer;
+declare export var QUOTE: ComarkElementTransformer;
+declare export var LIST: ComarkElementTransformer;
+declare export var CODE: ComarkElementTransformer;
+
+declare export var LINK: ComarkInlineTransformer;
+declare export var LINE_BREAK: ComarkInlineTransformer;
+
+declare export var BOLD: ComarkTextFormatTransformer;
+declare export var ITALIC: ComarkTextFormatTransformer;
+declare export var STRIKETHROUGH: ComarkTextFormatTransformer;
+declare export var INLINE_CODE: ComarkTextFormatTransformer;
+
+declare export var COMARK_ELEMENT_TRANSFORMERS: $ReadOnlyArray<ComarkElementTransformer>;
+declare export var COMARK_INLINE_TRANSFORMERS: $ReadOnlyArray<ComarkInlineTransformer>;
+declare export var COMARK_TEXT_FORMAT_TRANSFORMERS: $ReadOnlyArray<ComarkTextFormatTransformer>;
+declare export var COMARK_TRANSFORMERS: $ReadOnlyArray<ComarkTransformer>;

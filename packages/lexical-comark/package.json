@@ -1,0 +1,81 @@
+{
+  "name": "@lexical/comark",
+  "description": "Markdown import/export and streaming markdown shortcuts for Lexical, powered by the comark parser.",
+  "keywords": [
+    "lexical",
+    "editor",
+    "rich-text",
+    "markdown",
+    "comark",
+    "streaming"
+  ],
+  "license": "MIT",
+  "version": "0.45.0",
+  "main": "./dist/LexicalComark.js",
+  "types": "./dist/typescript-too-old.d.ts",
+  "dependencies": {
+    "@lexical/code-core": "workspace:*",
+    "@lexical/internal": "workspace:*",
+    "@lexical/link": "workspace:*",
+    "@lexical/list": "workspace:*",
+    "@lexical/rich-text": "workspace:*",
+    "@lexical/utils": "workspace:*",
+    "comark": "^0.4.0",
+    "lexical": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facebook/lexical.git",
+    "directory": "packages/lexical-comark"
+  },
+  "module": "./dist/LexicalComark.mjs",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "import": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalComark.dev.mjs",
+        "production": "./dist/LexicalComark.prod.mjs",
+        "node": "./dist/LexicalComark.node.mjs",
+        "default": "./dist/LexicalComark.mjs"
+      },
+      "require": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalComark.dev.js",
+        "production": "./dist/LexicalComark.prod.js",
+        "default": "./dist/LexicalComark.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/__bench__",
+    "!src/__mocks__",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.bench.ts",
+    "!src/**/*.bench.tsx",
+    "README.md",
+    "LICENSE"
+  ],
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/typescript-too-old.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "typescript": ">=5.2"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

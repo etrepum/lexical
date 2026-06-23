@@ -9,6 +9,7 @@
       "@lexical/code-core": ["./packages/lexical-code-core/src/index.ts"],
       "@lexical/code-prism": ["./packages/lexical-code-prism/src/index.ts"],
       "@lexical/code-shiki": ["./packages/lexical-code-shiki/src/index.ts"],
+      "@lexical/comark": ["./packages/lexical-comark/src/index.ts"],
       "@lexical/devtools-core": [
         "./packages/lexical-devtools-core/src/index.ts"
       ],
@@ -232,6 +233,8 @@
       "@lexical/code-prism/src/*": ["./packages/lexical-code-prism/src/*"],
       "@lexical/code-shiki/src": ["./packages/lexical-code-shiki/src"],
       "@lexical/code-shiki/src/*": ["./packages/lexical-code-shiki/src/*"],
+      "@lexical/comark/src": ["./packages/lexical-comark/src"],
+      "@lexical/comark/src/*": ["./packages/lexical-comark/src/*"],
       "@lexical/devtools-core/src": ["./packages/lexical-devtools-core/src"],
       "@lexical/devtools-core/src/*": [
         "./packages/lexical-devtools-core/src/*"

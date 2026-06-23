@@ -151,6 +151,9 @@ const thirdPartyExternals = [
   // inlined by Rollup.
   'shiki',
   '@shikijs',
+  // The @lexical/comark package declares comark as an npm dependency and
+  // relies on it (and its transitive deps) at runtime, so keep it external.
+  'comark',
   ...(isWWW ? [':server-only-hack:.*'] : ['@floating-ui/react']),
 ];
 const thirdPartyExternalsRegExp = new RegExp(
