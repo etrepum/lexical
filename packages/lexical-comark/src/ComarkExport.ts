@@ -10,13 +10,42 @@ import type {
   ComarkExportContext,
   ComarkTransformer,
 } from './ComarkTransformers';
-import type {ComarkNode, ComarkTree} from 'comark';
+import type {ComarkNode, ComarkTree, NodeHandler} from 'comark';
 import type {ElementNode, LexicalNode, TextNode} from 'lexical';
 
 import {$getRoot, $isElementNode, $isParagraphNode, $isTextNode} from 'lexical';
 
 import {COMARK_TRANSFORMERS} from './ComarkTransformers';
 import {ComarkTransformersByType, transformersByType} from './utils';
+
+/**
+ * comark's built-in link renderer leaves a `// TODO: support title` and emits
+ * the non-standard `[text](href){title="..."}` form for titled links. This
+ * handler renders the CommonMark `[text](href "title")` instead, which other
+ * markdown tools — and comark's own parser — round-trip back to the same node.
+ */
+const $renderComarkLink: NodeHandler = async (node, state) => {
+  const attrs = node[1] || {};
+  const href = typeof attrs.href === 'string' ? attrs.href : '';
+  const title = typeof attrs.title === 'string' ? attrs.title : undefined;
+  const content = await state.flow(node, state);
+  if (content === href && title == null) {
+    return `<${href}>`;
+  }
+  if (title != null) {
+    return `[${content}](${href} "${title.replace(/(["\\])/g, '\\$1')}")`;
+  }
+  return `[${content}](${href})`;
+};
+
+/**
+ * Custom comark render handlers that improve round-trip fidelity for the
+ * default transformers (currently: standard link-title syntax). They are
+ * merged under any caller-provided `components` when rendering markdown.
+ */
+export const COMARK_RENDER_COMPONENTS: Readonly<Record<string, NodeHandler>> = {
+  a: $renderComarkLink,
+};
 
 export interface ComarkExportOptions {
   /** The element to export. Defaults to the root node. */

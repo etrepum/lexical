@@ -89,3 +89,31 @@ const MyEditorExtension = defineExtension({
 The default transformers cover headings, quotes, ordered/unordered/check lists
 (including nesting), code blocks, links, line breaks and the standard inline
 text formats (bold, italic, strikethrough and inline code).
+
+## Round-trip fidelity
+
+comark parses Markdown into a normalized HTML-like AST and exposes no source
+positions for block nodes, so some purely *syntactic* choices cannot be
+recovered after import — a markdown → editor → markdown round-trip canonicalizes
+them. This is the main behavioural difference from `@lexical/markdown`, which
+reads the raw text and records a few of these on the nodes.
+
+Preserved (the AST carries the information and the extension reproduces it):
+
+- document structure, heading levels, nesting
+- bold / italic / strikethrough / inline code
+- links, **including titles** (emitted as standard `[text](url "title")`; comark
+  on its own would emit the non-standard `{title="…"}` form)
+- ordered-list start number, code-block language, task-list checkbox state
+- frontmatter
+
+Canonicalized (comark normalizes these away and they cannot be recovered):
+
+| Input | Round-trips to |
+| --- | --- |
+| `* item`, `+ item` | `- item` |
+| `1) item` | `1. item` |
+| `_em_`, `__strong__` | `*em*`, `**strong**` (same as `@lexical/markdown`) |
+| `~~~` fences | ` ``` ` fences |
+| `\`-style hard breaks | two-space hard breaks |
+| Setext headings | ATX (`#`) headings |

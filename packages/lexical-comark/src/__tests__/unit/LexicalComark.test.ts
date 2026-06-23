@@ -247,6 +247,11 @@ describe('ComarkExtension export', () => {
 
   test('round-trips a link', () => expectRoundTrip('[text](https://x.com)'));
 
+  test('round-trips a link with a title in standard syntax', () =>
+    // comark's own renderer would emit the non-standard `{title="..."}`; the
+    // extension overrides the link handler to keep CommonMark `"title"` form.
+    expectRoundTrip('[text](https://x.com "the title")'));
+
   test('round-trips multiple paragraphs', () =>
     expectRoundTrip('first paragraph\n\nsecond paragraph'));
 

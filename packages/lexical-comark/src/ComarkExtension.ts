@@ -22,7 +22,10 @@ import {createParse} from 'comark';
 import {renderMarkdown} from 'comark/render';
 import {defineExtension, safeCast} from 'lexical';
 
-import {$generateComarkTreeFromNodes} from './ComarkExport';
+import {
+  $generateComarkTreeFromNodes,
+  COMARK_RENDER_COMPONENTS,
+} from './ComarkExport';
 import {$generateNodesFromComarkTree, $importComarkTree} from './ComarkImport';
 import {registerComarkShortcuts} from './ComarkShortcuts';
 import {COMARK_TRANSFORMERS} from './ComarkTransformers';
@@ -149,7 +152,14 @@ export const ComarkExtension = /* @__PURE__ */ defineExtension({
             transformers: signals.transformers.value,
           }),
         );
-        return renderMarkdown(tree, options.renderOptions);
+        const renderOptions = options.renderOptions;
+        return renderMarkdown(tree, {
+          ...renderOptions,
+          components: {
+            ...COMARK_RENDER_COMPONENTS,
+            ...(renderOptions && renderOptions.components),
+          },
+        });
       },
     };
   },
