@@ -201,6 +201,55 @@ When adding/modifying APIs, types must be maintained for both systems.
 ### Node References
 Always access node properties/methods within read/update context. Nodes automatically resolve to their latest version via their key. Don't store node references across update boundaries.
 
+### Shadow DOM & iframe realm safety
+
+A Lexical editor can be mounted inside a shadow tree or an iframe. In those
+cases the DOM the editor lives in is **not** the top-level document/window,
+and the browser retargets several Selection/Node/event reads to the shadow
+host — hiding the real nodes Lexical needs. Reaching for the global
+`window`/`document` or the raw retargeted APIs is a common source of
+regressions here (and a common mistake for automated agents).
+
+Resolve DOM relative to `editor.getRootElement()` (or a node's
+`ownerDocument`/`getRootNode()`) instead of the globals, and use the
+realm-safe helpers exported from `packages/lexical/src/LexicalUtils.ts`:
+
+| Unsafe pattern | Use instead |
+| --- | --- |
+| `window` (global) | `getDefaultView(node)` / `getWindow(editor)` |
+| `document` (global) | `getRootOwnerDocument(rootElement)` / `node.ownerDocument` |
+| `window.getSelection()` | `getDOMSelection(targetWindow)` / `getDOMSelectionFromTarget(target)` |
+| `selection.getRangeAt(0)` | `getDOMSelectionRange(selection, rootElement)` |
+| `selection.anchorNode` / `.focusNode` / offsets | `getDOMSelectionPoints(selection, rootElement)` |
+| `document.activeElement` | `getActiveElement(node)` / `getActiveElementDeep(root)` |
+| `event.target` | `getComposedEventTarget(event)` |
+| `element.parentElement` | `getParentElement(node)` (crosses open shadow roots) |
+
+Notes:
+- Reading the realm window off an `ownerDocument`
+  (`node.ownerDocument.defaultView`) is fine — that is exactly what
+  `getDefaultView` does. The problem is the bare global `window`/`document`.
+- When you deliberately fall back to a light-DOM read (e.g.
+  `getComposedStaticRange(...) || domSelection.getRangeAt(0)`), keep the
+  composed-range attempt first and annotate the fallback with an
+  `eslint-disable-next-line @lexical/internal/no-cross-realm-dom` comment
+  explaining why.
+
+**Lint enforcement.** The
+`@lexical/internal/no-cross-realm-dom` ESLint rule
+(`packages/lexical-eslint-plugin-internal/src/rules/no-cross-realm-dom.js`)
+flags these patterns. In the root `eslint.config.mjs` it is enabled for
+`packages/lexical/src/**` on the high-signal, unambiguous cases
+(`getRangeAt`, `getSelection`, `activeElement`); the noisier
+context-dependent patterns (`window`/`document` globals, `.parentElement`,
+and the Selection boundary fields — which also exist on the realm-safe
+helper return objects) are left as the guidance above rather than
+hard-enforced, to avoid false positives. The rule takes `allow` (property
+names to skip) and `checkGlobals` (toggle the `window`/`document` identifier
+checks) options if you enable it for additional scopes. `LexicalUtils.ts`
+(which defines the helpers) and `environment.ts` (feature detection)
+legitimately use the raw APIs and are excluded.
+
 ### Testing Strategy
 - **Unit tests** - Vitest (jsdom), located in `packages/**/__tests__/unit/**/*.test.{ts,tsx}`
 - **Browser tests** - Vitest browser mode driven by the Playwright runner, located in

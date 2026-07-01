@@ -417,6 +417,42 @@ export default [
     },
   },
 
+  // Override: lexical core sources - flag raw DOM patterns that break
+  // across shadow DOM / iframe realm boundaries (see the "Shadow DOM &
+  // iframe realm safety" section of AGENTS.md). The rule enforces the
+  // high-signal, unambiguous cases here (retargeted Selection reads,
+  // realm-relative `getSelection()`/`activeElement`); the noisier /
+  // context-dependent patterns (`window`/`document` globals,
+  // `.parentElement`, and the Selection boundary fields, which also exist
+  // on the realm-safe helper return objects) are left as documented
+  // guidance in AGENTS.md rather than enforced, to avoid false positives.
+  // LexicalUtils.ts (where the realm-safe helpers are defined) and
+  // environment.ts (feature detection) legitimately use the raw APIs.
+  {
+    files: ['packages/lexical/src/**'],
+    ignores: [
+      'packages/lexical/src/**/__tests__/**',
+      'packages/lexical/src/**/__bench__/**',
+      'packages/lexical/src/LexicalUtils.ts',
+      'packages/lexical/src/environment.ts',
+    ],
+    rules: {
+      '@lexical/internal/no-cross-realm-dom': [
+        ERROR,
+        {
+          allow: [
+            'anchorNode',
+            'anchorOffset',
+            'focusNode',
+            'focusOffset',
+            'parentElement',
+          ],
+          checkGlobals: false,
+        },
+      ],
+    },
+  },
+
   // Override: Tests - allow imports from self
   {
     files: ['packages/**/__tests__/**'],

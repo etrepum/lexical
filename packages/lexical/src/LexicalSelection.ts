@@ -1756,11 +1756,13 @@ export class RangeSelection implements BaseSelection {
     // Guard against no ranges
     if (domSelection.rangeCount > 0) {
       // Inside a DOM shadow root getRangeAt(0) is retargeted to the host;
-      // read the composed StaticRange (real nodes) where available.
+      // read the composed StaticRange (real nodes) where available. The
+      // getRangeAt(0) below is the intentional light-DOM fallback.
       const composedRange = getComposedStaticRange(
         domSelection,
         editor._rootElement,
       );
+      // eslint-disable-next-line @lexical/internal/no-cross-realm-dom -- intentional light-DOM fallback after getComposedStaticRange
       const range = composedRange || domSelection.getRangeAt(0);
       // Apply the DOM selection to our Lexical selection.
       const anchorNode = this.anchor.getNode();
