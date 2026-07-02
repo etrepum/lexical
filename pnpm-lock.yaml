@@ -927,6 +927,45 @@ importers:
         specifier: '>=5.2'
         version: 6.0.3
 
+  packages/lexical-mdast:
+    dependencies:
+      '@lexical/code':
+        specifier: workspace:*
+        version: link:../lexical-code
+      '@lexical/extension':
+        specifier: workspace:*
+        version: link:../lexical-extension
+      '@lexical/link':
+        specifier: workspace:*
+        version: link:../lexical-link
+      '@lexical/list':
+        specifier: workspace:*
+        version: link:../lexical-list
+      '@lexical/rich-text':
+        specifier: workspace:*
+        version: link:../lexical-rich-text
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
+      lexical:
+        specifier: workspace:*
+        version: link:../lexical
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0
+      mdast-util-to-markdown:
+        specifier: ^2.1.2
+        version: 2.1.2
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
+      typescript:
+        specifier: '>=5.2'
+        version: 6.0.3
+
   packages/lexical-offset:
     dependencies:
       '@lexical/internal':
