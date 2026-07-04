@@ -52,8 +52,7 @@ export function createMarkdownImport(
     byType.textFormat,
   );
 
-  return (markdownString, node) => {
-    const lines = markdownString.split('\n');
+  const $importLines = (lines: string[], node?: ElementNode) => {
     const linesLength = lines.length;
     const root = node || $getRoot();
     root.clear();
@@ -66,6 +65,7 @@ export function createMarkdownImport(
         i,
         byType.multilineElement,
         root,
+        $importLines,
       );
 
       if (imported) {
@@ -126,6 +126,10 @@ export function createMarkdownImport(
       root.selectStart();
     }
   };
+
+  return (markdownString, node) => {
+    $importLines(markdownString.split('\n'), node);
+  };
 }
 
 /**
@@ -137,6 +141,7 @@ function $importMultiline(
   startLineIndex: number,
   multilineElementTransformers: MultilineElementTransformer[],
   rootNode: ElementNode,
+  $importLines: (importLines: string[], node?: ElementNode) => void,
 ): [boolean, number] {
   for (const transformer of multilineElementTransformers) {
     const {handleImportAfterStartMatch, regExpEnd, regExpStart, replace} =
@@ -149,6 +154,7 @@ function $importMultiline(
 
     if (handleImportAfterStartMatch) {
       const result = handleImportAfterStartMatch({
+        $importLines,
         lines,
         rootNode,
         startLineIndex,

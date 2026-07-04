@@ -46,6 +46,7 @@ export type MultilineElementTransformer = {
     traverseChildren: (node: ElementNode) => string,
   ) => string | null;
   handleImportAfterStartMatch?: (args: {
+    $importLines?: (lines: string[], node?: ElementNode) => void;
     lines: string[];
     rootNode: ElementNode;
     startLineIndex: number;
@@ -129,7 +130,7 @@ declare export var ITALIC_UNDERSCORE: TextFormatTransformer;
 
 declare export var HEADING: ElementTransformer;
 declare export var QUOTE: ElementTransformer;
-declare export var SHADOW_ROOT_QUOTE: ElementTransformer;
+declare export var SHADOW_ROOT_QUOTE: MultilineElementTransformer;
 declare export var CODE: MultilineElementTransformer;
 declare export var UNORDERED_LIST: ElementTransformer;
 declare export var CHECK_LIST: ElementTransformer;

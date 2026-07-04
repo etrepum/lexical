@@ -6,7 +6,9 @@
  *
  */
 
+import {$isCodeNode, CodeNode} from '@lexical/code-core';
 import {createHeadlessEditor} from '@lexical/headless';
+import {$isListNode, ListItemNode, ListNode} from '@lexical/list';
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -18,6 +20,7 @@ import {
 import {
   $createHeadingNode,
   $createQuoteNode,
+  $isHeadingNode,
   $isQuoteNode,
   HeadingNode,
   QuoteNode,
@@ -38,7 +41,7 @@ const SHADOW_ROOT_QUOTE_TRANSFORMERS: Transformer[] = TRANSFORMERS.map(
 
 function createEditor(): LexicalEditor {
   return createHeadlessEditor({
-    nodes: [HeadingNode, QuoteNode],
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode],
     onError: err => {
       throw err;
     },
@@ -126,6 +129,76 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
     });
   });
 
+  it('imports nested block markers inside the quote', () => {
+    const editor = createEditor();
+    editor.update(
+      () => {
+        $convertFromMarkdownString(
+          '> ## title\n>\n> body',
+          SHADOW_ROOT_QUOTE_TRANSFORMERS,
+        );
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const quote = $getRoot().getFirstChild();
+      assert($isQuoteNode(quote), 'expected QuoteNode');
+      const [heading, body] = quote.getChildren();
+      assert($isHeadingNode(heading), 'expected HeadingNode');
+      expect(heading.getTag()).toBe('h2');
+      expect(heading.getTextContent()).toBe('title');
+      assert($isParagraphNode(body), 'expected ParagraphNode');
+      expect(body.getTextContent()).toBe('body');
+    });
+  });
+
+  it('imports nested quotes recursively', () => {
+    const editor = createEditor();
+    editor.update(
+      () => {
+        $convertFromMarkdownString(
+          '> > inner\n>\n> after',
+          SHADOW_ROOT_QUOTE_TRANSFORMERS,
+        );
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const quote = $getRoot().getFirstChild();
+      assert($isQuoteNode(quote), 'expected QuoteNode');
+      const [inner, after] = quote.getChildren();
+      assert($isQuoteNode(inner), 'expected nested QuoteNode');
+      expect(inner.isShadowRoot()).toBe(true);
+      expect(inner.getChildren().every($isParagraphNode)).toBe(true);
+      expect(inner.getTextContent()).toBe('inner');
+      assert($isParagraphNode(after), 'expected ParagraphNode');
+      expect(after.getTextContent()).toBe('after');
+    });
+  });
+
+  it('imports lists and code fences inside the quote', () => {
+    const editor = createEditor();
+    editor.update(
+      () => {
+        $convertFromMarkdownString(
+          '> - a\n> - b\n>\n> ```js\n> const x = 1\n> ```',
+          SHADOW_ROOT_QUOTE_TRANSFORMERS,
+        );
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const quote = $getRoot().getFirstChild();
+      assert($isQuoteNode(quote), 'expected QuoteNode');
+      const [list, code] = quote.getChildren();
+      assert($isListNode(list), 'expected ListNode');
+      expect(list.getChildrenSize()).toBe(2);
+      assert($isCodeNode(code), 'expected CodeNode');
+      expect(code.getLanguage()).toBe('js');
+      expect(code.getTextContent()).toBe('const x = 1');
+    });
+  });
+
   it('a blank line still terminates the quote', () => {
     const editor = createEditor();
     editor.update(
@@ -194,9 +267,14 @@ describe('shadow root quote markdown export', () => {
     });
   });
 
-  it('round-trips a multi-paragraph quote', () => {
+  it.each([
+    ['multi-paragraph quote', '> a\n> b\n>\n> c'],
+    ['heading and body', '> ## title\n>\n> body'],
+    ['nested quote', '> > inner\n>\n> after'],
+    ['list and code fence', '> - a\n> - b\n>\n> ```js\n> const x = 1\n> ```'],
+    ['doubly nested quote', '> > > deep\n>\n> shallow'],
+  ])('round-trips a quote with %s', (_label, markdown) => {
     const editor = createEditor();
-    const markdown = '> a\n> b\n>\n> c';
     editor.update(
       () => {
         $convertFromMarkdownString(markdown, SHADOW_ROOT_QUOTE_TRANSFORMERS);

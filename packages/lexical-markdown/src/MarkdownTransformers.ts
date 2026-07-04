@@ -40,7 +40,6 @@ import {
   $getState,
   $isElementNode,
   $isLineBreakNode,
-  $isParagraphNode,
   $isTextNode,
   $setState,
   BaseSelection,
@@ -107,6 +106,15 @@ export type MultilineElementTransformer = {
    * @returns a tuple or null. The first element of the returned tuple is a boolean indicating if a multiline element was imported. The second element is the index of the last line that was processed. If null is returned, the next multilineElementTransformer will be tried. If undefined is returned, the default behavior will be used.
    */
   handleImportAfterStartMatch?: (args: {
+    /**
+     * Import markdown lines into `node` (clearing it first) with the full
+     * transformer set of the current import operation. Use this to
+     * recursively parse the content of a container element (e.g. the
+     * body of a blockquote) as markdown blocks.
+     *
+     * @experimental
+     */
+    $importLines?: (lines: string[], node?: ElementNode) => void;
     lines: string[];
     rootNode: ElementNode;
     startLineIndex: number;
@@ -558,21 +566,27 @@ export const HEADING: ElementTransformer = {
  * Export the block-level children of a shadow root quote (see
  * `quoteShadowRootState` in `@lexical/rich-text`), separating consecutive
  * non-empty blocks with a blank quoted line the same way the top-level
- * exporter separates root-level blocks. Headings and nested quotes keep
- * their markdown markers; other blocks fall back to their inline content.
+ * exporter separates root-level blocks. The built-in block transformers
+ * (code, headings, lists, nested quotes) keep their markdown markers;
+ * blocks from custom transformers fall back to their inline content.
  */
 function $exportShadowRootQuoteChildren(
   node: ElementNode,
   // eslint-disable-next-line no-shadow
   exportChildren: (node: ElementNode) => string,
 ): string {
+  // All list types share $listExport, so UNORDERED_LIST covers each of
+  // them. Mirrors the top-level exporter's multiline-before-element order.
+  const blockTransformers = [CODE, HEADING, UNORDERED_LIST, QUOTE];
   const output: string[] = [];
   const children = node.getChildren();
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     let result: string | null = null;
-    for (const transformer of [HEADING, QUOTE]) {
-      result = transformer.export(child, exportChildren);
+    for (const transformer of blockTransformers) {
+      result = transformer.export
+        ? transformer.export(child, exportChildren)
+        : null;
       if (result != null) {
         break;
       }
@@ -642,15 +656,48 @@ export const QUOTE: ElementTransformer = {
   type: 'element',
 };
 
+// Unlike QUOTE_REGEX this also matches a bare `>` (the CommonMark block
+// quote marker's space is optional), which is how a paragraph boundary
+// inside a shadow root quote is serialized.
+const SHADOW_ROOT_QUOTE_LINE_REGEX = /^> ?/;
+
+/**
+ * Fallback body builder for {@link SHADOW_ROOT_QUOTE} when a recursive
+ * import is not available: blank lines separate paragraphs and other
+ * lines join the open paragraph with a soft line break. Inline markdown
+ * inside the lines is not parsed.
+ */
+function $appendShadowRootQuoteLines(
+  quote: ElementNode,
+  lines: string[],
+): void {
+  let paragraph = $createParagraphNode();
+  quote.append(paragraph);
+  for (const line of lines) {
+    if (line.trim() === '') {
+      paragraph = $createParagraphNode();
+      quote.append(paragraph);
+    } else {
+      if (paragraph.getChildrenSize() > 0) {
+        paragraph.append($createMarkdownLineBreakNode(paragraph));
+      }
+      paragraph.append($createTextNode(line));
+    }
+  }
+}
+
 /**
  * An opt-in replacement for {@link QUOTE} that creates shadow root quotes
  * (see `quoteShadowRootState` in `@lexical/rich-text`), preserving the
- * block structure of multi-paragraph blockquotes: consecutive `> ` lines
- * join the same paragraph with a soft line break, a bare `>` (or `> `)
- * line starts a new paragraph, and lazy continuation lines join the last
- * open paragraph. Together with the shadow-root-aware {@link QUOTE}
- * export this makes markdown blockquotes round-trip as paragraphs instead
- * of being flattened to line breaks.
+ * block structure of blockquotes. The whole run of `>`-prefixed lines is
+ * collected, the markers are stripped, and the body is recursively
+ * imported with the full transformer set of the import operation — so
+ * paragraphs (separated by bare `>` lines), headings, lists, code fences,
+ * and nested quotes inside the quote all round-trip. Lazy continuation
+ * lines after the run join the quote's last open paragraph. Together with
+ * the shadow-root-aware {@link QUOTE} export this makes markdown
+ * blockquotes round-trip structurally instead of being flattened to line
+ * breaks.
  *
  * Not registered by default; use it *instead of* {@link QUOTE} in your
  * transformer array. Without it (and without shadow root quotes in the
@@ -658,59 +705,75 @@ export const QUOTE: ElementTransformer = {
  *
  * @experimental
  */
-export const SHADOW_ROOT_QUOTE: ElementTransformer = {
+export const SHADOW_ROOT_QUOTE: MultilineElementTransformer = {
   dependencies: [QuoteNode],
   export: QUOTE.export,
-  // Unlike QUOTE_REGEX this also matches a bare `>` (the CommonMark block
-  // quote marker's space is optional), which is how a paragraph boundary
-  // inside the quote is serialized.
-  regExp: /^> ?/,
-  replace: (parentNode, children, _match, isImport) => {
-    const isBlankLine =
-      children.length === 0 ||
-      (children.length === 1 &&
-        $isTextNode(children[0]) &&
-        children[0].getTextContentSize() === 0);
-    if (isImport) {
-      const previousNode = parentNode.getPreviousSibling();
-      if ($isQuoteNode(previousNode) && previousNode.isShadowRoot()) {
-        const lastChild = previousNode.getLastChild();
-        if ($isParagraphNode(lastChild)) {
-          if (isBlankLine) {
-            // A `>` separator line closes the current paragraph. The
-            // (empty) children are kept attached so the import pipeline
-            // can keep operating on them; empty text is normalized away.
-            previousNode.append($createParagraphNode().append(...children));
-          } else if (lastChild.getTextContentSize() === 0) {
-            // First content line after a separator fills the paragraph
-            // the separator opened.
-            lastChild.append(...children);
-          } else {
-            // Consecutive `> ` lines join the open paragraph with a soft
-            // line break, matching the plain QUOTE behavior within a
-            // paragraph.
-            lastChild.splice(lastChild.getChildrenSize(), 0, [
-              $createMarkdownLineBreakNode(lastChild),
-              ...children,
-            ]);
-          }
-          parentNode.remove();
-          return;
-        }
+  handleImportAfterStartMatch: ({
+    $importLines,
+    lines,
+    rootNode,
+    startLineIndex,
+  }) => {
+    // Collect the whole run of `>`-prefixed lines and strip the markers.
+    let endLineIndex = startLineIndex;
+    while (
+      endLineIndex + 1 < lines.length &&
+      SHADOW_ROOT_QUOTE_LINE_REGEX.test(lines[endLineIndex + 1])
+    ) {
+      endLineIndex++;
+    }
+    const innerLines: string[] = [];
+    for (let i = startLineIndex; i <= endLineIndex; i++) {
+      innerLines.push(lines[i].replace(SHADOW_ROOT_QUOTE_LINE_REGEX, ''));
+    }
+    const quote = $createQuoteNode({shadowRoot: true});
+    rootNode.append(quote);
+    if ($importLines) {
+      $importLines(innerLines, quote);
+    } else {
+      $appendShadowRootQuoteLines(quote, innerLines);
+    }
+    // A trailing blank inner line means a `>` separator closed the last
+    // paragraph. Keep an (empty) paragraph open so a following plain line
+    // is not treated as lazy continuation of the previous paragraph; the
+    // import operation's final cleanup drops it if nothing fills it.
+    if (innerLines[innerLines.length - 1].trim() === '') {
+      const lastChild = quote.getLastChild();
+      if (lastChild === null || !isEmptyParagraph(lastChild)) {
+        quote.append($createParagraphNode());
       }
     }
-
+    return [true, endLineIndex];
+  },
+  regExpStart: SHADOW_ROOT_QUOTE_LINE_REGEX,
+  replace: (
+    rootNode,
+    children,
+    _startMatch,
+    _endMatch,
+    linesInBetween,
+    isImport,
+  ) => {
     const node = $createQuoteNode({shadowRoot: true});
-    const paragraph = $createParagraphNode();
-    paragraph.append(...children);
-    node.append(paragraph);
-    parentNode.replace(node);
-    if (!isImport) {
-      paragraph.select(0, 0);
+    if (children !== null) {
+      // Markdown shortcut (typing in the editor): `rootNode` is the
+      // paragraph being converted, mirroring the element transformer
+      // shortcut contract.
+      const paragraph = $createParagraphNode();
+      paragraph.append(...children);
+      node.append(paragraph);
+      rootNode.replace(node);
+      if (!isImport) {
+        paragraph.select(0, 0);
+      }
+    } else if (linesInBetween !== null) {
+      // Import normally goes through handleImportAfterStartMatch; this
+      // path only serves direct callers of `replace`.
+      $appendShadowRootQuoteLines(node, linesInBetween);
+      rootNode.append(node);
     }
   },
-  triggerOnEnter: true,
-  type: 'element',
+  type: 'multiline-element',
 };
 
 export const CODE: MultilineElementTransformer = {
@@ -1143,6 +1206,10 @@ export function normalizeMarkdown(
       HEADING_REGEX.test(lastLine) ||
       HEADING_REGEX.test(line) ||
       QUOTE_REGEX.test(line) ||
+      // A bare `>` is a block quote marker line (CommonMark allows the
+      // trailing space to be omitted), e.g. a paragraph separator inside
+      // a SHADOW_ROOT_QUOTE — never paragraph text to merge.
+      line === '>' ||
       ORDERED_LIST_REGEX.test(line) ||
       UNORDERED_LIST_REGEX.test(line) ||
       CHECK_LIST_REGEX.test(line) ||
