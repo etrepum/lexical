@@ -52,6 +52,7 @@ import {
   $applyNodeReplacement,
   $caretFromPoint,
   $comparePointCaretNext,
+  $create,
   $createNodeSelection,
   $createParagraphNode,
   $createRangeSelection,
@@ -301,8 +302,7 @@ export function $createQuoteNode(options?: {
    */
   shadowRoot?: boolean;
 }): QuoteNode {
-  const node = $applyNodeReplacement(new QuoteNode());
-  return options && options.shadowRoot ? node.setIsShadowRoot(true) : node;
+  return $create(QuoteNode).setIsShadowRoot(!!(options && options.shadowRoot));
 }
 
 export function $isQuoteNode(
