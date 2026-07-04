@@ -6,9 +6,9 @@
  *
  */
 
-import {$isCodeNode, CodeNode} from '@lexical/code-core';
-import {createHeadlessEditor} from '@lexical/headless';
-import {$isListNode, ListItemNode, ListNode} from '@lexical/list';
+import {$isCodeNode, CodeExtension} from '@lexical/code-core';
+import {buildEditorFromExtensions} from '@lexical/extension';
+import {$isListNode, ListExtension} from '@lexical/list';
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
@@ -22,8 +22,7 @@ import {
   $createQuoteNode,
   $isHeadingNode,
   $isQuoteNode,
-  HeadingNode,
-  QuoteNode,
+  RichTextExtension,
 } from '@lexical/rich-text';
 import {
   $createParagraphNode,
@@ -31,7 +30,7 @@ import {
   $getRoot,
   $isLineBreakNode,
   $isParagraphNode,
-  LexicalEditor,
+  defineExtension,
 } from 'lexical';
 import {assert, describe, expect, it} from 'vitest';
 
@@ -39,18 +38,18 @@ const SHADOW_ROOT_QUOTE_TRANSFORMERS: Transformer[] = TRANSFORMERS.map(
   transformer => (transformer === QUOTE ? SHADOW_ROOT_QUOTE : transformer),
 );
 
-function createEditor(): LexicalEditor {
-  return createHeadlessEditor({
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode],
-    onError: err => {
-      throw err;
-    },
-  });
+const ShadowRootQuoteTestExtension = defineExtension({
+  dependencies: [RichTextExtension, ListExtension, CodeExtension],
+  name: 'ShadowRootQuoteTest',
+});
+
+function buildEditor() {
+  return buildEditorFromExtensions([ShadowRootQuoteTestExtension]);
 }
 
 describe('SHADOW_ROOT_QUOTE markdown import', () => {
   it('imports a multi-paragraph blockquote as a shadow root quote', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(
@@ -72,7 +71,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('joins consecutive `> ` lines into one paragraph with a line break', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString('> a\n> b', SHADOW_ROOT_QUOTE_TRANSFORMERS);
@@ -93,7 +92,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('joins a lazy continuation line into the open paragraph', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString('> a\nb', SHADOW_ROOT_QUOTE_TRANSFORMERS);
@@ -111,7 +110,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('does not lazily continue past a `>` separator line', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString('> a\n>\nb', SHADOW_ROOT_QUOTE_TRANSFORMERS);
@@ -130,7 +129,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('imports nested block markers inside the quote', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(
@@ -153,7 +152,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('imports nested quotes recursively', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(
@@ -177,7 +176,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('imports lists and code fences inside the quote', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(
@@ -200,7 +199,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
   });
 
   it('a blank line still terminates the quote', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(
@@ -221,7 +220,7 @@ describe('SHADOW_ROOT_QUOTE markdown import', () => {
 
 describe('shadow root quote markdown export', () => {
   it('exports block children as `> ` lines with `>` separators', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         const quote = $createQuoteNode({shadowRoot: true});
@@ -245,7 +244,7 @@ describe('shadow root quote markdown export', () => {
   });
 
   it('exports nested headings and quotes with their markers', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         const quote = $createQuoteNode({shadowRoot: true});
@@ -274,7 +273,7 @@ describe('shadow root quote markdown export', () => {
     ['list and code fence', '> - a\n> - b\n>\n> ```js\n> const x = 1\n> ```'],
     ['doubly nested quote', '> > > deep\n>\n> shallow'],
   ])('round-trips a quote with %s', (_label, markdown) => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString(markdown, SHADOW_ROOT_QUOTE_TRANSFORMERS);
@@ -289,7 +288,7 @@ describe('shadow root quote markdown export', () => {
   });
 
   it('does not change the export of quotes that did not opt in', () => {
-    const editor = createEditor();
+    using editor = buildEditor();
     editor.update(
       () => {
         $convertFromMarkdownString('> a\n> b', TRANSFORMERS);
