@@ -109,6 +109,9 @@ importers:
       '@types/katex':
         specifier: ^0.16.7
         version: 0.16.7
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/minimist':
         specifier: ^1.2.5
         version: 1.2.5
@@ -223,6 +226,18 @@ importers:
       lint-staged:
         specifier: ^17.0.7
         version: 17.0.7
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0
+      mdast-util-to-markdown:
+        specifier: ^2.1.2
+        version: 2.1.2
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
       minimist:
         specifier: ^1.2.5
         version: 1.2.8
