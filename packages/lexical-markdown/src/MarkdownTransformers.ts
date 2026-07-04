@@ -34,10 +34,13 @@ import {
 } from '@lexical/rich-text';
 import {
   $createLineBreakNode,
+  $createParagraphNode,
   $createTextNode,
   $findMatchingParent,
   $getState,
+  $isElementNode,
   $isLineBreakNode,
+  $isParagraphNode,
   $isTextNode,
   $setState,
   BaseSelection,
@@ -50,7 +53,7 @@ import {
   TextNode,
 } from 'lexical';
 
-import {unescapeText} from './utils';
+import {isEmptyParagraph, unescapeText} from './utils';
 
 export type Transformer =
   | ElementTransformer
@@ -551,11 +554,60 @@ export const HEADING: ElementTransformer = {
   type: 'element',
 };
 
+/**
+ * Export the block-level children of a shadow root quote (see
+ * `quoteShadowRootState` in `@lexical/rich-text`), separating consecutive
+ * non-empty blocks with a blank quoted line the same way the top-level
+ * exporter separates root-level blocks. Headings and nested quotes keep
+ * their markdown markers; other blocks fall back to their inline content.
+ */
+function $exportShadowRootQuoteChildren(
+  node: ElementNode,
+  // eslint-disable-next-line no-shadow
+  exportChildren: (node: ElementNode) => string,
+): string {
+  const output: string[] = [];
+  const children = node.getChildren();
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    let result: string | null = null;
+    for (const transformer of [HEADING, QUOTE]) {
+      result = transformer.export(child, exportChildren);
+      if (result != null) {
+        break;
+      }
+    }
+    if (result == null) {
+      result = $isElementNode(child)
+        ? exportChildren(child)
+        : child.getTextContent();
+    }
+    output.push(
+      i > 0 && !isEmptyParagraph(child) && !isEmptyParagraph(children[i - 1])
+        ? '\n'.concat(result)
+        : result,
+    );
+  }
+  return output.join('\n');
+}
+
 export const QUOTE: ElementTransformer = {
   dependencies: [QuoteNode],
   export: (node, exportChildren) => {
     if (!$isQuoteNode(node)) {
       return null;
+    }
+
+    if (node.isShadowRoot()) {
+      // A shadow root quote (opt-in, see `quoteShadowRootState` in
+      // `@lexical/rich-text`) holds block-level children. Empty lines
+      // separating its blocks are emitted as a bare `>` so the quote
+      // stays contiguous; `SHADOW_ROOT_QUOTE` imports them back as
+      // paragraph boundaries.
+      return $exportShadowRootQuoteChildren(node, exportChildren)
+        .split('\n')
+        .map(line => (line.length > 0 ? '> ' + line : '>'))
+        .join('\n');
     }
 
     const lines = exportChildren(node).split('\n');
@@ -584,6 +636,77 @@ export const QUOTE: ElementTransformer = {
     parentNode.replace(node);
     if (!isImport) {
       node.select(0, 0);
+    }
+  },
+  triggerOnEnter: true,
+  type: 'element',
+};
+
+/**
+ * An opt-in replacement for {@link QUOTE} that creates shadow root quotes
+ * (see `quoteShadowRootState` in `@lexical/rich-text`), preserving the
+ * block structure of multi-paragraph blockquotes: consecutive `> ` lines
+ * join the same paragraph with a soft line break, a bare `>` (or `> `)
+ * line starts a new paragraph, and lazy continuation lines join the last
+ * open paragraph. Together with the shadow-root-aware {@link QUOTE}
+ * export this makes markdown blockquotes round-trip as paragraphs instead
+ * of being flattened to line breaks.
+ *
+ * Not registered by default; use it *instead of* {@link QUOTE} in your
+ * transformer array. Without it (and without shadow root quotes in the
+ * document) markdown behavior is unchanged.
+ *
+ * @experimental
+ */
+export const SHADOW_ROOT_QUOTE: ElementTransformer = {
+  dependencies: [QuoteNode],
+  export: QUOTE.export,
+  // Unlike QUOTE_REGEX this also matches a bare `>` (the CommonMark block
+  // quote marker's space is optional), which is how a paragraph boundary
+  // inside the quote is serialized.
+  regExp: /^> ?/,
+  replace: (parentNode, children, _match, isImport) => {
+    const isBlankLine =
+      children.length === 0 ||
+      (children.length === 1 &&
+        $isTextNode(children[0]) &&
+        children[0].getTextContentSize() === 0);
+    if (isImport) {
+      const previousNode = parentNode.getPreviousSibling();
+      if ($isQuoteNode(previousNode) && previousNode.isShadowRoot()) {
+        const lastChild = previousNode.getLastChild();
+        if ($isParagraphNode(lastChild)) {
+          if (isBlankLine) {
+            // A `>` separator line closes the current paragraph. The
+            // (empty) children are kept attached so the import pipeline
+            // can keep operating on them; empty text is normalized away.
+            previousNode.append($createParagraphNode().append(...children));
+          } else if (lastChild.getTextContentSize() === 0) {
+            // First content line after a separator fills the paragraph
+            // the separator opened.
+            lastChild.append(...children);
+          } else {
+            // Consecutive `> ` lines join the open paragraph with a soft
+            // line break, matching the plain QUOTE behavior within a
+            // paragraph.
+            lastChild.splice(lastChild.getChildrenSize(), 0, [
+              $createMarkdownLineBreakNode(lastChild),
+              ...children,
+            ]);
+          }
+          parentNode.remove();
+          return;
+        }
+      }
+    }
+
+    const node = $createQuoteNode({shadowRoot: true});
+    const paragraph = $createParagraphNode();
+    paragraph.append(...children);
+    node.append(paragraph);
+    parentNode.replace(node);
+    if (!isImport) {
+      paragraph.select(0, 0);
     }
   },
   triggerOnEnter: true,

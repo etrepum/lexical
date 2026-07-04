@@ -26,6 +26,7 @@ import {
   $isElementNode,
   $isParagraphNode,
   ElementNode,
+  ParagraphNode,
   TextNode,
 } from 'lexical';
 
@@ -98,6 +99,20 @@ export function createMarkdownImport(
       ) {
         child.remove();
         continue;
+      }
+      // A trailing `>` separator line leaves an empty paragraph open at
+      // the end of a shadow root quote (opt-in, see SHADOW_ROOT_QUOTE);
+      // drop it the same way empty paragraphs are dropped at the root.
+      if (
+        !shouldPreserveNewLines &&
+        $isQuoteNode(child) &&
+        child.isShadowRoot() &&
+        child.getChildrenSize() > 1
+      ) {
+        const lastChild = child.getLastChild();
+        if (lastChild !== null && isEmptyParagraph(lastChild)) {
+          lastChild.remove();
+        }
       }
       // Convert all '\t' into TabNode.
       if ($isElementNode(child)) {
@@ -270,7 +285,11 @@ function $importBlocks(
         $isQuoteNode(previousNode) ||
         $isListNode(previousNode))
     ) {
-      let targetNode: typeof previousNode | ListItemNode | null = previousNode;
+      let targetNode:
+        | typeof previousNode
+        | ListItemNode
+        | ParagraphNode
+        | null = previousNode;
 
       if ($isListNode(previousNode)) {
         const lastDescendant = previousNode.getLastDescendant();
@@ -279,6 +298,13 @@ function $importBlocks(
         } else {
           targetNode = $findMatchingParent(lastDescendant, $isListItemNode);
         }
+      } else if ($isQuoteNode(previousNode) && previousNode.isShadowRoot()) {
+        // A shadow root quote (opt-in, see `quoteShadowRootState` in
+        // `@lexical/rich-text`) holds block-level children, so a lazy
+        // continuation line joins its last paragraph rather than the
+        // quote itself (inline nodes are not valid shadow root children).
+        const lastChild = previousNode.getLastChild();
+        targetNode = $isParagraphNode(lastChild) ? lastChild : null;
       }
 
       if (targetNode != null && targetNode.getTextContentSize() > 0) {

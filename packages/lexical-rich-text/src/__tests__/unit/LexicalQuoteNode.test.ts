@@ -7,7 +7,14 @@
  */
 
 import {$createQuoteNode, QuoteNode} from '@lexical/rich-text';
-import {$createRangeSelection, $getRoot, ParagraphNode} from 'lexical';
+import {
+  $createParagraphNode,
+  $createRangeSelection,
+  $createTextNode,
+  $getRoot,
+  $isParagraphNode,
+  ParagraphNode,
+} from 'lexical';
 import {initializeUnitTest} from 'lexical/src/__tests__/utils';
 import {describe, expect, test} from 'vitest';
 
@@ -92,6 +99,74 @@ describe('LexicalQuoteNode tests', () => {
         expect(quoteNode.__type).toEqual(createdQuoteNode.__type);
         expect(quoteNode.__parent).toEqual(createdQuoteNode.__parent);
         expect(quoteNode.__key).not.toEqual(createdQuoteNode.__key);
+      });
+    });
+
+    test('QuoteNode.isShadowRoot() defaults to false and serializes nothing', async () => {
+      const {editor} = testEnv;
+      await editor.update(() => {
+        const quoteNode = $createQuoteNode();
+        expect(quoteNode.isShadowRoot()).toBe(false);
+        expect('shadowRoot' in quoteNode.exportJSON()).toBe(false);
+      });
+    });
+
+    test('QuoteNode shadow root opt-in with $createQuoteNode and setIsShadowRoot', async () => {
+      const {editor} = testEnv;
+      await editor.update(() => {
+        const quoteNode = $createQuoteNode({shadowRoot: true});
+        expect(quoteNode.isShadowRoot()).toBe(true);
+        expect(quoteNode.exportJSON().shadowRoot).toBe(true);
+        quoteNode.setIsShadowRoot(false);
+        expect(quoteNode.isShadowRoot()).toBe(false);
+        expect('shadowRoot' in quoteNode.exportJSON()).toBe(false);
+        quoteNode.setIsShadowRoot(true);
+        expect(quoteNode.isShadowRoot()).toBe(true);
+      });
+    });
+
+    test('QuoteNode shadow root round-trips through JSON', async () => {
+      const {editor} = testEnv;
+      await editor.update(() => {
+        const quoteNode = $createQuoteNode({shadowRoot: true});
+        const imported = QuoteNode.importJSON(quoteNode.exportJSON());
+        expect(imported.isShadowRoot()).toBe(true);
+        const importedDefault = QuoteNode.importJSON(
+          $createQuoteNode().exportJSON(),
+        );
+        expect(importedDefault.isShadowRoot()).toBe(false);
+      });
+    });
+
+    test('QuoteNode.collapseAtStart() lifts blocks out of a shadow root quote', async () => {
+      const {editor} = testEnv;
+      await editor.update(() => {
+        const root = $getRoot();
+        const quoteNode = $createQuoteNode({shadowRoot: true});
+        quoteNode.append(
+          $createParagraphNode().append($createTextNode('a')),
+          $createParagraphNode().append($createTextNode('b')),
+        );
+        root.append(quoteNode);
+        quoteNode.collapseAtStart();
+        const children = root.getChildren();
+        expect(children.length).toBe(2);
+        expect(children.every($isParagraphNode)).toBe(true);
+        expect(children.map(node => node.getTextContent())).toEqual(['a', 'b']);
+      });
+    });
+
+    test('getTopLevelElement() stops at a shadow root quote', async () => {
+      const {editor} = testEnv;
+      await editor.update(() => {
+        const root = $getRoot();
+        const quoteNode = $createQuoteNode({shadowRoot: true});
+        const paragraph = $createParagraphNode().append($createTextNode('a'));
+        quoteNode.append(paragraph);
+        root.append(quoteNode);
+        expect(paragraph.getTopLevelElementOrThrow().is(paragraph)).toBe(true);
+        quoteNode.setIsShadowRoot(false);
+        expect(paragraph.getTopLevelElementOrThrow().is(quoteNode)).toBe(true);
       });
     });
   });
