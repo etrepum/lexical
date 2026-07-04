@@ -13,6 +13,10 @@ permissions: {}
 
 jobs:
   dependency-check:
+    # The internal registry is only reachable from the upstream repository;
+    # skip on forks so their PR runs don't fail on infrastructure they can't
+    # access.
+    if: github.repository == 'facebook/lexical'
     runs-on: ubuntu-latest
     permissions:
       contents: read
