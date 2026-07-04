@@ -11,9 +11,10 @@ import type {JSX} from 'react';
 import './index.css';
 
 import {useMergeRefs} from '@floating-ui/react';
-import {$isCodeHighlightNode} from '@lexical/code';
+import {$isCodeNode} from '@lexical/code';
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from '@lexical/link';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
+import {useLexicalRovingTabIndexRef} from '@lexical/react/useLexicalRovingTabIndexRef';
 import {
   $getSelection,
   $isParagraphNode,
@@ -28,6 +29,8 @@ import {
   isDOMShadowRoot,
   LexicalEditor,
   mergeRegister,
+  registerEventListener,
+  registerEventListeners,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import * as React from 'react';
@@ -73,7 +76,8 @@ function TextFormatFloatingToolbar({
   ref?: React.Ref<HTMLDivElement | null>;
 }): JSX.Element {
   const popupCharStylesEditorRef = useRef<HTMLDivElement | null>(null);
-  const mergedRef = useMergeRefs([popupCharStylesEditorRef, ref]);
+  const rovingRef = useLexicalRovingTabIndexRef();
+  const mergedRef = useMergeRefs([popupCharStylesEditorRef, rovingRef, ref]);
 
   const insertLink = useCallback(() => {
     if (!isLink) {
@@ -122,13 +126,10 @@ function TextFormatFloatingToolbar({
 
   useEffect(() => {
     if (popupCharStylesEditorRef?.current) {
-      document.addEventListener('mousemove', mouseMoveListener);
-      document.addEventListener('mouseup', mouseUpListener);
-
-      return () => {
-        document.removeEventListener('mousemove', mouseMoveListener);
-        document.removeEventListener('mouseup', mouseUpListener);
-      };
+      return registerEventListeners(document, {
+        mousemove: mouseMoveListener,
+        mouseup: mouseUpListener,
+      });
     }
   }, [popupCharStylesEditorRef]);
 
@@ -182,17 +183,12 @@ function TextFormatFloatingToolbar({
       });
     };
 
-    window.addEventListener('resize', update);
-    if (scrollerElem) {
-      scrollerElem.addEventListener('scroll', update);
-    }
-
-    return () => {
-      window.removeEventListener('resize', update);
-      if (scrollerElem) {
-        scrollerElem.removeEventListener('scroll', update);
-      }
-    };
+    return mergeRegister(
+      registerEventListener(window, 'resize', update),
+      scrollerElem
+        ? registerEventListener(scrollerElem, 'scroll', update)
+        : () => {},
+    );
   }, [editor, $updateTextFormatFloatingToolbar, anchorElem]);
 
   useEffect(() => {
@@ -218,7 +214,11 @@ function TextFormatFloatingToolbar({
   }, [editor, $updateTextFormatFloatingToolbar]);
 
   return (
-    <div ref={mergedRef} className="floating-text-format-popup">
+    <div
+      ref={mergedRef}
+      className="floating-text-format-popup"
+      role="toolbar"
+      aria-label="Floating text format toolbar">
       {editor.isEditable() && (
         <>
           <button
@@ -410,7 +410,7 @@ function useFloatingTextFormatToolbar(
       }
 
       if (
-        !$isCodeHighlightNode(selection.anchor.getNode()) &&
+        !$isCodeNode(selection.anchor.getNode().getParent()) &&
         selection.getTextContent() !== ''
       ) {
         setIsText($isTextNode(node) || $isParagraphNode(node));
@@ -427,10 +427,7 @@ function useFloatingTextFormatToolbar(
   }, [editor]);
 
   useEffect(() => {
-    document.addEventListener('selectionchange', updatePopup);
-    return () => {
-      document.removeEventListener('selectionchange', updatePopup);
-    };
+    return registerEventListener(document, 'selectionchange', updatePopup);
   }, [updatePopup]);
 
   // Hide the popup while a drag is in progress. Otherwise it sits on top of
@@ -449,14 +446,11 @@ function useFloatingTextFormatToolbar(
         ref.current.style.display = 'block';
       }
     };
-    document.addEventListener('dragstart', onDragStart, true);
-    document.addEventListener('dragend', onDragEnd, true);
-    document.addEventListener('drop', onDragEnd, true);
-    return () => {
-      document.removeEventListener('dragstart', onDragStart, true);
-      document.removeEventListener('dragend', onDragEnd, true);
-      document.removeEventListener('drop', onDragEnd, true);
-    };
+    return registerEventListeners(
+      document,
+      {dragend: onDragEnd, dragstart: onDragStart, drop: onDragEnd},
+      true,
+    );
   }, []);
 
   useEffect(() => {

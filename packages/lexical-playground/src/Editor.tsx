@@ -10,8 +10,7 @@ import type {JSX} from 'react';
 
 import {CharacterLimitPlugin} from '@lexical/react/LexicalCharacterLimitPlugin';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
-import {TabIndentationPlugin} from '@lexical/react/LexicalTabIndentationPlugin';
-import {CAN_USE_DOM} from '@lexical/utils';
+import {CAN_USE_DOM, registerEventListener} from 'lexical';
 import {useEffect, useState} from 'react';
 
 import {createWebsocketProvider} from './collaboration';
@@ -89,11 +88,7 @@ export default function Editor(): JSX.Element {
       }
     };
     updateViewPortWidth();
-    window.addEventListener('resize', updateViewPortWidth);
-
-    return () => {
-      window.removeEventListener('resize', updateViewPortWidth);
-    };
+    return registerEventListener(window, 'resize', updateViewPortWidth);
   }, [isSmallWidthViewport]);
 
   return (
@@ -137,7 +132,6 @@ export default function Editor(): JSX.Element {
             <TableCellResizer />
             <TableScrollShadowPlugin />
             <ExcalidrawPlugin />
-            <TabIndentationPlugin maxIndent={7} />
             {floatingAnchorElem && (
               <>
                 <FloatingLinkEditorPlugin

@@ -19,7 +19,6 @@ import type {
   NodeMutation,
   RegisteredNode,
   RegisteredNodes,
-  Spread,
 } from './LexicalEditor';
 import type {EditorState} from './LexicalEditorState';
 import type {
@@ -167,7 +166,7 @@ export const scheduleMicroTask: (fn: () => void) => void =
         Promise.resolve().then(fn);
       };
 
-export function isSelectionCapturedInDecoratorInput(
+export function $isSelectionCapturedInDecoratorInput(
   anchorDOM: Node,
   preResolvedActiveElement?: Element | null,
 ): boolean {
@@ -191,16 +190,19 @@ export function isSelectionCapturedInDecoratorInput(
   if (activeElement.hasAttribute('data-lexical-slot')) {
     return false;
   }
+  const nearestNode = $getNearestNodeFromDOMNode(activeElement);
   const nodeName = activeElement.nodeName;
-
   return (
-    $isDecoratorNode($getNearestNodeFromDOMNode(anchorDOM)) &&
+    $isLexicalNode(nearestNode) &&
     (nodeName === 'INPUT' ||
       nodeName === 'TEXTAREA' ||
       (activeElement.contentEditable === 'true' &&
         getEditorPropertyFromDOMNode(activeElement) == null))
   );
 }
+/** @deprecated renamed to {@link $isSelectionCapturedInDecoratorInput} by @lexical/eslint-plugin rules-of-lexical */
+export const isSelectionCapturedInDecoratorInput =
+  $isSelectionCapturedInDecoratorInput;
 
 export function isSelectionWithinEditor(
   editor: LexicalEditor,
@@ -208,19 +210,27 @@ export function isSelectionWithinEditor(
   focusDOM: null | Node,
 ): boolean {
   const rootElement = editor.getRootElement();
+  if (!rootElement) {
+    return false;
+  }
   try {
-    return (
-      rootElement !== null &&
-      rootElement.contains(anchorDOM) &&
-      rootElement.contains(focusDOM) &&
-      // Ignore if selection is within nested editor
-      anchorDOM !== null &&
-      !isSelectionCapturedInDecoratorInput(anchorDOM) &&
-      getNearestEditorFromDOMNode(anchorDOM) === editor
-    );
+    if (
+      !anchorDOM ||
+      !rootElement.contains(anchorDOM) ||
+      !rootElement.contains(focusDOM)
+    ) {
+      return false;
+    }
   } catch (_error) {
     return false;
   }
+  return (
+    getNearestEditorFromDOMNode(anchorDOM) === editor &&
+    editor.read(
+      'latest',
+      () => !$isSelectionCapturedInDecoratorInput(anchorDOM),
+    )
+  );
 }
 
 /**
@@ -1737,14 +1747,21 @@ export function $getNearestRootOrShadowRoot(
 const ShadowRootNodeBrand: unique symbol = Symbol.for(
   '@lexical/ShadowRootNodeBrand',
 );
-type ShadowRootNode = Spread<
-  {isShadowRoot(): true; [ShadowRootNodeBrand]: never},
-  ElementNode
->;
+export interface ShadowRootNode extends ElementNode {
+  [ShadowRootNodeBrand]: never;
+  isShadowRoot(): true;
+}
+
+export function $isShadowRootNode(
+  node: null | LexicalNode,
+): node is ShadowRootNode {
+  return $isElementNode(node) && node.isShadowRoot();
+}
+
 export function $isRootOrShadowRoot(
   node: null | LexicalNode,
 ): node is RootNode | ShadowRootNode {
-  return $isRootNode(node) || ($isElementNode(node) && node.isShadowRoot());
+  return $isRootNode(node) || $isShadowRootNode(node);
 }
 
 /**
@@ -1880,11 +1897,28 @@ function createBlockCursorElement(editorConfig: EditorConfig): HTMLDivElement {
   return element;
 }
 
-function needsBlockCursor(node: null | LexicalNode): boolean {
-  return (
-    ($isDecoratorNode(node) || ($isElementNode(node) && !node.canBeEmpty())) &&
-    !node.isInline()
-  );
+/**
+ * Returns true if the given node needs a block cursor given an adjacent selection,
+ * the node must be non-inline and one of:
+ * - DecoratorNode
+ * - ShadowRootNode with a parent that is not also a ShadowRootNode
+ * - An ElementNode that can't be empty
+ */
+export function $needsBlockCursorBeside(node: null | LexicalNode): boolean {
+  if (!node || node.isInline()) {
+    return false;
+  }
+  if ($isDecoratorNode(node)) {
+    return true;
+  }
+  if ($isElementNode(node)) {
+    if (node.isShadowRoot()) {
+      const parent = node.getParent();
+      return !($isElementNode(parent) && parent.isShadowRoot());
+    }
+    return !node.canBeEmpty();
+  }
+  return false;
 }
 
 export function removeDOMBlockCursorElement(
@@ -1924,14 +1958,14 @@ export function $updateDOMBlockCursorElement(
 
     if (offset === elementNodeSize) {
       const child = elementNode.getChildAtIndex(offset - 1);
-      if (needsBlockCursor(child)) {
+      if ($needsBlockCursorBeside(child)) {
         isBlockCursor = true;
       }
     } else {
       const child = elementNode.getChildAtIndex(offset);
-      if (child !== null && needsBlockCursor(child)) {
+      if (child !== null && $needsBlockCursorBeside(child)) {
         const sibling = child.getPreviousSibling();
-        if (sibling === null || needsBlockCursor(sibling)) {
+        if (sibling === null || $needsBlockCursorBeside(sibling)) {
           isBlockCursor = true;
           insertBeforeElement = editor.getElementByKey(child.__key);
         }
@@ -2996,10 +3030,16 @@ export function isDOMUnmanaged(elementDom: Node & LexicalPrivateDOM): boolean {
  * @experimental
  */
 export function $markSlotEditable(
-  element: HTMLElement,
+  element: HTMLElement & {__lexicalEditor?: undefined | LexicalEditor},
   editor: LexicalEditor = $getEditor(),
 ): void {
-  element.contentEditable = editor.isEditable() ? 'true' : 'false';
+  const editable = editor.isEditable();
+  element.contentEditable = editable ? 'true' : 'false';
+  if (editable) {
+    element.__lexicalEditor = editor;
+  } else {
+    delete element.__lexicalEditor;
+  }
 }
 
 /**
@@ -3095,6 +3135,7 @@ function isAbstractNodeClass(klass: Klass<LexicalNode>): boolean {
 }
 
 export interface OwnStaticNodeConfig {
+  klass: Klass<LexicalNode>;
   ownNodeType: undefined | string;
   ownNodeConfig:
     | undefined
@@ -3195,9 +3236,29 @@ export function getStaticNodeConfig(
       }
     }
   }
-  const result = {ownNodeConfig, ownNodeType};
+  const result = {klass, ownNodeConfig, ownNodeType};
   STATIC_NODE_CONFIG_CACHE.set(klass, result);
   return result;
+}
+
+/**
+ * Collect all configuration for this class and its superclasses
+ *
+ * @internal
+ */
+export function* iterStaticNodeConfigChain(
+  klass: Klass<LexicalNode>,
+): Iterable<OwnStaticNodeConfig> {
+  for (
+    let current: null | Klass<LexicalNode> = klass;
+    current && (current === LexicalNode || $isLexicalNode(current.prototype));
+  ) {
+    const config = getStaticNodeConfig(current);
+    yield config;
+    current =
+      (config.ownNodeConfig && config.ownNodeConfig.extends) ||
+      getSuperclassOf(current);
+  }
 }
 
 /**
@@ -3225,12 +3286,7 @@ export function getRegisteredSubtypeMap(
     }
   }
   for (const [type, klass] of klassByType) {
-    for (
-      let current: Klass<LexicalNode> = klass;
-      $isLexicalNode(current.prototype);
-      current = Object.getPrototypeOf(current)
-    ) {
-      const {ownNodeType} = getStaticNodeConfig(current);
+    for (const {ownNodeType} of iterStaticNodeConfigChain(klass)) {
       const bucket = ownNodeType && subtypes.get(ownNodeType);
       if (bucket) {
         bucket.add(type);
@@ -3319,4 +3375,22 @@ export function $createChildrenArray(
     nodeKey = node.__next;
   }
   return children;
+}
+
+/**
+ * Look up the superclass of this class, prefer
+ * {@link iterStaticNodeConfigChain} when implementing loops.
+ *
+ * @internal
+ */
+export function getSuperclassOf(
+  klass: Klass<LexicalNode>,
+): null | Klass<LexicalNode> {
+  const viaStatic = Object.getPrototypeOf(klass);
+  if (typeof viaStatic === 'function' && viaStatic !== Function.prototype) {
+    return viaStatic; // healthy static chain
+  }
+  // static link severed by the loose transform — use the instance chain
+  const parentProto = klass.prototype && Object.getPrototypeOf(klass.prototype);
+  return parentProto ? parentProto.constructor : null;
 }

@@ -88,6 +88,7 @@ import {
   DOUBLE_LINE_BREAK,
   IS_ALL_FORMATTING,
 } from './LexicalConstants';
+import {createRefCountedRegistry} from './LexicalRefCountedRegistry';
 import {
   $internalCreateRangeSelection,
   RangeSelection,
@@ -158,6 +159,7 @@ import {
   isUnderline,
   isUndo,
 } from './LexicalUtils';
+import {registerEventListener} from './utils/registerEventListener';
 
 type RootElementRemoveHandles = (() => void)[];
 type RootElementEvents = [
@@ -201,9 +203,8 @@ let handledSelectionCommandTimeoutId: null | ReturnType<typeof setTimeout> =
 // Node can be moved between documents (for example using createPortal), so we
 // need to track the document each root element was originally registered on.
 const rootElementToDocument = new WeakMap<HTMLElement, Document>();
-// Per-document state for the shared `selectionchange` listener, keyed by the
+// Per-document state read by the shared `selectionchange` handler, keyed by the
 // document each root element was registered against:
-// - `rootElementCount` gates the single listener (attached while > 0).
 // - `editors` is the candidate set `onDocumentSelectionChange` attributes the
 //   event to, using each editor's shadow-aware anchor rather than guessing from
 //   `Selection.anchorNode` (retargeted to a light-DOM ancestor inside a shadow
@@ -216,14 +217,22 @@ const rootElementToDocument = new WeakMap<HTMLElement, Document>();
 interface DocumentRegistration {
   editors: Set<LexicalEditor>;
   hasShadowEditor: boolean | undefined;
-  rootElementCount: number;
 }
 const documentRegistrations = new WeakMap<Document, DocumentRegistration>();
+// The single shared `selectionchange` listener per document, reference counted
+// across all editors registered against that document: attached when the first
+// root element is registered and removed when the last one is unregistered.
+const documentSelectionChange = createRefCountedRegistry((doc: Document) => {
+  doc.addEventListener('selectionchange', onDocumentSelectionChange);
+  return () =>
+    doc.removeEventListener('selectionchange', onDocumentSelectionChange);
+});
 let isSelectionChangeFromDOMUpdate = false;
 let isSelectionChangeFromMouseDown = false;
 let isInsertLineBreak = false;
 let isFirefoxEndingComposition = false;
 let isSafariEndingComposition = false;
+let hadOrphanedCompositionEvents = false;
 let safariEndCompositionEventData = '';
 let postDeleteSelectionToRestore: RangeSelection | null = null;
 let collapsedSelectionFormat: [number, string, number, NodeKey, number] = [
@@ -738,6 +747,47 @@ export function registerDefaultCommandHandlers(editor: LexicalEditor) {
   );
 }
 
+/**
+ * Returns true when a `beforeinput` / `input` event belongs to a native
+ * control (e.g. an `<input>` or `<textarea>`, or any other subtree marked with
+ * `setDOMUnmanaged({captureSelection: true})`) inside a decorator whose
+ * selection is owned by the browser rather than managed by Lexical. Turning
+ * such an event into a Lexical command would insert text into the editor
+ * instead of the focused control.
+ *
+ * Two signals are checked because Firefox 152 changed how it dispatches
+ * `beforeinput` for these controls (#8738): the event is retargeted off of the
+ * focused control, so its composed target no longer points at it. The deep
+ * active element still does, and is used as a fallback.
+ */
+function isInputEventTargetingCapturedSelection(
+  event: InputEvent,
+  editor: LexicalEditor,
+): boolean {
+  // Use the composed target so an event coming from inside a decorator's
+  // nested shadow root resolves to the real internal element.
+  const composedTarget = getComposedEventTarget(event);
+  if (
+    isHTMLElement(composedTarget) &&
+    isDOMCapturingSelection(composedTarget, editor)
+  ) {
+    return true;
+  }
+  // Firefox 152 retargets the event off of the focused control, so fall back
+  // to the deep active element (getActiveElementDeep crosses shadow roots) to
+  // detect that a captured decorator control still owns the selection.
+  const rootElement = editor.getRootElement();
+  if (rootElement === null) {
+    return false;
+  }
+  const activeElement = getActiveElementDeep(rootElement.ownerDocument);
+  return (
+    activeElement !== null &&
+    rootElement.contains(activeElement) &&
+    isDOMCapturingSelection(activeElement, editor)
+  );
+}
+
 function onBeforeInput(event: InputEvent, editor: LexicalEditor): void {
   const inputType = event.inputType;
 
@@ -756,7 +806,20 @@ function onBeforeInput(event: InputEvent, editor: LexicalEditor): void {
     return;
   }
 
-  dispatchCommand(editor, BEFORE_INPUT_COMMAND, event);
+  // Always run the update so the editor selection stays in sync with the DOM
+  // (the {event} option recomputes it). Only skip dispatching the command when
+  // a native control inside a decorator owns this event: processing it would
+  // insert text into the editor rather than the control. Firefox 152 started
+  // dispatching these to the editor root (#8738).
+  updateEditorSync(
+    editor,
+    () => {
+      if (!isInputEventTargetingCapturedSelection(event, editor)) {
+        dispatchCommand(editor, BEFORE_INPUT_COMMAND, event);
+      }
+    },
+    {event},
+  );
 }
 
 function $handleBeforeInput(event: InputEvent): boolean {
@@ -975,9 +1038,12 @@ function $handleBeforeInput(event: InputEvent): boolean {
     }
 
     case 'insertFromComposition': {
-      // This is the end of composition
+      const skipRedundantInsert = hadOrphanedCompositionEvents;
+      hadOrphanedCompositionEvents = false;
       $setCompositionKey(null);
-      dispatchCommand(editor, CONTROLLED_TEXT_INSERTION_COMMAND, event);
+      if (!skipRedundantInsert) {
+        dispatchCommand(editor, CONTROLLED_TEXT_INSERTION_COMMAND, event);
+      }
       break;
     }
 
@@ -1101,7 +1167,7 @@ function $handleBeforeInput(event: InputEvent): boolean {
 
 function onInput(event: InputEvent, editor: LexicalEditor): void {
   // Note that the MutationObserver may or may not have already fired,
-  // but the the DOM and selection may have already changed.
+  // but the DOM and selection may have already changed.
   // See also:
   // - https://github.com/facebook/lexical/issues/7028
   // - https://github.com/facebook/lexical/pull/794
@@ -1109,10 +1175,17 @@ function onInput(event: InputEvent, editor: LexicalEditor): void {
   // We don't want the onInput to bubble, in the case of nested editors.
   event.stopPropagation();
   clearHandledSelectionCommandInsertText();
+  // Always run the update so the editor selection stays in sync with the DOM
+  // (the {event} option recomputes it). Only skip dispatching the command when
+  // a native control inside a decorator owns this event: processing it would
+  // insert text into the editor rather than the control. Firefox 152 started
+  // dispatching these to the editor root (#8738). This mirrors onBeforeInput.
   updateEditorSync(
     editor,
     () => {
-      editor.dispatchCommand(INPUT_COMMAND, event);
+      if (!isInputEventTargetingCapturedSelection(event, editor)) {
+        editor.dispatchCommand(INPUT_COMMAND, event);
+      }
     },
     {event},
   );
@@ -1121,15 +1194,6 @@ function onInput(event: InputEvent, editor: LexicalEditor): void {
 
 function $handleInput(event: InputEvent): boolean {
   const editor = getActiveEditor();
-  // Use the composed target so a beforeinput coming from inside a
-  // decorator's nested shadow root resolves to the real internal element.
-  const composedTarget = getComposedEventTarget(event);
-  if (
-    isHTMLElement(composedTarget) &&
-    isDOMCapturingSelection(composedTarget, editor)
-  ) {
-    return true;
-  }
   const selection = $getSelection();
   const data = event.data;
   const targetRange = getTargetRange(event);
@@ -1142,7 +1206,23 @@ function $handleInput(event: InputEvent): boolean {
         ? getDOMSelectionPoints(domSelection, editor._rootElement)
         : null;
 
+    // formatText() (e.g. Bold during composition) clears compositionKey,
+    // but the browser still sends insertCompositionText with the
+    // committed text. The browser has already updated the DOM, so we
+    // must not re-insert via CONTROLLED_TEXT_INSERTION_COMMAND — let
+    // $updateSelectedTextFromDOM sync from the DOM instead. Not gated
+    // on IS_IOS because the formatText → $setCompositionKey(null) path
+    // is platform-independent.
+    const isOrphanedCompositionEnd =
+      event.inputType === 'insertCompositionText' &&
+      !isFirefoxEndingComposition &&
+      !editor.isComposing();
+    if (isOrphanedCompositionEnd) {
+      hadOrphanedCompositionEvents = true;
+    }
+
     if (
+      !isOrphanedCompositionEnd &&
       $shouldPreventDefaultAndInsertText(
         selection,
         targetRange,
@@ -1245,6 +1325,7 @@ function $handleCompositionStart(event: CompositionEvent): boolean {
   const selection = $getSelection();
 
   if ($isRangeSelection(selection) && !editor.isComposing()) {
+    hadOrphanedCompositionEvents = false;
     const anchor = selection.anchor;
     const node = selection.anchor.getNode();
     $setCompositionKey(anchor.key);
@@ -1259,8 +1340,9 @@ function $handleCompositionStart(event: CompositionEvent): boolean {
       // need to invoke the empty space heuristic below.
       anchor.type === 'element' ||
       !selection.isCollapsed() ||
-      node.getFormat() !== selection.format ||
-      ($isTextNode(node) && node.getStyle() !== selection.style)
+      (!IS_ANDROID_CHROME &&
+        (node.getFormat() !== selection.format ||
+          ($isTextNode(node) && node.getStyle() !== selection.style)))
     ) {
       // We insert a zero width character, ready for the composition
       // to get inserted into the new node we create. If
@@ -1706,20 +1788,18 @@ export function addRootElementEvents(
     registration = {
       editors: new Set(),
       hasShadowEditor: undefined,
-      rootElementCount: 0,
     };
     documentRegistrations.set(doc, registration);
   }
-  if (registration.rootElementCount < 1) {
-    doc.addEventListener('selectionchange', onDocumentSelectionChange);
-  }
-  registration.rootElementCount += 1;
   registration.editors.add(editor);
   registration.hasShadowEditor = undefined;
 
   // @ts-expect-error: internal field
   rootElement.__lexicalEditor = editor;
   const removeHandles = getRootElementRemoveHandles(rootElement);
+  // Reference-counted shared `selectionchange` listener; the disposer is run
+  // with this root element's other listeners in removeRootElementEvents.
+  removeHandles.push(documentSelectionChange.register(doc));
 
   for (let i = 0; i < rootElementEvents.length; i++) {
     const [eventName, onEvent] = rootElementEvents[i];
@@ -1802,10 +1882,9 @@ export function addRootElementEvents(
                 );
             }
           };
-    rootElement.addEventListener(eventName, eventHandler);
-    removeHandles.push(() => {
-      rootElement.removeEventListener(eventName, eventHandler);
-    });
+    removeHandles.push(
+      registerEventListener(rootElement, eventName, eventHandler),
+    );
   }
 }
 
@@ -1827,15 +1906,9 @@ export function removeRootElementEvents(rootElement: HTMLElement): void {
     return;
   }
 
-  // We only want to have a single global selectionchange event handler, shared
-  // between all editor instances.
-  const newCount = registration.rootElementCount - 1;
-  invariant(newCount >= 0, 'Root element count less than 0');
+  // The shared `selectionchange` listener is reference counted by
+  // `documentSelectionChange`; its disposer runs below with `removeHandles`.
   rootElementToDocument.delete(rootElement);
-  registration.rootElementCount = newCount;
-  if (newCount === 0) {
-    doc.removeEventListener('selectionchange', onDocumentSelectionChange);
-  }
 
   const editor = getEditorPropertyFromDOMNode(rootElement);
 

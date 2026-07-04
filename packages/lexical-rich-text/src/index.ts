@@ -7,6 +7,7 @@
  */
 
 import type {
+  CaretDirection,
   CommandPayloadType,
   DOMConversionMap,
   DOMConversionOutput,
@@ -49,29 +50,44 @@ import {
 } from '@lexical/utils';
 import {
   $applyNodeReplacement,
+  $caretFromPoint,
   $comparePointCaretNext,
+  $createNodeSelection,
   $createParagraphNode,
   $createRangeSelection,
   $createTabNode,
+  $extendCaretToRange,
   $findMatchingParent,
-  $getAdjacentNode,
+  $formatText,
+  $getCaretRange,
+  $getChildCaret,
+  $getCollapsedCaretRange,
+  $getEditor,
   $getNearestNodeFromDOMNode,
   $getRoot,
   $getSelection,
   $getSiblingCaret,
   $getSlotFrame,
+  $hasAncestor,
   $insertNodes,
   $isDecoratorNode,
   $isElementNode,
   $isNodeSelection,
   $isRangeSelection,
   $isRootNode,
+  $isRootOrShadowRoot,
+  $isSelectionCapturedInDecoratorInput,
+  $isShadowRootNode,
+  $isSiblingCaret,
   $isTextNode,
+  $needsBlockCursorBeside,
+  $normalizeCaret,
   $normalizeSelection__EXPERIMENTAL,
   $selectAll,
   $setDirectionFromDOM,
   $setFormatFromDOM,
   $setSelection,
+  $setSelectionFromCaretRange,
   addClassNamesToElement,
   CAN_USE_BEFORE_INPUT,
   CLICK_COMMAND,
@@ -90,6 +106,7 @@ import {
   ElementNode,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  getDOMSelection,
   INDENT_CONTENT_COMMAND,
   INSERT_LINE_BREAK_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
@@ -99,7 +116,6 @@ import {
   IS_SAFARI,
   isDOMNode,
   isHTMLElement,
-  isSelectionCapturedInDecoratorInput,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
@@ -641,6 +657,271 @@ const DEFAULT_ESCAPE_FORMAT_TRIGGERS: EscapeFormatTriggerConfig = {
   uppercase: {enter: true, space: true, tab: true},
 };
 
+function $tryEnterFromBlockCursor(
+  selection: RangeSelection,
+  direction: CaretDirection,
+): boolean {
+  if (!selection.isCollapsed() || selection.anchor.type !== 'element') {
+    return false;
+  }
+  const caret = $caretFromPoint(selection.anchor, direction);
+  const child = caret.getNodeAtCaret();
+  if ($isShadowRootNode(child) && !child.isInline()) {
+    $setSelectionFromCaretRange(
+      $getCollapsedCaretRange(
+        $normalizeCaret($getChildCaret(child, direction)),
+      ),
+    );
+    return true;
+  }
+  return false;
+}
+
+function $tryBlockCursorShadowRootNavigation(
+  selection: RangeSelection,
+  direction: CaretDirection,
+): boolean {
+  return (
+    $tryExitShadowRootToBlockCursor(selection, direction) ||
+    $tryEnterFromBlockCursor(selection, direction)
+  );
+}
+
+function $tryExitShadowRootToBlockCursor(
+  selection: RangeSelection,
+  direction: CaretDirection,
+): boolean {
+  if (!selection.isCollapsed()) {
+    return false;
+  }
+  const focusCaret = $caretFromPoint(selection.focus, direction);
+  // Walk up from focus to find the nearest shadow root ancestor.
+  // Start from the focus node itself since it may be a
+  // shadow root (e.g. LayoutItem with element-type selection).
+  const shadowRoot = $findMatchingParent(focusCaret.origin, $isShadowRootNode);
+  if (!shadowRoot) {
+    return false;
+  }
+  // When focus is an element-type point, $caretFromPoint returns a caret
+  // whose origin is a child of the focus node. If that child happens to be
+  // (or sit inside) a shadow root, $findMatchingParent matches it even
+  // though the selection is at the parent level, not inside the shadow root.
+  // Skip the exit logic when the focus node is not actually inside the
+  // found shadow root.
+  const focusNode = selection.focus.getNode();
+  if (!shadowRoot.is(focusNode) && !$hasAncestor(focusNode, shadowRoot)) {
+    return false;
+  }
+  // Check that the focus is at the edge of the shadow root in the given
+  // direction. If focus is the shadow root itself, check the offset directly.
+  // Otherwise walk toward the deepest first/last descendant.
+  const textRange = $getCaretRange(
+    focusCaret,
+    $getSiblingCaret(shadowRoot, direction),
+  );
+  // If there's text we're not at the edge
+  if (
+    textRange
+      .getTextSlices()
+      .some(slice => slice && slice.getTextContentSize() > 0)
+  ) {
+    return false;
+  }
+  // Normalize the anchor in case it started with a ChildCaret
+  const range = $getCaretRange(
+    textRange.anchor.getSiblingCaret(),
+    textRange.focus,
+  );
+  // When traversing from the edge to the root we expect to see only parent nodes
+  // as sibling carets
+  let prevOrigin = range.anchor.origin;
+  for (const caret of range) {
+    if (!($isSiblingCaret(caret) && caret.origin.is(prevOrigin.getParent()))) {
+      return false;
+    }
+    prevOrigin = caret.origin;
+  }
+  // Walk outward from the shadow root through nested shadow roots until
+  // we find a sibling that needs a block cursor beside it.
+  let prevShadow = shadowRoot;
+  for (const caret of $extendCaretToRange(
+    $getSiblingCaret(shadowRoot, direction),
+  )) {
+    // A caret whose origin is the parent of the current level is the "leave"
+    // step walking outward; only keep going while those parents are shadow
+    // roots. Any other origin is the adjacent sibling at this level.
+    if (caret.origin.is(prevShadow.getParent())) {
+      if (!$isShadowRootNode(caret.origin)) {
+        break;
+      }
+      prevShadow = caret.origin;
+      continue;
+    }
+    if ($needsBlockCursorBeside(caret.origin)) {
+      const sr = $getSiblingCaret(prevShadow, direction);
+      $setSelectionFromCaretRange($getCaretRange(sr, sr));
+      return true;
+    }
+    break;
+  }
+  return false;
+}
+
+function $isSelectableBlockDecorator(
+  node: LexicalNode | null | undefined,
+): boolean {
+  return (
+    $isDecoratorNode(node) &&
+    !node.isInline() &&
+    !node.isIsolated() &&
+    node.isKeyboardSelectable()
+  );
+}
+
+function $selectNode(key: NodeKey): void {
+  const nodeSelection = $createNodeSelection();
+  nodeSelection.add(key);
+  $setSelection(nodeSelection);
+}
+
+function $tryDecoratorLineNavigation(
+  selection: RangeSelection,
+  isBackward: boolean,
+): boolean {
+  if (!selection.isCollapsed()) {
+    return false;
+  }
+  const focus = selection.focus;
+  const focusNode = focus.getNode();
+  const direction = isBackward ? 'previous' : 'next';
+  const focusCaret = $caretFromPoint(focus, direction);
+
+  if (
+    focus.type === 'element' &&
+    $isElementNode(focusNode) &&
+    ($isRootNode(focusNode) || $isShadowRootNode(focusNode))
+  ) {
+    const adjacentChild = focusCaret.getNodeAtCaret();
+    if (adjacentChild !== null && $isSelectableBlockDecorator(adjacentChild)) {
+      $selectNode(adjacentChild.__key);
+      return true;
+    }
+    return false;
+  }
+
+  const topBlock = $findMatchingParent(
+    $isElementNode(focusNode) ? focusNode : focusNode.getParentOrThrow(),
+    (n): n is ElementNode =>
+      $isElementNode(n) && !n.isInline() && $isRootOrShadowRoot(n.getParent()),
+  );
+  if (topBlock === null) {
+    return false;
+  }
+  const adjacentSibling = $getSiblingCaret(
+    topBlock,
+    direction,
+  ).getNodeAtCaret();
+  if (
+    adjacentSibling === null ||
+    !$isSelectableBlockDecorator(adjacentSibling)
+  ) {
+    return false;
+  }
+  // Empty blocks always escape on line-move, so skip the DOM probe.
+  if (topBlock.getTextContentSize() === 0) {
+    $selectNode(adjacentSibling.__key);
+    return true;
+  }
+  const rootElement = $getEditor().getRootElement();
+  if (rootElement === null) {
+    return false;
+  }
+  const domSelection = getDOMSelection(rootElement.ownerDocument.defaultView);
+  if (domSelection === null || domSelection.rangeCount === 0) {
+    return false;
+  }
+  const savedAnchorNode = domSelection.anchorNode;
+  const savedAnchorOffset = domSelection.anchorOffset;
+  const savedFocusNode = domSelection.focusNode;
+  const savedFocusOffset = domSelection.focusOffset;
+  domSelection.modify('move', isBackward ? 'backward' : 'forward', 'line');
+  const newAnchorNode = domSelection.anchorNode;
+  const newAnchorOffset = domSelection.anchorOffset;
+  if (newAnchorNode === null) {
+    restoreDOMSelection(
+      domSelection,
+      savedAnchorNode,
+      savedAnchorOffset,
+      savedFocusNode,
+      savedFocusOffset,
+    );
+    return false;
+  }
+  const movedNode = $getNearestNodeFromDOMNode(newAnchorNode);
+  restoreDOMSelection(
+    domSelection,
+    savedAnchorNode,
+    savedAnchorOffset,
+    savedFocusNode,
+    savedFocusOffset,
+  );
+  if (movedNode === null) {
+    return false;
+  }
+  // Firefox stays in place when modify('move', 'backward', 'line') hits
+  // the top of a block — treat no movement as reaching the block edge.
+  const didNotMove =
+    newAnchorNode === savedAnchorNode && newAnchorOffset === savedAnchorOffset;
+  if (didNotMove) {
+    $selectNode(adjacentSibling.__key);
+    return true;
+  }
+  const stillInSameBlock =
+    movedNode.is(topBlock) || $hasAncestor(movedNode, topBlock);
+  if (stillInSameBlock) {
+    return false;
+  }
+  $selectNode(adjacentSibling.__key);
+  return true;
+}
+
+function restoreDOMSelection(
+  domSelection: Selection,
+  anchorNode: Node | null,
+  anchorOffset: number,
+  focusNode: Node | null,
+  focusOffset: number,
+): void {
+  if (anchorNode !== null && focusNode !== null) {
+    domSelection.setBaseAndExtent(
+      anchorNode,
+      anchorOffset,
+      focusNode,
+      focusOffset,
+    );
+  }
+}
+
+function $exitNodeSelectionToward(
+  node: LexicalNode,
+  direction: CaretDirection,
+): void {
+  const caret = $getSiblingCaret(node, direction);
+  const sibling = caret.getAdjacentCaret();
+  if (
+    sibling !== null &&
+    $isElementNode(sibling.origin) &&
+    !sibling.origin.isInline() &&
+    sibling.origin.isShadowRoot()
+  ) {
+    $setSelectionFromCaretRange($getCollapsedCaretRange(caret));
+  } else if (direction === 'next') {
+    node.selectNext(0, 0);
+  } else {
+    node.selectPrevious();
+  }
+}
+
 /**
  * Collapse a NodeSelection to a caret at the surrounding block's edge for
  * MOVE_TO_START / MOVE_TO_END. Picks the document-order first node for
@@ -812,10 +1093,10 @@ export function registerRichText(
       FORMAT_TEXT_COMMAND,
       format => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection)) {
+        if (!$isRangeSelection(selection) && !$isNodeSelection(selection)) {
           return false;
         }
-        selection.formatText(format);
+        $formatText(selection, format);
         return true;
       },
       COMMAND_PRIORITY_EDITOR,
@@ -912,18 +1193,18 @@ export function registerRichText(
           const nodes = selection.getNodes();
           if (nodes.length > 0) {
             event.preventDefault();
-            nodes[0].selectPrevious();
+            $exitNodeSelectionToward(nodes[0], 'previous');
             return true;
           }
         } else if ($isRangeSelection(selection)) {
-          const possibleNode = $getAdjacentNode(selection.focus, true);
           if (
             !event.shiftKey &&
-            $isDecoratorNode(possibleNode) &&
-            !possibleNode.isIsolated() &&
-            !possibleNode.isInline()
+            $tryBlockCursorShadowRootNavigation(selection, 'previous')
           ) {
-            possibleNode.selectPrevious();
+            event.preventDefault();
+            return true;
+          }
+          if (!event.shiftKey && $tryDecoratorLineNavigation(selection, true)) {
             event.preventDefault();
             return true;
           }
@@ -942,7 +1223,7 @@ export function registerRichText(
           const nodes = selection.getNodes();
           if (nodes.length > 0) {
             event.preventDefault();
-            nodes[0].selectNext(0, 0);
+            $exitNodeSelectionToward(nodes[0], 'next');
             return true;
           }
         } else if ($isRangeSelection(selection)) {
@@ -950,14 +1231,17 @@ export function registerRichText(
             event.preventDefault();
             return true;
           }
-          const possibleNode = $getAdjacentNode(selection.focus, false);
           if (
             !event.shiftKey &&
-            $isDecoratorNode(possibleNode) &&
-            !possibleNode.isIsolated() &&
-            !possibleNode.isInline()
+            $tryBlockCursorShadowRootNavigation(selection, 'next')
           ) {
-            possibleNode.selectNext();
+            event.preventDefault();
+            return true;
+          }
+          if (
+            !event.shiftKey &&
+            $tryDecoratorLineNavigation(selection, false)
+          ) {
             event.preventDefault();
             return true;
           }
@@ -976,16 +1260,25 @@ export function registerRichText(
           const nodes = selection.getNodes();
           if (nodes.length > 0) {
             event.preventDefault();
-            if ($isParentRTL(nodes[0])) {
-              nodes[0].selectNext(0, 0);
-            } else {
-              nodes[0].selectPrevious();
-            }
+            $exitNodeSelectionToward(
+              nodes[0],
+              $isParentRTL(nodes[0]) ? 'next' : 'previous',
+            );
             return true;
           }
         }
         if (!$isRangeSelection(selection)) {
           return false;
+        }
+        if (
+          !event.shiftKey &&
+          $tryBlockCursorShadowRootNavigation(
+            selection,
+            $isParentRTL(selection.anchor.getNode()) ? 'next' : 'previous',
+          )
+        ) {
+          event.preventDefault();
+          return true;
         }
         if (!event.shiftKey) {
           $escapeFormatsForTrigger(
@@ -1015,16 +1308,25 @@ export function registerRichText(
           const nodes = selection.getNodes();
           if (nodes.length > 0) {
             event.preventDefault();
-            if ($isParentRTL(nodes[0])) {
-              nodes[0].selectPrevious();
-            } else {
-              nodes[0].selectNext(0, 0);
-            }
+            $exitNodeSelectionToward(
+              nodes[0],
+              $isParentRTL(nodes[0]) ? 'previous' : 'next',
+            );
             return true;
           }
         }
         if (!$isRangeSelection(selection)) {
           return false;
+        }
+        if (
+          !event.shiftKey &&
+          $tryBlockCursorShadowRootNavigation(
+            selection,
+            $isParentRTL(selection.anchor.getNode()) ? 'previous' : 'next',
+          )
+        ) {
+          event.preventDefault();
+          return true;
         }
         if (!event.shiftKey) {
           $escapeFormatsForTrigger(
@@ -1299,7 +1601,7 @@ export function registerRichText(
         // if inputs then paste within the input ignore creating a new node on paste event
         if (
           isDOMNode(event.target) &&
-          isSelectionCapturedInDecoratorInput(event.target)
+          $isSelectionCapturedInDecoratorInput(event.target)
         ) {
           return false;
         }

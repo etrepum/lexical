@@ -7,7 +7,7 @@
  */
 
 import invariant from '@lexical/internal/invariant';
-import {$isAtNodeEnd} from '@lexical/selection';
+import {$isAtEdgeOfElement} from '@lexical/selection';
 import {
   $getSlotFrame,
   CAN_USE_BEFORE_INPUT,
@@ -814,10 +814,10 @@ export function $insertNodeIntoLeaf(node: LexicalNode): void {
  * @param createElementNode - Creates a new lexical element to wrap the to-be-wrapped node and returns it.
  * @returns A new lexical element with the previous node appended within (as a child, including its children).
  */
-export function $wrapNodeInElement(
+export function $wrapNodeInElement<T extends ElementNode>(
   node: LexicalNode,
-  createElementNode: () => ElementNode,
-): ElementNode {
+  createElementNode: () => T,
+): T {
   const elementNode = createElementNode();
   node.replace(elementNode);
   elementNode.append(node);
@@ -1319,15 +1319,7 @@ export function $onEscapeDown(
  * container" test stays in one place.
  */
 export function $isAtStartOfNode(point: PointType, node: ElementNode): boolean {
-  if (point.offset !== 0) {
-    return false;
-  }
-  const first = node.getFirstDescendant() ?? node;
-  const anchorNode = point.getNode();
-  return (
-    anchorNode === first ||
-    ($isElementNode(anchorNode) && anchorNode.getFirstDescendant() === first)
-  );
+  return $isAtEdgeOfElement(point, node, 'previous');
 }
 
 /**
@@ -1337,15 +1329,7 @@ export function $isAtStartOfNode(point: PointType, node: ElementNode): boolean {
  * of a container" test stays in one place.
  */
 export function $isAtEndOfNode(point: PointType, node: ElementNode): boolean {
-  if (!$isAtNodeEnd(point)) {
-    return false;
-  }
-  const last = node.getLastDescendant() ?? node;
-  const anchorNode = point.getNode();
-  return (
-    anchorNode === last ||
-    ($isElementNode(anchorNode) && anchorNode.getLastDescendant() === last)
-  );
+  return $isAtEdgeOfElement(point, node, 'next');
 }
 
 export {getScrollParent} from './getScrollParent';

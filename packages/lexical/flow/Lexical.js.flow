@@ -725,6 +725,11 @@ declare export function $createNodeSelection(): NodeSelection;
 declare export function $isRangeSelection(
   x: ?unknown,
 ): x is RangeSelection;
+declare export function $formatText(
+  selection: RangeSelection | NodeSelection,
+  formatType: TextFormatType,
+  alignWithFormat?: number | null,
+): void;
 declare export function $getSelection(): null | BaseSelection;
 declare export function $getPreviousSelection(): null | BaseSelection;
 declare export function $insertNodes(nodes: LexicalNode[]): void;
@@ -805,6 +810,16 @@ declare export class TextNode extends LexicalNode {
   static importJSON(serializedTextNode: SerializedTextNode): TextNode;
   exportJSON(): SerializedTextNode;
 }
+export interface InlineFormattableNode {
+  readonly __isInlineFormattable: true;
+  getFormatFlags(type: TextFormatType, alignWithFormat: null | number): number;
+  hasFormat(type: TextFormatType): boolean;
+  setFormat(format: number): unknown;
+  toggleFormat(type: TextFormatType): unknown;
+}
+declare export function $isInlineFormattable(
+  node: ?LexicalNode,
+): node is LexicalNode & InlineFormattableNode;
 declare export function $createTextNode(text?: string): TextNode;
 declare export function $isTextNode(
   node: ?LexicalNode,
@@ -1158,12 +1173,21 @@ declare export function generateRandomKey(): string;
 declare export function $isInlineElementOrDecoratorNode<T = unknown>(
   node: LexicalNode,
 ): node is ElementNode|  DecoratorNode<T>;
+export interface ShadowRootNode extends ElementNode {
+  isShadowRoot(): true;
+}
 declare export function $getNearestRootOrShadowRoot(
   node: LexicalNode,
 ): RootNode | ElementNode;
+declare export function $isShadowRootNode(
+  node: ?LexicalNode,
+): node is ShadowRootNode;
 declare export function $isRootOrShadowRoot(
   node: ?LexicalNode,
-): node is RootNode | ElementNode;
+): node is RootNode | ShadowRootNode;
+declare export function $needsBlockCursorBeside(
+  node: null | LexicalNode,
+): boolean;
 declare export function $hasAncestor(
   child: LexicalNode,
   targetNode: LexicalNode,
@@ -1241,11 +1265,11 @@ declare export var DEFAULT_EDITOR_DOM_CONFIG: EditorDOMRenderConfig;
 // Flow's built-in DOM lib doesn't expose StaticRange yet; declare the
 // minimal shape we need for the shadow-aware selection helpers below.
 declare type StaticRange = {
-  +startContainer: Node,
-  +startOffset: number,
-  +endContainer: Node,
-  +endOffset: number,
-  +collapsed: boolean,
+  readonly startContainer: Node,
+  readonly startOffset: number,
+  readonly endContainer: Node,
+  readonly endOffset: number,
+  readonly collapsed: boolean,
 };
 
 export type DOMSelectionBoundaryPoints = {
@@ -1255,7 +1279,7 @@ export type DOMSelectionBoundaryPoints = {
   focusNode: Node | null,
   focusOffset: number,
 };
-declare export function isDOMShadowRoot(node: mixed): boolean;
+declare export function isDOMShadowRoot(node: unknown): boolean;
 declare export function findAllLexicalElementsDeep(root: Document | ShadowRoot): Generator<Element, void, void>;
 declare export function getDOMShadowRoots(node: Node): ShadowRoot[];
 declare export function getParentElement(node: Node): HTMLElement | null;
@@ -1289,6 +1313,14 @@ declare export function getComposedEventTarget(event: Event): EventTarget | null
 declare export function $normalizeSelection__EXPERIMENTAL(
   selection: RangeSelection,
 ): RangeSelection;
+
+export type RefCountedRegistry<Key, Options = void> = {
+  register: (key: Key, options?: Options) => () => void,
+  dispose: () => void,
+};
+declare export function createRefCountedRegistry<Key, Options = void>(
+  activate: (key: Key, options: Options | void) => () => void,
+): RefCountedRegistry<Key, Options>;
 
 /**
  * Serialization/Deserialization
@@ -1595,7 +1627,7 @@ declare export function $splitAtPointCaretNext(
   pointCaret: PointCaret<'next'>,
   options?: SplitAtPointCaretNextOptions,
 ): null | NodeCaret<'next'>;
-declare export function $insertNodeToNearestRootAtCaret<T: LexicalNode>(
+declare export function $insertNodeToNearestRootAtCaret<T extends LexicalNode>(
   node: T,
   caret: PointCaret<CaretDirection>,
   options?: SplitAtPointCaretNextOptions,
@@ -2044,6 +2076,18 @@ declare export function removeClassNamesFromElement(
   ...classNames: (typeof undefined | boolean | null | string)[]
 ): void;
 declare export function mergeRegister(...func: (() => void)[]): () => void;
+declare export function registerEventListener(
+  target: EventTarget,
+  type: string,
+  listener: EventListener,
+  options?: EventListenerOptionsOrUseCapture,
+): () => void;
+export type EventListenerMap<T> = {readonly [type: string]: EventListener};
+declare export function registerEventListeners<T extends EventTarget>(
+  target: T,
+  listeners: EventListenerMap<T>,
+  options?: EventListenerOptionsOrUseCapture,
+): () => void;
 declare export function normalizeClassNames(...classNames: (typeof undefined | boolean | null | string)[]): string[];
 declare export function getStyleObjectFromCSS(css: string): {
   [string]: string,

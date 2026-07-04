@@ -66,6 +66,7 @@ import {
   getRegisteredNode,
   getStaticNodeConfig,
   hasOwnStaticMethod,
+  iterStaticNodeConfigChain,
   markNodesWithTypesAsDirty,
   setNodeKeyOnDOMNode,
 } from './LexicalUtils';
@@ -787,9 +788,9 @@ export function getTransformSetFromKlass(
 ): Set<Transform<LexicalNode>> {
   const transforms = new Set<Transform<LexicalNode>>();
   const staticTransforms = new Set<(typeof klass)['transform']>();
-  let currentKlass: undefined | typeof klass = klass;
-  while (currentKlass) {
-    const {ownNodeConfig} = getStaticNodeConfig(currentKlass);
+  for (const {klass: currentKlass, ownNodeConfig} of iterStaticNodeConfigChain(
+    klass,
+  )) {
     const staticTransform = currentKlass.transform;
     if (!staticTransforms.has(staticTransform)) {
       staticTransforms.add(staticTransform);
@@ -803,13 +804,6 @@ export function getTransformSetFromKlass(
       if ($transform) {
         transforms.add($transform);
       }
-      currentKlass = ownNodeConfig.extends;
-    } else {
-      const parent = Object.getPrototypeOf(currentKlass);
-      currentKlass =
-        parent.prototype instanceof LexicalNode && parent !== LexicalNode
-          ? parent
-          : undefined;
     }
   }
   return transforms;
@@ -1195,7 +1189,7 @@ export class LexicalEditor {
     return registerListener(this._listeners.update, listener);
   }
   /**
-   * Registers a listener for for when the editor changes between editable and non-editable states.
+   * Registers a listener for when the editor changes between editable and non-editable states.
    * Will trigger the provided callback each time the editor transitions between these states until the
    * teardown function is called.
    *

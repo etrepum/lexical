@@ -237,6 +237,8 @@ export {
   type ValueOrUpdater,
 } from './LexicalNodeState';
 export {$normalizeSelection as $normalizeSelection__EXPERIMENTAL} from './LexicalNormalization';
+export type {RefCountedRegistry} from './LexicalRefCountedRegistry';
+export {createRefCountedRegistry} from './LexicalRefCountedRegistry';
 export type {
   BaseSelection,
   ElementPointType as ElementPoint,
@@ -251,6 +253,7 @@ export {
   $createPoint,
   $createRangeSelection,
   $createRangeSelectionFromDom,
+  $formatText,
   $generateNodesFromRawText,
   $getCharacterOffsets,
   $getPreviousSelection,
@@ -309,9 +312,12 @@ export {
   $isInlineElementOrDecoratorNode,
   $isLeafNode,
   $isRootOrShadowRoot,
+  $isSelectionCapturedInDecoratorInput,
+  $isShadowRootNode,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $markSlotEditable,
+  $needsBlockCursorBeside,
   $nodesOfType,
   $onUpdate,
   $removeFromParent,
@@ -363,6 +369,7 @@ export {
   isModifierMatch,
   isSelectionCapturedInDecoratorInput,
   isSelectionWithinEditor,
+  iterStaticNodeConfigChain,
   mountSlotContainer,
   type OwnStaticNodeConfig,
   removeFromParent,
@@ -370,6 +377,7 @@ export {
   setDOMUnmanaged,
   type SetDOMUnmanagedOptions,
   setNodeIndentFromDOM,
+  type ShadowRootNode,
   toggleTextFormatType,
   unmountSlotContainer,
 } from './LexicalUtils';
@@ -399,11 +407,17 @@ export {$isRootNode, RootNode} from './nodes/LexicalRootNode';
 export type {SerializedTabNode} from './nodes/LexicalTabNode';
 export {$createTabNode, $isTabNode, TabNode} from './nodes/LexicalTabNode';
 export type {
+  InlineFormattableNode,
   SerializedTextNode,
   TextFormatType,
   TextModeType,
 } from './nodes/LexicalTextNode';
-export {$createTextNode, $isTextNode, TextNode} from './nodes/LexicalTextNode';
+export {
+  $createTextNode,
+  $isInlineFormattable,
+  $isTextNode,
+  TextNode,
+} from './nodes/LexicalTextNode';
 
 // Update Tags
 export {
@@ -473,6 +487,9 @@ export {
   removeClassNamesFromElement,
 } from './utils/classNames';
 export {mergeRegister} from './utils/mergeRegister';
+export {registerEventListener} from './utils/registerEventListener';
+export type {EventListenerMap} from './utils/registerEventListeners';
+export {registerEventListeners} from './utils/registerEventListeners';
 export {
   getStyleObjectFromCSS,
   setDOMStyleFromCSS,

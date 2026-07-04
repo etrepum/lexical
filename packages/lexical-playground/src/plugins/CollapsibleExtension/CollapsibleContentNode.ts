@@ -6,28 +6,22 @@
  *
  */
 
-import {IS_CHROME, IS_FIREFOX} from '@lexical/utils';
 import {
   DOMExportOutput,
   EditorConfig,
   ElementNode,
+  IS_CHROME,
+  IS_FIREFOX,
   LexicalEditor,
   LexicalNode,
-  SerializedElementNode,
 } from 'lexical';
 
 import {$isCollapsibleContainerNode} from './CollapsibleContainerNode';
 import {domOnBeforeMatch, setDomHiddenUntilFound} from './CollapsibleUtils';
 
-type SerializedCollapsibleContentNode = SerializedElementNode;
-
 export class CollapsibleContentNode extends ElementNode {
-  static getType(): string {
-    return 'collapsible-content';
-  }
-
-  static clone(node: CollapsibleContentNode): CollapsibleContentNode {
-    return new CollapsibleContentNode(node.__key);
+  $config() {
+    return this.config('collapsible-content', {extends: ElementNode});
   }
 
   createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
@@ -71,12 +65,6 @@ export class CollapsibleContentNode extends ElementNode {
     element.classList.add('Collapsible__content');
     element.setAttribute('data-lexical-collapsible-content', 'true');
     return {element};
-  }
-
-  static importJSON(
-    serializedNode: SerializedCollapsibleContentNode,
-  ): CollapsibleContentNode {
-    return $createCollapsibleContentNode().updateFromJSON(serializedNode);
   }
 
   isShadowRoot(): boolean {
