@@ -15,21 +15,26 @@ import {gfm} from 'micromark-extension-gfm';
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
+  CommonMarkMdastConfig,
+  CommonMarkMdastExtension,
   MdastExtension,
+  mergeMdastExtensionConfigs,
 } from './index';
 
-export const GfmMdastConfig: MdastExtensionConfig = {
-  fromMarkdown: {
-    extensions: [gfm()],
-    mdastExtensions: [gfmFromMarkdown()],
-  },
-  toMarkdown: {
-    extensions: [gfmToMarkdown()],
-  },
-};
+export const GfmMdastConfig: MdastExtensionConfig =
+  /* @__PURE__ */ mergeMdastExtensionConfigs(CommonMarkMdastConfig, {
+    fromMarkdown: {
+      extensions: [gfm()],
+      mdastExtensions: [gfmFromMarkdown()],
+    },
+    toMarkdown: {
+      extensions: [gfmToMarkdown()],
+    },
+  });
 
 export const GfmMdastExtension = /* @__PURE__ */ defineExtension({
   dependencies: [
+    CommonMarkMdastExtension,
     /* @__PURE__ */ configExtension(MdastExtension, GfmMdastConfig),
   ],
   name: '@lexical/mdast/gfm',
@@ -56,7 +61,10 @@ export {
   $convertFromMdast,
   $convertToMarkdownString,
   $convertToMdast,
+  CommonMarkMdastConfig,
+  CommonMarkMdastExtension,
   exportMarkdown,
   importMarkdown,
   MdastExtension,
+  mergeMdastExtensionConfigs,
 } from './index';

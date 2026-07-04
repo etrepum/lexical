@@ -7,8 +7,10 @@
  */
 
 import type {
+  AnyLexicalExtensionArgument,
   ElementNode,
   LexicalEditor,
+  LexicalExtension,
   LexicalNode,
   TextFormatType,
   TextNode,
@@ -37,7 +39,7 @@ import {
   $createCodeNode,
   CodeExtension,
 } from '@lexical/code';
-import {defineExtension, safeCast} from '@lexical/extension';
+import {configExtension, defineExtension, safeCast} from '@lexical/extension';
 import {$createLinkNode, LinkExtension} from '@lexical/link';
 import {
   $createListItemNode,
@@ -90,6 +92,12 @@ export interface MdastExportContext {
   exportNode(node: LexicalNode): MdastNode | MdastNode[] | null;
 }
 
+export interface MdastExtensionOptions {
+  config: MdastExtensionConfig;
+  dependencies?: AnyLexicalExtensionArgument[];
+  name: string;
+}
+
 const textFormats: TextFormatType[] = [
   'bold',
   'italic',
@@ -121,61 +129,286 @@ function withFormat(
   return children;
 }
 
-const importers: Partial<Record<MdastNode['type'], MdastImportHandler>> = {
-  blockquote: (node, context) =>
-    appendChildren($createQuoteNode(), context.importChildren(node as Root)),
-  break: () => $createLineBreakNode(),
-  code: node => {
-    const code = node as Code;
-    return $createCodeNode(code.lang || undefined).append(
-      $createCodeHighlightNode(code.value),
-    );
+export function mergeMdastExtensionConfigs(
+  ...configs: MdastExtensionConfig[]
+): MdastExtensionConfig {
+  const merged: MdastExtensionConfig = {};
+  for (const config of configs) {
+    merged.fromMarkdown = {
+      ...merged.fromMarkdown,
+      ...config.fromMarkdown,
+      extensions: [
+        ...(merged.fromMarkdown !== undefined &&
+        merged.fromMarkdown.extensions != null
+          ? merged.fromMarkdown.extensions
+          : []),
+        ...(config.fromMarkdown !== undefined &&
+        config.fromMarkdown.extensions != null
+          ? config.fromMarkdown.extensions
+          : []),
+      ],
+      mdastExtensions: [
+        ...(merged.fromMarkdown !== undefined &&
+        merged.fromMarkdown.mdastExtensions != null
+          ? merged.fromMarkdown.mdastExtensions
+          : []),
+        ...(config.fromMarkdown !== undefined &&
+        config.fromMarkdown.mdastExtensions != null
+          ? config.fromMarkdown.mdastExtensions
+          : []),
+      ],
+    };
+    merged.toMarkdown = {
+      ...merged.toMarkdown,
+      ...config.toMarkdown,
+      extensions: [
+        ...(merged.toMarkdown !== undefined &&
+        merged.toMarkdown.extensions != null
+          ? merged.toMarkdown.extensions
+          : []),
+        ...(config.toMarkdown !== undefined &&
+        config.toMarkdown.extensions != null
+          ? config.toMarkdown.extensions
+          : []),
+      ],
+    };
+    merged.import = {...merged.import, ...config.import};
+    merged.export = {...merged.export, ...config.export};
+  }
+  return merged;
+}
+
+export const MdastCoreExtension = /* @__PURE__ */ defineExtension({
+  config: /* @__PURE__ */ safeCast<MdastExtensionConfig>({}),
+  name: '@lexical/mdast/Core',
+});
+
+export function createMdastExtension({
+  config,
+  dependencies,
+  name,
+}: MdastExtensionOptions): LexicalExtension<
+  MdastExtensionConfig,
+  string,
+  unknown,
+  unknown
+> {
+  return defineExtension({
+    dependencies: [
+      /* @__PURE__ */ configExtension(MdastCoreExtension, config),
+      ...(dependencies !== undefined ? dependencies : []),
+    ],
+    name,
+  });
+}
+
+export const MdastTextConfig: MdastExtensionConfig = {
+  export: {
+    linebreak: () => ({type: 'break'}),
+    text: node => textNodeToMdast(node as TextNode),
   },
-  delete: (node, context) =>
-    withFormat(context.importChildren(node as Delete), 'strikethrough'),
-  emphasis: (node, context) =>
-    withFormat(context.importChildren(node as Emphasis), 'italic'),
-  heading: (node, context) =>
-    appendChildren(
-      $createHeadingNode(`h${(node as Heading).depth}` as 'h1'),
-      context.importChildren(node as Heading),
-    ),
-  html: node =>
-    $createParagraphNode().append($createTextNode((node as Html).value)),
-  inlineCode: node =>
-    $createTextNode((node as Text).value).toggleFormat('code'),
-  link: (node, context) =>
-    appendChildren(
-      $createLinkNode((node as Link).url, {
-        title: (node as Link).title || null,
-      }),
-      context.importChildren(node as Link),
-    ),
-  list: (node, context) => {
-    const list = node as List;
-    return appendChildren(
-      $createListNode(list.ordered ? 'number' : 'bullet', list.start || 1),
-      context.importChildren(list),
-    );
+  import: {
+    break: () => $createLineBreakNode(),
+    inlineCode: node =>
+      $createTextNode((node as Text).value).toggleFormat('code'),
+    text: node => $createTextNode((node as Text).value),
   },
-  listItem: (node, context) => {
-    const item = node as ListItem;
-    return appendChildren(
-      $createListItemNode(item.checked == null ? undefined : item.checked),
-      context.importChildren(item),
-    );
-  },
-  paragraph: (node, context) =>
-    appendChildren(
-      $createParagraphNode(),
-      context.importChildren(node as Paragraph),
-    ),
-  root: (node, context) => context.importChildren(node as Root),
-  strong: (node, context) =>
-    withFormat(context.importChildren(node as Strong), 'bold'),
-  text: node => $createTextNode((node as Text).value),
-  thematicBreak: () => $createParagraphNode().append($createTextNode('---')),
 };
+
+export const MdastRichTextConfig: MdastExtensionConfig = {
+  export: {
+    heading: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        depth: Number(
+          (node as LexicalNode & {getTag(): string}).getTag().slice(1),
+        ),
+        type: 'heading',
+      }) as Heading,
+    paragraph: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        type: 'paragraph',
+      }) as Paragraph,
+    quote: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        type: 'blockquote',
+      }) as MdastNode,
+    root: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        type: 'root',
+      }) as Root,
+  },
+  import: {
+    blockquote: (node, context) =>
+      appendChildren($createQuoteNode(), context.importChildren(node as Root)),
+    delete: (node, context) =>
+      withFormat(context.importChildren(node as Delete), 'strikethrough'),
+    emphasis: (node, context) =>
+      withFormat(context.importChildren(node as Emphasis), 'italic'),
+    heading: (node, context) =>
+      appendChildren(
+        $createHeadingNode(`h${(node as Heading).depth}` as 'h1'),
+        context.importChildren(node as Heading),
+      ),
+    html: node =>
+      $createParagraphNode().append($createTextNode((node as Html).value)),
+    paragraph: (node, context) =>
+      appendChildren(
+        $createParagraphNode(),
+        context.importChildren(node as Paragraph),
+      ),
+    root: (node, context) => context.importChildren(node as Root),
+    strong: (node, context) =>
+      withFormat(context.importChildren(node as Strong), 'bold'),
+    thematicBreak: () => $createParagraphNode().append($createTextNode('---')),
+  },
+};
+
+export const MdastLinkConfig: MdastExtensionConfig = {
+  export: {
+    link: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        title:
+          (
+            node as LexicalNode & {getTitle(): string | null | undefined}
+          ).getTitle() || null,
+        type: 'link',
+        url: (node as LexicalNode & {getURL(): string}).getURL(),
+      }) as Link,
+  },
+  import: {
+    link: (node, context) =>
+      appendChildren(
+        $createLinkNode((node as Link).url, {
+          title: (node as Link).title || null,
+        }),
+        context.importChildren(node as Link),
+      ),
+  },
+};
+
+export const MdastListConfig: MdastExtensionConfig = {
+  export: {
+    list: (node, context) =>
+      ({
+        children: context.exportChildren(node as ElementNode),
+        ordered:
+          (node as LexicalNode & {getListType(): string}).getListType() ===
+          'number',
+        spread: false,
+        start:
+          (
+            node as LexicalNode & {getStart(): number | null | undefined}
+          ).getStart() || null,
+        type: 'list',
+      }) as List,
+    listitem: (node, context) =>
+      ({
+        checked:
+          (
+            node as LexicalNode & {getChecked(): boolean | null | undefined}
+          ).getChecked() ?? null,
+        children: context.exportChildren(node as ElementNode),
+        spread: false,
+        type: 'listItem',
+      }) as ListItem,
+  },
+  import: {
+    list: (node, context) => {
+      const list = node as List;
+      return appendChildren(
+        $createListNode(list.ordered ? 'number' : 'bullet', list.start || 1),
+        context.importChildren(list),
+      );
+    },
+    listItem: (node, context) => {
+      const item = node as ListItem;
+      return appendChildren(
+        $createListItemNode(item.checked == null ? undefined : item.checked),
+        context.importChildren(item),
+      );
+    },
+  },
+};
+
+export const MdastCodeConfig: MdastExtensionConfig = {
+  export: {
+    code: node => {
+      const codeNode = node as LexicalNode & {
+        getLanguage(): null | string | undefined;
+      };
+      return {
+        lang: codeNode.getLanguage() || null,
+        type: 'code',
+        value: node.getTextContent(),
+      } as Code;
+    },
+  },
+  import: {
+    code: node => {
+      const code = node as Code;
+      return $createCodeNode(code.lang || undefined).append(
+        $createCodeHighlightNode(code.value),
+      );
+    },
+  },
+};
+
+export const CommonMarkMdastConfig: MdastExtensionConfig =
+  /* @__PURE__ */ mergeMdastExtensionConfigs(
+    MdastTextConfig,
+    MdastRichTextConfig,
+    MdastLinkConfig,
+    MdastListConfig,
+    MdastCodeConfig,
+  );
+
+export const MdastTextExtension = /* @__PURE__ */ createMdastExtension({
+  config: MdastTextConfig,
+  name: '@lexical/mdast/Text',
+});
+
+export const MdastRichTextExtension = /* @__PURE__ */ createMdastExtension({
+  config: MdastRichTextConfig,
+  dependencies: [RichTextExtension],
+  name: '@lexical/mdast/RichText',
+});
+
+export const MdastLinkExtension = /* @__PURE__ */ createMdastExtension({
+  config: MdastLinkConfig,
+  dependencies: [LinkExtension],
+  name: '@lexical/mdast/Link',
+});
+
+export const MdastListExtension = /* @__PURE__ */ createMdastExtension({
+  config: MdastListConfig,
+  dependencies: [ListExtension, CheckListExtension],
+  name: '@lexical/mdast/List',
+});
+
+export const MdastCodeExtension = /* @__PURE__ */ createMdastExtension({
+  config: MdastCodeConfig,
+  dependencies: [CodeExtension],
+  name: '@lexical/mdast/Code',
+});
+
+export const CommonMarkMdastExtension = /* @__PURE__ */ createMdastExtension({
+  config: CommonMarkMdastConfig,
+  dependencies: [
+    MdastTextExtension,
+    MdastRichTextExtension,
+    MdastLinkExtension,
+    MdastListExtension,
+    MdastCodeExtension,
+  ],
+  name: '@lexical/mdast/CommonMark',
+});
+
+export const MdastExtension = CommonMarkMdastExtension;
 
 function createImportContext(config: MdastExtensionConfig): MdastImportContext {
   const context: MdastImportContext = {
@@ -194,8 +427,7 @@ function createImportContext(config: MdastExtensionConfig): MdastImportContext {
     },
     importNode(node) {
       const handler =
-        (config.import !== undefined ? config.import[node.type] : undefined) ||
-        importers[node.type];
+        config.import !== undefined ? config.import[node.type] : undefined;
       return handler ? handler(node, context) : null;
     },
   };
@@ -204,7 +436,7 @@ function createImportContext(config: MdastExtensionConfig): MdastImportContext {
 
 export function $convertFromMdast(
   root: Root,
-  config: MdastExtensionConfig = {},
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
 ): void {
   const lexicalRoot = $getRoot();
   lexicalRoot.clear();
@@ -217,7 +449,7 @@ export function $convertFromMdast(
 
 export function $convertFromMarkdownString(
   markdown: string,
-  config: MdastExtensionConfig = {},
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
 ): void {
   $convertFromMdast(
     fromMarkdown(markdown, config.fromMarkdown) as Root,
@@ -256,77 +488,6 @@ function textNodeToMdast(node: TextNode): Content {
   return current;
 }
 
-const exporters: Record<string, MdastExportHandler> = {
-  code: node => {
-    const codeNode = node as LexicalNode & {
-      getLanguage(): null | string | undefined;
-    };
-    return {
-      lang: codeNode.getLanguage() || null,
-      type: 'code',
-      value: node.getTextContent(),
-    } as Code;
-  },
-  heading: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      depth: Number(
-        (node as LexicalNode & {getTag(): string}).getTag().slice(1),
-      ),
-      type: 'heading',
-    }) as Heading,
-  linebreak: () => ({type: 'break'}),
-  link: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      title:
-        (
-          node as LexicalNode & {getTitle(): string | null | undefined}
-        ).getTitle() || null,
-      type: 'link',
-      url: (node as LexicalNode & {getURL(): string}).getURL(),
-    }) as Link,
-  list: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      ordered:
-        (node as LexicalNode & {getListType(): string}).getListType() ===
-        'number',
-      spread: false,
-      start:
-        (
-          node as LexicalNode & {getStart(): number | null | undefined}
-        ).getStart() || null,
-      type: 'list',
-    }) as List,
-  listitem: (node, context) =>
-    ({
-      checked:
-        (
-          node as LexicalNode & {getChecked(): boolean | null | undefined}
-        ).getChecked() ?? null,
-      children: context.exportChildren(node as ElementNode),
-      spread: false,
-      type: 'listItem',
-    }) as ListItem,
-  paragraph: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      type: 'paragraph',
-    }) as Paragraph,
-  quote: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      type: 'blockquote',
-    }) as MdastNode,
-  root: (node, context) =>
-    ({
-      children: context.exportChildren(node as ElementNode),
-      type: 'root',
-    }) as Root,
-  text: node => textNodeToMdast(node as TextNode),
-};
-
 function createExportContext(config: MdastExtensionConfig): MdastExportContext {
   const context: MdastExportContext = {
     config,
@@ -335,57 +496,40 @@ function createExportContext(config: MdastExtensionConfig): MdastExportContext {
     },
     exportNode(node) {
       const handler =
-        (config.export !== undefined
-          ? config.export[node.getType()]
-          : undefined) || exporters[node.getType()];
+        config.export !== undefined ? config.export[node.getType()] : undefined;
       if (handler) {
         return handler(node, context);
       }
-      return $isElementNode(node)
-        ? ({
-            children: context.exportChildren(node),
-            type: 'paragraph',
-          } as Paragraph)
-        : null;
+      return null;
     },
   };
   return context;
 }
 
-export function $convertToMdast(config: MdastExtensionConfig = {}): Root {
+export function $convertToMdast(
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
+): Root {
   const context = createExportContext(config);
   return {children: context.exportChildren($getRoot()), type: 'root'};
 }
 
 export function $convertToMarkdownString(
-  config: MdastExtensionConfig = {},
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
 ): string {
   return toMarkdown($convertToMdast(config), config.toMarkdown);
 }
 
-export const MdastExtension = /* @__PURE__ */ defineExtension({
-  config: /* @__PURE__ */ safeCast<MdastExtensionConfig>({}),
-  dependencies: [
-    RichTextExtension,
-    ListExtension,
-    CheckListExtension,
-    LinkExtension,
-    CodeExtension,
-  ],
-  name: '@lexical/mdast',
-});
-
 export function importMarkdown(
   editor: LexicalEditor,
   markdown: string,
-  config: MdastExtensionConfig = {},
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
 ): void {
   editor.update(() => $convertFromMarkdownString(markdown, config));
 }
 
 export function exportMarkdown(
   editor: LexicalEditor,
-  config: MdastExtensionConfig = {},
+  config: MdastExtensionConfig = CommonMarkMdastConfig,
 ): string {
   return editor.read(() => $convertToMarkdownString(config));
 }
