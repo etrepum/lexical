@@ -261,10 +261,6 @@ export class QuoteNode extends ElementNode {
     return $createQuoteNode().updateFromJSON(serializedNode);
   }
 
-  exportJSON(): SerializedQuoteNode {
-    return super.exportJSON();
-  }
-
   // Mutation
 
   insertNewAfter(_: RangeSelection, restoreSelection?: boolean): ParagraphNode {

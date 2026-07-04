@@ -11,6 +11,7 @@ import {
   $createQuoteNode,
   QuoteNode,
   RichTextExtension,
+  type SerializedQuoteNode,
 } from '@lexical/rich-text';
 import {
   $createParagraphNode,
@@ -49,7 +50,8 @@ describe('QuoteNode shadow root opt-in', () => {
       () => {
         const quoteNode = $createQuoteNode({shadowRoot: true});
         expect(quoteNode.isShadowRoot()).toBe(true);
-        expect(quoteNode.exportJSON().shadowRoot).toBe(true);
+        const json: SerializedQuoteNode = quoteNode.exportJSON();
+        expect(json.shadowRoot).toBe(true);
         quoteNode.setIsShadowRoot(false);
         expect(quoteNode.isShadowRoot()).toBe(false);
         expect('shadowRoot' in quoteNode.exportJSON()).toBe(false);
