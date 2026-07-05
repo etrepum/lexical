@@ -6,15 +6,7 @@
  *
  */
 
-import type {
-  ElementTransformer,
-  MultilineElementTransformer,
-  TextFormatTransformer,
-  TextMatchTransformer,
-  Transformer,
-} from './MarkdownTransformers';
-
-import {$isListItemNode, $isListNode, ListItemNode} from '@lexical/list';
+import {$isListItemNode, $isListNode, type ListItemNode} from '@lexical/list';
 import {$isQuoteNode} from '@lexical/rich-text';
 import {
   $createParagraphNode,
@@ -25,12 +17,19 @@ import {
   $getSelection,
   $isElementNode,
   $isParagraphNode,
-  ElementNode,
-  TextNode,
+  type ElementNode,
+  type TextNode,
 } from 'lexical';
 
 import {importTextTransformers} from './importTextTransformers';
-import {$createMarkdownLineBreakNode} from './MarkdownTransformers';
+import {
+  $createMarkdownLineBreakNode,
+  type ElementTransformer,
+  type MultilineElementTransformer,
+  type TextFormatTransformer,
+  type TextMatchTransformer,
+  type Transformer,
+} from './MarkdownTransformers';
 import {isEmptyParagraph, transformersByType} from './utils';
 
 export type TextFormatTransformersIndex = Readonly<{

@@ -21,7 +21,7 @@ import {
   $createTextNode,
   $getRoot,
   COMPOSITION_END_TAG,
-  LexicalEditor,
+  type LexicalEditor,
 } from 'lexical';
 import {createTestEditor} from 'lexical/src/__tests__/utils';
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';

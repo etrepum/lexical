@@ -6,25 +6,22 @@
  *
  */
 
-import type {
-  EditorConfig,
-  InlineFormattableNode,
-  LexicalEditor,
-  LexicalNode,
-  SerializedLexicalNode,
-  Spread,
-  StateConfigValue,
-  StateValueOrUpdater,
-  TextFormatType,
-} from 'lexical';
-
 import {
   $getState,
   $setState,
   createState,
   DecoratorNode,
   defineExtension,
+  type EditorConfig,
+  type InlineFormattableNode,
+  type LexicalEditor,
+  type LexicalNode,
+  type SerializedLexicalNode,
+  type Spread,
+  type StateConfigValue,
+  type StateValueOrUpdater,
   TEXT_TYPE_TO_FORMAT,
+  type TextFormatType,
   toggleTextFormatType,
 } from 'lexical';
 

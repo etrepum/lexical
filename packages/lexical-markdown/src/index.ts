@@ -6,16 +6,7 @@
  *
  */
 
-import type {
-  ElementTransformer,
-  MultilineElementTransformer,
-  TextFormatTransformer,
-  TextMatchTransformer,
-  Transformer,
-} from './MarkdownTransformers';
-import type {BaseSelection, ElementNode} from 'lexical';
-
-import {$isRangeSelection} from 'lexical';
+import {$isRangeSelection, type BaseSelection, type ElementNode} from 'lexical';
 
 import {
   createMarkdownExport,
@@ -31,6 +22,7 @@ import {
   CHECK_LIST,
   CODE,
   ELEMENT_TRANSFORMERS,
+  type ElementTransformer,
   HEADING,
   HIGHLIGHT,
   INLINE_CODE,
@@ -39,12 +31,16 @@ import {
   ITALIC_UNDERSCORE,
   LINK,
   MULTILINE_ELEMENT_TRANSFORMERS,
+  type MultilineElementTransformer,
   normalizeMarkdown,
   ORDERED_LIST,
   QUOTE,
   STRIKETHROUGH,
   TEXT_FORMAT_TRANSFORMERS,
   TEXT_MATCH_TRANSFORMERS,
+  type TextFormatTransformer,
+  type TextMatchTransformer,
+  type Transformer,
   TRANSFORMERS,
   UNORDERED_LIST,
 } from './MarkdownTransformers';

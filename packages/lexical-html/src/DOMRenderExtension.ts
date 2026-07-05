@@ -6,9 +6,13 @@
  *
  */
 import type {DOMRenderConfig, DOMRenderExtensionOutput} from './types';
-import type {InitialEditorConfig} from 'lexical';
 
-import {defineExtension, RootNode, shallowMergeConfig} from 'lexical';
+import {
+  defineExtension,
+  type InitialEditorConfig,
+  RootNode,
+  shallowMergeConfig,
+} from 'lexical';
 
 import {compileDOMRenderConfigOverrides} from './compileDOMRenderConfigOverrides';
 import {DOMRenderExtensionName} from './constants';

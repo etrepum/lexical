@@ -31,7 +31,7 @@ import {
   LineBreakNode,
   ParagraphNode,
   resetRandomKey,
-  SerializedTextNode,
+  type SerializedTextNode,
   TabNode,
   TextNode,
 } from 'lexical';

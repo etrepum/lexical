@@ -24,7 +24,7 @@ import {
   $getRoot,
   COMMAND_PRIORITY_CRITICAL,
   CONTROLLED_TEXT_INSERTION_COMMAND,
-  LexicalEditor,
+  type LexicalEditor,
 } from 'lexical';
 import {createTestEditor} from 'lexical/src/__tests__/utils';
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';

@@ -6,17 +6,17 @@
  *
  */
 
-import type {
-  ElementFormatType,
-  LexicalNode,
-  LexicalUpdateJSON,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
-} from 'lexical';
 import type {JSX} from 'react';
 
-import {DecoratorNode} from 'lexical';
+import {
+  DecoratorNode,
+  type ElementFormatType,
+  type LexicalNode,
+  type LexicalUpdateJSON,
+  type NodeKey,
+  type SerializedLexicalNode,
+  type Spread,
+} from 'lexical';
 
 /**
  * The serialized form of a {@link DecoratorBlockNode}: the base serialized node

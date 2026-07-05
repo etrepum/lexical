@@ -31,7 +31,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $setSelection,
-  LexicalEditor,
+  type LexicalEditor,
 } from 'lexical';
 import {createTestEditor, invariant} from 'lexical/src/__tests__/utils';
 import {
