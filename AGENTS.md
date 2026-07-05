@@ -252,6 +252,9 @@ When creating custom nodes:
 3. Register with extension or editor config: `nodes: [YourCustomNode]`
 4. Export a `$createYourNode()` factory function (follows $ convention)
 
+### Commits and Pull Requests
+- Write every commit message to match `.github/pull_request_template.md` so it can seed a PR directly: a `[Affected Packages] PR Type: title` subject line, then the `## Description` and `## Test plan` (Before/After) sections.
+
 ### Build System
 - Uses Rollup for bundling
 - Build script: `scripts/build.mjs`

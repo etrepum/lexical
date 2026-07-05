@@ -13,6 +13,12 @@ permissions: {}
 
 jobs:
   dependency-check:
+    # Only the canonical repo can authenticate to the internal registry. Forks
+    # (including a fork's own PRs, which do get an OIDC token but one the
+    # registry rejects with 401) skip the job entirely. Cross-fork PRs to the
+    # canonical repo still run here but lack OIDC, and are handled by the
+    # in-action skip that defers to the required merge_group run.
+    if: github.repository == 'facebook/lexical'
     runs-on: ubuntu-latest
     permissions:
       contents: read
