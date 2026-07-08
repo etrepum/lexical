@@ -6,9 +6,9 @@
  *
  */
 
-import type {HeadingTagType} from '@lexical/rich-text';
+import type {KeyboardShortcutMatch} from '@lexical/extension';
 
-import {IS_APPLE, isExactShortcutMatch} from 'lexical';
+import {IS_APPLE} from 'lexical';
 
 //disable eslint sorting rule for quick reference to shortcuts
 /* eslint-disable sort-keys-fix/sort-keys-fix */
@@ -53,154 +53,45 @@ export const SHORTCUTS = Object.freeze({
 });
 
 const CONTROL_OR_META = {ctrlKey: !IS_APPLE, metaKey: IS_APPLE};
+const CONTROL_OR_META_ALT = {...CONTROL_OR_META, altKey: true};
+const CONTROL_OR_META_SHIFT = {...CONTROL_OR_META, shiftKey: true};
+const CONTROL_SHIFT = {ctrlKey: true, shiftKey: true};
 
-export function isFormatParagraph(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '0', {
-    ...CONTROL_OR_META,
-    altKey: true,
-  });
-}
+/**
+ * The key bindings for the shortcuts that ShortcutsPlugin handles (a subset
+ * of the {@link SHORTCUTS} display strings above; the rest are handled by
+ * the rich-text and history extensions). This table is compiled down to an
+ * O(1) dispatch by key and modifiers with
+ * {@link registerKeyboardShortcuts}.
+ */
+export const SHORTCUT_BINDINGS = Object.freeze({
+  NORMAL: {key: '0', modifiers: CONTROL_OR_META_ALT},
+  HEADING1: {key: '1', modifiers: CONTROL_OR_META_ALT},
+  HEADING2: {key: '2', modifiers: CONTROL_OR_META_ALT},
+  HEADING3: {key: '3', modifiers: CONTROL_OR_META_ALT},
+  NUMBERED_LIST: {key: '7', modifiers: CONTROL_OR_META_SHIFT},
+  BULLET_LIST: {key: '8', modifiers: CONTROL_OR_META_SHIFT},
+  CHECK_LIST: {key: '9', modifiers: CONTROL_OR_META_SHIFT},
+  CODE_BLOCK: {key: 'c', modifiers: CONTROL_OR_META_ALT},
+  QUOTE: {key: 'q', modifiers: CONTROL_SHIFT},
+  ADD_COMMENT: {key: 'm', modifiers: CONTROL_OR_META_ALT},
 
-export function getFormatHeading(
-  event: KeyboardEvent,
-): HeadingTagType | undefined {
-  for (const key of ['1', '2', '3'] as const) {
-    if (isExactShortcutMatch(event, key, {...CONTROL_OR_META, altKey: true})) {
-      return `h${key}`;
-    }
-  }
-}
+  INCREASE_FONT_SIZE: {key: '>', modifiers: CONTROL_OR_META_SHIFT},
+  DECREASE_FONT_SIZE: {key: '<', modifiers: CONTROL_OR_META_SHIFT},
+  INSERT_CODE_BLOCK: {key: 'c', modifiers: CONTROL_OR_META_SHIFT},
+  STRIKETHROUGH: {key: 'x', modifiers: CONTROL_OR_META_SHIFT},
+  LOWERCASE: {key: '1', modifiers: CONTROL_SHIFT},
+  UPPERCASE: {key: '2', modifiers: CONTROL_SHIFT},
+  CAPITALIZE: {key: '3', modifiers: CONTROL_SHIFT},
+  CENTER_ALIGN: {key: 'e', modifiers: CONTROL_OR_META_SHIFT},
+  JUSTIFY_ALIGN: {key: 'j', modifiers: CONTROL_OR_META_SHIFT},
+  LEFT_ALIGN: {key: 'l', modifiers: CONTROL_OR_META_SHIFT},
+  RIGHT_ALIGN: {key: 'r', modifiers: CONTROL_OR_META_SHIFT},
 
-export function isFormatNumberedList(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '7', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isFormatBulletList(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '8', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isFormatCheckList(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '9', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isFormatCode(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'c', {
-    ...CONTROL_OR_META,
-    altKey: true,
-  });
-}
-
-export function isFormatQuote(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'q', {
-    ctrlKey: true,
-    shiftKey: true,
-  });
-}
-
-export function isLowercase(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '1', {ctrlKey: true, shiftKey: true});
-}
-
-export function isUppercase(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '2', {ctrlKey: true, shiftKey: true});
-}
-
-export function isCapitalize(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '3', {ctrlKey: true, shiftKey: true});
-}
-
-export function isStrikeThrough(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'x', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isIndent(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, ']', CONTROL_OR_META);
-}
-
-export function isOutdent(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '[', CONTROL_OR_META);
-}
-
-export function isCenterAlign(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'e', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isLeftAlign(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'l', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isRightAlign(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'r', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isJustifyAlign(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'j', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isSubscript(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, ',', CONTROL_OR_META);
-}
-
-export function isSuperscript(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '.', CONTROL_OR_META);
-}
-
-export function isInsertCodeBlock(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'c', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isIncreaseFontSize(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '>', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isDecreaseFontSize(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '<', {
-    ...CONTROL_OR_META,
-    shiftKey: true,
-  });
-}
-
-export function isClearFormatting(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, '\\', CONTROL_OR_META);
-}
-
-export function isInsertLink(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'k', CONTROL_OR_META);
-}
-
-export function isAddComment(event: KeyboardEvent): boolean {
-  return isExactShortcutMatch(event, 'm', {
-    ...CONTROL_OR_META,
-    altKey: true,
-  });
-}
+  SUBSCRIPT: {key: ',', modifiers: CONTROL_OR_META},
+  SUPERSCRIPT: {key: '.', modifiers: CONTROL_OR_META},
+  INDENT: {key: ']', modifiers: CONTROL_OR_META},
+  OUTDENT: {key: '[', modifiers: CONTROL_OR_META},
+  CLEAR_FORMATTING: {key: '\\', modifiers: CONTROL_OR_META},
+  INSERT_LINK: {key: 'k', modifiers: CONTROL_OR_META},
+}) satisfies Record<string, KeyboardShortcutMatch>;

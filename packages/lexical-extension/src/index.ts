@@ -52,6 +52,18 @@ export {
   type InitialStateConfig,
   InitialStateExtension,
 } from './InitialStateExtension';
+export {
+  CompiledKeyboardShortcuts,
+  compileKeyboardShortcuts,
+  type KeyboardShortcut,
+  type KeyboardShortcutHandler,
+  type KeyboardShortcutMatch,
+  type KeyboardShortcutsConfig,
+  KeyboardShortcutsExtension,
+  type NamedKeyboardShortcuts,
+  registerKeyboardShortcuts,
+  type RegisterKeyboardShortcutsOptions,
+} from './KeyboardShortcutsExtension';
 export {buildEditorFromExtensions, LexicalBuilder} from './LexicalBuilder';
 export {
   namedSignals,

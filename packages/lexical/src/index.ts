@@ -373,6 +373,8 @@ export {
   isSelectionCapturedInDecoratorInput,
   isSelectionWithinEditor,
   iterStaticNodeConfigChain,
+  type KeyboardEventModifierMask,
+  type KeyboardEventModifiers,
   mountSlotContainer,
   type OwnStaticNodeConfig,
   removeFromParent,

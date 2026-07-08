@@ -6,14 +6,16 @@
  *
  */
 
+import {
+  type KeyboardShortcut,
+  registerKeyboardShortcuts,
+} from '@lexical/extension';
 import {TOGGLE_LINK_COMMAND} from '@lexical/link';
 import {
   COMMAND_PRIORITY_NORMAL,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   INDENT_CONTENT_COMMAND,
-  isModifierMatch,
-  KEY_DOWN_COMMAND,
   type LexicalEditor,
   OUTDENT_CONTENT_COMMAND,
 } from 'lexical';
@@ -34,33 +36,7 @@ import {
   updateFontSize,
   UpdateFontSizeType,
 } from '../ToolbarPlugin/utils';
-import {
-  getFormatHeading,
-  isAddComment,
-  isCapitalize,
-  isCenterAlign,
-  isClearFormatting,
-  isDecreaseFontSize,
-  isFormatBulletList,
-  isFormatCheckList,
-  isFormatCode,
-  isFormatNumberedList,
-  isFormatParagraph,
-  isFormatQuote,
-  isIncreaseFontSize,
-  isIndent,
-  isInsertCodeBlock,
-  isInsertLink,
-  isJustifyAlign,
-  isLeftAlign,
-  isLowercase,
-  isOutdent,
-  isRightAlign,
-  isStrikeThrough,
-  isSubscript,
-  isSuperscript,
-  isUppercase,
-} from './shortcuts';
+import {SHORTCUT_BINDINGS} from './shortcuts';
 
 export default function ShortcutsPlugin({
   editor,
@@ -72,84 +48,108 @@ export default function ShortcutsPlugin({
   const {toolbarState} = useToolbarState();
 
   useEffect(() => {
-    const keyboardShortcutsHandler = (event: KeyboardEvent) => {
-      // Short-circuit, a least one modifier must be set
-      if (isModifierMatch(event, {})) {
-        return false;
-      }
-      const headingSize = getFormatHeading(event);
-      if (headingSize) {
-        formatHeading(editor, toolbarState.blockType, headingSize);
-      } else if (isFormatParagraph(event)) {
-        formatParagraph(editor);
-      } else if (isFormatBulletList(event)) {
-        formatBulletList(editor, toolbarState.blockType);
-      } else if (isFormatNumberedList(event)) {
-        formatNumberedList(editor, toolbarState.blockType);
-      } else if (isFormatCheckList(event)) {
-        formatCheckList(editor, toolbarState.blockType);
-      } else if (isFormatCode(event)) {
-        formatCode(editor, toolbarState.blockType);
-      } else if (isFormatQuote(event)) {
-        formatQuote(editor, toolbarState.blockType);
-      } else if (isStrikeThrough(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough');
-      } else if (isLowercase(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'lowercase');
-      } else if (isUppercase(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'uppercase');
-      } else if (isCapitalize(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'capitalize');
-      } else if (isIndent(event)) {
-        editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-      } else if (isOutdent(event)) {
-        editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
-      } else if (isCenterAlign(event)) {
-        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center');
-      } else if (isLeftAlign(event)) {
-        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left');
-      } else if (isRightAlign(event)) {
-        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right');
-      } else if (isJustifyAlign(event)) {
-        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify');
-      } else if (isSubscript(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript');
-      } else if (isSuperscript(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript');
-      } else if (isInsertCodeBlock(event)) {
-        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code');
-      } else if (isIncreaseFontSize(event)) {
-        updateFontSize(
-          editor,
-          UpdateFontSizeType.increment,
-          toolbarState.fontSizeInputValue,
-        );
-      } else if (isDecreaseFontSize(event)) {
-        updateFontSize(
-          editor,
-          UpdateFontSizeType.decrement,
-          toolbarState.fontSizeInputValue,
-        );
-      } else if (isClearFormatting(event)) {
-        clearFormatting(editor);
-      } else if (isInsertLink(event)) {
-        const url = toolbarState.isLink ? null : sanitizeUrl('https://');
-        setIsLinkEditMode(!toolbarState.isLink);
-        editor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
-      } else if (isAddComment(event)) {
-        editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined);
-      } else {
-        // No match for any of the event handlers
-        return false;
-      }
-      event.preventDefault();
-      return true;
-    };
-
-    return editor.registerCommand(
-      KEY_DOWN_COMMAND,
-      keyboardShortcutsHandler,
-      COMMAND_PRIORITY_NORMAL,
+    // Pair each named key binding from SHORTCUT_BINDINGS with its action.
+    // registerKeyboardShortcuts compiles the table down to a single
+    // KEY_DOWN_COMMAND listener that dispatches by key and modifiers in
+    // O(1), rather than testing every shortcut in sequence.
+    const bind = (
+      name: keyof typeof SHORTCUT_BINDINGS,
+      action: () => void,
+    ): KeyboardShortcut => ({
+      ...SHORTCUT_BINDINGS[name],
+      handler: () => {
+        action();
+        return true;
+      },
+    });
+    return registerKeyboardShortcuts(
+      editor,
+      [
+        bind('NORMAL', () => formatParagraph(editor)),
+        bind('HEADING1', () =>
+          formatHeading(editor, toolbarState.blockType, 'h1'),
+        ),
+        bind('HEADING2', () =>
+          formatHeading(editor, toolbarState.blockType, 'h2'),
+        ),
+        bind('HEADING3', () =>
+          formatHeading(editor, toolbarState.blockType, 'h3'),
+        ),
+        bind('NUMBERED_LIST', () =>
+          formatNumberedList(editor, toolbarState.blockType),
+        ),
+        bind('BULLET_LIST', () =>
+          formatBulletList(editor, toolbarState.blockType),
+        ),
+        bind('CHECK_LIST', () =>
+          formatCheckList(editor, toolbarState.blockType),
+        ),
+        bind('CODE_BLOCK', () => formatCode(editor, toolbarState.blockType)),
+        bind('QUOTE', () => formatQuote(editor, toolbarState.blockType)),
+        bind('ADD_COMMENT', () =>
+          editor.dispatchCommand(INSERT_INLINE_COMMAND, undefined),
+        ),
+        bind('INCREASE_FONT_SIZE', () =>
+          updateFontSize(
+            editor,
+            UpdateFontSizeType.increment,
+            toolbarState.fontSizeInputValue,
+          ),
+        ),
+        bind('DECREASE_FONT_SIZE', () =>
+          updateFontSize(
+            editor,
+            UpdateFontSizeType.decrement,
+            toolbarState.fontSizeInputValue,
+          ),
+        ),
+        bind('INSERT_CODE_BLOCK', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code'),
+        ),
+        bind('STRIKETHROUGH', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough'),
+        ),
+        bind('LOWERCASE', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'lowercase'),
+        ),
+        bind('UPPERCASE', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'uppercase'),
+        ),
+        bind('CAPITALIZE', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'capitalize'),
+        ),
+        bind('CENTER_ALIGN', () =>
+          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center'),
+        ),
+        bind('JUSTIFY_ALIGN', () =>
+          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'justify'),
+        ),
+        bind('LEFT_ALIGN', () =>
+          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left'),
+        ),
+        bind('RIGHT_ALIGN', () =>
+          editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right'),
+        ),
+        bind('SUBSCRIPT', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript'),
+        ),
+        bind('SUPERSCRIPT', () =>
+          editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript'),
+        ),
+        bind('INDENT', () =>
+          editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined),
+        ),
+        bind('OUTDENT', () =>
+          editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined),
+        ),
+        bind('CLEAR_FORMATTING', () => clearFormatting(editor)),
+        bind('INSERT_LINK', () => {
+          const url = toolbarState.isLink ? null : sanitizeUrl('https://');
+          setIsLinkEditMode(!toolbarState.isLink);
+          editor.dispatchCommand(TOGGLE_LINK_COMMAND, url);
+        }),
+      ],
+      {priority: COMMAND_PRIORITY_NORMAL},
     );
   }, [
     editor,

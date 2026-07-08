@@ -44,6 +44,7 @@ Framework-agnostic accessibility extensions. See [Keyboard Accessibility](/docs/
 - [HorizontalRuleExtension](/docs/api/modules/lexical_extension#horizontalruleextension) - HorizontalRuleNode (`<hr>` tag)
 - [IMEExtension](/docs/api/modules/lexical_extension#imeextension) - Centralizes IME composition state as signals
 - [InitialStateExtension](/docs/api/modules/lexical_extension#initialstateextension) - Sets the initial state of the editor (always included)
+- [KeyboardShortcutsExtension](/docs/api/modules/lexical_extension#keyboardshortcutsextension) - Dispatches a named table of keyboard shortcuts from one compiled `KEY_DOWN_COMMAND` listener in O(1) per keypress; other extensions and apps can overlay the table to add, remap, or disable shortcuts by name (also at runtime through signals)
 - [NestedEditorExtension](/docs/api/modules/lexical_extension#nestededitorextension) - Configures an editor as a nested editor of a parent editor (theme inheritance, optionally editable state)
 - [NodeSelectionExtension](/docs/api/modules/lexical_extension#nodeselectionextension) - Tracks selection, typically for DecoratorNodes
 - [NodeSelectionDataSelectedExtension](/docs/api/modules/lexical_extension#nodeselectiondataselectedextension) - Mirrors a node's `NodeSelection` membership onto its host DOM as a `data-selected` attribute so CSS can outline selected `ElementNode` hosts; configured per node type (experimental)
