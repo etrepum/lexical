@@ -2350,28 +2350,28 @@ export function $setTextFormat(
   selection: RangeSelection | NodeSelection,
   formats: Partial<Record<TextFormatType, boolean>>,
 ): void {
-  const entries: [TextFormatType, boolean][] = [];
+  // Each bit of a toggleTextFormatType set/unset result depends only on the
+  // same bit of the input, so the composition of all requested entries is
+  // fully determined by probing it with all-zeros and all-ones: setBits
+  // collects the bits forced on, keepBits loses the bits forced off.
+  let hasEntries = false;
+  let setBits = 0;
+  let keepBits = ~0;
   for (const [type, value] of Object.entries(formats) as [
     TextFormatType,
     boolean | undefined,
   ][]) {
     if (typeof value === 'boolean') {
-      entries.push([type, value]);
+      hasEntries = true;
+      const alignWithFormat = value ? TEXT_TYPE_TO_FORMAT[type] : 0;
+      setBits = toggleTextFormatType(setBits, type, alignWithFormat);
+      keepBits = toggleTextFormatType(keepBits, type, alignWithFormat);
     }
   }
-  if (entries.length === 0) {
+  if (!hasEntries) {
     return;
   }
-  $updateTextFormat(selection, format => {
-    for (const [type, value] of entries) {
-      format = toggleTextFormatType(
-        format,
-        type,
-        value ? TEXT_TYPE_TO_FORMAT[type] : 0,
-      );
-    }
-    return format;
-  });
+  $updateTextFormat(selection, format => (format & keepBits) | setBits);
 }
 
 /**

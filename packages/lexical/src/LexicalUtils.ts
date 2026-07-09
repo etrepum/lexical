@@ -317,20 +317,21 @@ export function getDOMTextNode(element: Node | null): Text | null {
  * Computes a new 32-bit text format bitmask from `format` by toggling or
  * setting the bit for the given {@link TextFormatType}.
  *
- * When `alignWithFormat` is null the bit for `type` is unconditionally
- * toggled. Otherwise this behaves as a set operation: if the bit for `type`
- * in `format` already matches the corresponding bit in `alignWithFormat`,
- * `format` is returned unchanged; if not, the bit is toggled so that it
- * matches. Passing the bit for `type` (e.g. `TEXT_TYPE_TO_FORMAT[type]`)
- * turns the format on, and passing 0 turns it off.
+ * When `alignWithFormat` is null the bit for `type` is toggled. Otherwise
+ * the bit for `type` is unconditionally set to match the corresponding bit
+ * in `alignWithFormat`: passing the bit for `type` (e.g.
+ * `TEXT_TYPE_TO_FORMAT[type]`) turns the format on, and passing 0 turns it
+ * off.
  *
- * Whenever the bit for `type` is turned on, mutually exclusive formats are
+ * Whenever the bit for `type` ends up on, mutually exclusive formats are
  * turned off: 'subscript' and 'superscript' clear each other, and
  * 'lowercase', 'uppercase' and 'capitalize' each clear the other two.
+ * Each bit of the result depends only on the same bit of `format` (or on
+ * nothing at all), never on other bits of `format`.
  *
  * @param format - the current 32-bit format bitmask.
  * @param type - the TextFormatType whose bit should be toggled or set.
- * @param alignWithFormat - a 32-bit bitmask to align the bit for `type` with, or null to always toggle.
+ * @param alignWithFormat - a 32-bit bitmask to align the bit for `type` with, or null to toggle.
  * @returns the resulting 32-bit format bitmask.
  */
 export function toggleTextFormatType(
@@ -339,26 +340,30 @@ export function toggleTextFormatType(
   alignWithFormat: null | number,
 ): number {
   const activeFormat = TEXT_TYPE_TO_FORMAT[type];
-  if (
-    alignWithFormat !== null &&
-    (format & activeFormat) === (alignWithFormat & activeFormat)
-  ) {
-    return format;
+  const shouldSet =
+    alignWithFormat === null
+      ? (format & activeFormat) === 0
+      : (alignWithFormat & activeFormat) !== 0;
+  if (!shouldSet) {
+    return format & ~activeFormat;
   }
-  let newFormat = format ^ activeFormat;
+  let newFormat = format | activeFormat;
   if (type === 'subscript') {
     newFormat &= ~TEXT_TYPE_TO_FORMAT.superscript;
   } else if (type === 'superscript') {
     newFormat &= ~TEXT_TYPE_TO_FORMAT.subscript;
   } else if (type === 'lowercase') {
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.uppercase;
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.capitalize;
+    newFormat &= ~(
+      TEXT_TYPE_TO_FORMAT.uppercase | TEXT_TYPE_TO_FORMAT.capitalize
+    );
   } else if (type === 'uppercase') {
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.lowercase;
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.capitalize;
+    newFormat &= ~(
+      TEXT_TYPE_TO_FORMAT.lowercase | TEXT_TYPE_TO_FORMAT.capitalize
+    );
   } else if (type === 'capitalize') {
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.lowercase;
-    newFormat &= ~TEXT_TYPE_TO_FORMAT.uppercase;
+    newFormat &= ~(
+      TEXT_TYPE_TO_FORMAT.lowercase | TEXT_TYPE_TO_FORMAT.uppercase
+    );
   }
   return newFormat;
 }
