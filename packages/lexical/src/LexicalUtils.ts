@@ -313,6 +313,26 @@ export function getDOMTextNode(element: Node | null): Text | null {
   return null;
 }
 
+/**
+ * Computes a new 32-bit text format bitmask from `format` by toggling or
+ * setting the bit for the given {@link TextFormatType}.
+ *
+ * When `alignWithFormat` is null the bit for `type` is unconditionally
+ * toggled. Otherwise this behaves as a set operation: if the bit for `type`
+ * in `format` already matches the corresponding bit in `alignWithFormat`,
+ * `format` is returned unchanged; if not, the bit is toggled so that it
+ * matches. Passing the bit for `type` (e.g. `TEXT_TYPE_TO_FORMAT[type]`)
+ * turns the format on, and passing 0 turns it off.
+ *
+ * Whenever the bit for `type` is turned on, mutually exclusive formats are
+ * turned off: 'subscript' and 'superscript' clear each other, and
+ * 'lowercase', 'uppercase' and 'capitalize' each clear the other two.
+ *
+ * @param format - the current 32-bit format bitmask.
+ * @param type - the TextFormatType whose bit should be toggled or set.
+ * @param alignWithFormat - a 32-bit bitmask to align the bit for `type` with, or null to always toggle.
+ * @returns the resulting 32-bit format bitmask.
+ */
 export function toggleTextFormatType(
   format: number,
   type: TextFormatType,
