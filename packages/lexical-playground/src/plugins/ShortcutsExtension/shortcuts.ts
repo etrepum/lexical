@@ -6,9 +6,9 @@
  *
  */
 
-import type {KeyboardShortcutMatch} from '@lexical/extension';
+import type {KeyboardShortcutMatch} from 'lexical';
 
-import {IS_APPLE} from 'lexical';
+import {CONTROL_OR_META, IS_APPLE} from 'lexical';
 
 //disable eslint sorting rule for quick reference to shortcuts
 /* eslint-disable sort-keys-fix/sort-keys-fix */
@@ -52,17 +52,17 @@ export const SHORTCUTS = Object.freeze({
   INSERT_LINK: IS_APPLE ? '⌘+K' : 'Ctrl+K',
 });
 
-const CONTROL_OR_META = {ctrlKey: !IS_APPLE, metaKey: IS_APPLE};
 const CONTROL_OR_META_ALT = {...CONTROL_OR_META, altKey: true};
 const CONTROL_OR_META_SHIFT = {...CONTROL_OR_META, shiftKey: true};
 const CONTROL_SHIFT = {ctrlKey: true, shiftKey: true};
 
 /**
- * The key bindings for the shortcuts that ShortcutsPlugin handles (a subset
- * of the {@link SHORTCUTS} display strings above; the rest are handled by
- * the rich-text and history extensions). This table is compiled down to an
- * O(1) dispatch by key and modifiers with
- * {@link registerKeyboardShortcuts}.
+ * The key bindings for the shortcuts that ShortcutsExtension handles (a
+ * subset of the {@link SHORTCUTS} display strings above; the rest are
+ * handled by the rich-text and history extensions). Each binding is paired
+ * with its command in the ShortcutsExtension and contributed to the
+ * KeyboardShortcutsExtension table, which compiles them down to an O(1)
+ * dispatch by key and modifiers.
  */
 export const SHORTCUT_BINDINGS = Object.freeze({
   NORMAL: {key: '0', modifiers: CONTROL_OR_META_ALT},

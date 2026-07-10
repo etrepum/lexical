@@ -15,12 +15,16 @@ import {
   registerKeyboardShortcuts,
 } from '@lexical/extension';
 import {
+  COMMAND_PRIORITY_EDITOR,
   configExtension,
+  createCommand,
   defineExtension,
+  formatKeyboardShortcut,
   isExactShortcutMatch,
   KEY_DOWN_COMMAND,
   type KeyboardEventModifierMask,
   type KeyboardEventModifiers,
+  type LexicalCommand,
 } from 'lexical';
 import {describe, expect, test, vi} from 'vitest';
 
@@ -106,43 +110,103 @@ describe('compileKeyboardShortcuts', () => {
   });
 });
 
-function buildTestEditor(shortcuts: KeyboardShortcut[]) {
+describe('formatKeyboardShortcut', () => {
+  test('formats platform conventions', () => {
+    const shortcut = {key: 'k', modifiers: {metaKey: true, shiftKey: true}};
+    expect(formatKeyboardShortcut(shortcut, {isApple: true})).toBe('⌘+Shift+K');
+    expect(formatKeyboardShortcut(shortcut, {isApple: false})).toBe(
+      'Meta+Shift+K',
+    );
+    expect(
+      formatKeyboardShortcut(
+        {key: 'q', modifiers: {ctrlKey: true, shiftKey: true}},
+        {isApple: true},
+      ),
+    ).toBe('⌃+Shift+Q');
+    expect(
+      formatKeyboardShortcut(
+        {key: '0', modifiers: {altKey: true, ctrlKey: true}},
+        {isApple: false},
+      ),
+    ).toBe('Ctrl+Alt+0');
+    expect(formatKeyboardShortcut({key: ' '}, {isApple: false})).toBe('Space');
+    expect(
+      formatKeyboardShortcut(
+        {key: 'ArrowLeft', modifiers: {shiftKey: 'any'}},
+        {isApple: false},
+      ),
+    ).toBe('ArrowLeft');
+  });
+});
+
+/**
+ * Build an editor with the given shortcuts registered plus a recording
+ * listener for each distinct command (returning `handled` for it).
+ */
+function buildTestEditor(
+  shortcuts: KeyboardShortcut[],
+  listeners: [
+    LexicalCommand<KeyboardEvent>,
+    (event: KeyboardEvent) => boolean,
+  ][],
+) {
   return buildEditorFromExtensions(
     defineExtension({
       name: 'keyboard-shortcuts-test',
-      register: editor => registerKeyboardShortcuts(editor, shortcuts),
+      register: editor => {
+        const cleanups = listeners.map(([command, listener]) =>
+          editor.registerCommand(command, listener, COMMAND_PRIORITY_EDITOR),
+        );
+        cleanups.push(registerKeyboardShortcuts(editor, shortcuts));
+        return () => cleanups.forEach(cleanup => cleanup());
+      },
     }),
   );
 }
 
 describe('registerKeyboardShortcuts', () => {
-  test('dispatches to the matching handler and prevents default', () => {
+  test('dispatches the matched shortcut command with the event as payload', () => {
+    const BOLD_COMMAND = createCommand<KeyboardEvent>('test/BOLD');
+    const ITALIC_COMMAND = createCommand<KeyboardEvent>('test/ITALIC');
     const bold = vi.fn().mockReturnValue(true);
     const italic = vi.fn().mockReturnValue(true);
-    const editor = buildTestEditor([
-      {handler: bold, key: 'b', modifiers: {ctrlKey: true}},
-      {handler: italic, key: 'i', modifiers: {ctrlKey: true}},
-    ]);
+    const editor = buildTestEditor(
+      [
+        {command: BOLD_COMMAND, key: 'b', modifiers: {ctrlKey: true}},
+        {command: ITALIC_COMMAND, key: 'i', modifiers: {ctrlKey: true}},
+      ],
+      [
+        [BOLD_COMMAND, bold],
+        [ITALIC_COMMAND, italic],
+      ],
+    );
     const event = keyboardEvent({ctrlKey: true, key: 'b'});
     expect(editor.dispatchCommand(KEY_DOWN_COMMAND, event)).toBe(true);
     expect(bold).toHaveBeenCalledTimes(1);
+    expect(bold.mock.calls[0][0]).toBe(event);
     expect(italic).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(true);
-    // No modifier match -> no handler (the event may still be handled by
+    // No modifier match -> no dispatch (the event may still be handled by
     // the core $handleKeyDown listener at COMMAND_PRIORITY_EDITOR)
-    const plain = keyboardEvent({key: 'b'});
-    editor.dispatchCommand(KEY_DOWN_COMMAND, plain);
+    editor.dispatchCommand(KEY_DOWN_COMMAND, keyboardEvent({key: 'b'}));
     expect(bold).toHaveBeenCalledTimes(1);
     editor.dispose();
   });
 
-  test('falls through to the next matching shortcut when a handler returns false', () => {
+  test('falls through to the next matching shortcut when a dispatch is unhandled', () => {
+    const SKIPPED_COMMAND = createCommand<KeyboardEvent>('test/SKIPPED');
+    const HANDLED_COMMAND = createCommand<KeyboardEvent>('test/HANDLED');
     const skipped = vi.fn().mockReturnValue(false);
     const handled = vi.fn().mockReturnValue(true);
-    const editor = buildTestEditor([
-      {handler: skipped, key: 'k', modifiers: {ctrlKey: true}},
-      {handler: handled, key: 'k', modifiers: {ctrlKey: true}},
-    ]);
+    const editor = buildTestEditor(
+      [
+        {command: SKIPPED_COMMAND, key: 'k', modifiers: {ctrlKey: true}},
+        {command: HANDLED_COMMAND, key: 'k', modifiers: {ctrlKey: true}},
+      ],
+      [
+        [SKIPPED_COMMAND, skipped],
+        [HANDLED_COMMAND, handled],
+      ],
+    );
     const event = keyboardEvent({ctrlKey: true, key: 'k'});
     expect(editor.dispatchCommand(KEY_DOWN_COMMAND, event)).toBe(true);
     expect(skipped).toHaveBeenCalledTimes(1);
@@ -150,37 +214,116 @@ describe('registerKeyboardShortcuts', () => {
     editor.dispose();
   });
 
-  test('respects preventDefault: false', () => {
-    const handler = vi.fn().mockReturnValue(true);
-    const editor = buildTestEditor([
-      {
-        handler,
-        key: 'b',
-        modifiers: {ctrlKey: true},
-        preventDefault: false,
-      },
-    ]);
-    const event = keyboardEvent({ctrlKey: true, key: 'b'});
+  test('skips shortcuts whose $disabled predicate returns true', () => {
+    const DISABLED_COMMAND = createCommand<KeyboardEvent>('test/DISABLED');
+    const ENABLED_COMMAND = createCommand<KeyboardEvent>('test/ENABLED');
+    const disabled = vi.fn().mockReturnValue(true);
+    const enabled = vi.fn().mockReturnValue(true);
+    const $disabled = vi.fn().mockReturnValue(true);
+    const editor = buildTestEditor(
+      [
+        {
+          $disabled,
+          command: DISABLED_COMMAND,
+          key: 'k',
+          modifiers: {ctrlKey: true},
+        },
+        {command: ENABLED_COMMAND, key: 'k', modifiers: {ctrlKey: true}},
+      ],
+      [
+        [DISABLED_COMMAND, disabled],
+        [ENABLED_COMMAND, enabled],
+      ],
+    );
+    const event = keyboardEvent({ctrlKey: true, key: 'k'});
     expect(editor.dispatchCommand(KEY_DOWN_COMMAND, event)).toBe(true);
-    expect(event.defaultPrevented).toBe(false);
+    expect($disabled).toHaveBeenCalledTimes(1);
+    expect(disabled).not.toHaveBeenCalled();
+    expect(enabled).toHaveBeenCalledTimes(1);
+    editor.dispose();
+  });
+
+  test('$dispatch middleware wraps the command dispatch', () => {
+    const WRAPPED_COMMAND = createCommand<KeyboardEvent>('test/WRAPPED');
+    const listener = vi.fn().mockReturnValue(true);
+    const order: string[] = [];
+    const editor = buildTestEditor(
+      [
+        {
+          $dispatch: (command, event, $next, editor2) => {
+            expect(command).toBe(WRAPPED_COMMAND);
+            expect(editor2).toBe(editor);
+            order.push('before');
+            const handled = $next();
+            order.push('after');
+            return handled;
+          },
+          command: WRAPPED_COMMAND,
+          key: 'k',
+          modifiers: {ctrlKey: true},
+        },
+      ],
+      [
+        [
+          WRAPPED_COMMAND,
+          event => {
+            order.push('listener');
+            return listener(event);
+          },
+        ],
+      ],
+    );
+    const event = keyboardEvent({ctrlKey: true, key: 'k'});
+    expect(editor.dispatchCommand(KEY_DOWN_COMMAND, event)).toBe(true);
+    expect(order).toEqual(['before', 'listener', 'after']);
     editor.dispose();
   });
 });
 
 describe('KeyboardShortcutsExtension', () => {
-  test('dispatches configured shortcuts', () => {
-    const bold = vi.fn().mockReturnValue(true);
-    const editor = buildEditorFromExtensions(
+  const shortcutWith = (
+    command: LexicalCommand<KeyboardEvent>,
+    key: string,
+    modifiers: KeyboardEventModifierMask,
+  ): KeyboardShortcut => ({command, key, modifiers});
+
+  function buildExtensionEditor(
+    shortcuts: Record<string, KeyboardShortcut | null>,
+    listeners: [
+      LexicalCommand<KeyboardEvent>,
+      (event: KeyboardEvent) => boolean,
+    ][],
+    overlay?: Record<string, KeyboardShortcut | null>,
+  ) {
+    return buildEditorFromExtensions(
       defineExtension({
         dependencies: [
-          configExtension(KeyboardShortcutsExtension, {
-            shortcuts: {
-              bold: {handler: bold, key: 'b', modifiers: {ctrlKey: true}},
-            },
-          }),
+          configExtension(KeyboardShortcutsExtension, {shortcuts}),
+          ...(overlay
+            ? [
+                configExtension(KeyboardShortcutsExtension, {
+                  shortcuts: overlay,
+                }),
+              ]
+            : []),
         ],
         name: 'extension-test',
+        register: editor => {
+          const cleanups = listeners.map(([command, listener]) =>
+            editor.registerCommand(command, listener, COMMAND_PRIORITY_EDITOR),
+          );
+          return () => cleanups.forEach(cleanup => cleanup());
+        },
       }),
+    );
+  }
+
+  test('dispatches configured shortcuts', () => {
+    const BOLD_COMMAND = createCommand<KeyboardEvent>('ext/BOLD');
+    const bold = vi.fn().mockReturnValue(true);
+    const editor = buildExtensionEditor(
+      {bold: shortcutWith(BOLD_COMMAND, 'b', {ctrlKey: true})},
+      [[BOLD_COMMAND, bold]],
     );
     editor.dispatchCommand(
       KEY_DOWN_COMMAND,
@@ -191,42 +334,30 @@ describe('KeyboardShortcutsExtension', () => {
   });
 
   test('overlays merge by name: add, remap, and disable', () => {
+    const BOLD_COMMAND = createCommand<KeyboardEvent>('overlay/BOLD');
+    const ITALIC_COMMAND = createCommand<KeyboardEvent>('overlay/ITALIC');
+    const CUSTOM_COMMAND = createCommand<KeyboardEvent>('overlay/CUSTOM');
     const bold = vi.fn().mockReturnValue(true);
     const italic = vi.fn().mockReturnValue(true);
     const custom = vi.fn().mockReturnValue(true);
-    const remappedBold = vi.fn().mockReturnValue(true);
-    const BaseExtension = defineExtension({
-      dependencies: [
-        configExtension(KeyboardShortcutsExtension, {
-          shortcuts: {
-            bold: {handler: bold, key: 'b', modifiers: {ctrlKey: true}},
-            italic: {handler: italic, key: 'i', modifiers: {ctrlKey: true}},
-          },
-        }),
+    const editor = buildExtensionEditor(
+      {
+        bold: shortcutWith(BOLD_COMMAND, 'b', {ctrlKey: true}),
+        italic: shortcutWith(ITALIC_COMMAND, 'i', {ctrlKey: true}),
+      },
+      [
+        [BOLD_COMMAND, bold],
+        [ITALIC_COMMAND, italic],
+        [CUSTOM_COMMAND, custom],
       ],
-      name: 'base-shortcuts',
-    });
-    const editor = buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          BaseExtension,
-          configExtension(KeyboardShortcutsExtension, {
-            shortcuts: {
-              // remap bold to a different key and handler
-              bold: {
-                handler: remappedBold,
-                key: 'b',
-                modifiers: {ctrlKey: true, shiftKey: true},
-              },
-              // add a new shortcut
-              custom: {handler: custom, key: 'm', modifiers: {altKey: true}},
-              // disable italic
-              italic: null,
-            },
-          }),
-        ],
-        name: 'overlay-test',
-      }),
+      {
+        // remap bold to a different key
+        bold: shortcutWith(BOLD_COMMAND, 'b', {ctrlKey: true, shiftKey: true}),
+        // add a new shortcut
+        custom: shortcutWith(CUSTOM_COMMAND, 'm', {altKey: true}),
+        // disable italic
+        italic: null,
+      },
     );
     editor.dispatchCommand(
       KEY_DOWN_COMMAND,
@@ -237,7 +368,7 @@ describe('KeyboardShortcutsExtension', () => {
       KEY_DOWN_COMMAND,
       keyboardEvent({ctrlKey: true, key: 'b', shiftKey: true}),
     );
-    expect(remappedBold).toHaveBeenCalledTimes(1);
+    expect(bold).toHaveBeenCalledTimes(1);
     editor.dispatchCommand(
       KEY_DOWN_COMMAND,
       keyboardEvent({ctrlKey: true, key: 'i'}),
@@ -252,19 +383,11 @@ describe('KeyboardShortcutsExtension', () => {
   });
 
   test('shortcuts can be remapped and disabled at runtime through the output signals', () => {
+    const BOLD_COMMAND = createCommand<KeyboardEvent>('runtime/BOLD');
     const bold = vi.fn().mockReturnValue(true);
-    const remapped = vi.fn().mockReturnValue(true);
-    const editor = buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          configExtension(KeyboardShortcutsExtension, {
-            shortcuts: {
-              bold: {handler: bold, key: 'b', modifiers: {ctrlKey: true}},
-            },
-          }),
-        ],
-        name: 'runtime-remap-test',
-      }),
+    const editor = buildExtensionEditor(
+      {bold: shortcutWith(BOLD_COMMAND, 'b', {ctrlKey: true})},
+      [[BOLD_COMMAND, bold]],
     );
     const {output} = getExtensionDependencyFromEditor(
       editor,
@@ -272,7 +395,7 @@ describe('KeyboardShortcutsExtension', () => {
     );
     output.shortcuts.value = {
       ...output.shortcuts.value,
-      bold: {handler: remapped, key: 'b', modifiers: {metaKey: true}},
+      bold: shortcutWith(BOLD_COMMAND, 'b', {metaKey: true}),
     };
     editor.dispatchCommand(
       KEY_DOWN_COMMAND,
@@ -283,14 +406,14 @@ describe('KeyboardShortcutsExtension', () => {
       KEY_DOWN_COMMAND,
       keyboardEvent({key: 'b', metaKey: true}),
     );
-    expect(remapped).toHaveBeenCalledTimes(1);
+    expect(bold).toHaveBeenCalledTimes(1);
 
     output.disabled.value = true;
     editor.dispatchCommand(
       KEY_DOWN_COMMAND,
       keyboardEvent({key: 'b', metaKey: true}),
     );
-    expect(remapped).toHaveBeenCalledTimes(1);
+    expect(bold).toHaveBeenCalledTimes(1);
     editor.dispose();
   });
 });
