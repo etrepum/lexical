@@ -40,6 +40,8 @@ import {
   type LexicalCommand,
 } from 'lexical';
 
+import {MdastCollapsibleExtension} from './MdastCollapsibleExtension';
+
 /**
  * Reformats the current selection's blocks as a paragraph. Toolbars
  * and other UI should dispatch this command rather than calling
@@ -91,6 +93,10 @@ export const MdastEditorExtension = defineExtension({
     MdastGfmExtension,
     MdastExportExtension,
     MdastShortcutsExtension,
+    // Example custom construct: a collapsible section whose summary line is
+    // edited in a named slot, encoded in Markdown as a GFM-style raw
+    // `<details><summary>` block.
+    MdastCollapsibleExtension,
     // Shiki syntax highlighting for the code blocks (brings its own
     // CodeExtension / CodeIndentExtension dependencies).
     CodeShikiExtension,

@@ -376,6 +376,9 @@ importers:
       '@lexical/history':
         specifier: workspace:*
         version: link:../../packages/lexical-history
+      '@lexical/html':
+        specifier: workspace:*
+        version: link:../../packages/lexical-html
       '@lexical/link':
         specifier: workspace:*
         version: link:../../packages/lexical-link
@@ -400,9 +403,18 @@ importers:
       '@lexical/utils':
         specifier: workspace:*
         version: link:../../packages/lexical-utils
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       lexical:
         specifier: workspace:*
         version: link:../../packages/lexical
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-to-markdown:
+        specifier: ^2.1.2
+        version: 2.1.2
       react:
         specifier: 19.2.5
         version: 19.2.5

@@ -21,6 +21,7 @@ import {
   UNDO_COMMAND,
 } from 'lexical';
 
+import {INSERT_COLLAPSIBLE_COMMAND} from '../extensions/MdastCollapsibleExtension';
 import {
   FORMAT_HEADING_COMMAND,
   FORMAT_PARAGRAPH_COMMAND,
@@ -142,6 +143,16 @@ export function ToolbarPlugin() {
         aria-label="Inline code"
         aria-pressed={isCode}>
         {'</>'}
+      </button>
+      <Divider />
+      <button
+        type="button"
+        onClick={() =>
+          editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined)
+        }
+        className={`${buttonBase} ${buttonInactive} text-xs`}
+        aria-label="Insert collapsible section">
+        ▸ Details
       </button>
     </div>
   );

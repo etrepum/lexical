@@ -51,6 +51,18 @@ you export — bullet styles, code fences, setext headings, hard breaks:
 - [x] Syntax preserved via NodeState
 - [ ] Ship it
 
+## Collapsible sections
+
+GFM-style \`<details>\` blocks map to a collapsible node whose summary
+line is edited in a named slot:
+
+<details><summary>
+This is the *summary* that shows when collapsed
+</summary>
+
+This is the *collapsed content* that's only visible when open
+</details>
+
 ---
 
 \`\`\`ts
