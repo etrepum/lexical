@@ -48,6 +48,7 @@ import {
   $internalCreateSelection,
   $isNodeSelection,
   $isRangeSelection,
+  $refreshSelectionFormatStyle,
   $updateDOMSelection,
   applySelectionTransforms,
 } from './LexicalSelection';
@@ -1165,6 +1166,22 @@ function $beginUpdate(
       }
     }
 
+    // Snapshot the selection state before the update runs so a purely
+    // programmatic selection move (no node mutations, no explicit
+    // format/style assignment) can be detected afterwards. Primitives are
+    // captured because updateFn may mutate the same selection object.
+    const selectionBeforeUpdate = pendingEditorState._selection;
+    let hadRangeSelectionBeforeUpdate = false;
+    let anchorKeyBeforeUpdate: null | string = null;
+    let formatBeforeUpdate = 0;
+    let styleBeforeUpdate = '';
+    if ($isRangeSelection(selectionBeforeUpdate)) {
+      hadRangeSelectionBeforeUpdate = true;
+      anchorKeyBeforeUpdate = selectionBeforeUpdate.anchor.key;
+      formatBeforeUpdate = selectionBeforeUpdate.format;
+      styleBeforeUpdate = selectionBeforeUpdate.style;
+    }
+
     const startingCompositionKey = editor._compositionKey;
     updateFn();
     skipTransforms = $processNestedUpdates(editor, skipTransforms);
@@ -1215,6 +1232,26 @@ function $beginUpdate(
           'updateEditor: selection has been lost because the previously selected nodes have been removed and ' +
             "selection wasn't moved to another node. Ensure selection changes after removing/replacing a selected node.",
         );
+      }
+
+      // A purely programmatic selection move: the update mutated no nodes,
+      // moved the selection anchor to a different node, and did not
+      // explicitly assign selection.format/selection.style. Refresh
+      // format/style from the target node(s) so they match what an
+      // equivalent interactive (pointer/keyboard) move would produce.
+      // Updates that mutate nodes (insertText, insertParagraph, delete*,
+      // etc.) are excluded so that a pending format toggle carried on the
+      // selection survives the internal .select() calls those flows make.
+      if (
+        editor._dirtyType === NO_DIRTY_NODES &&
+        pendingSelection.dirty &&
+        (hadRangeSelectionBeforeUpdate
+          ? anchorKey !== anchorKeyBeforeUpdate &&
+            pendingSelection.format === formatBeforeUpdate &&
+            pendingSelection.style === styleBeforeUpdate
+          : pendingSelection.format === 0 && pendingSelection.style === '')
+      ) {
+        $refreshSelectionFormatStyle(pendingSelection);
       }
     } else if ($isNodeSelection(pendingSelection)) {
       // TODO: we should also validate node selection?

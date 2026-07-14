@@ -84,14 +84,14 @@ import {
   KEY_MODIFIER_COMMAND,
   SELECT_ALL_COMMAND,
 } from './LexicalCommands';
-import {
-  COMPOSITION_START_CHAR,
-  DOUBLE_LINE_BREAK,
-  IS_ALL_FORMATTING,
-} from './LexicalConstants';
+import {COMPOSITION_START_CHAR, DOUBLE_LINE_BREAK} from './LexicalConstants';
 import {createRefCountedRegistry} from './LexicalRefCountedRegistry';
 import {
   $internalCreateRangeSelection,
+  $refreshSelectionFormatStyle,
+  $updateSelectionFormatStyle,
+  $updateSelectionFormatStyleFromElementNode,
+  $updateSelectionFormatStyleFromTextNode,
   type RangeSelection,
 } from './LexicalSelection';
 import {getActiveEditor, updateEditorSync} from './LexicalUpdates';
@@ -445,79 +445,12 @@ function onSelectionChange(
           }
         }
       } else {
-        const anchorKey = anchor.key;
-        const focus = selection.focus;
-        const focusKey = focus.key;
-        const nodes = selection.getNodes();
-        const nodesLength = nodes.length;
-        const isBackward = selection.isBackward();
-        const startOffset = isBackward ? focusOffset : anchorOffset;
-        const endOffset = isBackward ? anchorOffset : focusOffset;
-        const startKey = isBackward ? focusKey : anchorKey;
-        const endKey = isBackward ? anchorKey : focusKey;
-        let combinedFormat = IS_ALL_FORMATTING;
-        let hasTextNodes = false;
-        for (let i = 0; i < nodesLength; i++) {
-          const node = nodes[i];
-          const textContentSize = node.getTextContentSize();
-          if (
-            $isTextNode(node) &&
-            textContentSize !== 0 &&
-            // Exclude empty text nodes at boundaries resulting from user's selection
-            !(
-              (i === 0 &&
-                node.__key === startKey &&
-                startOffset === textContentSize) ||
-              (i === nodesLength - 1 &&
-                node.__key === endKey &&
-                endOffset === 0)
-            )
-          ) {
-            // TODO: what about style?
-            hasTextNodes = true;
-            combinedFormat &= node.getFormat();
-            if (combinedFormat === 0) {
-              break;
-            }
-          }
-        }
-
-        selection.format = hasTextNodes ? combinedFormat : 0;
+        $refreshSelectionFormatStyle(selection);
       }
     }
 
     dispatchCommand(editor, SELECTION_CHANGE_COMMAND, undefined);
   });
-}
-
-function $updateSelectionFormatStyle(
-  selection: RangeSelection,
-  format: number,
-  style: string,
-) {
-  if (selection.format !== format || selection.style !== style) {
-    selection.format = format;
-    selection.style = style;
-    selection.dirty = true;
-  }
-}
-
-function $updateSelectionFormatStyleFromTextNode(
-  selection: RangeSelection,
-  node: TextNode,
-) {
-  const format = node.getFormat();
-  const style = node.getStyle();
-  $updateSelectionFormatStyle(selection, format, style);
-}
-
-function $updateSelectionFormatStyleFromElementNode(
-  selection: RangeSelection,
-  node: ElementNode,
-) {
-  const format = node.getTextFormat();
-  const style = node.getTextStyle();
-  $updateSelectionFormatStyle(selection, format, style);
 }
 
 // This is a work-around is mainly Chrome specific bug where if you select

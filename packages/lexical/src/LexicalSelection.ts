@@ -54,7 +54,7 @@ import {
   type TextNode,
 } from '.';
 import {IS_FIREFOX} from './environment';
-import {TEXT_TYPE_TO_FORMAT} from './LexicalConstants';
+import {IS_ALL_FORMATTING, TEXT_TYPE_TO_FORMAT} from './LexicalConstants';
 import {
   markCollapsedSelectionFormat,
   markSelectionChangeFromDOMUpdate,
@@ -3499,6 +3499,109 @@ export function $isBlockElementNode(
   node: LexicalNode | null | undefined,
 ): node is ElementNode {
   return $isElementNode(node) && !node.isInline();
+}
+
+/**
+ * Update the format and style of a RangeSelection, marking the
+ * selection dirty only when a value actually changed.
+ */
+export function $updateSelectionFormatStyle(
+  selection: RangeSelection,
+  format: number,
+  style: string,
+): void {
+  if (selection.format !== format || selection.style !== style) {
+    selection.format = format;
+    selection.style = style;
+    selection.dirty = true;
+  }
+}
+
+export function $updateSelectionFormatStyleFromTextNode(
+  selection: RangeSelection,
+  node: TextNode,
+): void {
+  $updateSelectionFormatStyle(selection, node.getFormat(), node.getStyle());
+}
+
+export function $updateSelectionFormatStyleFromElementNode(
+  selection: RangeSelection,
+  node: ElementNode,
+): void {
+  $updateSelectionFormatStyle(
+    selection,
+    node.getTextFormat(),
+    node.getTextStyle(),
+  );
+}
+
+/**
+ * Recompute selection.format and selection.style from the node(s) the
+ * selection is over, using the same semantics as the interactive
+ * (pointer/keyboard) selection change path in onSelectionChange:
+ *
+ * - collapsed on a TextNode: the node's format/style
+ * - collapsed on an empty ElementNode: the element's textFormat/textStyle
+ * - collapsed on a non-empty ElementNode: keep format, clear style
+ * - non-collapsed: the intersection of the covered TextNodes' formats,
+ *   excluding empty boundary nodes (style is left unchanged)
+ */
+export function $refreshSelectionFormatStyle(selection: RangeSelection): void {
+  const anchor = selection.anchor;
+  const anchorNode = anchor.getNode();
+  if (selection.isCollapsed()) {
+    if (anchor.type === 'text') {
+      invariant(
+        $isTextNode(anchorNode),
+        'Point.getNode() must return TextNode when type is text',
+      );
+      $updateSelectionFormatStyleFromTextNode(selection, anchorNode);
+    } else if ($isElementNode(anchorNode)) {
+      if (anchorNode.isEmpty()) {
+        $updateSelectionFormatStyleFromElementNode(selection, anchorNode);
+      } else {
+        $updateSelectionFormatStyle(selection, selection.format, '');
+      }
+    }
+  } else {
+    const focus = selection.focus;
+    const nodes = selection.getNodes();
+    const nodesLength = nodes.length;
+    const isBackward = selection.isBackward();
+    const startOffset = isBackward ? focus.offset : anchor.offset;
+    const endOffset = isBackward ? anchor.offset : focus.offset;
+    const startKey = isBackward ? focus.key : anchor.key;
+    const endKey = isBackward ? anchor.key : focus.key;
+    let combinedFormat = IS_ALL_FORMATTING;
+    let hasTextNodes = false;
+    for (let i = 0; i < nodesLength; i++) {
+      const node = nodes[i];
+      const textContentSize = node.getTextContentSize();
+      if (
+        $isTextNode(node) &&
+        textContentSize !== 0 &&
+        // Exclude empty text nodes at boundaries resulting from user's selection
+        !(
+          (i === 0 &&
+            node.__key === startKey &&
+            startOffset === textContentSize) ||
+          (i === nodesLength - 1 && node.__key === endKey && endOffset === 0)
+        )
+      ) {
+        // TODO: what about style?
+        hasTextNodes = true;
+        combinedFormat &= node.getFormat();
+        if (combinedFormat === 0) {
+          break;
+        }
+      }
+    }
+    $updateSelectionFormatStyle(
+      selection,
+      hasTextNodes ? combinedFormat : 0,
+      selection.style,
+    );
+  }
 }
 
 // This is used to make a selection when the existing
