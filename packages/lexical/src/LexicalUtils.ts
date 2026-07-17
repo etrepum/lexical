@@ -2647,6 +2647,11 @@ export function INTERNAL_$isBlock(
     return false;
   }
 
+  const override = node.isBlock();
+  if (override !== null) {
+    return override;
+  }
+
   const firstChild = node.getFirstChild();
   const isLeafElement =
     firstChild === null ||

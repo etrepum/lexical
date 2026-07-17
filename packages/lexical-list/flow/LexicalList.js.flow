@@ -17,6 +17,7 @@ import type {
   SerializedElementNode,
   LexicalExtension,
   ExtensionConfigBase,
+  StateConfig,
 } from 'lexical';
 import type {NamedSignalsOutput} from '@lexical/extension';
 import {ElementNode} from 'lexical';
@@ -97,6 +98,15 @@ declare export function registerListStrictIndentTransform(
   editor: LexicalEditor,
 ): () => void;
 
+declare export function $isWrapperListItemNode(
+  node: ?LexicalNode,
+): node is ListItemNode;
+
+declare export var listSemanticNestingState: StateConfig<
+  'listSemanticNesting',
+  boolean,
+>;
+
 declare export function registerCheckList(editor: LexicalEditor): () => void;
 
 declare export var UPDATE_LIST_START_COMMAND: LexicalCommand<{
@@ -106,6 +116,8 @@ declare export var UPDATE_LIST_START_COMMAND: LexicalCommand<{
 
 export type ListConfig = {
   hasStrictIndent: boolean;
+  shouldPreserveNumbering: boolean;
+  hasSemanticNesting: boolean;
 };
 declare export var ListExtension: LexicalExtension<ListConfig, "@lexical/list/List", NamedSignalsOutput<ListConfig>, void>;
 declare export var CheckListExtension: LexicalExtension<ExtensionConfigBase, "@lexical/list/CheckList", void, void>;

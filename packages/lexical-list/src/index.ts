@@ -26,7 +26,11 @@ import {
   type ListType,
   type SerializedListNode,
 } from './LexicalListNode';
-import {$getListDepth} from './utils';
+import {
+  $getListDepth,
+  $isWrapperListItemNode,
+  listSemanticNestingState,
+} from './utils';
 
 export {
   type CheckListConfig,
@@ -54,11 +58,13 @@ export {
   $insertList,
   $isListItemNode,
   $isListNode,
+  $isWrapperListItemNode,
   $removeList,
   INSERT_CHECK_LIST_COMMAND,
   ListItemNode,
   ListNode,
   ListNodeTagType,
+  listSemanticNestingState,
   ListType,
   registerCheckList,
   SerializedListItemNode,

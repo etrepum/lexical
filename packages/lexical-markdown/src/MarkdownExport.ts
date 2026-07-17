@@ -6,6 +6,7 @@
  *
  */
 
+import {$isListItemNode, $isListNode} from '@lexical/list';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
   $getRoot,
@@ -452,6 +453,12 @@ function $exportChildren(
           shouldPreserveNewLines,
         ),
       );
+    } else if ($isListItemNode(node) && $isListNode(child)) {
+      // A nested list inside a list item (the semantic nested list
+      // representation) is a block, not inline content of the row; the
+      // list transformer exports it at the right depth. Flattening it here
+      // would concatenate the nested rows into the parent row's text.
+      continue;
     } else if ($isElementNode(child)) {
       // empty paragraph returns ""
       output.push(

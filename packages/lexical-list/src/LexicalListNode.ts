@@ -35,7 +35,16 @@ import {
   mergeNextSiblingListIfSameType,
   updateChildrenListItemValue,
 } from './formatList';
-import {$getListDepth} from './utils';
+import {
+  $isListSemanticNestingEnabled,
+  $markSemanticNestedLists,
+  $mergeWrapperListItemIntoPrevious,
+} from './semanticNesting';
+import {
+  $getListDepth,
+  $isWrapperListItemNode,
+  findCheckboxInputChild,
+} from './utils';
 
 export type SerializedListNode = Spread<
   {
@@ -293,12 +302,21 @@ function $setListThemeClassNames(
  * This function normalizes the children of a ListNode after the conversion from HTML,
  * ensuring that they are all ListItemNodes and contain either a single nested ListNode
  * or some other inline content.
+ *
+ * When semantic nesting is enabled for the active editor (see the
+ * `hasSemanticNesting` config of `ListExtension`) the normalization instead
+ * preserves `<li>content<ul>…</ul></li>` structures and merges dedicated
+ * wrapper `<li>`s into the preceding item.
  */
 function $normalizeChildren(
   nodes: LexicalNode[],
   listNode: ListNode,
 ): ListItemNode[] {
   const $createWrapperItem = listNode.createListItemNode.bind(listNode);
+
+  if ($isListSemanticNestingEnabled()) {
+    return $normalizeSemanticChildren(nodes, $createWrapperItem);
+  }
 
   const normalizedListItems: ListItemNode[] = [];
   for (let i = 0; i < nodes.length; i++) {
@@ -320,7 +338,43 @@ function $normalizeChildren(
   return normalizedListItems;
 }
 
-function isDomChecklist(domNode: HTMLElement) {
+/**
+ * Semantic-nesting counterpart of $normalizeChildren: nested lists stay
+ * inside the ListItemNode that precedes them. A dedicated wrapper `<li>`
+ * (all children are lists) or a bare nested ListNode is merged into the
+ * previous item when that item renders content of its own; otherwise the
+ * wrapper form is kept (there is no semantic host to merge into). Nested
+ * lists that end up in a content-bearing item are marked with the semantic
+ * nesting state (see {@link $markSemanticNestedLists}).
+ */
+export function $normalizeSemanticChildren(
+  nodes: LexicalNode[],
+  $createWrapperItem: () => ListItemNode,
+): ListItemNode[] {
+  const normalizedListItems: ListItemNode[] = [];
+  for (const node of nodes) {
+    const previousItem = normalizedListItems.at(-1);
+    const canMergeIntoPrevious =
+      previousItem !== undefined && previousItem.getChildrenSize() > 0;
+    if ($isListItemNode(node)) {
+      if (canMergeIntoPrevious && $isWrapperListItemNode(node)) {
+        $mergeWrapperListItemIntoPrevious(previousItem, node);
+      } else {
+        normalizedListItems.push(node);
+      }
+    } else if ($isListNode(node) && canMergeIntoPrevious) {
+      previousItem.append(node);
+    } else {
+      normalizedListItems.push($createWrapperItem().append(node));
+    }
+  }
+  for (const listItemNode of normalizedListItems) {
+    $markSemanticNestedLists(listItemNode);
+  }
+  return normalizedListItems;
+}
+
+function $isDomChecklist(domNode: HTMLElement) {
   if (
     domNode.getAttribute('__lexicallisttype') === 'check' ||
     // is github checklist
@@ -330,10 +384,20 @@ function isDomChecklist(domNode: HTMLElement) {
   ) {
     return true;
   }
-  // if children are checklist items, the node is a checklist ul. Applicable for googledoc checklist pasting.
+  // if children are checklist items, the node is a checklist ul. Applicable
+  // for googledoc checklist pasting (aria-checked) and — only in the
+  // semantic nesting mode, which consumes class-less checkbox inputs on
+  // import — for task-list rows that render a real checkbox input (the
+  // mode's own export, GitHub HTML without the container class).
+  const recognizeCheckboxInputs = $isListSemanticNestingEnabled();
   for (const child of domNode.childNodes) {
-    if (isHTMLElement(child) && child.hasAttribute('aria-checked')) {
-      return true;
+    if (isHTMLElement(child)) {
+      if (
+        child.hasAttribute('aria-checked') ||
+        (recognizeCheckboxInputs && findCheckboxInputChild(child) !== null)
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -350,7 +414,7 @@ function $convertListNode(
   if (isHTMLOListElement(domNode)) {
     const start = domNode.start;
     node = $createListNode('number', start);
-  } else if (isDomChecklist(domNode)) {
+  } else if ($isDomChecklist(domNode)) {
     node = $createListNode('check');
   } else {
     node = $createListNode('bullet');

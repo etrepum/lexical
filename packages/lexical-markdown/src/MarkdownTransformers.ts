@@ -18,6 +18,7 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
+  $isWrapperListItemNode,
   ListItemNode,
   ListNode,
   type ListType,
@@ -489,11 +490,70 @@ const $listExport = (
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
-      if (listItemNode.getChildrenSize() === 1) {
-        const firstChild = listItemNode.getFirstChild();
-        if ($isListNode(firstChild)) {
+      // A dedicated wrapper item renders no row of its own; only its
+      // nested lists are exported. An item whose lists carry the semantic
+      // nesting mark is a real row (even without inline content) and falls
+      // through to the row path below.
+      const isWrapper = $isWrapperListItemNode(listItemNode);
+      // Skip unselected rows when selection is provided. Nested ListNode
+      // children don't count: they are the *following* rows' content (they
+      // are visited below and filter themselves recursively), so a host
+      // whose nested rows alone are selected must not emit a row of its
+      // own — matching the default representation, where the unselected
+      // inline content lives in a separate li that is skipped. A row with
+      // no inline content at all (emptied host) can only be selected as
+      // the li itself, so that case falls back to the li's own selection.
+      const itemChildren = listItemNode.getChildren();
+      let hasInlineChild = false;
+      let hasSelectedInlineChild = false;
+      if (!isWrapper && selection) {
+        for (const child of itemChildren) {
+          if (!$isListNode(child)) {
+            hasInlineChild = true;
+            if (child.isSelected(selection)) {
+              hasSelectedInlineChild = true;
+              break;
+            }
+          }
+        }
+      }
+      const isRow =
+        !isWrapper &&
+        (!selection ||
+          hasSelectedInlineChild ||
+          // Emptied host rows (children are only nested lists) can only be
+          // selected as the li itself. Childless items are excluded, as the
+          // legacy some()-over-no-children filter always skipped them.
+          (!hasInlineChild &&
+            itemChildren.length > 0 &&
+            listItemNode.isSelected(selection)));
+      if (isRow) {
+        const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
+        const listType = listNode.getListType();
+        const listMarker = $getState(listNode, listMarkerState);
+        const prefix =
+          listType === 'number'
+            ? `${listNode.getStart() + index}. `
+            : listType === 'check'
+              ? `${listMarker} [${listItemNode.getChecked() ? 'x' : ' '}] `
+              : listMarker + ' ';
+        // exportChildren yields only the row's own content; nested
+        // ListNode children are handled below (see the list-item guard in
+        // MarkdownExport's $exportChildren).
+        let childrenText = exportChildren(listItemNode);
+        if (listType !== 'number') {
+          childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
+        }
+        output.push(indent + prefix + childrenText);
+        index++;
+      }
+      // Nested lists — the sole content of a wrapper item, or trailing a
+      // row's content in the semantic representation — export one level
+      // deeper.
+      for (const child of itemChildren) {
+        if ($isListNode(child)) {
           const nestedResult = $listExport(
-            firstChild,
+            child,
             exportChildren,
             depth + 1,
             selection,
@@ -501,31 +561,8 @@ const $listExport = (
           if (nestedResult) {
             output.push(nestedResult);
           }
-          continue;
         }
       }
-      // Skip unselected list items when selection is provided
-      if (
-        selection &&
-        !listItemNode.getChildren().some(child => child.isSelected(selection))
-      ) {
-        continue;
-      }
-      const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
-      const listType = listNode.getListType();
-      const listMarker = $getState(listNode, listMarkerState);
-      const prefix =
-        listType === 'number'
-          ? `${listNode.getStart() + index}. `
-          : listType === 'check'
-            ? `${listMarker} [${listItemNode.getChecked() ? 'x' : ' '}] `
-            : listMarker + ' ';
-      let childrenText = exportChildren(listItemNode);
-      if (listType !== 'number') {
-        childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
-      }
-      output.push(indent + prefix + childrenText);
-      index++;
     }
   }
 

@@ -17,6 +17,7 @@ import {
   COMMAND_PRIORITY_BEFORE_EDITOR,
   COMMAND_PRIORITY_LOW,
   createCommand,
+  type ElementNode,
   INSERT_PARAGRAPH_COMMAND,
   KEY_BACKSPACE_COMMAND,
   type LexicalCommand,
@@ -35,7 +36,7 @@ import {
 } from './formatList';
 import {$isListItemNode, ListItemNode} from './LexicalListItemNode';
 import {$isListNode, ListNode} from './LexicalListNode';
-import {$getListDepth} from './utils';
+import {$getListDepth, $isWrapperListItemNode} from './utils';
 
 export const UPDATE_LIST_START_COMMAND: LexicalCommand<{
   listNodeKey: NodeKey;
@@ -191,34 +192,52 @@ export function registerListStrictIndentTransform(
 ): () => void {
   const $formatListIndentStrict = (listItemNode: ListItemNode): void => {
     const listNode = listItemNode.getParent();
-    if ($isListNode(listItemNode.getFirstChild()) || !$isListNode(listNode)) {
+    if ($isWrapperListItemNode(listItemNode) || !$isListNode(listNode)) {
       return;
     }
 
-    const startingListItemNode = $findMatchingParent(
-      listItemNode,
-      node =>
-        $isListItemNode(node) &&
-        $isListNode(node.getParent()) &&
-        $isListItemNode(node.getPreviousSibling()),
-    );
+    // Find the list item that ends the previous visual row: the nearest
+    // ancestor-or-self list item with a previous sibling (then descend to
+    // the end of that sibling's nested lists), or — in the semantic
+    // representation — the content-bearing list item that directly contains
+    // this item's list.
+    let endListItemNode: ListItemNode | null = null;
+    let probe: ListItemNode | null = listItemNode;
+    while ($isListItemNode(probe)) {
+      const previousSibling = probe.getPreviousSibling();
+      if ($isListItemNode(previousSibling)) {
+        endListItemNode = $findChildrenEndListItemNode(previousSibling);
+        break;
+      }
+      const probeList: ElementNode | null = probe.getParent();
+      const containingListItem: ElementNode | null = $isListNode(probeList)
+        ? probeList.getParent()
+        : null;
+      if (!$isListItemNode(containingListItem)) {
+        break;
+      }
+      if (!$isWrapperListItemNode(containingListItem)) {
+        // Semantic representation: the containing item renders its own
+        // content, so it is itself the previous row.
+        endListItemNode = containingListItem;
+        break;
+      }
+      probe = containingListItem;
+    }
 
-    if (startingListItemNode === null && listItemNode.getIndent() > 0) {
-      listItemNode.setIndent(0);
-    } else if ($isListItemNode(startingListItemNode)) {
-      const prevListItemNode = startingListItemNode.getPreviousSibling();
+    if (endListItemNode === null) {
+      if (listItemNode.getIndent() > 0) {
+        listItemNode.setIndent(0);
+      }
+    } else {
+      const endListNode = endListItemNode.getParent();
 
-      if ($isListItemNode(prevListItemNode)) {
-        const endListItemNode = $findChildrenEndListItemNode(prevListItemNode);
-        const endListNode = endListItemNode.getParent();
+      if ($isListNode(endListNode)) {
+        const prevDepth = $getListDepth(endListNode);
+        const depth = $getListDepth(listNode);
 
-        if ($isListNode(endListNode)) {
-          const prevDepth = $getListDepth(endListNode);
-          const depth = $getListDepth(listNode);
-
-          if (prevDepth + 1 < depth) {
-            listItemNode.setIndent(prevDepth);
-          }
+        if (prevDepth + 1 < depth) {
+          listItemNode.setIndent(prevDepth);
         }
       }
     }
@@ -233,13 +252,22 @@ export function registerListStrictIndentTransform(
         continue;
       }
 
-      for (const child of node.getChildren()) {
+      for (
+        let child = node.getFirstChild();
+        child !== null;
+        child = child.getNextSibling()
+      ) {
         if ($isListItemNode(child)) {
           $formatListIndentStrict(child);
 
-          const firstChild = child.getFirstChild();
-          if ($isListNode(firstChild)) {
-            queue.push(firstChild);
+          for (
+            let grandchild = child.getFirstChild();
+            grandchild !== null;
+            grandchild = grandchild.getNextSibling()
+          ) {
+            if ($isListNode(grandchild)) {
+              queue.push(grandchild);
+            }
           }
         }
       }
@@ -253,14 +281,26 @@ function $findChildrenEndListItemNode(
   listItemNode: ListItemNode,
 ): ListItemNode {
   let current = listItemNode;
-  let firstChild = current.getFirstChild();
 
-  while ($isListNode(firstChild)) {
-    const lastChild = firstChild.getLastChild();
-
+  // Descend through nested lists: the sole child of a wrapper item, or the
+  // last nested list trailing an item's content (semantic representation).
+  // Scan the child links backward from the end — the last nested list is at
+  // (or near) the tail in both representations.
+  while (true) {
+    let lastNestedList = null;
+    for (
+      let child = current.getLastChild();
+      child !== null;
+      child = child.getPreviousSibling()
+    ) {
+      if ($isListNode(child)) {
+        lastNestedList = child;
+        break;
+      }
+    }
+    const lastChild = lastNestedList ? lastNestedList.getLastChild() : null;
     if ($isListItemNode(lastChild)) {
       current = lastChild;
-      firstChild = current.getFirstChild();
     } else {
       break;
     }

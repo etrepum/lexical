@@ -42,6 +42,7 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
+  $isWrapperListItemNode,
 } from '@lexical/list';
 import {
   $createHeadingNode,
@@ -566,16 +567,21 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     if (!$isListItemNode(child) || !ctx.isIncluded(child)) {
       continue;
     }
-    const firstChild = child.getFirstChild();
-    // A list item whose sole child is a nested list represents nesting: attach
-    // the nested list to the previous item's children.
-    if (child.getChildrenSize() === 1 && $isListNode(firstChild)) {
-      const nested = $exportListNode(firstChild, ctx);
+    // A dedicated wrapper item (all children are lists, none marked with
+    // the semantic nesting state) represents nesting: attach its lists to
+    // the previous item's children. An item whose lists carry the mark is
+    // a real row — even without inline content — and is exported as its
+    // own listItem below.
+    if ($isWrapperListItemNode(child)) {
+      const nestedLists = child.getChildren().filter($isListNode);
+      const nested = nestedLists.map(nestedList =>
+        $exportListNode(nestedList, ctx),
+      );
       if (previousItem) {
-        previousItem.children.push(nested);
+        previousItem.children.push(...nested);
       } else {
         list.children.push({
-          children: [nested],
+          children: nested,
           spread: false,
           type: 'listItem',
         });

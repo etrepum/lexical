@@ -15,7 +15,12 @@ import type {
 } from './MarkdownTransformers';
 
 import {$isCodeNode} from '@lexical/code-core';
-import {$isListItemNode, $isListNode, type ListNode} from '@lexical/list';
+import {
+  $isListItemNode,
+  $isListNode,
+  $isWrapperListItemNode,
+  type ListNode,
+} from '@lexical/list';
 import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
 import {
   $isParagraphNode,
@@ -355,24 +360,25 @@ function processNestedLists(
 
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
-      if (listItemNode.getChildrenSize() === 1) {
-        const firstChild = listItemNode.getFirstChild();
-
-        if ($isListNode(firstChild)) {
-          output.push(
-            processNestedLists(firstChild, exportChildren, depth + 1),
-          );
-          continue;
+      // A dedicated wrapper item renders no row of its own; an item whose
+      // lists carry the semantic nesting mark is a real row even without
+      // inline content.
+      if (!$isWrapperListItemNode(listItemNode)) {
+        const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
+        const prefix =
+          listNode.getListType() === 'bullet'
+            ? '- '
+            : `${listNode.getStart() + index}. `;
+        output.push(indent + prefix + exportChildren(listItemNode));
+        index++;
+      }
+      // Nested lists (a wrapper's content, or trailing a row's own content
+      // in the semantic representation) export one level deeper.
+      for (const child of listItemNode.getChildren()) {
+        if ($isListNode(child)) {
+          output.push(processNestedLists(child, exportChildren, depth + 1));
         }
       }
-
-      const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
-      const prefix =
-        listNode.getListType() === 'bullet'
-          ? '- '
-          : `${listNode.getStart() + index}. `;
-      output.push(indent + prefix + exportChildren(listItemNode));
-      index++;
     }
   }
 

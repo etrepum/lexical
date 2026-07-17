@@ -19,7 +19,12 @@ import {
   createImportState,
 } from '@lexical/html';
 import {$isLinkNode} from '@lexical/link';
-import {$isListNode} from '@lexical/list';
+import {
+  $createListItemNode,
+  $createListNode,
+  $isListNode,
+  listSemanticNestingState,
+} from '@lexical/list';
 import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
 import {$isTableNode} from '@lexical/table';
 import {
@@ -33,6 +38,7 @@ import {
   $isRangeSelection,
   $isTextNode,
   $setSelectionFromCaretRange,
+  $setState,
   defineExtension,
   TEXT_TYPE_TO_FORMAT,
   type TextNode,
@@ -1043,5 +1049,49 @@ describe('@lexical/mdast import/export', () => {
       {discrete: true},
     );
     expect(editor.read(() => $convertToMarkdownString())).toBe('# Still works');
+  });
+});
+
+describe('semantic nested list representation', () => {
+  it('exports host items and emptied rows as their own list items', () => {
+    using editor = createEditor();
+    editor.update(
+      () => {
+        // Semantic representation from @lexical/list: a host item with a
+        // marked nested list, and a row whose inline content was deleted
+        // (its marked list proves it is a real row, not a wrapper).
+        const $markedList = (text: string) => {
+          const list = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode(text)),
+          );
+          $setState(list, listSemanticNestingState, true);
+          return list;
+        };
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append(
+                $createTextNode('a'),
+                $markedList('x'),
+              ),
+              $createListItemNode().append($markedList('y')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+
+    const tree = editor.read(() => $convertToMdast());
+    const list = tree.children[0];
+    assert(list.type === 'list', 'expected a list');
+    // Two list items: the emptied row is not merged into the previous one.
+    expect(list.children).toHaveLength(2);
+    const [first, second] = list.children;
+    expect(first.children.map(child => child.type)).toEqual([
+      'paragraph',
+      'list',
+    ]);
+    expect(second.children.map(child => child.type)).toEqual(['list']);
   });
 });

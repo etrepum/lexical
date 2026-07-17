@@ -55,6 +55,73 @@ function onButtonClick(e: MouseEvent) {
 
 ```
 
+## Semantic nested list representation
+
+By default, a nested list requires a dedicated wrapper `ListItemNode` whose
+sole child is the nested `ListNode`, which renders as:
+
+```html
+<ul>
+  <li>first item</li>
+  <li>nested list below</li>
+  <li>
+    <ul>
+      <li>nested</li>
+    </ul>
+  </li>
+</ul>
+```
+
+You can opt in to the semantic representation, where the nested list lives
+inside the list item that precedes it:
+
+```html
+<ul>
+  <li>first item</li>
+  <li>
+    <span>nested list below</span>
+    <ul>
+      <li>nested</li>
+    </ul>
+  </li>
+</ul>
+```
+
+Opt in with the `hasSemanticNesting` config of `ListExtension`. This
+registers a `ListItemNode` transform that continuously converts wrapper
+items produced by editing operations or deserialized documents into the
+semantic form, and switches HTML import over to preserving
+`<li>text<ul>…</ul></li>` structures. Nested lists that sit in a
+content-bearing item are marked with NodeState, so an item whose inline
+content is later deleted keeps its own row instead of being mistaken for a
+dedicated wrapper (the two shapes are structurally identical). HTML export
+produces the semantic representation in either mode.
+
+In the semantic mode, check-list rows also render a real
+`<input type="checkbox">` as unmanaged DOM at the start of each `<li>`,
+instead of emulating one with `role="checkbox"`/`aria-checked` attributes
+and a CSS marker. The input carries the role, checked state, and focus
+semantics natively (click and Space toggle it, arrow keys move between
+rows) and is labelled by its row via `aria-labelledby`; a theme-rendered
+`::before` marker area on the `<li>` stays clickable like in the default
+mode. The `<li>` keeps an `aria-checked` attribute (without the role it
+is inert for assistive technology), so both exported HTML and HTML
+captured from the live DOM keep the checked state importable by editors
+that do not consume checkbox inputs (including default-mode Lexical
+editors), and
+`<li><input type="checkbox">…` structures are recognized on import in the
+semantic mode. State still flows one way — clicks are routed through the
+editor, and the reconciler keeps the input in sync with the node's
+`checked` value.
+
+The flag only gates *producing* the semantic shape (the transform, HTML
+import, and native checkbox rendering); *honoring* it — rendering,
+numbering, checkbox roles, editing operations, export — is unconditional
+in every editor. A marked document therefore keeps its row identities when
+opened in an editor with the flag off, but no transform maintains or
+converts the representation there. The mark travels with document JSON,
+not with HTML or markdown.
+
 ## Theming
 
 Lists can be styled using the following properties in the EditorTheme passed to the editor in the initial config (the values are classes that will be applied in the denoted contexts):
@@ -78,6 +145,11 @@ Lists can be styled using the following properties in the EditorTheme passed to 
     listitemChecked?: EditorThemeClassName;
     // Applies to all list items with checked property set to "false"
     listitemUnchecked?: EditorThemeClassName;
+    // Applies to list items that render a row of their own and contain a
+    // nested list inside the same <li> (semantic nested list
+    // representation) — e.g. to scope a checked style away from the
+    // nested rows
+    listitemHost?: EditorThemeClassName;
     // Applies only to list and list items that are not at the top level.
     nested?: {
       list?: EditorThemeClassName;

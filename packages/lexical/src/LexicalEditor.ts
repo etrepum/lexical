@@ -201,6 +201,14 @@ export interface EditorThemeClasses {
     listitem?: EditorThemeClassName;
     listitemChecked?: EditorThemeClassName;
     listitemUnchecked?: EditorThemeClassName;
+    /**
+     * Applied to list items that render a row of their own AND contain a
+     * nested list inside the same `<li>` (the semantic nested list
+     * representation; see `@lexical/list` `ListConfig.hasSemanticNesting`).
+     * Lets themes style or scope such rows — e.g. keep a checked style from
+     * visually striking through the nested rows.
+     */
+    listitemHost?: EditorThemeClassName;
     nested?: {
       list?: EditorThemeClassName;
       listitem?: EditorThemeClassName;
