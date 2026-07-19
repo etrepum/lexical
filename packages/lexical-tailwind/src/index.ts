@@ -25,6 +25,15 @@ const checklistItemCommonClasses =
     'focus:before:shadow-[0_0_0_2px_#a6cdfe]',
   );
 
+// The `hasSemanticNesting` ListExtension config renders a real
+// <input type="checkbox"> instead of the ::before/::after emulation, so the
+// reconciler applies these *Native keys (never listitemChecked /
+// listitemUnchecked) — no emulated checkbox, no padding reserving space for
+// one, and no overlap with the native input.
+const checklistNativeItemCommonClasses = join(
+  '[&]:mx-[0.5em] list-none outline-none block min-h-[1.5em]',
+);
+
 const listCommonClasses = 'p-0 m-0 list-outside';
 
 const theme: EditorThemeClasses = {
@@ -97,6 +106,12 @@ const theme: EditorThemeClasses = {
       'font-(family-name:--listitem-marker-font-family) text-(length:--listitem-marker-font-size) bg-(--listitem-marker-background-color)',
       'marker:text-(--listitem-marker-color) marker:font-(family-name:--listitem-marker-font-family) marker:text-(length:--listitem-marker-font-size) marker:bg-(--listitem-marker-background-color)',
     ),
+
+    listitemCheckbox: join(
+      'w-4 h-4 mr-[0.5em] align-middle cursor-pointer',
+      'accent-[rgb(61,135,245)]',
+    ),
+
     // TODO fix up checked/unchecked
     listitemChecked: join(
       checklistItemCommonClasses,
@@ -104,7 +119,16 @@ const theme: EditorThemeClasses = {
       'before:border-[rgb(61,135,245)] before:bg-[#3d87f5] before:bg-no-repeat',
       'after:cursor-pointer after:border-white after:border-solid after:absolute after:block after:top-1.5 after:width-[3px] after:inset-x-[7px] after:height-1.5 after:rotate-45 after:border-t-0 after:border-r-0.5 after:border-b-0.5 after:border-l-0',
     ),
+
+    // Semantic nesting: the real <input type="checkbox"> replaces the
+    // emulated box, so these keys carry only the row state and the input is
+    // styled via listitemCheckbox.
+    listitemCheckedNative: join(
+      checklistNativeItemCommonClasses,
+      'line-through',
+    ),
     listitemUnchecked: join(checklistItemCommonClasses, 'before:border-[#999]'),
+    listitemUncheckedNative: checklistNativeItemCommonClasses,
     nested: {
       listitem: join('list-none', 'before:hidden', 'after:hidden'),
     },

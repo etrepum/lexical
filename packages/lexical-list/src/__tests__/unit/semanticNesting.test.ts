@@ -3062,3 +3062,95 @@ describe('review round 8 regression fixes', () => {
     );
   });
 });
+
+describe('native checkbox theme keys', () => {
+  const THEME = {
+    list: {
+      listitemCheckbox: 'the-input',
+      listitemChecked: 'emulated-checked',
+      listitemCheckedNative: 'native-checked',
+      listitemUnchecked: 'emulated-unchecked',
+      listitemUncheckedNative: 'native-unchecked',
+    },
+  };
+
+  function buildThemedEditor(hasSemanticNesting: boolean) {
+    return buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting}),
+          CheckListExtension,
+        ],
+        name: 'themed-check-host',
+        theme: THEME,
+      }),
+    );
+  }
+
+  function $appendCheckList(): void {
+    $clearAndAppend(
+      $createListNode('check').append(
+        $createListItemNode(true).append($createTextNode('done')),
+        $createListItemNode(false).append($createTextNode('todo')),
+      ),
+    );
+  }
+
+  test('semantic mode applies the *Native keys and styles the input, not the emulated keys', () => {
+    using editor = buildThemedEditor(true);
+    const rootElement = mountRootElement(editor);
+    editor.update($appendCheckList, {discrete: true});
+
+    const [checkedLi, uncheckedLi] = Array.from(
+      rootElement.querySelectorAll('li'),
+    );
+    // The row carries only the native check class — never the emulated one
+    // that would draw a second, ::before checkbox over the real input.
+    expect(checkedLi.classList.contains('native-checked')).toBe(true);
+    expect(checkedLi.classList.contains('emulated-checked')).toBe(false);
+    expect(uncheckedLi.classList.contains('native-unchecked')).toBe(true);
+    expect(uncheckedLi.classList.contains('emulated-unchecked')).toBe(false);
+    // The real input renders and carries the checkbox class.
+    const input = checkedLi.querySelector('input[type="checkbox"]');
+    invariant(input !== null, 'expected a native checkbox input');
+    expect(input.classList.contains('the-input')).toBe(true);
+    expect(rootElement.isConnected).toBe(true);
+  });
+
+  test('default mode applies the emulated keys and renders no input', () => {
+    using editor = buildThemedEditor(false);
+    const rootElement = mountRootElement(editor);
+    editor.update($appendCheckList, {discrete: true});
+
+    const [checkedLi, uncheckedLi] = Array.from(
+      rootElement.querySelectorAll('li'),
+    );
+    expect(checkedLi.classList.contains('emulated-checked')).toBe(true);
+    expect(checkedLi.classList.contains('native-checked')).toBe(false);
+    expect(uncheckedLi.classList.contains('emulated-unchecked')).toBe(true);
+    expect(uncheckedLi.classList.contains('native-unchecked')).toBe(false);
+    // No native input in the emulated representation.
+    expect(checkedLi.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(rootElement.isConnected).toBe(true);
+  });
+
+  test('toggling checked swaps the *Native class without leaving the other behind', () => {
+    using editor = buildThemedEditor(true);
+    const rootElement = mountRootElement(editor);
+    let item!: ListItemNode;
+    editor.update(
+      () => {
+        item = $createListItemNode(false).append($createTextNode('todo'));
+        $clearAndAppend($createListNode('check').append(item));
+      },
+      {discrete: true},
+    );
+    const li = rootElement.querySelector('li')!;
+    expect(li.classList.contains('native-unchecked')).toBe(true);
+    expect(li.classList.contains('native-checked')).toBe(false);
+
+    editor.update(() => item.getLatest().setChecked(true), {discrete: true});
+    expect(li.classList.contains('native-checked')).toBe(true);
+    expect(li.classList.contains('native-unchecked')).toBe(false);
+  });
+});

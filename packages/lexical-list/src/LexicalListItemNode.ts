@@ -201,12 +201,25 @@ export class ListItemNode extends ElementNode {
     dom: HTMLLIElement,
     config: EditorConfig,
   ) {
-    // Classified once per reconcile; both helpers below need it.
+    // Classified once per reconcile; both helpers below need it. A check
+    // row renders a real <input type=checkbox> — rather than the ARIA /
+    // ::before emulation — in the semantic nesting representation; the
+    // theme keys and DOM wiring differ, so resolve it once here.
     const isWrapper = $isWrapperListItemNode(this);
-    $updateListItemChecked(dom, this, isWrapper);
+    const useNativeCheckbox =
+      !isWrapper &&
+      $isCheckList(this.getParent()) &&
+      $isListSemanticNestingEnabled();
+    $updateListItemChecked(dom, this, isWrapper, useNativeCheckbox);
 
     dom.value = this.__value;
-    $setListItemThemeClassNames(dom, config.theme, this, isWrapper);
+    $setListItemThemeClassNames(
+      dom,
+      config.theme,
+      this,
+      isWrapper,
+      useNativeCheckbox,
+    );
     const prevStyle = prevNode ? prevNode.__style : '';
     const nextStyle = this.__style;
 
@@ -656,6 +669,7 @@ function $setListItemThemeClassNames(
   editorThemeClasses: EditorThemeClasses,
   node: ListItemNode,
   isWrapper: boolean,
+  useNativeCheckbox: boolean,
 ): void {
   const listTheme = editorThemeClasses.list;
   if (!listTheme) {
@@ -683,14 +697,20 @@ function $setListItemThemeClassNames(
 
   // Always remove the variable theme classes first so that the className
   // string stays in a canonical order regardless of how the dom got here
-  // (fresh create vs. cross-parent reuse). classList.remove on a missing
-  // class is a no-op, so this is safe even on a freshly-created element.
+  // (fresh create vs. cross-parent reuse) or which checkbox representation
+  // the row used last (the emulated and native check classes must never
+  // linger together). classList.remove on a missing class is a no-op, so
+  // this is safe even on a freshly-created element.
   const classesToRemove: string[] = [];
-  if (listTheme.listitemChecked !== undefined) {
-    classesToRemove.push(listTheme.listitemChecked);
-  }
-  if (listTheme.listitemUnchecked !== undefined) {
-    classesToRemove.push(listTheme.listitemUnchecked);
+  for (const checkClassName of [
+    listTheme.listitemChecked,
+    listTheme.listitemUnchecked,
+    listTheme.listitemCheckedNative,
+    listTheme.listitemUncheckedNative,
+  ]) {
+    if (checkClassName !== undefined) {
+      classesToRemove.push(...normalizeClassNames(checkClassName));
+    }
   }
   if (nestedListItemClassName !== undefined) {
     classesToRemove.push(...normalizeClassNames(nestedListItemClassName));
@@ -707,11 +727,19 @@ function $setListItemThemeClassNames(
     classesToAdd.push(...normalizeClassNames(listItemClassName));
   }
   if (isCheckList) {
-    const checkClassName = checked
-      ? listTheme.listitemChecked
-      : listTheme.listitemUnchecked;
+    // A row rendering a native <input type=checkbox> (semantic nesting)
+    // uses its own theme keys so it never draws the emulated ::before
+    // checkbox on top of the real input; every other check row uses the
+    // ARIA-emulation keys.
+    const checkClassName = useNativeCheckbox
+      ? checked
+        ? listTheme.listitemCheckedNative
+        : listTheme.listitemUncheckedNative
+      : checked
+        ? listTheme.listitemChecked
+        : listTheme.listitemUnchecked;
     if (checkClassName !== undefined) {
-      classesToAdd.push(checkClassName);
+      classesToAdd.push(...normalizeClassNames(checkClassName));
     }
   }
   if (nestedListItemClassName !== undefined && isWrapper) {
@@ -722,6 +750,16 @@ function $setListItemThemeClassNames(
   }
   if (classesToAdd.length > 0) {
     addClassNamesToElement(dom, ...classesToAdd);
+  }
+
+  // Style the native checkbox input itself (semantic nesting), if the
+  // theme provides a class for it. The input is the row's first child.
+  const checkboxClassName = listTheme.listitemCheckbox;
+  if (checkboxClassName !== undefined) {
+    const input = getListItemCheckboxDOM(dom);
+    if (input !== null) {
+      addClassNamesToElement(input, ...normalizeClassNames(checkboxClassName));
+    }
   }
 }
 
@@ -827,16 +865,15 @@ function $updateListItemChecked(
   dom: HTMLElement,
   listItemNode: ListItemNode,
   isWrapper: boolean,
+  useNativeInput: boolean,
 ): void {
-  const parent = listItemNode.getParent();
+  // Only list items that render content of their own are checkboxes, not
+  // dedicated wrapper items that just hold a nested list. useNativeInput
+  // already implies this; an emulated (ARIA) checkbox is any other check
+  // row. The semantic nesting mode renders a real (unmanaged) input, which
+  // carries the role/checked/focus semantics natively.
   const isCheckbox =
-    $isCheckList(parent) &&
-    // Only render a checkbox for list items that render content of their
-    // own, not dedicated wrapper items that just hold a nested list
-    !isWrapper;
-  // The semantic nesting mode renders a real (unmanaged) checkbox input,
-  // which carries the role/checked/focus semantics natively.
-  const useNativeInput = isCheckbox && $isListSemanticNestingEnabled();
+    useNativeInput || (!isWrapper && $isCheckList(listItemNode.getParent()));
   const input = getListItemCheckboxDOM(dom);
   const checked = listItemNode.getChecked() === true;
 

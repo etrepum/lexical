@@ -119,10 +119,15 @@ const theme = {
   list: {
     checklist: 'list-none pl-0',
     listitem: 'mx-6 my-0.5',
-    listitemChecked:
-      'relative list-none pl-6 line-through text-zinc-500 before:absolute before:top-0.5 before:left-0 before:flex before:h-4 before:w-4 before:items-center before:justify-center before:rounded-sm before:border before:border-solid before:border-zinc-400 before:bg-blue-500 before:text-[10px] before:leading-none before:text-white before:content-["✓"]',
-    listitemUnchecked:
-      'relative list-none pl-6 before:absolute before:top-0.5 before:left-0 before:h-4 before:w-4 before:rounded-sm before:border before:border-solid before:border-zinc-400 before:bg-transparent before:content-[""]',
+    // This example enables the semantic nesting ListExtension config, so
+    // check-list rows render a real <input type="checkbox"> and the
+    // reconciler applies the *Native theme keys (not listitemChecked /
+    // listitemUnchecked, which draw the emulated ::before checkbox). These
+    // carry only the checked-state row styling; listitemCheckbox styles
+    // the real input.
+    listitemCheckedNative: 'list-none line-through text-zinc-500',
+    listitemUncheckedNative: 'list-none',
+    listitemCheckbox: 'mr-2 cursor-pointer align-middle',
     nested: {
       listitem: 'list-none',
     },
