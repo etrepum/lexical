@@ -106,6 +106,23 @@ describe('mdast-editor semantic list representation', () => {
     expect(inputs[1].checked).toBe(true);
   });
 
+  test('renders a mixed task list with a plain row that has no checkbox', () => {
+    const {editor, root} = mountEditor('- [ ] todo\n- just a note\n- [x] done');
+
+    const items = topLevelItems(root);
+    expect(items).toHaveLength(3);
+    // The task rows render a real checkbox; the plain middle row renders
+    // none — no leftover box, no role/aria-checked emulation.
+    expect(items[0].querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(items[1].querySelector('input[type="checkbox"]')).toBeNull();
+    expect(items[1].hasAttribute('aria-checked')).toBe(false);
+    expect(items[1].hasAttribute('role')).toBe(false);
+    expect(items[1].textContent).toContain('just a note');
+    expect(items[2].querySelector('input[type="checkbox"]')).not.toBeNull();
+    // And it survives the Markdown round-trip as a bare item.
+    expect(markdownOf(editor)).toBe('- [ ] todo\n- just a note\n- [x] done');
+  });
+
   test('round-trips a nested list back to the same Markdown', () => {
     const {editor} = mountEditor('- parent\n  - child\n- sibling');
     expect(markdownOf(editor)).toBe('- parent\n  - child\n- sibling');
