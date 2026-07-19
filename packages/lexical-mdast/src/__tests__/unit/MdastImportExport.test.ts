@@ -1105,7 +1105,15 @@ describe('semantic nested list representation', () => {
       'paragraph',
       'list',
     ]);
-    expect(second.children.map(child => child.type)).toEqual(['list']);
+    // The emptied row keeps a (blank) content paragraph ahead of its nested
+    // list, matching the default representation's childless content item —
+    // otherwise the marker would collapse onto the nested list.
+    expect(second.children.map(child => child.type)).toEqual([
+      'paragraph',
+      'list',
+    ]);
+    assert(second.children[0].type === 'paragraph', 'expected a paragraph');
+    expect(second.children[0].children).toHaveLength(0);
   });
 
   it('a partial selection of only nested rows does not leak the host row checkbox', () => {
@@ -1153,5 +1161,96 @@ describe('semantic nested list representation', () => {
     expect(semantic).toContain('b');
     // Both representations of the same logical document export identically.
     expect(semantic).toBe(exportNestedOnly(false));
+  });
+
+  it('an emptied host row keeps its blank content line (semantic == default)', () => {
+    const exportEmptiedHost = (semantic: boolean): string => {
+      using editor = createEditor();
+      editor.update(
+        () => {
+          const nested = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('n')),
+          );
+          let root;
+          if (semantic) {
+            $setState(nested, listSemanticNestingState, true);
+            root = $createListNode('bullet').append(
+              $createListItemNode().append(nested),
+            );
+          } else {
+            // Default representation: a childless content item followed by
+            // a dedicated wrapper holding the nested list.
+            root = $createListNode('bullet').append(
+              $createListItemNode(),
+              $createListItemNode().append(nested),
+            );
+          }
+          $getRoot().clear().append(root);
+        },
+        {discrete: true},
+      );
+      return editor.read(() => $convertToMarkdownString());
+    };
+
+    const semantic = exportEmptiedHost(true);
+    // The blank row and the nested list stay on separate lines — the marker
+    // must not collapse onto the nested list (`- - n`).
+    expect(semantic).toBe('-\n  - n');
+    expect(semantic).toBe(exportEmptiedHost(false));
+  });
+
+  it('a selection covering only a later list of a multi-list wrapper emits no empty list', () => {
+    using editor = createEditor();
+    let oneText!: TextNode;
+    editor.update(
+      () => {
+        // A dedicated wrapper holding a bullet list then a number list.
+        const bullets = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('a')),
+        );
+        oneText = $createTextNode('1');
+        const numbers = $createListNode('number').append(
+          $createListItemNode().append(oneText),
+        );
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('host')),
+              $createListItemNode().append(bullets, numbers),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        oneText.select(0, 1);
+      },
+      {discrete: true},
+    );
+    // Only the numbered row is selected; the fully-unselected bullet list
+    // must not leave a stray empty `list` node in the exported tree.
+    const tree = editor.read(() => $convertToMdast());
+    const emptyLists: number[] = [];
+    const walk = (node: {type?: string; children?: unknown[]}) => {
+      if (
+        node.type === 'list' &&
+        (!node.children || node.children.length === 0)
+      ) {
+        emptyLists.push(1);
+      }
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          walk(child as {type?: string; children?: unknown[]});
+        }
+      }
+    };
+    walk(tree as {type?: string; children?: unknown[]});
+    expect(emptyLists).toHaveLength(0);
+    // And the selected numbered content is present.
+    expect(editor.read(() => $convertSelectionToMarkdownString())).toContain(
+      '1. 1',
+    );
   });
 });

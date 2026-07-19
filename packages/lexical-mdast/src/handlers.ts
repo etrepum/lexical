@@ -40,6 +40,7 @@ import {$createLinkNode, $isAutoLinkNode, $isLinkNode} from '@lexical/link';
 import {
   $createListItemNode,
   $createListNode,
+  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
   $listItemEmitsRow,
@@ -576,7 +577,10 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     // exporter), matching the default (wrapper) representation. In both
     // cases the nested lists attach to the previous item's children.
     if (!$listItemEmitsRow(child, ctx.hasSelection, ctx.isSelected)) {
-      // Collect the nested lists in one link-walk (no children snapshot).
+      // Collect the nested lists in one link-walk (no children snapshot),
+      // dropping any that exported empty (all their rows filtered out by a
+      // selection) so no stray empty `list` node reaches the output —
+      // matching the markdown pipeline's `if (nestedResult)` guard.
       const nested: List[] = [];
       for (
         let nestedList = child.getFirstChild();
@@ -584,7 +588,10 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
         nestedList = nestedList.getNextSibling()
       ) {
         if ($isListNode(nestedList)) {
-          nested.push($exportListNode(nestedList, ctx));
+          const exported = $exportListNode(nestedList, ctx);
+          if (exported.children.length > 0) {
+            nested.push(exported);
+          }
         }
       }
       // Nothing to contribute (e.g. a childless item selected as an element
@@ -603,9 +610,18 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
       }
       continue;
     }
+    const blocks = ctx.exportBlocks(child);
     const item: ListItem = {
       checked: listType === 'check' ? (child.getChecked() ?? false) : null,
-      children: ctx.exportBlocks(child),
+      // An emptied host row (its inline content deleted, only nested lists
+      // remain) renders a blank content line. exportBlocks only adds the
+      // fallback empty paragraph when there are NO blocks at all, so the
+      // nested list would otherwise stand in for the row's own content;
+      // prepend the empty paragraph to match the default representation,
+      // whose childless content item produces one.
+      children: $isEmptiedHostRow(child)
+        ? [{children: [], type: 'paragraph'}, ...blocks]
+        : blocks,
       spread: false,
       type: 'listItem',
     };
