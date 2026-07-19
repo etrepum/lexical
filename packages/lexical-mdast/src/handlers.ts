@@ -42,7 +42,7 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
-  $isWrapperListItemNode,
+  $listItemEmitsRow,
 } from '@lexical/list';
 import {
   $createHeadingNode,
@@ -537,31 +537,6 @@ export const $exportLink: MdastExportHandler = (node, ctx) => {
   return link;
 };
 
-/**
- * Whether a non-wrapper list item emits its own listItem in this export.
- * A whole-document export always emits (ctx.isSelected is always true);
- * a selection export emits only when the row's own inline content is
- * selected, or — for an emptied host row (children are only nested lists)
- * — when the li itself is selected. Otherwise only the item's nested rows
- * belong in the output, so emitting its listItem would leak the row's
- * checkbox/content. Mirrors the markdown `$listExport` `isRow` rule.
- */
-function $listItemEmitsRow(
-  listItem: ListItemNode,
-  ctx: MdastExportContext,
-): boolean {
-  let hasInlineChild = false;
-  for (const child of listItem.getChildren()) {
-    if (!$isListNode(child)) {
-      hasInlineChild = true;
-      if (ctx.isSelected(child)) {
-        return true;
-      }
-    }
-  }
-  return !hasInlineChild && ctx.isSelected(listItem);
-}
-
 function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
   const listType = node.getListType();
   const list: List = {
@@ -597,16 +572,21 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     // does a host row whose own inline content is not selected in a
     // selection export: only its nested rows belong in the output, and
     // emitting its own listItem would leak the row's checkbox/content —
-    // mirroring the markdown $listExport `isRow` rule and matching the
-    // default (wrapper) representation for the same document. In both
+    // $listItemEmitsRow is the shared decision (also used by the markdown
+    // exporter), matching the default (wrapper) representation. In both
     // cases the nested lists attach to the previous item's children.
-    const emitsOwnRow =
-      !$isWrapperListItemNode(child) && $listItemEmitsRow(child, ctx);
-    if (!emitsOwnRow) {
-      const nestedLists = child.getChildren().filter($isListNode);
-      const nested = nestedLists.map(nestedList =>
-        $exportListNode(nestedList, ctx),
-      );
+    if (!$listItemEmitsRow(child, ctx.hasSelection, ctx.isSelected)) {
+      // Collect the nested lists in one link-walk (no children snapshot).
+      const nested: List[] = [];
+      for (
+        let nestedList = child.getFirstChild();
+        nestedList !== null;
+        nestedList = nestedList.getNextSibling()
+      ) {
+        if ($isListNode(nestedList)) {
+          nested.push($exportListNode(nestedList, ctx));
+        }
+      }
       if (previousItem) {
         previousItem.children.push(...nested);
       } else {

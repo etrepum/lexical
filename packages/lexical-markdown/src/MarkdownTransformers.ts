@@ -18,7 +18,7 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
-  $isWrapperListItemNode,
+  $listItemEmitsRow,
   ListItemNode,
   ListNode,
   type ListType,
@@ -490,47 +490,19 @@ const $listExport = (
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
-      // A dedicated wrapper item renders no row of its own; only its
-      // nested lists are exported. An item whose lists carry the semantic
-      // nesting mark is a real row (even without inline content) and falls
-      // through to the row path below.
-      const isWrapper = $isWrapperListItemNode(listItemNode);
-      // Skip unselected rows when selection is provided. Nested ListNode
-      // children don't count: they are the *following* rows' content (they
-      // are visited below and filter themselves recursively), so a host
-      // whose nested rows alone are selected must not emit a row of its
-      // own — matching the default representation, where the unselected
-      // inline content lives in a separate li that is skipped. A row with
-      // no inline content at all (emptied host) can only be selected as
-      // the li itself, so that case falls back to the li's own selection.
-      const itemChildren = listItemNode.getChildren();
-      let hasInlineChild = false;
-      let hasSelectedInlineChild = false;
-      if (!isWrapper && selection) {
-        for (const child of itemChildren) {
-          if (!$isListNode(child)) {
-            hasInlineChild = true;
-            if (child.isSelected(selection)) {
-              hasSelectedInlineChild = true;
-              break;
-            }
-          }
-        }
-      }
-      const isRow =
-        !isWrapper &&
-        (!selection ||
-          hasSelectedInlineChild ||
-          // An emptied host row — not a wrapper (guaranteed here), has
-          // children, none of them inline — can only be selected as the li
-          // itself. Childless items are excluded, as the legacy
-          // some()-over-no-children filter always skipped them. (Reusing
-          // the local isWrapper avoids re-deriving wrapper status, which
-          // $isEmptiedHostRow would walk the child links to recompute.)
-          (!hasInlineChild &&
-            itemChildren.length > 0 &&
-            listItemNode.isSelected(selection)));
-      if (isRow) {
+      // A dedicated wrapper renders no row of its own, nor does a host row
+      // whose own content is not selected in a selection export; only their
+      // nested rows are exported. $listItemEmitsRow is the shared decision
+      // (also used by the mdast exporter) — a host whose nested rows alone
+      // are selected must not emit a row, matching the default
+      // representation where the unselected inline content lives in a
+      // separate li that is skipped.
+      const emitsRow = $listItemEmitsRow(
+        listItemNode,
+        selection != null,
+        node => selection != null && node.isSelected(selection),
+      );
+      if (emitsRow) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
         const listType = listNode.getListType();
         const listMarker = $getState(listNode, listMarkerState);
@@ -552,8 +524,12 @@ const $listExport = (
       }
       // Nested lists — the sole content of a wrapper item, or trailing a
       // row's content in the semantic representation — export one level
-      // deeper.
-      for (const child of itemChildren) {
+      // deeper. Link-walk, no children array allocation.
+      for (
+        let child = listItemNode.getFirstChild();
+        child !== null;
+        child = child.getNextSibling()
+      ) {
         if ($isListNode(child)) {
           const nestedResult = $listExport(
             child,

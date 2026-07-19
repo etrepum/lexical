@@ -339,6 +339,7 @@ function createNodeExporter(
       return out;
     },
     exportInline: source => $exportInline(source),
+    hasSelection: selection !== null,
     isIncluded: $isIncluded,
     isSelected: $isSelected,
   };

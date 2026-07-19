@@ -110,6 +110,14 @@ export function registerCheckList(
     const last = target.__lexicalCheckListLastHandled as number | undefined;
     return last !== undefined && event.timeStamp - last < DEDUP_WINDOW_MS;
   };
+  // Drop the dedup record from a target, if any. Used both when a paired
+  // click consumes it and when a later activation must clear a stale one.
+  const clearDedupRecord = (target: EventTarget | null) => {
+    if (isHTMLElement(target)) {
+      // @ts-ignore internal field
+      delete target.__lexicalCheckListLastHandled;
+    }
+  };
   // The record pairs one handled touch pointerup with the one click the
   // browser synthesizes right after it; consuming it on that click keeps
   // later legitimate activations within the window (a follow-up Space
@@ -120,8 +128,7 @@ export function registerCheckList(
     if (!isWithinDedupWindow(event)) {
       return false;
     }
-    // @ts-ignore internal field
-    delete (event.target as HTMLElement).__lexicalCheckListLastHandled;
+    clearDedupRecord(event.target);
     return true;
   };
   const recordHandled = (event: PointerEvent | MouseEvent | TouchEvent) => {
@@ -129,15 +136,6 @@ export function registerCheckList(
     if (isHTMLElement(target)) {
       // @ts-ignore internal field
       target.__lexicalCheckListLastHandled = event.timeStamp;
-    }
-  };
-  // On browsers where the touchstart preventDefault suppresses the tap's
-  // synthesized click, the pointerup record is never consumed; drop it
-  // before deferring to an activation whose click must go through.
-  const clearDedupRecord = (target: EventTarget | null) => {
-    if (isHTMLElement(target)) {
-      // @ts-ignore internal field
-      delete target.__lexicalCheckListLastHandled;
     }
   };
   const configHandleClick = (event: PointerEvent | MouseEvent | TouchEvent) => {

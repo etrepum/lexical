@@ -167,6 +167,52 @@ export function $isEmptiedHostRow(listItem: ListItemNode): boolean {
 }
 
 /**
+ * Whether a list item emits its own row in a markdown/mdast export, versus
+ * being a pure nesting container whose only output is its nested rows. The
+ * single encoding of this rule, shared by the markdown and mdast list
+ * exporters so the two representations and the two pipelines cannot diverge.
+ *
+ * - A dedicated wrapper never emits a row.
+ * - In a whole-document export (`hasSelection` false) every other item
+ *   emits, matching the default representation (even childless / emptied
+ *   rows).
+ * - In a selection export a content row emits when its own inline content
+ *   is selected; an emptied host row (children are all nested lists) emits
+ *   when the item itself is selected; a childless item never emits.
+ *
+ * `isSelected(node)` reports whether that node's own range is selected; it
+ * is only consulted when `hasSelection` is true.
+ */
+export function $listItemEmitsRow(
+  listItem: ListItemNode,
+  hasSelection: boolean,
+  isSelected: (node: LexicalNode) => boolean,
+): boolean {
+  if ($isWrapperListItemNode(listItem)) {
+    return false;
+  }
+  if (!hasSelection) {
+    return true;
+  }
+  let hasChild = false;
+  let hasInlineChild = false;
+  for (
+    let child = listItem.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    hasChild = true;
+    if (!$isListNode(child)) {
+      hasInlineChild = true;
+      if (isSelected(child)) {
+        return true;
+      }
+    }
+  }
+  return !hasInlineChild && hasChild && isSelected(listItem);
+}
+
+/**
  * Copy {@link listSemanticNestingState} from one list to another. Used
  * whenever an operation replaces a list with a freshly created one (list
  * retype, outdent splits): without the carried mark, an emptied host row

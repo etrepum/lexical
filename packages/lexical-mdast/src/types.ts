@@ -158,6 +158,14 @@ export interface MdastExportContext {
    * descendants.
    */
   isSelected(node: LexicalNode): boolean;
+  /**
+   * Whether this export is scoped to a selection (`true`) or covers the
+   * whole document (`false`). Handlers that emit a container only for
+   * selected content — while a whole-document export emits it
+   * unconditionally — branch on this, since {@link isSelected} reports
+   * `true` for every node in a whole-document export.
+   */
+  hasSelection: boolean;
 }
 
 /**

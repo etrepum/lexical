@@ -373,8 +373,13 @@ function processNestedLists(
         index++;
       }
       // Nested lists (a wrapper's content, or trailing a row's own content
-      // in the semantic representation) export one level deeper.
-      for (const child of listItemNode.getChildren()) {
+      // in the semantic representation) export one level deeper. Link-walk,
+      // no children array allocation.
+      for (
+        let child = listItemNode.getFirstChild();
+        child !== null;
+        child = child.getNextSibling()
+      ) {
         if ($isListNode(child)) {
           output.push(processNestedLists(child, exportChildren, depth + 1));
         }

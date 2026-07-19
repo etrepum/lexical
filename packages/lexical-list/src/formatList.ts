@@ -274,10 +274,13 @@ export function mergeLists(list1: ListNode, list2: ListNode): void {
  * Collapse two adjacent dedicated wrapper items into the first one. A
  * wrapper may hold several lists (of different types), so merge the
  * boundary pair — the LAST list of the first wrapper with the FIRST list
- * of the second — and move any remaining lists across so none are lost.
- * Shared by {@link mergeLists} and `ListItemNode.remove` so the collapse
- * policy cannot diverge between merging two lists and deleting the row
- * that separated two wrappers.
+ * of the second — only when they are the same type, then move any
+ * remaining lists across so none are lost. A boundary of differing types
+ * stays as two adjacent lists (moved by the append below), exactly as
+ * differing-type sibling lists already coexist in a wrapper; merging them
+ * would silently retype one side's rows. Shared by {@link mergeLists} and
+ * `ListItemNode.remove` so the collapse policy cannot diverge between
+ * merging two lists and deleting the row that separated two wrappers.
  */
 export function $collapseWrapperPair(
   wrapper1: ListItemNode,
@@ -285,7 +288,11 @@ export function $collapseWrapperPair(
 ): void {
   const boundaryList1 = wrapper1.getLastChild();
   const boundaryList2 = wrapper2.getFirstChild();
-  if ($isListNode(boundaryList1) && $isListNode(boundaryList2)) {
+  if (
+    $isListNode(boundaryList1) &&
+    $isListNode(boundaryList2) &&
+    boundaryList1.getListType() === boundaryList2.getListType()
+  ) {
     mergeLists(boundaryList1, boundaryList2);
   }
   wrapper1.append(...wrapper2.getChildren());

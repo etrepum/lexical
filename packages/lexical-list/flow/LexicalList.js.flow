@@ -104,6 +104,12 @@ declare export function $isWrapperListItemNode(
 
 declare export function $isEmptiedHostRow(listItem: ListItemNode): boolean;
 
+declare export function $listItemEmitsRow(
+  listItem: ListItemNode,
+  hasSelection: boolean,
+  isSelected: (node: LexicalNode) => boolean,
+): boolean;
+
 declare export var listSemanticNestingState: StateConfig<
   'listSemanticNesting',
   boolean,

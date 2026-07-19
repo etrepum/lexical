@@ -27,6 +27,7 @@ import {
   $isListItemNode,
   $isListNode,
   $isWrapperListItemNode,
+  $listItemEmitsRow,
   $removeList,
   CheckListExtension,
   ListExtension,
@@ -2970,5 +2971,94 @@ describe('review round 8 regression fixes', () => {
       );
     });
     expect(rootElement.isConnected).toBe(true);
+  });
+
+  test('collapsing multi-list wrappers with differing boundary types keeps each type', () => {
+    using editor = buildEditor();
+    let separator!: ListItemNode;
+    editor.update(
+      () => {
+        // Two dedicated wrappers separated by a content row. The first
+        // wrapper ends with a bullet list, the second starts with a
+        // numbered list: collapsing them (by removing the separator) must
+        // not merge the differing-type boundary lists into one.
+        const $wrapper = (...lists: ListNode[]) =>
+          $createListItemNode().append(...lists);
+        const numbered = (text: string) =>
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode(text)),
+          );
+        const bullet = (text: string) =>
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode(text)),
+          );
+        const wrapper1 = $wrapper(numbered('n1'), bullet('b1'));
+        separator = $createListItemNode().append($createTextNode('sep'));
+        const wrapper2 = $wrapper(numbered('n2'));
+        $clearAndAppend(
+          $createListNode('bullet').append(wrapper1, separator, wrapper2),
+        );
+        // Removing the separating row collapses the two wrappers.
+        separator.remove();
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      // The bullet boundary list (b1) and the numbered list (n2) must not
+      // have merged: n2's row stays numbered, not retyped to a bullet.
+      const rootChildren = $rootList().getChildren().filter($isListItemNode);
+      const wrapper = rootChildren[0];
+      const nestedListTypes = wrapper
+        .getChildren()
+        .filter($isListNode)
+        .map(list => list.getListType());
+      // number (n1), bullet (b1), number (n2) — the differing boundary
+      // pair (b1 | n2) stays two lists rather than merging.
+      expect(nestedListTypes).toEqual(['number', 'bullet', 'number']);
+    });
+  });
+
+  test('$listItemEmitsRow: childless items emit whole-doc but not in a selection', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const content = $createListItemNode().append($createTextNode('a'));
+        const childless = $createListItemNode();
+        const wrapper = $createListItemNode().append(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('w')),
+          ),
+        );
+        $clearAndAppend(
+          $createListNode('bullet').append(content, childless, wrapper),
+        );
+
+        const anySelected = () => true;
+        const noneSelected = () => false;
+
+        // Whole-document export: every non-wrapper item emits its own row,
+        // including a childless one — matching the default representation.
+        expect($listItemEmitsRow(content, false, noneSelected)).toBe(true);
+        expect($listItemEmitsRow(childless, false, noneSelected)).toBe(true);
+
+        // Selection export: a childless item never emits (the regression —
+        // it used to serialize a stray empty row and, for a check host,
+        // leak its checkbox).
+        expect($listItemEmitsRow(childless, true, anySelected)).toBe(false);
+
+        // A content row emits only when its own inline content is selected,
+        // not when merely some descendant is.
+        const aText = content.getFirstChild();
+        expect($listItemEmitsRow(content, true, node => node === aText)).toBe(
+          true,
+        );
+        expect($listItemEmitsRow(content, true, noneSelected)).toBe(false);
+
+        // A dedicated wrapper never emits, in either mode.
+        expect($listItemEmitsRow(wrapper, false, anySelected)).toBe(false);
+        expect($listItemEmitsRow(wrapper, true, anySelected)).toBe(false);
+      },
+      {discrete: true},
+    );
   });
 });

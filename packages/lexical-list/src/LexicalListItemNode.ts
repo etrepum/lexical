@@ -632,6 +632,7 @@ export class ListItemNode extends ElementNode {
     // is a container, not a block; an emptied host row (at least one list
     // carries the semantic mark) still renders a row and must behave as a
     // block (selectable, convertible via $setBlocksType, splittable).
+    let sawChild = false;
     let sawMarkedList = false;
     for (
       let child = this.getFirstChild();
@@ -641,11 +642,12 @@ export class ListItemNode extends ElementNode {
       if (!$isListNode(child)) {
         return null;
       }
+      sawChild = true;
       if ($getState(child, listSemanticNestingState)) {
         sawMarkedList = true;
       }
     }
-    return this.getFirstChild() === null ? null : sawMarkedList;
+    return sawChild ? sawMarkedList : null;
   }
 }
 
