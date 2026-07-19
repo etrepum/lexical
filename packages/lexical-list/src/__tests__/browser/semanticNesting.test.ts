@@ -34,7 +34,7 @@ import {
   type LexicalEditor,
   type TextNode,
 } from 'lexical';
-import {$assertNodeType} from 'lexical/src/__tests__/browser/utils/assert';
+import {$assertNodeType} from 'lexical/src/__tests__/utils/assert';
 import {describe, expect, onTestFinished, test, vi} from 'vitest';
 import {userEvent} from 'vitest/browser';
 
