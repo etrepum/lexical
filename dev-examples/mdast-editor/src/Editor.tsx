@@ -119,6 +119,7 @@ const theme = {
   list: {
     checklist: 'list-none pl-0',
     listitem: 'mx-6 my-0.5',
+    listitemCheckbox: 'mr-2 cursor-pointer align-middle',
     // This example enables the semantic nesting ListExtension config, so
     // check-list rows render a real <input type="checkbox"> and the
     // reconciler applies the *Native theme keys (not listitemChecked /
@@ -127,7 +128,6 @@ const theme = {
     // the real input.
     listitemCheckedNative: 'list-none line-through text-zinc-500',
     listitemUncheckedNative: 'list-none',
-    listitemCheckbox: 'mr-2 cursor-pointer align-middle',
     nested: {
       listitem: 'list-none',
     },
