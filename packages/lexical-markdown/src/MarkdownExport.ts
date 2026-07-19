@@ -293,16 +293,7 @@ function $exportChildrenForSelection(
       // guard in $exportChildren). Its selectedness still propagates so
       // the enclosing list stays included when only nested rows are
       // selected.
-      const nestedResult = $exportChildrenForSelection(
-        child,
-        selection,
-        textFormatTransformers,
-        textMatchTransformers,
-        shouldPreserveNewLines,
-        unclosedTags,
-        unclosableTags,
-      );
-      if (nestedResult.shouldInclude) {
+      if ($anyDescendantSelected(child, selection)) {
         anyChildIncluded = true;
       }
       continue;
@@ -361,6 +352,27 @@ function $exportChildrenForSelection(
   }
 
   return {markdown: output.join(''), shouldInclude: anyChildIncluded};
+}
+
+/**
+ * Whether any descendant of `node` is selected. Equivalent to the
+ * `shouldInclude` that $exportChildrenForSelection reports for `node` —
+ * every inclusion path there bottoms out in an isSelected check — without
+ * building and discarding the markdown along the way.
+ */
+function $anyDescendantSelected(
+  node: ElementNode,
+  selection: BaseSelection,
+): boolean {
+  for (const child of node.getChildren()) {
+    if (child.isSelected(selection)) {
+      return true;
+    }
+    if ($isElementNode(child) && $anyDescendantSelected(child, selection)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function $exportTopLevelElements(

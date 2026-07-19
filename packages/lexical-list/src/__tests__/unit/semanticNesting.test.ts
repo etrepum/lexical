@@ -33,7 +33,11 @@ import {
   listSemanticNestingState,
 } from '@lexical/list';
 import {$findCheckListItemSibling} from '@lexical/list/src/checkList';
-import {$isListSemanticNestingEnabled} from '@lexical/list/src/semanticNesting';
+import {$handleOutdent} from '@lexical/list/src/formatList';
+import {
+  $isListSemanticNestingEnabled,
+  $normalizeSemanticListItem,
+} from '@lexical/list/src/semanticNesting';
 import {
   $convertSelectionToMarkdownString,
   $convertToMarkdownString,
@@ -45,6 +49,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getEditor,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $getState,
@@ -56,8 +61,10 @@ import {
   defineExtension,
   INSERT_PARAGRAPH_COMMAND,
   KEY_BACKSPACE_COMMAND,
+  KEY_SPACE_COMMAND,
   type LexicalEditor,
   type LexicalNode,
+  setDOMUnmanaged,
   type TextNode,
 } from 'lexical';
 import {
@@ -77,6 +84,27 @@ function buildEditor(config: Partial<ListConfig> = {}) {
       name: 'semantic-list-host',
     }),
   );
+}
+
+function buildCheckEditor(config: Partial<ListConfig> = {}) {
+  return buildEditorFromExtensions(
+    defineExtension({
+      dependencies: [
+        configExtension(ListExtension, {hasSemanticNesting: true, ...config}),
+        CheckListExtension,
+      ],
+      name: 'semantic-check-host',
+    }),
+  );
+}
+
+/** A check list holding one checked row 'nested', marked as semantic. */
+function $markedNestedCheckList(): ListNode {
+  const nested = $createListNode('check').append(
+    $createListItemNode(true).append($createTextNode('nested')),
+  );
+  $setState(nested, listSemanticNestingState, true);
+  return nested;
 }
 
 /**
@@ -1102,18 +1130,6 @@ describe('marked-empty rows (content-deleted items)', () => {
 });
 
 describe('checklist arrow navigation', () => {
-  function buildCheckEditor() {
-    return buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          configExtension(ListExtension, {hasSemanticNesting: true}),
-          CheckListExtension,
-        ],
-        name: 'semantic-checklist-host',
-      }),
-    );
-  }
-
   function $checkItem(text?: string, ...children: LexicalNode[]) {
     const item = $createListItemNode(false);
     if (text !== undefined) {
@@ -1468,27 +1484,14 @@ describe('multi-list wrappers and hosts', () => {
 });
 
 describe('native checkbox inputs (semantic mode)', () => {
-  function buildCheckEditor(config: Partial<ListConfig> = {}) {
-    return buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          configExtension(ListExtension, {hasSemanticNesting: true, ...config}),
-          CheckListExtension,
-        ],
-        name: 'semantic-native-checkbox-host',
-      }),
-    );
-  }
-
   function $checkFixture(): ListNode {
     // done(checked) / host(unchecked) hosting nested(checked)
-    const nested = $createListNode('check').append(
-      $createListItemNode(true).append($createTextNode('nested')),
-    );
-    $setState(nested, listSemanticNestingState, true);
     return $createListNode('check').append(
       $createListItemNode(true).append($createTextNode('done')),
-      $createListItemNode(false).append($createTextNode('host'), nested),
+      $createListItemNode(false).append(
+        $createTextNode('host'),
+        $markedNestedCheckList(),
+      ),
     );
   }
 
@@ -1677,27 +1680,11 @@ describe('native checkbox inputs (semantic mode)', () => {
 });
 
 describe('review round 3 regression fixes', () => {
-  function buildCheckEditor() {
-    return buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          configExtension(ListExtension, {hasSemanticNesting: true}),
-          CheckListExtension,
-        ],
-        name: 'semantic-r3-check-host',
-      }),
-    );
-  }
-
   /** check list: [checked 'done', checked emptied row hosting checked 'nested'] */
   function $createEmptiedCheckRowFixture(): ListNode {
-    const nested = $createListNode('check').append(
-      $createListItemNode(true).append($createTextNode('nested')),
-    );
-    $setState(nested, listSemanticNestingState, true);
     return $createListNode('check').append(
       $createListItemNode(true).append($createTextNode('done')),
-      $createListItemNode(true).append(nested),
+      $createListItemNode(true).append($markedNestedCheckList()),
     );
   }
 
@@ -1961,30 +1948,17 @@ describe('review round 3 regression fixes', () => {
 });
 
 describe('review round 4 regression fixes', () => {
-  function buildCheckEditor(config: Partial<ListConfig> = {}) {
-    return buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [
-          configExtension(ListExtension, {hasSemanticNesting: true, ...config}),
-          CheckListExtension,
-        ],
-        name: 'semantic-r4-check-host',
-      }),
-    );
-  }
-
   test('semantic check-list HTML export round-trips into a default-mode editor', () => {
     using editor = buildCheckEditor();
     editor.update(
       () => {
-        const nested = $createListNode('check').append(
-          $createListItemNode(true).append($createTextNode('nested')),
-        );
-        $setState(nested, listSemanticNestingState, true);
         $clearAndAppend(
           $createListNode('check').append(
             $createListItemNode(true).append($createTextNode('done')),
-            $createListItemNode(false).append($createTextNode('host'), nested),
+            $createListItemNode(false).append(
+              $createTextNode('host'),
+              $markedNestedCheckList(),
+            ),
           ),
         );
       },
@@ -2641,5 +2615,276 @@ describe('review round 6 regression fixes', () => {
 
     expect(legacyType).toBe('check');
     expect(rulesType).toBe(legacyType);
+  });
+});
+
+describe('review round 7 regression fixes', () => {
+  test('replacing a host row without includeChildren keeps its nested rows', () => {
+    using editor = buildEditor();
+    let host!: ListItemNode;
+    editor.update(
+      () => {
+        const nested = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('B')),
+        );
+        $setState(nested, listSemanticNestingState, true);
+        host = $createListItemNode().append($createTextNode('A'), nested);
+        $clearAndAppend($createListNode('bullet').append(host));
+        host.replace($createParagraphNode().append($createTextNode('P')));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      // Row B survives in a list after the replacement paragraph, exactly
+      // like the default representation, where it lives in a sibling
+      // wrapper li that replace() never touches.
+      const children = $getRoot().getChildren();
+      expect(children).toHaveLength(2);
+      expect($isParagraphNode(children[0])).toBe(true);
+      expect(children[0].getTextContent()).toBe('P');
+      const list = $assertNodeType(children[1], $isListNode);
+      expect(list.getTextContent()).toBe('B');
+    });
+  });
+
+  test('strict indent keeps rows nested under an earlier sibling list of the same host', () => {
+    using editor = buildEditor({hasStrictIndent: true});
+    let deepItem!: ListItemNode;
+    editor.update(
+      () => {
+        // Host a's second list starts with a wrapper holding a depth-3
+        // list; the previous visual row is the depth-2 row 'x2' at the end
+        // of the host's FIRST list, so depth 3 is legal and must not be
+        // clamped against the depth-1 host row.
+        const l1 = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('x2')),
+        );
+        $setState(l1, listSemanticNestingState, true);
+        deepItem = $createListItemNode().append($createTextNode('x3'));
+        const deep = $createListNode('bullet').append(deepItem);
+        const wrapper = $createListItemNode().append(deep);
+        const l2 = $createListNode('bullet').append(wrapper);
+        $setState(l2, listSemanticNestingState, true);
+        const host = $createListItemNode().append($createTextNode('a'), l1, l2);
+        $clearAndAppend($createListNode('bullet').append(host));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const deepList = deepItem.getLatest().getParent();
+      invariant($isListNode(deepList), 'expected x3 to stay in a list');
+      expect($getListDepth(deepList)).toBe(3);
+      expect($rootList().getTextContent().replace(/\s+/g, '')).toBe('ax2x3');
+    });
+  });
+
+  test('outdenting the first row of a later list in a multi-list wrapper preserves order', () => {
+    using editor = buildEditor({hasSemanticNesting: false});
+    let one!: ListItemNode;
+    editor.update(
+      () => {
+        const l1 = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('a')),
+          $createListItemNode().append($createTextNode('b')),
+        );
+        one = $createListItemNode().append($createTextNode('one'));
+        const l2 = $createListNode('bullet').append(
+          one,
+          $createListItemNode().append($createTextNode('two')),
+        );
+        const wrapper = $createListItemNode().append(l1, l2);
+        $clearAndAppend($createListNode('bullet').append(wrapper));
+        $handleOutdent(one);
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      // 'one' is first in ITS list but not the wrapper's first row, so it
+      // must land after the rows of the wrapper's earlier list — the
+      // wrapper splits around it instead of being jumped over.
+      const items = $rootList().getChildren().filter($isListItemNode);
+      expect(items).toHaveLength(3);
+      expect(items[0].getTextContent().replace(/\s+/g, ' ')).toBe('a b');
+      expect(items[1].getTextContent()).toBe('one');
+      expect(items[2].getTextContent()).toBe('two');
+      expect($rootList().getTextContent().replace(/\s+/g, ' ')).toBe(
+        'a b one two',
+      );
+    });
+  });
+
+  test('outdenting the last row of an earlier list in a multi-list wrapper preserves order', () => {
+    using editor = buildEditor({hasSemanticNesting: false});
+    let b!: ListItemNode;
+    editor.update(
+      () => {
+        b = $createListItemNode().append($createTextNode('b'));
+        const l1 = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('a')),
+          b,
+        );
+        const l2 = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('one')),
+        );
+        const wrapper = $createListItemNode().append(l1, l2);
+        $clearAndAppend($createListNode('bullet').append(wrapper));
+        $handleOutdent(b);
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      // 'b' is last in ITS list but rows of the wrapper's later list
+      // render below it, so it must not land after the whole wrapper.
+      expect($rootList().getTextContent().replace(/\s+/g, ' ')).toBe('a b one');
+      const items = $rootList().getChildren().filter($isListItemNode);
+      expect(items).toHaveLength(3);
+      expect(items[1].is(b.getLatest())).toBe(true);
+    });
+  });
+
+  test('an emptied host row adopts a following wrapper (transform host branch)', () => {
+    // Built with the transform unregistered so only the direct call runs:
+    // this exercises the branch a dirty emptied host takes when the
+    // wrapper itself is not dirty.
+    using editor = buildEditor({hasSemanticNesting: false});
+    let host!: ListItemNode;
+    let wrapper!: ListItemNode;
+    editor.update(
+      () => {
+        const marked = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('x')),
+        );
+        $setState(marked, listSemanticNestingState, true);
+        host = $createListItemNode().append(marked);
+        // A number list so the ListNode merge transform cannot fold the
+        // adopted list into the host's bullet list.
+        wrapper = $createListItemNode().append(
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode('y')),
+          ),
+        );
+        $clearAndAppend($createListNode('bullet').append(host, wrapper));
+      },
+      {discrete: true},
+    );
+    const wrapperKey = editor.read('force-commit', () => wrapper.getKey());
+    editor.update(
+      () => {
+        $normalizeSemanticListItem(host.getLatest());
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      expect($getNodeByKey(wrapperKey)).toBe(null);
+      const lists = host.getLatest().getChildren().filter($isListNode);
+      expect(lists).toHaveLength(2);
+      for (const list of lists) {
+        expect($getState(list, listSemanticNestingState)).toBe(true);
+      }
+      expect(host.getLatest().getTextContent().replace(/\s+/g, ' ')).toBe(
+        'x y',
+      );
+    });
+  });
+
+  test('splitting a marked nested list keeps the second half marked', () => {
+    // Flag off so no normalization transform can re-mark: the mark must be
+    // carried by the split itself ($copyListForSplit in insertAfter).
+    using editor = buildEditor({hasSemanticNesting: false});
+    let host!: ListItemNode;
+    editor.update(
+      () => {
+        const x = $createListItemNode().append($createTextNode('x'));
+        const y = $createListItemNode().append($createTextNode('y'));
+        const nested = $createListNode('bullet').append(x, y);
+        $setState(nested, listSemanticNestingState, true);
+        host = $createListItemNode().append($createTextNode('a'), nested);
+        $clearAndAppend($createListNode('bullet').append(host));
+        x.insertAfter($createParagraphNode().append($createTextNode('p')));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const lists = host.getLatest().getChildren().filter($isListNode);
+      expect(lists).toHaveLength(2);
+      for (const list of lists) {
+        expect($getState(list, listSemanticNestingState)).toBe(true);
+      }
+    });
+  });
+
+  test("an application's own unmanaged checkbox input is never claimed", () => {
+    using editor = buildCheckEditor({hasSemanticNesting: false});
+    mountRootElement(editor);
+    let item!: ListItemNode;
+    editor.update(
+      () => {
+        item = $createListItemNode(false).append($createTextNode('todo'));
+        $clearAndAppend($createListNode('check').append(item));
+      },
+      {discrete: true},
+    );
+    const li = editor.getElementByKey(item.getKey());
+    invariant(li !== null, 'expected the li element');
+    const appInput = document.createElement('input');
+    appInput.type = 'checkbox';
+    setDOMUnmanaged(appInput);
+    li.insertBefore(appInput, li.firstChild);
+    editor.update(
+      () => {
+        item.getLatest().setChecked(true);
+      },
+      {discrete: true},
+    );
+    // Ownership is an explicit stamp, not DOM shape: the reconciler must
+    // not remove (default mode) or sync the app's own decoration.
+    expect(appInput.parentElement).toBe(li);
+    expect(appInput.checked).toBe(false);
+    // The ARIA emulation stays on the li in default mode.
+    expect(li.getAttribute('role')).toBe('checkbox');
+  });
+
+  test('Space on the focused checkbox input works right after a touch tap', () => {
+    using editor = buildCheckEditor();
+    const rootElement = mountRootElement(editor);
+    let item!: ListItemNode;
+    editor.update(
+      () => {
+        item = $createListItemNode(false).append($createTextNode('todo'));
+        $clearAndAppend($createListNode('check').append(item));
+      },
+      {discrete: true},
+    );
+    const li = editor.getElementByKey(item.getKey());
+    invariant(li !== null, 'expected the li element');
+    const input = li.firstElementChild;
+    invariant(
+      input instanceof HTMLInputElement,
+      'expected the native checkbox input',
+    );
+
+    // A touch tap toggles at pointerup; on browsers where the touchstart
+    // preventDefault suppresses the synthesized click, no click follows to
+    // consume the dedup record.
+    const pointerUp = new MouseEvent('pointerup', {bubbles: true});
+    Object.defineProperty(pointerUp, 'pointerType', {value: 'touch'});
+    input.dispatchEvent(pointerUp);
+    expect(
+      editor.read('force-commit', () => item.getLatest().getChecked()),
+    ).toBe(true);
+
+    // Space on the (now focused) input: the command handler defers to the
+    // native activation, whose click must not be swallowed by the stale
+    // tap record.
+    input.focus();
+    editor.dispatchCommand(
+      KEY_SPACE_COMMAND,
+      new KeyboardEvent('keydown', {key: ' '}),
+    );
+    input.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    expect(
+      editor.read('force-commit', () => item.getLatest().getChecked()),
+    ).toBe(false);
+    expect(rootElement.isConnected).toBe(true);
   });
 });

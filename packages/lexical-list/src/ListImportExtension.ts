@@ -210,7 +210,7 @@ const ListItemRule = /* @__PURE__ */ defineImportRule({
     if (hasSemanticNesting) {
       const input = findCheckboxInputChild(el);
       if (input !== null) {
-        return $buildChecklistItem(ctx, el, input);
+        return $buildChecklistItem(ctx, el, input, hasSemanticNesting);
       }
     }
     const ariaChecked = el.getAttribute('aria-checked');
@@ -265,6 +265,7 @@ function $buildChecklistItem(
   ctx: DOMImportContext,
   el: HTMLElement,
   checkboxOwner: Element,
+  markNestedLists: boolean,
 ): LexicalNode[] {
   const checkboxInput = isElementOfTag(checkboxOwner, 'input')
     ? checkboxOwner
@@ -273,7 +274,7 @@ function $buildChecklistItem(
     return [];
   }
   const checked = checkboxInput.hasAttribute('checked');
-  return $buildListItem(ctx, el, checked, $isListSemanticNestingEnabled());
+  return $buildListItem(ctx, el, checked, markNestedLists);
 }
 
 const TaskListItemRule = /* @__PURE__ */ defineImportRule({
@@ -282,7 +283,7 @@ const TaskListItemRule = /* @__PURE__ */ defineImportRule({
     if (!input) {
       return $next();
     }
-    return $buildChecklistItem(ctx, el, input);
+    return $buildChecklistItem(ctx, el, input, $isListSemanticNestingEnabled());
   },
   match: sel.tag('li').classAll('task-list-item'),
   name: '@lexical/list/li-task-list-item',
@@ -298,7 +299,7 @@ const JoplinChecklistItemRule = /* @__PURE__ */ defineImportRule({
     if (!input) {
       return $next();
     }
-    return $buildChecklistItem(ctx, el, input);
+    return $buildChecklistItem(ctx, el, input, $isListSemanticNestingEnabled());
   },
   match: sel.tag('li').classAll('joplin-checkbox'),
   name: '@lexical/list/li-joplin-checkbox',

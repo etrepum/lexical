@@ -102,6 +102,8 @@ declare export function $isWrapperListItemNode(
   node: ?LexicalNode,
 ): node is ListItemNode;
 
+declare export function $isEmptiedHostRow(listItem: ListItemNode): boolean;
+
 declare export var listSemanticNestingState: StateConfig<
   'listSemanticNesting',
   boolean,

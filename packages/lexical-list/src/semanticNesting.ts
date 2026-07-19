@@ -9,6 +9,7 @@
 import type {ListExtension} from './LexicalListExtension';
 
 import {getPeerDependencyFromEditor} from '@lexical/extension';
+import {$firstToLastIterator} from '@lexical/utils';
 import {
   $getEditor,
   $setState,
@@ -21,9 +22,10 @@ import {
   $isListItemNode,
   type ListItemNode,
 } from './LexicalListItemNode';
-import {$isListNode} from './LexicalListNode';
+import {$isListNode, type ListNode} from './LexicalListNode';
 import {
   $hasRowContent,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   listSemanticNestingState,
 } from './utils';
@@ -51,6 +53,19 @@ export function $markNestedListsAsSemantic(
 }
 
 /**
+ * Clear {@link listSemanticNestingState} from a list. This is the single
+ * encoding of the parking policy's flip side: a list moved into a dedicated
+ * wrapper item no longer belongs to a row of its own, so its mark must not
+ * make the wrapper read as an emptied host row.
+ *
+ * @internal
+ */
+export function $clearSemanticNestingMark(listNode: ListNode): void {
+  // Updater form so an already-unmarked list is not marked dirty again.
+  $setState(listNode, listSemanticNestingState, () => false);
+}
+
+/**
  * Move every nested ListNode child of `listItemNode` into a fresh dedicated
  * wrapper item inserted after it, clearing their semantic nesting marks (in
  * a wrapper the lists no longer belong to a row of their own). Returns the
@@ -66,13 +81,15 @@ export function $parkNestedListsInWrapper(
   listItemNode: ListItemNode,
 ): ListItemNode | null {
   let wrapper: ListItemNode | null = null;
-  for (const child of listItemNode.getChildren()) {
+  // $firstToLastIterator preserves the next sibling before yielding, so
+  // reparenting the yielded list is safe (no children array snapshot).
+  for (const child of $firstToLastIterator(listItemNode)) {
     if ($isListNode(child)) {
       if (wrapper === null) {
         wrapper = $createListItemNode();
         listItemNode.insertAfter(wrapper);
       }
-      $setState(child, listSemanticNestingState, () => false);
+      $clearSemanticNestingMark(child);
       wrapper.append(child);
     }
   }
@@ -112,7 +129,19 @@ export function $markSemanticNestedLists(listItemNode: ListItemNode): void {
   if ($isWrapperListItemNode(listItemNode)) {
     return;
   }
-  $markNestedListsAsSemantic(listItemNode.getChildren());
+  // Link-walk rather than getChildren(): this runs from the
+  // $normalizeSemanticListItem transform on every dirty list item, so no
+  // array allocation on that path.
+  for (
+    let child = listItemNode.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    if ($isListNode(child)) {
+      // Updater form so an already-marked list is not marked dirty again.
+      $setState(child, listSemanticNestingState, () => true);
+    }
+  }
 }
 
 /**
@@ -167,11 +196,14 @@ export function $normalizeSemanticListItem(node: ListItemNode): void {
     ) {
       $mergeWrapperListItemIntoPrevious(previousSibling, node);
     }
-  } else if ($hasRowContent(node)) {
+  } else if ($hasRowContent(node) || $isEmptiedHostRow(node)) {
     // The transform only runs on dirty nodes, so also normalize from the
     // other direction: an item that just gained content adopts a wrapper
     // that follows it (e.g. typing into the empty item created by
-    // splitting a nested list).
+    // splitting a nested list). An emptied host row adopts the same way —
+    // it is a row of its own, and the import normalization merges the
+    // identical shape, so leaving the wrapper unadopted would make the
+    // live state diverge from a round-trip through import.
     const nextSibling = node.getNextSibling();
     if ($isWrapperListItemNode(nextSibling)) {
       // Also marks the adopted (and existing) lists.

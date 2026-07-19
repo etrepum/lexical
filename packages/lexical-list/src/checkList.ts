@@ -126,6 +126,15 @@ export function registerCheckList(
       target.__lexicalCheckListLastHandled = event.timeStamp;
     }
   };
+  // On browsers where the touchstart preventDefault suppresses the tap's
+  // synthesized click, the pointerup record is never consumed; drop it
+  // before deferring to an activation whose click must go through.
+  const clearDedupRecord = (target: EventTarget | null) => {
+    if (isHTMLElement(target)) {
+      // @ts-ignore internal field
+      delete target.__lexicalCheckListLastHandled;
+    }
+  };
   const configHandleClick = (event: PointerEvent | MouseEvent | TouchEvent) => {
     if (consumeDedupRecord(event)) {
       // Already handled at pointerup. A click on the row's native checkbox
@@ -207,12 +216,17 @@ export function registerCheckList(
         const activeItem = getActiveCheckListItem(editor);
 
         if (activeItem != null && editor.isEditable()) {
+          const checkboxInput = getListItemCheckboxDOM(activeItem);
           if (
-            getListItemCheckboxDOM(activeItem) === getActiveElement(activeItem)
+            checkboxInput !== null &&
+            checkboxInput === getActiveElement(activeItem)
           ) {
             // The row's native checkbox input (semantic nesting mode) is
             // focused: Space activates the input itself, and the resulting
-            // click event is routed through the editor by handleClick.
+            // click event is routed through the editor by handleClick. A
+            // stale dedup record from a touch tap whose synthesized click
+            // never arrived would swallow that click — clear it first.
+            clearDedupRecord(checkboxInput);
             return false;
           }
           editor.update(() => {
@@ -335,18 +349,15 @@ function handleCheckItemEvent(
     return;
   }
 
-  // Only rows that render a checkbox are toggleable: the ARIA emulation
-  // stamps role="checkbox" on exactly those <li>s (and strips it from
-  // dedicated wrapper items), and in the semantic nesting mode the li
-  // holds the native input instead — where a theme may still draw a
-  // ::before marker whose area must stay clickable. Trust the
+  // Only rows that render a checkbox are toggleable. $updateListItemChecked
+  // stamps aria-checked on exactly those <li>s in both modes (ARIA
+  // emulation and native input) and strips it from dedicated wrapper
+  // items, so this single mode-neutral check covers rows where a theme
+  // draws a ::before marker whose area must stay clickable. Trust the
   // reconciler-written DOM rather than inferring from child shape — a row
   // emptied of its inline content has a list as its first Lexical child
   // but still renders a checkbox.
-  if (
-    target.getAttribute('role') !== 'checkbox' &&
-    getListItemCheckboxDOM(target) === null
-  ) {
+  if (!target.hasAttribute('aria-checked')) {
     return;
   }
 

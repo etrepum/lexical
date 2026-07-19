@@ -28,6 +28,7 @@ import {
 } from './LexicalListNode';
 import {
   $getListDepth,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   listSemanticNestingState,
 } from './utils';
@@ -56,6 +57,7 @@ export {
   $getListDepth,
   $handleListInsertParagraph,
   $insertList,
+  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
   $isWrapperListItemNode,

@@ -16,6 +16,7 @@ import {
 import {
   $createListItemNode,
   $createListNode,
+  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
   $isWrapperListItemNode,
@@ -504,16 +505,12 @@ const $listExport = (
       // no inline content at all (emptied host) can only be selected as
       // the li itself, so that case falls back to the li's own selection.
       const itemChildren = listItemNode.getChildren();
-      let hasInlineChild = false;
       let hasSelectedInlineChild = false;
       if (!isWrapper && selection) {
         for (const child of itemChildren) {
-          if (!$isListNode(child)) {
-            hasInlineChild = true;
-            if (child.isSelected(selection)) {
-              hasSelectedInlineChild = true;
-              break;
-            }
+          if (!$isListNode(child) && child.isSelected(selection)) {
+            hasSelectedInlineChild = true;
+            break;
           }
         }
       }
@@ -521,11 +518,10 @@ const $listExport = (
         !isWrapper &&
         (!selection ||
           hasSelectedInlineChild ||
-          // Emptied host rows (children are only nested lists) can only be
-          // selected as the li itself. Childless items are excluded, as the
-          // legacy some()-over-no-children filter always skipped them.
-          (!hasInlineChild &&
-            itemChildren.length > 0 &&
+          // An emptied host row (children are only nested lists) can only
+          // be selected as the li itself. Childless items are excluded, as
+          // the legacy some()-over-no-children filter always skipped them.
+          ($isEmptiedHostRow(listItemNode) &&
             listItemNode.isSelected(selection)));
       if (isRow) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);

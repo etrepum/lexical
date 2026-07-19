@@ -210,11 +210,27 @@ export function registerListStrictIndentTransform(
         break;
       }
       const probeList: ElementNode | null = probe.getParent();
-      const containingListItem: ElementNode | null = $isListNode(probeList)
-        ? probeList.getParent()
-        : null;
+      if (!$isListNode(probeList)) {
+        break;
+      }
+      const containingListItem: ElementNode | null = probeList.getParent();
       if (!$isListItemNode(containingListItem)) {
         break;
+      }
+      // A host or wrapper item may hold several nested lists; an earlier
+      // sibling list inside the same item renders its rows directly above
+      // this one, so the previous visual row is that list's deepest last
+      // item.
+      let previousList: LexicalNode | null = probeList.getPreviousSibling();
+      while (previousList !== null && !$isListNode(previousList)) {
+        previousList = previousList.getPreviousSibling();
+      }
+      if ($isListNode(previousList)) {
+        const lastItem = previousList.getLastChild();
+        if ($isListItemNode(lastItem)) {
+          endListItemNode = $findChildrenEndListItemNode(lastItem);
+          break;
+        }
       }
       if (!$isWrapperListItemNode(containingListItem)) {
         // Semantic representation: the containing item renders its own

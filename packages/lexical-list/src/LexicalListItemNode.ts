@@ -32,7 +32,6 @@ import {
   type ElementDOMSlot,
   ElementNode,
   getStyleObjectFromCSS,
-  isDOMUnmanaged,
   isHTMLElement,
   type LexicalEditor,
   type LexicalNode,
@@ -60,6 +59,7 @@ import {
   $parkNestedListsInWrapper,
 } from './semanticNesting';
 import {
+  $copyListForSplit,
   $hasNestedListChild,
   $isWrapperListItemNode,
   findCheckboxInputChild,
@@ -197,7 +197,7 @@ export class ListItemNode extends ElementNode {
   ) {
     // Classified once per reconcile; both helpers below need it.
     const isWrapper = $isWrapperListItemNode(this);
-    $updateListItemChecked(dom, this, prevNode, isWrapper);
+    $updateListItemChecked(dom, this, isWrapper);
 
     dom.value = this.__value;
     $setListItemThemeClassNames(dom, config.theme, this, isWrapper);
@@ -309,19 +309,27 @@ export class ListItemNode extends ElementNode {
     // needs offsets relative to the children that actually transfer, so
     // record where the nested lists sat before they are parked away.
     const listChildIndexes: number[] = [];
-    if (includeChildren && $hasNestedListChild(this)) {
-      let childIndex = 0;
-      for (const child of this.getChildren()) {
-        if ($isListNode(child)) {
-          listChildIndexes.push(childIndex);
+    // Nested ListNode children of a host row (semantic representation) are
+    // the following rows' content, not this row's inline content: park
+    // them in a dedicated wrapper item so replacing the row — with or
+    // without transferring its inline children — cannot swallow or delete
+    // the rows below it (in the default representation they live in a
+    // sibling wrapper li that replace() never touches). A dedicated
+    // wrapper item itself keeps the pre-existing behavior: only the
+    // includeChildren path parks, matching how its lists transfer.
+    if (
+      $hasNestedListChild(this) &&
+      (includeChildren || !$isWrapperListItemNode(this))
+    ) {
+      if (includeChildren) {
+        let childIndex = 0;
+        for (const child of this.getChildren()) {
+          if ($isListNode(child)) {
+            listChildIndexes.push(childIndex);
+          }
+          childIndex++;
         }
-        childIndex++;
       }
-      // Nested ListNode children (semantic representation) are the
-      // following rows' content, not this row's inline content: park them
-      // in a dedicated wrapper item so converting a host row to a
-      // paragraph/heading does not swallow its nested list into the new
-      // block.
       $parkNestedListsInWrapper(this);
     }
     if (list.__first === this.getKey()) {
@@ -329,8 +337,9 @@ export class ListItemNode extends ElementNode {
     } else if (list.__last === this.getKey()) {
       list.insertAfter(replaceWithNode);
     } else {
-      // Split the list
-      const newList = $copyNode(list);
+      // Split the list ($copyListForSplit carries the semantic nesting
+      // mark, so a marked nested list's second half stays a row's content)
+      const newList = $copyListForSplit(list);
       let nextSibling = this.getNextSibling();
       while (nextSibling) {
         const nodeToAppend = nextSibling;
@@ -409,7 +418,9 @@ export class ListItemNode extends ElementNode {
     listNode.insertAfter(node, restoreSelection);
 
     if (siblings.length !== 0) {
-      const newListNode = $copyNode(listNode);
+      // $copyListForSplit carries the semantic nesting mark: both halves
+      // of a marked nested list remain the same host row's content.
+      const newListNode = $copyListForSplit(listNode);
 
       siblings.forEach(sibling => newListNode.append(sibling));
 
@@ -696,12 +707,25 @@ function $setListItemThemeClassNames(
 }
 
 /**
+ * Ownership stamp for the checkbox inputs this module creates. Membership —
+ * not DOM shape — is what getListItemCheckboxDOM tests, so an application's
+ * own unmanaged `<input type="checkbox">` prepended to a list item is never
+ * claimed by the reconciler (removed/synced by $updateListItemChecked) or
+ * by checkList.ts's click/focus routing.
+ */
+const listItemCheckboxInputs = new WeakSet<Element>();
+
+/** Prefix of the generated li ids that decorateListItemDOM writes and cleans up. */
+const LISTITEM_ID_PREFIX = 'lexical-listitem-';
+
+/**
  * The native `<input type="checkbox">` rendered as the first child of a
  * check-list row in the semantic nesting mode, or `null` when the row
- * renders none (default mode, wrapper items, non-check lists). The input is
- * unmanaged DOM — the reconciler and mutation observer leave it alone — and
- * display-only from the browser's perspective: checkList.ts suppresses
- * native toggling and routes clicks through the editor state.
+ * renders none (default mode, wrapper items, non-check lists) or its
+ * leading input was not created by this module. The input is unmanaged DOM
+ * — the reconciler and mutation observer leave it alone — and display-only
+ * from the browser's perspective: checkList.ts suppresses native toggling
+ * and routes clicks through the editor state.
  *
  * @internal
  */
@@ -709,10 +733,7 @@ export function getListItemCheckboxDOM(
   dom: HTMLElement,
 ): HTMLInputElement | null {
   const firstChild = dom.firstElementChild;
-  return firstChild !== null &&
-    firstChild.nodeName === 'INPUT' &&
-    (firstChild as HTMLInputElement).type === 'checkbox' &&
-    isDOMUnmanaged(firstChild)
+  return firstChild !== null && listItemCheckboxInputs.has(firstChild)
     ? (firstChild as HTMLInputElement)
     : null;
 }
@@ -725,6 +746,7 @@ function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
   // concerns, applied by ListExtension's DOMRenderExtension override
   // (decorateListItemDOM) so that neither leaks into exported HTML.
   setDOMUnmanaged(input);
+  listItemCheckboxInputs.add(input);
   dom.insertBefore(input, dom.firstChild);
   return input;
 }
@@ -748,7 +770,7 @@ export function decorateListItemDOM(
 ): void {
   const input = getListItemCheckboxDOM(dom);
   if (input === null) {
-    if (dom.id.startsWith('lexical-listitem-')) {
+    if (dom.id.startsWith(LISTITEM_ID_PREFIX)) {
       dom.removeAttribute('id');
     }
     return;
@@ -761,7 +783,7 @@ export function decorateListItemDOM(
     input.tabIndex = -1;
   }
   if (!dom.id) {
-    dom.id = `lexical-listitem-${editor.getKey()}-${node.getKey()}`;
+    dom.id = `${LISTITEM_ID_PREFIX}${editor.getKey()}-${node.getKey()}`;
   }
   if (input.getAttribute('aria-labelledby') !== dom.id) {
     input.setAttribute('aria-labelledby', dom.id);
@@ -772,7 +794,6 @@ export function decorateListItemDOM(
 function $updateListItemChecked(
   dom: HTMLElement,
   listItemNode: ListItemNode,
-  prevListItemNode: ListItemNode | null,
   isWrapper: boolean,
 ): void {
   const parent = listItemNode.getParent();

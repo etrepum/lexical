@@ -22,10 +22,8 @@ import {
   $isTextNode,
   $normalizeCaret,
   $setPointFromCaret,
-  $setState,
   type ElementNode,
   type LexicalNode,
-  type NodeKey,
   type ParagraphNode,
 } from 'lexical';
 
@@ -37,8 +35,12 @@ import {
   ListItemNode,
   type ListNode,
 } from './';
-import {$parkNestedListsInWrapper} from './semanticNesting';
 import {
+  $clearSemanticNestingMark,
+  $parkNestedListsInWrapper,
+} from './semanticNesting';
+import {
+  $copyListForSplit,
   $copySemanticNestingMark,
   $getAllListItems,
   $getNewListStart,
@@ -46,7 +48,6 @@ import {
   $isEmptiedHostRow,
   $isWrapperListItemNode,
   $removeHighestEmptyListParent,
-  listSemanticNestingState,
 } from './utils';
 
 function $isSelectingEmptyListItem(
@@ -421,15 +422,9 @@ export function mergeNextSiblingListIfSameType(list: ListNode): void {
  * @param listItemNode - The ListItemNode to be indented.
  */
 export function $handleIndent(listItemNode: ListItemNode): void {
-  // go through each node and decide where to move it.
-  const removed = new Set<NodeKey>();
-
   // Dedicated wrapper items cannot be indented; items whose lists carry the
   // semantic nesting mark are real rows and can.
-  if (
-    $isWrapperListItemNode(listItemNode) ||
-    removed.has(listItemNode.getKey())
-  ) {
+  if ($isWrapperListItemNode(listItemNode)) {
     return;
   }
 
@@ -455,7 +450,6 @@ export function $handleIndent(listItemNode: ListItemNode): void {
 
     if ($isListNode(innerList)) {
       innerList.append(listItemNode);
-      removed.add(nextSibling.getKey());
       $collapseWrapperPair(previousSibling, nextSibling);
     }
   } else if ($isWrapperListItemNode(nextSibling)) {
@@ -547,11 +541,10 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
           // whole (a move, so its semantic nesting mark is preserved).
           listItemNode.append(parentList);
         } else {
-          const nextSiblingsList = $copyNode(parentList);
-          // $copyNode resets the semantic nesting mark; carry over the
-          // original list's mark so the outdented item still reads as a
-          // row even if its own inline content is empty.
-          $copySemanticNestingMark(parentList, nextSiblingsList);
+          // $copyListForSplit carries the original list's mark so the
+          // outdented item still reads as a row even if its own inline
+          // content is empty.
+          const nextSiblingsList = $copyListForSplit(parentList);
           append(nextSiblingsList, nextSiblings);
           listItemNode.append(nextSiblingsList);
         }
@@ -563,27 +556,25 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
       }
       return;
     }
-    // if it's the first child in it's parent list, insert it into the
-    // great grandparent list before the grandparent
-    const firstChild = parentList ? parentList.getFirstChild() : undefined;
-    const lastChild = parentList ? parentList.getLastChild() : undefined;
+    // The item lands beside the wrapper in the great grandparent list.
+    // "First"/"last" must hold for the whole wrapper — a wrapper may hold
+    // several lists — otherwise the outdented item would be reordered
+    // across the wrapper's other lists' rows.
+    const isFirstRow =
+      listItemNode.getPreviousSibling() === null &&
+      parentList.getPreviousSibling() === null;
+    const isLastRow =
+      listItemNode.getNextSibling() === null &&
+      parentList.getNextSibling() === null;
 
-    if (listItemNode.is(firstChild)) {
-      grandparentListItem.insertBefore(listItemNode);
-
-      // A wrapper may hold several lists; remove only the emptied one, and
-      // the wrapper itself only once no list remains.
-      if (parentList.isEmpty()) {
-        parentList.remove();
-        if (grandparentListItem.isEmpty()) {
-          grandparentListItem.remove();
-        }
+    if (isFirstRow || isLastRow) {
+      if (isFirstRow) {
+        grandparentListItem.insertBefore(listItemNode);
+      } else {
+        grandparentListItem.insertAfter(listItemNode);
       }
-      // if it's the last child in it's parent list, insert it into the
-      // great grandparent list after the grandparent.
-    } else if (listItemNode.is(lastChild)) {
-      grandparentListItem.insertAfter(listItemNode);
-
+      // Remove only the emptied list, and the wrapper itself only once no
+      // list remains.
       if (parentList.isEmpty()) {
         parentList.remove();
         if (grandparentListItem.isEmpty()) {
@@ -591,22 +582,27 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
         }
       }
     } else {
-      // otherwise, we need to split the siblings into two new nested lists
-      const previousSiblingsListItem = $copyNode(listItemNode);
-      const previousSiblingsList = $copyNode(parentList);
-      previousSiblingsListItem.append(previousSiblingsList);
-      listItemNode
-        .getPreviousSiblings()
-        .forEach(sibling => previousSiblingsList.append(sibling));
-      const nextSiblingsListItem = $copyNode(listItemNode);
-      const nextSiblingsList = $copyNode(parentList);
-      nextSiblingsListItem.append(nextSiblingsList);
-      append(nextSiblingsList, listItemNode.getNextSiblings());
-      // put the sibling nested lists on either side of the grandparent list item in the great grandparent.
-      grandparentListItem.insertBefore(previousSiblingsListItem);
-      grandparentListItem.insertAfter(nextSiblingsListItem);
-      // replace the grandparent list item (now between the siblings) with the outdented list item.
-      grandparentListItem.replace(listItemNode);
+      // Split the wrapper: everything that renders below the outdented
+      // item — its next siblings and the wrapper's later lists — moves to
+      // a new wrapper inserted after it, preserving document order. The
+      // original wrapper keeps everything that renders above.
+      const nextSiblings = listItemNode.getNextSiblings();
+      const trailingLists = parentList.getNextSiblings().filter($isListNode);
+      grandparentListItem.insertAfter(listItemNode);
+      if (nextSiblings.length > 0 || trailingLists.length > 0) {
+        // A fresh dedicated wrapper (mirrors $parkNestedListsInWrapper).
+        const nextWrapper = $createListItemNode();
+        if (nextSiblings.length > 0) {
+          const nextSiblingsList = $copyListForSplit(parentList);
+          append(nextSiblingsList, nextSiblings);
+          nextWrapper.append(nextSiblingsList);
+        }
+        append(nextWrapper, trailingLists);
+        listItemNode.insertAfter(nextWrapper);
+      }
+      if (parentList.isEmpty()) {
+        parentList.remove();
+      }
     }
   }
 }
@@ -722,7 +718,8 @@ export function $handleListInsertParagraph(
         carriedLists.push($createContinuationList());
       }
       for (const trailingList of trailingLists) {
-        $setState(trailingList, listSemanticNestingState, () => false);
+        // Moving into a dedicated wrapper clears the mark.
+        $clearSemanticNestingMark(trailingList);
         carriedLists.push(trailingList);
       }
       const newListItem = $copyNode(replacementNode);

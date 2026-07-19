@@ -8,6 +8,7 @@
 
 import invariant from '@lexical/internal/invariant';
 import {
+  $copyNode,
   $findMatchingParent,
   $getState,
   $setState,
@@ -37,9 +38,10 @@ import {
  * sits in an item that renders content of its own. `resetOnCopyNode` keeps
  * copies made by the indent/split machinery (which host lists in wrapper
  * items) unmarked; the normalization re-marks copies that land next to
- * content.
+ * content, and split operations that keep a list in its row use
+ * {@link $copySemanticNestingMark} to carry the mark explicitly.
  *
- * @internal
+ * @experimental
  */
 export const listSemanticNestingState = /* @__PURE__ */ createState(
   'listSemanticNesting',
@@ -171,6 +173,21 @@ export function $copySemanticNestingMark(from: ListNode, to: ListNode): void {
     listSemanticNestingState,
     $getState(from, listSemanticNestingState),
   );
+}
+
+/**
+ * `$copyNode` for the list-split paths: copy a ListNode and carry its
+ * {@link listSemanticNestingState} over (`resetOnCopyNode` drops it on the
+ * bare copy). Every operation that splits a list into an original and a
+ * fresh copy living in the same position class — sibling lists of the same
+ * host row, or continuations of the same nesting level — must go through
+ * this so the copied half cannot silently lose the mark and read as
+ * wrapper content.
+ */
+export function $copyListForSplit(list: ListNode): ListNode {
+  const copy = $copyNode(list);
+  $copySemanticNestingMark(list, copy);
+  return copy;
 }
 
 /**
