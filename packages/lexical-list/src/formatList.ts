@@ -504,6 +504,22 @@ export function $handleIndent(listItemNode: ListItemNode): void {
  * within as a child.
  * @param listItemNode - The ListItemNode to remove the indent (outdent).
  */
+/**
+ * The list carrying the rows that render below an outdented item: a
+ * mark-preserving copy of its parent list holding its next siblings.
+ * Shared by {@link $handleOutdent}'s semantic-host and multi-list-wrapper
+ * split branches so the two cannot diverge on how below-the-item content
+ * moves on outdent.
+ */
+function $buildOutdentCarryList(
+  parentList: ListNode,
+  nextSiblings: LexicalNode[],
+): ListNode {
+  const carryList = $copyListForSplit(parentList);
+  append(carryList, nextSiblings);
+  return carryList;
+}
+
 export function $handleOutdent(listItemNode: ListItemNode): void {
   // go through each node and decide where to move it.
 
@@ -541,12 +557,10 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
           // whole (a move, so its semantic nesting mark is preserved).
           listItemNode.append(parentList);
         } else {
-          // $copyListForSplit carries the original list's mark so the
+          // The carry list keeps the original list's mark so the
           // outdented item still reads as a row even if its own inline
           // content is empty.
-          const nextSiblingsList = $copyListForSplit(parentList);
-          append(nextSiblingsList, nextSiblings);
-          listItemNode.append(nextSiblingsList);
+          listItemNode.append($buildOutdentCarryList(parentList, nextSiblings));
         }
       } else if (isFirstChild) {
         parentList.remove();
@@ -593,9 +607,7 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
         // A fresh dedicated wrapper (mirrors $parkNestedListsInWrapper).
         const nextWrapper = $createListItemNode();
         if (nextSiblings.length > 0) {
-          const nextSiblingsList = $copyListForSplit(parentList);
-          append(nextSiblingsList, nextSiblings);
-          nextWrapper.append(nextSiblingsList);
+          nextWrapper.append($buildOutdentCarryList(parentList, nextSiblings));
         }
         append(nextWrapper, trailingLists);
         listItemNode.insertAfter(nextWrapper);

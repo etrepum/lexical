@@ -537,6 +537,31 @@ export const $exportLink: MdastExportHandler = (node, ctx) => {
   return link;
 };
 
+/**
+ * Whether a non-wrapper list item emits its own listItem in this export.
+ * A whole-document export always emits (ctx.isSelected is always true);
+ * a selection export emits only when the row's own inline content is
+ * selected, or — for an emptied host row (children are only nested lists)
+ * — when the li itself is selected. Otherwise only the item's nested rows
+ * belong in the output, so emitting its listItem would leak the row's
+ * checkbox/content. Mirrors the markdown `$listExport` `isRow` rule.
+ */
+function $listItemEmitsRow(
+  listItem: ListItemNode,
+  ctx: MdastExportContext,
+): boolean {
+  let hasInlineChild = false;
+  for (const child of listItem.getChildren()) {
+    if (!$isListNode(child)) {
+      hasInlineChild = true;
+      if (ctx.isSelected(child)) {
+        return true;
+      }
+    }
+  }
+  return !hasInlineChild && ctx.isSelected(listItem);
+}
+
 function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
   const listType = node.getListType();
   const list: List = {
@@ -568,11 +593,16 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
       continue;
     }
     // A dedicated wrapper item (all children are lists, none marked with
-    // the semantic nesting state) represents nesting: attach its lists to
-    // the previous item's children. An item whose lists carry the mark is
-    // a real row — even without inline content — and is exported as its
-    // own listItem below.
-    if ($isWrapperListItemNode(child)) {
+    // the semantic nesting state) represents nesting rather than a row. So
+    // does a host row whose own inline content is not selected in a
+    // selection export: only its nested rows belong in the output, and
+    // emitting its own listItem would leak the row's checkbox/content —
+    // mirroring the markdown $listExport `isRow` rule and matching the
+    // default (wrapper) representation for the same document. In both
+    // cases the nested lists attach to the previous item's children.
+    const emitsOwnRow =
+      !$isWrapperListItemNode(child) && $listItemEmitsRow(child, ctx);
+    if (!emitsOwnRow) {
       const nestedLists = child.getChildren().filter($isListNode);
       const nested = nestedLists.map(nestedList =>
         $exportListNode(nestedList, ctx),

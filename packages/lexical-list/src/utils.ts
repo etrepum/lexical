@@ -108,8 +108,7 @@ export function $getTopListNode(listItem: LexicalNode): ListNode {
  * True when the item has a nested ListNode child — the first child in the
  * default wrapper representation, trailing the content in the semantic
  * representation. Iterates the child links directly (no array allocation);
- * safe on reconcile paths. Compare {@link $hasRowContent}, which asks the
- * opposite question.
+ * safe on reconcile paths.
  */
 export function $hasNestedListChild(listItem: ListItemNode): boolean {
   for (
@@ -125,23 +124,15 @@ export function $hasNestedListChild(listItem: ListItemNode): boolean {
 }
 
 /**
- * True when the item has a child that is NOT a ListNode — i.e. it carries
- * inline content of its own. An item with children but no row content is
- * either a dedicated wrapper or an emptied host row (the semantic nesting
- * mark on its lists distinguishes the two). Link-walk, no allocation.
- * Compare {@link $hasNestedListChild}, which asks the opposite question.
+ * Whether `node` is a check-list ListNode. The single encoding of "this
+ * list item's parent is a check list" — i.e. the item renders a checkbox —
+ * shared by rendering ({@link $updateListItemChecked}), theming, and
+ * checklist navigation so they cannot disagree on which rows are checkboxes.
  */
-export function $hasRowContent(listItem: ListItemNode): boolean {
-  for (
-    let child = listItem.getFirstChild();
-    child !== null;
-    child = child.getNextSibling()
-  ) {
-    if (!$isListNode(child)) {
-      return true;
-    }
-  }
-  return false;
+export function $isCheckList(
+  node: LexicalNode | null | undefined,
+): node is ListNode {
+  return $isListNode(node) && node.getListType() === 'check';
 }
 
 /**
@@ -154,11 +145,25 @@ export function $hasRowContent(listItem: ListItemNode): boolean {
  * default representation's childless item.
  */
 export function $isEmptiedHostRow(listItem: ListItemNode): boolean {
-  return (
-    listItem.getFirstChild() !== null &&
-    !$hasRowContent(listItem) &&
-    !$isWrapperListItemNode(listItem)
-  );
+  // Single child-link walk (this runs on caret/selection hot paths via
+  // ListItemNode.isBlock): an item whose children are all nested lists is
+  // an emptied host row when at least one list carries the semantic mark
+  // (otherwise it is a dedicated wrapper); any inline child means it still
+  // renders content, and no children means there is no row to speak of.
+  let sawMarkedList = false;
+  for (
+    let child = listItem.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    if (!$isListNode(child)) {
+      return false;
+    }
+    if ($getState(child, listSemanticNestingState)) {
+      sawMarkedList = true;
+    }
+  }
+  return sawMarkedList;
 }
 
 /**

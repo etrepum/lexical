@@ -148,6 +148,16 @@ export interface MdastExportContext {
    * skip structural children the selection does not reach.
    */
   isIncluded(node: LexicalNode): boolean;
+  /**
+   * Whether `node` itself is selected (not merely an ancestor of a
+   * selected descendant): always `true` for a whole-document export;
+   * during a selection export, `true` when the node's own range is
+   * selected. Handlers use this — as opposed to {@link isIncluded} — to
+   * decide whether a container should emit its own content (e.g. a list
+   * item whose inline text is selected) versus only pass through selected
+   * descendants.
+   */
+  isSelected(node: LexicalNode): boolean;
 }
 
 /**

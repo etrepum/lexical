@@ -14,6 +14,7 @@ import {
   $getDocument,
   $getSelection,
   $getSiblingCaret,
+  $getState,
   $insertNodeToNearestRootAtCaret,
   $isElementNode,
   $isParagraphNode,
@@ -61,9 +62,10 @@ import {
 import {
   $copyListForSplit,
   $hasNestedListChild,
-  $isEmptiedHostRow,
+  $isCheckList,
   $isWrapperListItemNode,
   findCheckboxInputChild,
+  listSemanticNestingState,
 } from './utils';
 
 export type SerializedListItemNode = Spread<
@@ -620,31 +622,30 @@ export class ListItemNode extends ElementNode {
   }
 
   isBlock(): boolean | null {
-    // Only items involved in nesting need an answer of their own; a plain
-    // content item (no nested list at either end) defers to the default
-    // heuristic. In both canonical representations a nested list is either
-    // the first child (wrapper) or trails the content (host), so checking
-    // the two ends keeps this O(1) on caret/selection hot paths.
-    if (
-      !$isListNode(this.getFirstChild()) &&
-      !$isListNode(this.getLastChild())
+    // Classify in a single child-link walk (this runs on caret/selection
+    // hot paths). An item with any inline (non-list) child — a plain
+    // content item, or a host row whose nested list trails its content —
+    // defers to the default first-child heuristic, which already resolves
+    // it correctly; the same goes for a childless item and any transient
+    // non-canonical layout. Only an item whose children are ALL nested
+    // lists needs an answer of its own: a dedicated wrapper (all unmarked)
+    // is a container, not a block; an emptied host row (at least one list
+    // carries the semantic mark) still renders a row and must behave as a
+    // block (selectable, convertible via $setBlocksType, splittable).
+    let sawMarkedList = false;
+    for (
+      let child = this.getFirstChild();
+      child !== null;
+      child = child.getNextSibling()
     ) {
-      return null;
+      if (!$isListNode(child)) {
+        return null;
+      }
+      if ($getState(child, listSemanticNestingState)) {
+        sawMarkedList = true;
+      }
     }
-    // A dedicated wrapper is a container of nested rows, not a block.
-    if ($isWrapperListItemNode(this)) {
-      return false;
-    }
-    // An emptied host row (only marked nested lists, no inline content) is
-    // the one shape the default first-child heuristic gets wrong: it still
-    // renders a row of its own and must behave as a block (selectable,
-    // convertible via $setBlocksType, splittable). A canonical host row
-    // (leading content) already resolves to a block under the default
-    // heuristic, and any transient non-canonical layout is left to it too.
-    if ($isEmptiedHostRow(this)) {
-      return true;
-    }
-    return null;
+    return this.getFirstChild() === null ? null : sawMarkedList;
   }
 }
 
@@ -663,8 +664,7 @@ function $setListItemThemeClassNames(
   const nestedListItemClassName = listTheme.nested && listTheme.nested.listitem;
   const hostListItemClassName = listTheme.listitemHost;
   const parentNode = node.getParent();
-  const isCheckList =
-    $isListNode(parentNode) && parentNode.getListType() === 'check';
+  const isCheckList = $isCheckList(parentNode);
   const checked = node.getChecked();
   // Only the dedicated wrapper item (sole purpose is holding a nested list)
   // gets the nested theme class, which is typically styled to hide the list
@@ -755,6 +755,19 @@ export function getListItemCheckboxDOM(
     : null;
 }
 
+/**
+ * The element that carries focus mode for a check-list row: its native
+ * checkbox input when it renders one (semantic nesting mode), otherwise the
+ * `<li>` itself. `checkList.ts` moves focus between rows through this
+ * target, so the "focus the input if present, else the li" rule lives in
+ * one place.
+ *
+ * @internal
+ */
+export function getListItemFocusTarget(dom: HTMLElement): HTMLElement {
+  return getListItemCheckboxDOM(dom) ?? dom;
+}
+
 function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
   const input = dom.ownerDocument.createElement('input');
   input.type = 'checkbox';
@@ -815,8 +828,7 @@ function $updateListItemChecked(
 ): void {
   const parent = listItemNode.getParent();
   const isCheckbox =
-    $isListNode(parent) &&
-    parent.getListType() === 'check' &&
+    $isCheckList(parent) &&
     // Only render a checkbox for list items that render content of their
     // own, not dedicated wrapper items that just hold a nested list
     !isWrapper;

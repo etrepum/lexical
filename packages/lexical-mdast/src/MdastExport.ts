@@ -282,6 +282,14 @@ function createNodeExporter(
   }
 
   /**
+   * Whether `node` itself is selected. See
+   * {@link MdastExportContext.isSelected}.
+   */
+  function $isSelected(node: LexicalNode): boolean {
+    return selection === null || node.isSelected(selection);
+  }
+
+  /**
    * Dispatches an element child, appending its output to `out` unless a
    * selection is active and neither the element nor any descendant is
    * selected.
@@ -332,6 +340,7 @@ function createNodeExporter(
     },
     exportInline: source => $exportInline(source),
     isIncluded: $isIncluded,
+    isSelected: $isSelected,
   };
 
   function $dispatch(node: LexicalNode): MdastNode[] {

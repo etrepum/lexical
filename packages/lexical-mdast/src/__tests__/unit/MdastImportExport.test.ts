@@ -1094,4 +1094,51 @@ describe('semantic nested list representation', () => {
     ]);
     expect(second.children.map(child => child.type)).toEqual(['list']);
   });
+
+  it('a partial selection of only nested rows does not leak the host row checkbox', () => {
+    // A check host row whose own inline content is unselected must not emit
+    // its own listItem (which would leak its checkbox state onto an empty
+    // row); only its selected nested rows belong in the output. The
+    // semantic representation must match the default (wrapper) one, where
+    // the host content lives in a separate, unselected li.
+    const exportNestedOnly = (semantic: boolean): string => {
+      using editor = createEditor();
+      editor.update(
+        () => {
+          const nested = $createListNode('check').append(
+            $createListItemNode(false).append($createTextNode('b')),
+          );
+          let root;
+          if (semantic) {
+            $setState(nested, listSemanticNestingState, true);
+            root = $createListNode('check').append(
+              $createListItemNode(true).append($createTextNode('a'), nested),
+            );
+          } else {
+            // Default representation: the host content and the nested list
+            // live in separate items (the second is a dedicated wrapper).
+            root = $createListNode('check').append(
+              $createListItemNode(true).append($createTextNode('a')),
+              $createListItemNode(false).append(nested),
+            );
+          }
+          $getRoot().clear().append(root);
+          const bText = $getRoot().getAllTextNodes()[1];
+          assert(
+            bText.getTextContent() === 'b',
+            'expected the nested row text',
+          );
+          bText.select(0, 1);
+        },
+        {discrete: true},
+      );
+      return editor.read(() => $convertSelectionToMarkdownString());
+    };
+
+    const semantic = exportNestedOnly(true);
+    expect(semantic).not.toContain('[x]');
+    expect(semantic).toContain('b');
+    // Both representations of the same logical document export identically.
+    expect(semantic).toBe(exportNestedOnly(false));
+  });
 });

@@ -40,10 +40,15 @@ import {$insertList} from './formatList';
 import {
   $isListItemNode,
   getListItemCheckboxDOM,
+  getListItemFocusTarget,
   type ListItemNode,
 } from './LexicalListItemNode';
-import {$isListNode} from './LexicalListNode';
-import {$getAllListItems, $getTopListNode, $isEmptiedHostRow} from './utils';
+import {
+  $getAllListItems,
+  $getTopListNode,
+  $isCheckList,
+  $isEmptiedHostRow,
+} from './utils';
 
 /**
  * The <li> whose native checkbox input (semantic nesting mode) is `target`,
@@ -263,8 +268,7 @@ export function registerCheckList(
               if ($isListItemNode(elementNode)) {
                 const parent = elementNode.getParent();
                 if (
-                  $isListNode(parent) &&
-                  parent.getListType() === 'check' &&
+                  $isCheckList(parent) &&
                   (isElement || elementNode.getFirstDescendant() === anchorNode)
                 ) {
                   const domNode = editor.getElementByKey(elementNode.__key);
@@ -276,8 +280,7 @@ export function registerCheckList(
                     // document.activeElement, which reports the shadow host
                     // in a shadow root (so this would otherwise always
                     // re-focus and swallow the arrow key).
-                    const focusTarget =
-                      getListItemCheckboxDOM(domNode) ?? domNode;
+                    const focusTarget = getListItemFocusTarget(domNode);
                     if (getActiveElement(domNode) !== focusTarget) {
                       focusTarget.focus();
                       event.preventDefault();
@@ -441,9 +444,9 @@ function handleClick(
             } else {
               // A click that hit the li (themed marker area) still moves
               // focus mode onto the row's native input when it renders one;
-              // for a click on the input itself the lookup is null and the
-              // input keeps focus.
-              (getListItemCheckboxDOM(domNode) ?? domNode).focus();
+              // for a click on the input itself the target is the input and
+              // it keeps focus.
+              getListItemFocusTarget(domNode).focus();
             }
             node.toggleChecked();
           }
@@ -504,8 +507,7 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
  * already excludes dedicated wrapper items).
  */
 function $isCheckRow(node: ListItemNode): boolean {
-  const parent = node.getParent();
-  return $isListNode(parent) && parent.getListType() === 'check';
+  return $isCheckList(node.getParent());
 }
 
 /**
@@ -567,7 +569,7 @@ function handleArrowUpOrDown(
         if (dom != null) {
           // The row's native checkbox input carries focus mode when it
           // renders one (semantic nesting mode).
-          const focusTarget = getListItemCheckboxDOM(dom) ?? dom;
+          const focusTarget = getListItemFocusTarget(dom);
           event.preventDefault();
           setTimeout(() => {
             focusTarget.focus();
