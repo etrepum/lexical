@@ -37,6 +37,7 @@ import {
 } from './formatList';
 import {
   $isListSemanticNestingEnabled,
+  $markPlainImportedCheckRows,
   $markSemanticNestedLists,
   $mergeWrapperListItemIntoPrevious,
 } from './semanticNesting';
@@ -315,7 +316,9 @@ function $normalizeChildren(
   const $createWrapperItem = listNode.createListItemNode.bind(listNode);
 
   if ($isListSemanticNestingEnabled()) {
-    return $normalizeSemanticChildren(nodes, $createWrapperItem);
+    const items = $normalizeSemanticChildren(nodes, $createWrapperItem);
+    $markPlainImportedCheckRows(items, listNode);
+    return items;
   }
 
   const normalizedListItems: ListItemNode[] = [];

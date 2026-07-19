@@ -37,6 +37,7 @@ import {
 import {
   $isListSemanticNestingEnabled,
   $markNestedListsAsSemantic,
+  $markPlainImportedCheckRows,
 } from './semanticNesting';
 import {findCheckboxInputChild, hasCheckboxInputRowChild} from './utils';
 
@@ -101,21 +102,16 @@ const ListRule = /* @__PURE__ */ defineImportRule({
       node = $createListNode('bullet');
     }
     $setDirectionFromDOM(node, el);
+    const items = $normalizeListChildren(ctx.$importChildren(el));
+    // Mixed task lists: a plain `<li>` in a `contains-task-list` renders no
+    // checkbox. Same normalization as the legacy pipeline's $normalizeChildren.
+    $markPlainImportedCheckRows(items, node);
     // Propagate the list's `text-align` onto each `ListItemNode` child
     // (legacy `wrapContinuousInlines` did the same), so pasting
     // `<ul style="text-align: left"><li>…</li></ul>` ends up with the
     // alignment on the list items where the reconciler renders it as
     // `style="text-align: left"`.
-    return [
-      node.splice(
-        0,
-        0,
-        $propagateTextAlignToBlockChildren(
-          $normalizeListChildren(ctx.$importChildren(el)),
-          el,
-        ),
-      ),
-    ];
+    return [node.splice(0, 0, $propagateTextAlignToBlockChildren(items, el))];
   },
   match: sel.tag('ol', 'ul'),
   name: '@lexical/list/list',

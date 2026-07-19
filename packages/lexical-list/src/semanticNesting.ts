@@ -92,6 +92,38 @@ export function $parkNestedListsInWrapper(
 }
 
 /**
+ * Mark the plain (non-checkbox) rows of an imported check list so they render
+ * as bare `<li>`s rather than unchecked boxes — the GitHub mixed task-list
+ * case, where a single `contains-task-list` holds both `task-list-item` rows
+ * and plain items. A task row picked up an explicit checked flag from the
+ * checkbox / aria-checked conversion; a plain `<li>` did not, so a top-level
+ * row still carrying an undefined checked field is the plain one. Wrappers
+ * (which only hold nested lists and render no row) are left alone. Shared by
+ * both DOM import pipelines so their check-list normalization cannot diverge.
+ * A no-op outside the semantic nesting mode (self-gated so either pipeline can
+ * call it unconditionally) — default-mode check-list import is unchanged, and
+ * mixed task lists are a semantic-mode feature.
+ *
+ * @internal
+ */
+export function $markPlainImportedCheckRows(
+  items: ListItemNode[],
+  listNode: ListNode,
+): void {
+  if (listNode.getListType() !== 'check' || !$isListSemanticNestingEnabled()) {
+    return;
+  }
+  for (const item of items) {
+    if (
+      item.getLatest().__checked === undefined &&
+      !$isWrapperListItemNode(item)
+    ) {
+      item.setListItemPlain(true);
+    }
+  }
+}
+
+/**
  * Whether the `hasSemanticNesting` config of {@link ListExtension} is
  * enabled for the given editor (default: the active editor). Reads the
  * extension's output signal; `false` for editors built without the

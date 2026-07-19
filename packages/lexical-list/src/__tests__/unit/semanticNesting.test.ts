@@ -3425,3 +3425,84 @@ describe('mixed check list (plain rows in a check list)', () => {
     });
   });
 });
+
+describe('mixed check list HTML round-trip (semantic mode)', () => {
+  // The exact shape GitHub emits: one contains-task-list holding both
+  // task-list-item rows (with a checkbox input) and a plain <li>.
+  const GITHUB_HTML =
+    '<ul class="contains-task-list">' +
+    '<li class="task-list-item"><input type="checkbox" disabled class="task-list-item-checkbox"> check</li>' +
+    '<li>no check</li>' +
+    '<li class="task-list-item"><input type="checkbox" checked disabled class="task-list-item-checkbox"> done</li>' +
+    '</ul>';
+
+  function $assertMixed(): void {
+    const list = $rootList();
+    expect(list.getListType()).toBe('check');
+    const [a, b, c] = list.getChildren() as ListItemNode[];
+    // Row order and text preserved.
+    expect([a, b, c].map(li => li.getTextContent())).toEqual([
+      'check',
+      'no check',
+      'done',
+    ]);
+    // The bare <li> is a plain row (no checkbox); the input rows are tasks.
+    expect(a.getChecked()).toBe(false);
+    expect(b.getChecked()).toBeUndefined();
+    expect(b.getListItemPlain()).toBe(true);
+    expect(c.getChecked()).toBe(true);
+  }
+
+  test('rules import pipeline marks the plain row', () => {
+    using editor = buildCheckEditor();
+    importIntoViaPipeline(editor, GITHUB_HTML);
+    editor.read('force-commit', $assertMixed);
+  });
+
+  test('legacy $generateNodesFromDOM marks the plain row', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        const dom = new DOMParser().parseFromString(GITHUB_HTML, 'text/html');
+        $getRoot()
+          .clear()
+          .append(...$generateNodesFromDOM(editor, dom));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', $assertMixed);
+  });
+
+  test('the plain row survives an HTML export → import round-trip', () => {
+    using editor = buildCheckEditor();
+    importIntoViaPipeline(editor, GITHUB_HTML);
+    let exported = '';
+    editor.read('force-commit', () => {
+      exported = $generateHtmlFromNodes(editor, null);
+    });
+    // The exported plain row is a bare <li> (no checkbox, no role/aria).
+    using editor2 = buildCheckEditor();
+    importIntoViaPipeline(editor2, exported);
+    editor2.read('force-commit', $assertMixed);
+  });
+
+  test('default mode imports the same HTML as an all-checkbox list (feature is semantic-only)', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting: false}),
+          CheckListExtension,
+        ],
+        name: 'default-check-host',
+      }),
+    );
+    importIntoViaPipeline(editor, GITHUB_HTML);
+    editor.read('force-commit', () => {
+      const [, b] = $rootList().getChildren() as ListItemNode[];
+      // Unchanged legacy behavior: the plain <li> is an unchecked box, not a
+      // plain row — mixed task lists are a semantic-mode feature.
+      expect(b.getListItemPlain()).toBe(false);
+      expect(b.getChecked()).toBe(false);
+    });
+  });
+});
