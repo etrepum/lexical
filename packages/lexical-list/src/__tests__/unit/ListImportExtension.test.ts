@@ -258,11 +258,12 @@ function $buildWordListTree(
     while (stack.length > 1 && stack[stack.length - 1].level > item.level) {
       stack.pop();
     }
-    // Open a new sublist if we just stepped deeper. Lexical's
-    // nested-list convention (see `isNestedListNode` in @lexical/list):
-    // a sublist lives inside its OWN ListItemNode wrapper that is a
-    // sibling of the content items above it, not inside the previous
-    // one. The wrapper holds the sublist as its first (and only) child.
+    // Open a new sublist if we just stepped deeper. Lexical's default
+    // nested-list convention (see `$isWrapperListItemNode` in
+    // @lexical/list): a sublist lives inside its OWN ListItemNode wrapper
+    // that is a sibling of the content items above it, not inside the
+    // previous one. The wrapper holds the sublist as its first (and only)
+    // child.
     if (item.level > stack[stack.length - 1].level) {
       const sub = $createListNode(classifyWordListType(item.marker));
       const wrapper = $createListItemNode();
