@@ -9,7 +9,6 @@
 import {effect, namedSignals} from '@lexical/extension';
 import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
 import {
-  $nodesOfType,
   configExtension,
   defineExtension,
   mergeRegister,
@@ -111,13 +110,11 @@ export const ListExtension = /* @__PURE__ */ defineExtension({
         // Registering the transform marks all list items dirty (converting
         // the document forward); disabling must re-render them too, or
         // check rows keep their stale native checkbox inputs while the
-        // ARIA emulation attributes are already gone.
+        // ARIA emulation attributes are already gone. Registering a no-op
+        // transform and immediately unregistering it leaves exactly that
+        // side effect.
         if (!isFirstRun) {
-          editor.update(() => {
-            for (const node of $nodesOfType(ListItemNode)) {
-              node.markDirty();
-            }
-          });
+          editor.registerNodeTransform(ListItemNode, () => {})();
         }
       }),
     );
