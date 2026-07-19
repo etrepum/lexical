@@ -674,6 +674,19 @@ describe('@lexical/mdast import/export', () => {
       ).toBe('[link](https://example.com)');
     });
 
+    it('keeps a list row when only its link text is partially selected', () => {
+      // A list item whose only content is a link: a partial selection
+      // inside the link must still emit the row. Regression — the shared
+      // row-emit decision checked only direct-child selection, so the link
+      // element (not itself in getNodes()) read as unselected and the row
+      // (and its content) was dropped.
+      expect(
+        selectionExport('- [link text](https://example.com)', textNodes =>
+          textNodes[0].select(0, 4),
+        ),
+      ).toBe('- [link](https://example.com)');
+    });
+
     it('exposes the selection to contributed to-markdown handlers', () => {
       // A contributed root handler whose output depends on the export's
       // scope (e.g. appending end-of-document data like footnote

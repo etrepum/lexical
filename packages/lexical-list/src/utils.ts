@@ -11,6 +11,7 @@ import {
   $copyNode,
   $findMatchingParent,
   $getState,
+  $isElementNode,
   $setState,
   createState,
   type ElementNode,
@@ -167,6 +168,35 @@ export function $isEmptiedHostRow(listItem: ListItemNode): boolean {
 }
 
 /**
+ * Whether any of the node's own content is selected — every descendant
+ * except its nested ListNodes, which are the *following* rows' content and
+ * filter themselves. Recurses through inline element wrappers (e.g. a
+ * LinkNode) so a partial selection inside a link still counts as the row's
+ * content being selected.
+ */
+function $hasSelectedRowContent(
+  element: ElementNode,
+  isSelected: (node: LexicalNode) => boolean,
+): boolean {
+  for (
+    let child = element.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    if ($isListNode(child)) {
+      continue;
+    }
+    if (
+      isSelected(child) ||
+      ($isElementNode(child) && $hasSelectedRowContent(child, isSelected))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Whether a list item emits its own row in a markdown/mdast export, versus
  * being a pure nesting container whose only output is its nested rows. The
  * single encoding of this rule, shared by the markdown and mdast list
@@ -176,9 +206,11 @@ export function $isEmptiedHostRow(listItem: ListItemNode): boolean {
  * - In a whole-document export (`hasSelection` false) every other item
  *   emits, matching the default representation (even childless / emptied
  *   rows).
- * - In a selection export a content row emits when its own inline content
- *   is selected; an emptied host row (children are all nested lists) emits
- *   when the item itself is selected; a childless item never emits.
+ * - In a selection export a content row emits when any of its own content
+ *   is selected (at any depth, e.g. text inside a link — but NOT its nested
+ *   lists, which are the following rows); an emptied host row (children are
+ *   all nested lists) emits when the item itself is selected; a childless
+ *   item never emits.
  *
  * `isSelected(node)` reports whether that node's own range is selected; it
  * is only consulted when `hasSelection` is true.
@@ -195,21 +227,25 @@ export function $listItemEmitsRow(
     return true;
   }
   let hasChild = false;
-  let hasInlineChild = false;
+  let hasOwnContent = false;
   for (
     let child = listItem.getFirstChild();
     child !== null;
     child = child.getNextSibling()
   ) {
     hasChild = true;
-    if (!$isListNode(child)) {
-      hasInlineChild = true;
-      if (isSelected(child)) {
-        return true;
-      }
+    if ($isListNode(child)) {
+      continue;
+    }
+    hasOwnContent = true;
+    if (
+      isSelected(child) ||
+      ($isElementNode(child) && $hasSelectedRowContent(child, isSelected))
+    ) {
+      return true;
     }
   }
-  return !hasInlineChild && hasChild && isSelected(listItem);
+  return !hasOwnContent && hasChild && isSelected(listItem);
 }
 
 /**

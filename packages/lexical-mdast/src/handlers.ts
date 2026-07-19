@@ -587,14 +587,19 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
           nested.push($exportListNode(nestedList, ctx));
         }
       }
-      if (previousItem) {
-        previousItem.children.push(...nested);
-      } else {
-        list.children.push({
-          children: nested,
-          spread: false,
-          type: 'listItem',
-        });
+      // Nothing to contribute (e.g. a childless item selected as an element
+      // point): emit nothing, matching the markdown pipeline, rather than a
+      // stray empty listItem.
+      if (nested.length > 0) {
+        if (previousItem) {
+          previousItem.children.push(...nested);
+        } else {
+          list.children.push({
+            children: nested,
+            spread: false,
+            type: 'listItem',
+          });
+        }
       }
       continue;
     }
