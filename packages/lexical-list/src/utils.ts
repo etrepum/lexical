@@ -53,6 +53,37 @@ export const listSemanticNestingState = /* @__PURE__ */ createState(
 );
 
 /**
+ * NodeState marking a ListItemNode that lives in a check list yet renders as a
+ * plain row — no checkbox — the GitHub "mixed task list" case, where a single
+ * `<ul class="contains-task-list">` holds both `task-list-item` rows and plain
+ * `<li>`s. Check-ness is otherwise a property of the list (every row of a
+ * `check` list is a task item); this per-item mark is the single exception, so
+ * {@link ListItemNode.getChecked} reports `undefined` (not a task) for a
+ * marked row and every "is this a checkbox row" decision — rendering, theming,
+ * checklist navigation — follows from that.
+ *
+ * Only meaningful for an item whose parent is a `check` ListNode; the list
+ * item `$transform` clears it when the row moves to any other list type.
+ *
+ * @experimental
+ */
+export const listItemPlainState = /* @__PURE__ */ createState('listItemPlain', {
+  parse: v => v === true,
+});
+
+/**
+ * Whether the item renders a checkbox of its own — i.e. it is a task item.
+ * True exactly when {@link ListItemNode.getChecked} reports a boolean, which
+ * already folds in the parent being a check list and the item not carrying
+ * {@link listItemPlainState}. The single predicate shared by rendering,
+ * theming, and checklist navigation so they cannot disagree on which rows are
+ * checkboxes in a mixed task list.
+ */
+export function $isTaskListItem(node: ListItemNode): boolean {
+  return node.getChecked() !== undefined;
+}
+
+/**
  * Checks the depth of listNode from the root node.
  * @param listNode - The ListNode to be checked.
  * @returns The depth of the ListNode.

@@ -26,6 +26,7 @@ import {
   $insertList,
   $isListItemNode,
   $isListNode,
+  $isTaskListItem,
   $isWrapperListItemNode,
   $listItemEmitsRow,
   $removeList,
@@ -3275,5 +3276,152 @@ describe('semantic ≡ default Markdown under editing', () => {
     expect(sem).toBe('- a\n    - b\n        - c\n- d');
     // Default: the wrapper detaches c, leaving b and c as siblings.
     expect(def).toBe('- a\n    - b\n    - c\n- d');
+  });
+});
+
+// GitHub renders a single `<ul class="contains-task-list">` that mixes
+// `task-list-item` rows with plain `<li>`s. listItemPlainState marks the plain
+// rows so getChecked reports undefined for them, and every "is this a checkbox
+// row" decision (rendering, theming, checklist nav) follows from getChecked.
+describe('mixed check list (plain rows in a check list)', () => {
+  const THEME = {
+    list: {
+      listitemCheckbox: 'the-input',
+      listitemChecked: 'emulated-checked',
+      listitemCheckedNative: 'native-checked',
+      listitemUnchecked: 'emulated-unchecked',
+      listitemUncheckedNative: 'native-unchecked',
+    },
+  };
+
+  function buildThemedEditor(hasSemanticNesting: boolean) {
+    return buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting}),
+          CheckListExtension,
+        ],
+        name: 'mixed-check-host',
+        theme: THEME,
+      }),
+    );
+  }
+
+  // check[ [x] a, plain b, [ ] c ] — one list, middle row plain.
+  function $appendMixed(): ListItemNode {
+    const plain = $createListItemNode(false)
+      .append($createTextNode('b'))
+      .setListItemPlain(true);
+    $clearAndAppend(
+      $createListNode('check').append(
+        $createListItemNode(true).append($createTextNode('a')),
+        plain,
+        $createListItemNode(false).append($createTextNode('c')),
+      ),
+    );
+    return plain;
+  }
+
+  test('getChecked reports undefined for a plain row, booleans for task rows', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const plain = $appendMixed();
+        const [a, , c] = $rootList().getChildren() as ListItemNode[];
+        expect(a.getChecked()).toBe(true);
+        expect(plain.getLatest().getChecked()).toBeUndefined();
+        expect(c.getChecked()).toBe(false);
+        // $isTaskListItem folds the same predicate the renderer uses.
+        expect($isTaskListItem(a)).toBe(true);
+        expect($isTaskListItem(plain.getLatest())).toBe(false);
+        expect($isTaskListItem(c)).toBe(true);
+        // The mark reports through the node accessor and only inside a check
+        // list.
+        expect(plain.getLatest().getListItemPlain()).toBe(true);
+        expect(a.getListItemPlain()).toBe(false);
+      },
+      {discrete: true},
+    );
+  });
+
+  test('semantic mode renders inputs for task rows and nothing for the plain row', () => {
+    using editor = buildThemedEditor(true);
+    const rootElement = mountRootElement(editor);
+    editor.update($appendMixed, {discrete: true});
+
+    const [aLi, bLi, cLi] = Array.from(rootElement.querySelectorAll('li'));
+    // Task rows carry a native input and the *Native theme classes.
+    expect(aLi.querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(cLi.querySelector('input[type="checkbox"]')).not.toBeNull();
+    expect(aLi.classList.contains('native-checked')).toBe(true);
+    expect(cLi.classList.contains('native-unchecked')).toBe(true);
+    // The plain row renders no checkbox, no check classes, and no ARIA state.
+    expect(bLi.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(bLi.classList.contains('native-unchecked')).toBe(false);
+    expect(bLi.classList.contains('native-checked')).toBe(false);
+    expect(bLi.hasAttribute('aria-checked')).toBe(false);
+    expect(bLi.hasAttribute('role')).toBe(false);
+  });
+
+  test('default (emulated) mode gives the plain row no ARIA checkbox emulation', () => {
+    using editor = buildThemedEditor(false);
+    const rootElement = mountRootElement(editor);
+    editor.update($appendMixed, {discrete: true});
+
+    const [aLi, bLi, cLi] = Array.from(rootElement.querySelectorAll('li'));
+    // Task rows keep the emulated ::before checkbox (role + aria-checked).
+    expect(aLi.getAttribute('aria-checked')).toBe('true');
+    expect(cLi.getAttribute('aria-checked')).toBe('false');
+    expect(aLi.classList.contains('emulated-checked')).toBe(true);
+    expect(cLi.classList.contains('emulated-unchecked')).toBe(true);
+    // The plain row is an ordinary <li>: no role, no aria-checked, no check
+    // classes, and no input.
+    expect(bLi.hasAttribute('aria-checked')).toBe(false);
+    expect(bLi.hasAttribute('role')).toBe(false);
+    expect(bLi.classList.contains('emulated-unchecked')).toBe(false);
+    expect(bLi.classList.contains('emulated-checked')).toBe(false);
+    expect(bLi.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  test('the plain mark and its checkbox are cleared when the row leaves the check list', () => {
+    using editor = buildEditor();
+    let plain!: ListItemNode;
+    editor.update(
+      () => {
+        plain = $appendMixed();
+      },
+      {discrete: true},
+    );
+    // Move the plain row into a bullet list: the $transform drops the mark and
+    // any checked state, so it becomes an ordinary bullet item.
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append($createListNode('bullet').append(plain.getLatest()));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const item = plain.getLatest();
+      expect(item.getListItemPlain()).toBe(false);
+      expect(item.getChecked()).toBeUndefined();
+    });
+  });
+
+  test('a plain row survives a JSON round-trip', () => {
+    using editor = buildEditor();
+    editor.update($appendMixed, {discrete: true});
+    const json = editor.getEditorState().toJSON();
+
+    using editor2 = buildEditor();
+    editor2.setEditorState(editor2.parseEditorState(JSON.stringify(json)));
+    editor2.read('force-commit', () => {
+      const [a, b, c] = $rootList().getChildren() as ListItemNode[];
+      expect(a.getChecked()).toBe(true);
+      expect(b.getChecked()).toBeUndefined();
+      expect(b.getListItemPlain()).toBe(true);
+      expect(c.getChecked()).toBe(false);
+    });
   });
 });

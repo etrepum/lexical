@@ -23,6 +23,7 @@ import {
   $rewindSiblingCaret,
   $setDirectionFromDOM,
   $setFormatFromDOM,
+  $setState,
   addClassNamesToElement,
   type BaseSelection,
   buildImportMap,
@@ -63,8 +64,10 @@ import {
   $copyListForSplit,
   $hasNestedListChild,
   $isCheckList,
+  $isTaskListItem,
   $isWrapperListItemNode,
   findCheckboxInputChild,
+  listItemPlainState,
   listSemanticNestingState,
 } from './utils';
 
@@ -115,8 +118,17 @@ export class ListItemNode extends ElementNode {
       $transform: (node: ListItemNode): void => {
         const parent = node.getParent();
         if ($isListNode(parent)) {
-          if (parent.getListType() !== 'check' && node.getChecked() != null) {
-            node.setChecked(undefined);
+          // A row that is no longer in a check list carries no checkbox
+          // state: clear both the checked flag and the mixed-list "plain"
+          // mark (read the raw field / state directly — getChecked already
+          // reports undefined off a check list, so it can't gate this).
+          if (parent.getListType() !== 'check') {
+            if (node.getLatest().__checked !== undefined) {
+              node.setChecked(undefined);
+            }
+            if ($getState(node, listItemPlainState)) {
+              $setState(node, listItemPlainState, false);
+            }
           }
         } else if (parent) {
           const newParent = node.createParentElementNode();
@@ -206,10 +218,13 @@ export class ListItemNode extends ElementNode {
     // ::before emulation — in the semantic nesting representation; the
     // theme keys and DOM wiring differ, so resolve it once here.
     const isWrapper = $isWrapperListItemNode(this);
-    const useNativeCheckbox =
-      !isWrapper &&
-      $isCheckList(this.getParent()) &&
-      $isListSemanticNestingEnabled();
+    // Task-ness, not the list type, decides whether the row draws a checkbox:
+    // a plain row in a check list (the GitHub mixed task-list case) renders
+    // none. getChecked already folds in the parent being a check list, so
+    // $isTaskListItem is false for wrappers only when they hold no state — the
+    // explicit !isWrapper guard keeps a wrapper (getChecked === false) out.
+    const isTaskItem = !isWrapper && $isTaskListItem(this);
+    const useNativeCheckbox = isTaskItem && $isListSemanticNestingEnabled();
     $updateListItemChecked(dom, this, isWrapper, useNativeCheckbox);
 
     dom.value = this.__value;
@@ -544,7 +559,12 @@ export class ListItemNode extends ElementNode {
       listType = parent.getListType();
     }
 
-    return listType === 'check' ? Boolean(self.__checked) : undefined;
+    // A row explicitly marked plain (the GitHub mixed task-list case) reports
+    // "not a task" even inside a check list, so it renders no checkbox.
+    if (listType !== 'check' || $getState(self, listItemPlainState)) {
+      return undefined;
+    }
+    return Boolean(self.__checked);
   }
 
   setChecked(checked?: boolean): this {
@@ -556,6 +576,28 @@ export class ListItemNode extends ElementNode {
   toggleChecked(): this {
     const self = this.getWritable();
     return self.setChecked(!self.__checked);
+  }
+
+  /**
+   * Whether this row is explicitly a plain (non-checkbox) row inside a check
+   * list — the GitHub mixed task-list case. A plain row reports
+   * {@link getChecked} as `undefined`, so it renders no checkbox. Always
+   * `false` outside a check list. See {@link listItemPlainState}.
+   */
+  getListItemPlain(): boolean {
+    const self = this.getLatest();
+    return (
+      $isCheckList(self.getParent()) && $getState(self, listItemPlainState)
+    );
+  }
+
+  /**
+   * Mark (or unmark) this row as a plain, non-checkbox row within a check
+   * list. Only meaningful inside a check list; the list item `$transform`
+   * clears the mark when the row moves to any other list type.
+   */
+  setListItemPlain(plain: boolean): this {
+    return $setState(this, listItemPlainState, plain);
   }
 
   getIndent(): number {
@@ -679,8 +721,10 @@ function $setListItemThemeClassNames(
   const listItemClassName = listTheme.listitem;
   const nestedListItemClassName = listTheme.nested && listTheme.nested.listitem;
   const hostListItemClassName = listTheme.listitemHost;
-  const parentNode = node.getParent();
-  const isCheckList = $isCheckList(parentNode);
+  // Task-ness (not the parent list type) gates the checked/unchecked theme
+  // classes, so a plain row in a check list — the mixed task-list case —
+  // gets neither. A wrapper never renders a row, so exclude it explicitly.
+  const isTaskItem = !isWrapper && $isTaskListItem(node);
   const checked = node.getChecked();
   // Only the dedicated wrapper item (sole purpose is holding a nested list)
   // gets the nested theme class, which is typically styled to hide the list
@@ -726,7 +770,7 @@ function $setListItemThemeClassNames(
   if (listItemClassName !== undefined) {
     classesToAdd.push(...normalizeClassNames(listItemClassName));
   }
-  if (isCheckList) {
+  if (isTaskItem) {
     // A row rendering a native <input type=checkbox> (semantic nesting)
     // uses its own theme keys so it never draws the emulated ::before
     // checkbox on top of the real input; every other check row uses the
@@ -873,7 +917,7 @@ function $updateListItemChecked(
   // row. The semantic nesting mode renders a real (unmanaged) input, which
   // carries the role/checked/focus semantics natively.
   const isCheckbox =
-    useNativeInput || (!isWrapper && $isCheckList(listItemNode.getParent()));
+    useNativeInput || (!isWrapper && $isTaskListItem(listItemNode));
   const input = getListItemCheckboxDOM(dom);
   const checked = listItemNode.getChecked() === true;
 

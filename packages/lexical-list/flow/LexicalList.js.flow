@@ -63,6 +63,8 @@ declare export class ListItemNode extends ElementNode {
   getChecked(): boolean | void;
   setChecked(boolean): this;
   toggleChecked(): void;
+  getListItemPlain(): boolean;
+  setListItemPlain(plain: boolean): this;
   static importJSON(serializedNode: SerializedListItemNode): ListItemNode;
 }
 declare export class ListNode extends ElementNode {
@@ -104,6 +106,8 @@ declare export function $isWrapperListItemNode(
 
 declare export function $isEmptiedHostRow(listItem: ListItemNode): boolean;
 
+declare export function $isTaskListItem(node: ListItemNode): boolean;
+
 declare export function $listItemEmitsRow(
   listItem: ListItemNode,
   hasSelection: boolean,
@@ -114,6 +118,8 @@ declare export var listSemanticNestingState: StateConfig<
   'listSemanticNesting',
   boolean,
 >;
+
+declare export var listItemPlainState: StateConfig<'listItemPlain', boolean>;
 
 declare export function registerCheckList(editor: LexicalEditor): () => void;
 

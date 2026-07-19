@@ -46,8 +46,8 @@ import {
 import {
   $getAllListItems,
   $getTopListNode,
-  $isCheckList,
   $isEmptiedHostRow,
+  $isTaskListItem,
 } from './utils';
 
 /**
@@ -264,9 +264,8 @@ export function registerCheckList(
                 node => $isElementNode(node) && !node.isInline(),
               );
               if ($isListItemNode(elementNode)) {
-                const parent = elementNode.getParent();
                 if (
-                  $isCheckList(parent) &&
+                  $isTaskListItem(elementNode) &&
                   (isElement || elementNode.getFirstDescendant() === anchorNode)
                 ) {
                   const domNode = editor.getElementByKey(elementNode.__key);
@@ -502,10 +501,12 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
 
 /**
  * Whether the item renders a checkbox row of its own ($getAllListItems
- * already excludes dedicated wrapper items).
+ * already excludes dedicated wrapper items). A plain row in a check list —
+ * the mixed task-list case — is not a checkbox row, so arrow navigation
+ * skips it just as it skips non-check rows.
  */
 function $isCheckRow(node: ListItemNode): boolean {
-  return $isCheckList(node.getParent());
+  return $isTaskListItem(node);
 }
 
 /**

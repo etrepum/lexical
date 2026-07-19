@@ -29,8 +29,10 @@ import {
 import {
   $getListDepth,
   $isEmptiedHostRow,
+  $isTaskListItem,
   $isWrapperListItemNode,
   $listItemEmitsRow,
+  listItemPlainState,
   listSemanticNestingState,
 } from './utils';
 
@@ -61,11 +63,13 @@ export {
   $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
+  $isTaskListItem,
   $isWrapperListItemNode,
   $listItemEmitsRow,
   $removeList,
   INSERT_CHECK_LIST_COMMAND,
   ListItemNode,
+  listItemPlainState,
   ListNode,
   ListNodeTagType,
   listSemanticNestingState,
