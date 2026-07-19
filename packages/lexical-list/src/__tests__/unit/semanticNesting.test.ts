@@ -40,8 +40,10 @@ import {
   $normalizeSemanticListItem,
 } from '@lexical/list/src/semanticNesting';
 import {
+  $convertFromMarkdownString,
   $convertSelectionToMarkdownString,
   $convertToMarkdownString,
+  CHECK_LIST,
   TRANSFORMERS,
 } from '@lexical/markdown';
 import {$createQuoteNode, RichTextExtension} from '@lexical/rich-text';
@@ -3152,5 +3154,126 @@ describe('native checkbox theme keys', () => {
     editor.update(() => item.getLatest().setChecked(true), {discrete: true});
     expect(li.classList.contains('native-checked')).toBe(true);
     expect(li.classList.contains('native-unchecked')).toBe(false);
+  });
+});
+
+// The point of the semantic representation is that the *tree* differs from
+// the default (a nested list lives inside its host row's <li> instead of a
+// dedicated wrapper <li>) while the *document* is unchanged. Markdown has a
+// single way to spell a nested list, so the invariant that proves editing
+// never drifts into a "non-semantic" (wrong) document is: the same edit,
+// applied to the same source in both modes, exports byte-identical Markdown.
+describe('semantic ≡ default Markdown under editing', () => {
+  // The default TRANSFORMERS array omits CHECK_LIST, so opt it in to cover the
+  // native-checkbox rows too. (Markdown's own check-list export is lossy on
+  // nesting — but identically so in both modes, which is exactly the point.)
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  function $findRowByText(text: string): ListItemNode {
+    const match = $getRoot()
+      .getAllTextNodes()
+      .find(node => node.getTextContent() === text);
+    invariant(match !== undefined, `no text node "${text}"`);
+    let node: LexicalNode | null = match.getParent();
+    while (node !== null && !$isListItemNode(node)) {
+      node = node.getParent();
+    }
+    invariant($isListItemNode(node), `no list row owns "${text}"`);
+    return node;
+  }
+
+  // Turn a row into a paragraph the way the toolbar does — via a selection on
+  // its text and $setBlocksType — so the semantic host/wrapper machinery runs.
+  function $toParagraph(text: string): void {
+    const match = $getRoot()
+      .getAllTextNodes()
+      .find(node => node.getTextContent() === text);
+    invariant(match !== undefined, `no text node "${text}"`);
+    match.select(0, match.getTextContentSize());
+    const selection = $getSelection();
+    invariant($isRangeSelection(selection), 'expected a range selection');
+    $setBlocksType(selection, () => $createParagraphNode());
+  }
+
+  function $outdent(text: string): void {
+    const row = $findRowByText(text);
+    row.setIndent(Math.max(0, row.getIndent() - 1));
+  }
+
+  /** Import `markdown`, run `$op`, and return the re-exported Markdown. */
+  function editAndExport(
+    markdown: string,
+    $op: () => void,
+    hasSemanticNesting: boolean,
+  ): string {
+    using editor = buildCheckEditor({hasSemanticNesting});
+    editor.update(() => $convertFromMarkdownString(markdown, MD), {
+      discrete: true,
+    });
+    editor.update($op, {discrete: true});
+    let out = '';
+    editor.read('force-commit', () => {
+      out = $convertToMarkdownString(MD);
+    });
+    return out;
+  }
+
+  function expectSameUnderEdit(
+    markdown: string,
+    $op: () => void,
+  ): {def: string; sem: string} {
+    const def = editAndExport(markdown, $op, false);
+    const sem = editAndExport(markdown, $op, true);
+    expect(sem).toBe(def);
+    return {def, sem};
+  }
+
+  const DOCS: {name: string; markdown: string; rows: string[]}[] = [
+    {
+      markdown: '- a\n  - b\n- c',
+      name: 'one nested level',
+      rows: ['a', 'b', 'c'],
+    },
+    {
+      markdown: '- a\n  - b\n    - c\n- d',
+      name: 'two nested levels',
+      rows: ['a', 'b', 'c', 'd'],
+    },
+    {
+      markdown: '- [x] a\n  - [ ] b\n- c',
+      name: 'nested check list',
+      rows: ['a', 'b', 'c'],
+    },
+  ];
+
+  for (const doc of DOCS) {
+    for (const row of doc.rows) {
+      test(`converting "${row}" to a paragraph — ${doc.name}`, () => {
+        expectSameUnderEdit(doc.markdown, () => $toParagraph(row));
+      });
+      test(`outdenting "${row}" — ${doc.name}`, () => {
+        expectSameUnderEdit(doc.markdown, () => $outdent(row));
+      });
+    }
+  }
+
+  // Indenting a row that already owns a nested list is the one operation whose
+  // *document* legitimately differs between modes, and the semantic result is
+  // the correct one: the sub-tree moves as a unit (its child stays one level
+  // below it), whereas the default wrapper representation detaches the child.
+  // This is the semantic feature working as intended, not drift — assert both
+  // shapes explicitly so a regression on either side is caught.
+  test('indenting a row with children keeps its subtree together (semantic) / detaches it (default)', () => {
+    const markdown = '- a\n  - b\n    - c\n- d';
+    const $indentB = () => {
+      const row = $findRowByText('b');
+      row.setIndent(row.getIndent() + 1);
+    };
+    const sem = editAndExport(markdown, $indentB, true);
+    const def = editAndExport(markdown, $indentB, false);
+    // Semantic: c follows b down a level (a > (b > c) > d).
+    expect(sem).toBe('- a\n    - b\n        - c\n- d');
+    // Default: the wrapper detaches c, leaving b and c as siblings.
+    expect(def).toBe('- a\n    - b\n    - c\n- d');
   });
 });
