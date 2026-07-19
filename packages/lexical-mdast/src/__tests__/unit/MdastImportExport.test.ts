@@ -1082,7 +1082,7 @@ describe('semantic nested list representation', () => {
       {discrete: true},
     );
 
-    const tree = editor.read(() => $convertToMdast());
+    const tree = editor.read('force-commit', () => $convertToMdast());
     const list = tree.children[0];
     assert(list.type === 'list', 'expected a list');
     // Two list items: the emptied row is not merged into the previous one.

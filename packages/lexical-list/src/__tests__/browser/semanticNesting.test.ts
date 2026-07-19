@@ -182,7 +182,7 @@ function readDOMCaret(contentEditable: HTMLElement): {
 
 /** The Lexical caret as `[textContent, offset]` of its anchor text node. */
 function readLexicalCaret(editor: LexicalEditor): [string, number] {
-  return editor.read(() => {
+  return editor.read('force-commit', () => {
     const selection = $getSelection();
     invariant(
       $isRangeSelection(selection) && selection.isCollapsed(),
@@ -231,7 +231,7 @@ function $rowTexts(): string[] {
 
 /** Asserts the fixture's semantic shape: no dedicated wrapper items. */
 function $expectSemanticShape(editor: LexicalEditor): void {
-  editor.read(() => {
+  editor.read('force-commit', () => {
     const $checkList = (list: ListNode) => {
       for (const child of list.getChildren()) {
         expect($isListItemNode(child)).toBe(true);
@@ -269,7 +269,7 @@ describe('semantic nested list browser behavior', () => {
 
     await userEvent.keyboard('s!');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rowTexts()).toEqual([
         'first item',
         'host items!',
@@ -367,7 +367,7 @@ describe('semantic nested list browser behavior', () => {
 
     // Matches the default representation: the row becomes a top-level item
     // and the rest of the nested list stays nested — now beneath it.
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rowTexts()).toEqual([
         'first item',
         'host item',
@@ -414,7 +414,7 @@ describe('semantic nested list browser behavior', () => {
 
     await userEvent.keyboard('{Backspace}');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const rootListChildren = $rootList().getChildren();
       // The emptied row must survive as a row of its own: still three
       // top-level items, the middle one still hosting the nested list.
@@ -439,7 +439,7 @@ describe('semantic nested list browser behavior', () => {
 
     await userEvent.keyboard('{Enter}');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rowTexts()).toEqual([
         'first item',
         'host',
@@ -464,7 +464,7 @@ describe('semantic nested list browser behavior', () => {
 
     await userEvent.keyboard('{Tab}');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // "last item" joins the host's nested list as its third row.
       const rootListChildren = $rootList().getChildren();
       expect(rootListChildren.length).toBe(2);
@@ -483,7 +483,7 @@ describe('semantic nested list browser behavior', () => {
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rootList().getChildren().length).toBe(3);
       expect($rowTexts()).toEqual([
         'first item',
@@ -520,7 +520,7 @@ describe('semantic nested list browser behavior', () => {
     // Matches the default representation for the same selection: the text in
     // the range is removed and the partially-deleted nested row keeps its own
     // row identity under the host.
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rowTexts()).toEqual([
         'first item',
         'host ',
@@ -549,7 +549,7 @@ describe('semantic nested list browser behavior', () => {
     await domSelectionSettled();
     await userEvent.keyboard('{Backspace}');
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($getRoot().getTextContent()).toBe('');
     });
   });
@@ -673,7 +673,7 @@ describe('semantic nested list browser behavior', () => {
       const hostLi = findRowLi(contentEditable, 'host item');
 
       const $checkedStates = () =>
-        editor.read(() => {
+        editor.read('force-commit', () => {
           const rootListChildren = $rootList().getChildren();
           const hostRow = $assertNodeType(rootListChildren[1], $isListItemNode);
           const nestedList = $assertNodeType(
@@ -749,7 +749,7 @@ describe('semantic nested list browser behavior', () => {
       await vi.waitFor(() => {
         expect(rowCheckbox(hostLi).checked).toBe(true);
       });
-      editor.read(() => {
+      editor.read('force-commit', () => {
         const hostRow = $assertNodeType(
           $rootList().getChildren()[1],
           $isListItemNode,
@@ -780,7 +780,7 @@ describe('semantic nested list browser behavior', () => {
       });
       // The selection agrees with checkbox focus: it is anchored on the
       // emptied row itself, not on the first nested row's text.
-      editor.read(() => {
+      editor.read('force-commit', () => {
         const selection = $getSelection();
         invariant($isRangeSelection(selection), 'Expected a range selection');
         const anchorNode = selection.anchor.getNode();

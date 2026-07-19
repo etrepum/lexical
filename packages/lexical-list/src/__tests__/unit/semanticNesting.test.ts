@@ -138,7 +138,7 @@ describe('ListExtension hasSemanticNesting', () => {
   test('$isListSemanticNestingEnabled reflects the extension output', () => {
     using semanticEditor = buildEditor();
     using defaultEditor = buildEditor({hasSemanticNesting: false});
-    semanticEditor.read(() => {
+    semanticEditor.read('force-commit', () => {
       expect($isListSemanticNestingEnabled()).toBe(true);
     });
     expect($isListSemanticNestingEnabled(semanticEditor)).toBe(true);
@@ -168,7 +168,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const items = $rootList().getChildren();
       expect(items).toHaveLength(2);
       const second = $assertNodeType(items[1], $isListItemNode);
@@ -212,7 +212,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const first = $assertNodeType(
         $rootList().getFirstChild(),
         $isListItemNode,
@@ -241,7 +241,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rootList().getChildrenSize()).toBe(2);
       expect(emptyItem.getLatest().getChildrenSize()).toBe(0);
     });
@@ -254,7 +254,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getChildrenSize()).toBe(1);
       const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
@@ -314,13 +314,13 @@ describe('ListExtension hasSemanticNesting', () => {
       expect(items.map(item => item.getValue())).toEqual([1, 2]);
     };
 
-    editor.read($expectEmptiedRowPreserved);
+    editor.read('force-commit', $expectEmptiedRowPreserved);
 
     // The disambiguating mark survives a JSON round trip.
     editor.setEditorState(
       editor.parseEditorState(JSON.stringify(editor.getEditorState().toJSON())),
     );
-    editor.read($expectEmptiedRowPreserved);
+    editor.read('force-commit', $expectEmptiedRowPreserved);
   });
 
   test('setIndent produces the semantic representation', () => {
@@ -360,7 +360,7 @@ describe('ListExtension hasSemanticNesting', () => {
       `,
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect(second.getLatest().getIndent()).toBe(1);
     });
   });
@@ -561,7 +561,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const [first, second] = $rootList().getChildren().filter($isListItemNode);
       expect(first.getValue()).toBe(1);
       expect(second.getValue()).toBe(2);
@@ -647,7 +647,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const items = $rootList().getChildren();
       expect(items).toHaveLength(2);
       const second = $assertNodeType(items[1], $isListItemNode);
@@ -686,7 +686,7 @@ describe('ListExtension hasSemanticNesting', () => {
   test('import pipeline preserves semantic HTML when enabled', () => {
     using editor = buildEditor();
     importIntoViaPipeline(editor, SEMANTIC_INPUT);
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const items = $rootList().getChildren();
       expect(items).toHaveLength(2);
       const second = $assertNodeType(items[1], $isListItemNode);
@@ -701,7 +701,7 @@ describe('ListExtension hasSemanticNesting', () => {
   test('import pipeline merges wrapper HTML into the previous item when enabled', () => {
     using editor = buildEditor();
     importIntoViaPipeline(editor, WRAPPER_INPUT);
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getChildrenSize()).toBe(1);
       const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
@@ -715,7 +715,7 @@ describe('ListExtension hasSemanticNesting', () => {
   test('import pipeline splits semantic HTML into wrapper items when disabled', () => {
     using editor = buildEditor({hasSemanticNesting: false});
     importIntoViaPipeline(editor, SEMANTIC_INPUT);
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const items = $rootList().getChildren().filter($isListItemNode);
       expect(items).toHaveLength(3);
       expect($isWrapperListItemNode(items[2])).toBe(true);
@@ -726,7 +726,7 @@ describe('ListExtension hasSemanticNesting', () => {
   test('toggling the output signal at runtime switches representations', () => {
     using editor = buildEditor({hasSemanticNesting: false});
     importIntoViaPipeline(editor, SEMANTIC_INPUT);
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rootList().getChildrenSize()).toBe(3);
     });
 
@@ -735,14 +735,14 @@ describe('ListExtension hasSemanticNesting', () => {
 
     // The now-registered transform converts the existing wrapper structure...
     editor.update(() => {}, {discrete: true});
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($isListSemanticNestingEnabled()).toBe(true);
       expect($rootList().getChildrenSize()).toBe(2);
     });
 
     // ...and a fresh import preserves the semantic structure directly.
     importIntoViaPipeline(editor, SEMANTIC_INPUT);
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($rootList().getChildrenSize()).toBe(2);
     });
   });
@@ -755,7 +755,7 @@ describe('ListExtension hasSemanticNesting', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expectHtmlToBeEqual(
         $generateHtmlFromNodes(editor),
         html`
@@ -791,7 +791,7 @@ describe('ListExtension hasSemanticNesting', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const children = $getRoot().getChildren();
       expect(children.every($isParagraphNode)).toBe(true);
       expect(children.map(child => child.getTextContent())).toEqual([
@@ -855,7 +855,7 @@ describe('ListExtension hasSemanticNesting', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($getRoot().getChildrenSize()).toBe(2);
     });
   });
@@ -907,7 +907,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // The empty row survives at the outer level and adopts B as its own
       // nested list; nothing is merged away.
       const items = $rootList().getChildren().filter($isListItemNode);
@@ -948,7 +948,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // Rendered order stays a, b, c: the trailing <ol> moves with the
       // outdented item instead of being jumped over.
       expect($getRoot().getTextContent().replace(/\s+/g, '')).toBe('abc');
@@ -983,7 +983,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect(emptyRow.getLatest().getIndent()).toBe(1);
       expect(emptyRow.getLatest().isAttached()).toBe(true);
       expect($isWrapperListItemNode(emptyRow.getLatest())).toBe(false);
@@ -996,7 +996,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect(emptyRow.getLatest().getIndent()).toBe(0);
       expect(emptyRow.getLatest().isAttached()).toBe(true);
     });
@@ -1021,7 +1021,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // The sibling lists merged (same type), but the marked-empty boundary
       // row survives with its nested list.
       expect($getRoot().getChildrenSize()).toBe(1);
@@ -1045,7 +1045,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expectHtmlToBeEqual(
         $generateHtmlFromNodes(editor),
         html`
@@ -1087,7 +1087,7 @@ describe('marked-empty rows (content-deleted items)', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const children = $getRoot().getChildren();
       expect(children.map(child => child.getTextContent())).toEqual(['a', 'b']);
       const selection = $getSelection();
@@ -1329,7 +1329,7 @@ describe('multi-list wrappers and hosts', () => {
       {discrete: true},
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // All rows survive, in order, with the ordered list intact.
       expect($getRoot().getTextContent().replace(/\s+/g, '')).toBe('pqrz');
       const list = $rootList();
@@ -1373,7 +1373,7 @@ describe('multi-list wrappers and hosts', () => {
       new KeyboardEvent('keydown', {key: 'Backspace'}),
     );
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const children = $getRoot().getChildren();
       expect(children).toHaveLength(2);
       expect($isParagraphNode(children[0])).toBe(true);
@@ -1426,7 +1426,7 @@ describe('multi-list wrappers and hosts', () => {
     );
     editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined);
 
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // Order stays h, x, (new empty row), y, z: the host's trailing bullet
       // list moved with the split instead of rendering above it.
       expect($getRoot().getTextContent().replace(/\s+/g, '')).toBe('hxyz');
@@ -1457,7 +1457,7 @@ describe('multi-list wrappers and hosts', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect($convertToMarkdownString(TRANSFORMERS)).toBe(
         '- a\n    - x\n- \n    - y',
       );
@@ -1616,7 +1616,7 @@ describe('native checkbox inputs (semantic mode)', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       exported = $generateHtmlFromNodes(editor);
     });
     expect(exported).toContain('<input type="checkbox"');
@@ -1632,7 +1632,7 @@ describe('native checkbox inputs (semantic mode)', () => {
       },
       {discrete: true},
     );
-    importEditor.read(() => {
+    importEditor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const items = list.getChildren().filter($isListItemNode);
@@ -1661,7 +1661,7 @@ describe('native checkbox inputs (semantic mode)', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const items = list.getChildren().filter($isListItemNode);
@@ -1719,7 +1719,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // The emptied host row survives (only its now-empty marked list is
       // removed); the split lands a new row after it.
       expect(host.getLatest().isAttached()).toBe(true);
@@ -1740,7 +1740,7 @@ describe('review round 3 regression fixes', () => {
       {discrete: true},
     );
     let exported = '';
-    editor.read(() => {
+    editor.read('force-commit', () => {
       exported = $generateHtmlFromNodes(editor);
     });
 
@@ -1754,7 +1754,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    importEditor.read(() => {
+    importEditor.read('force-commit', () => {
       const items = $rootList().getChildren().filter($isListItemNode);
       expect(items).toHaveLength(2);
       expect($isWrapperListItemNode(items[1])).toBe(false);
@@ -1775,13 +1775,13 @@ describe('review round 3 regression fixes', () => {
       {discrete: true},
     );
     let exported = '';
-    editor.read(() => {
+    editor.read('force-commit', () => {
       exported = $generateHtmlFromNodes(editor);
     });
 
     using importEditor = buildCheckEditor();
     importIntoViaPipeline(importEditor, exported);
-    importEditor.read(() => {
+    importEditor.read('force-commit', () => {
       const items = $rootList().getChildren().filter($isListItemNode);
       expect(items).toHaveLength(2);
       expect($isWrapperListItemNode(items[1])).toBe(false);
@@ -1798,7 +1798,7 @@ describe('review round 3 regression fixes', () => {
       editor,
       '<ul><li><input type="checkbox" checked>done</li><li><input type="checkbox">todo</li></ul>',
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const items = list.getChildren().filter($isListItemNode);
@@ -1832,7 +1832,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       expect(host.getLatest().isAttached()).toBe(true);
       expect($isWrapperListItemNode(host.getLatest())).toBe(false);
       const nested = host.getLatest().getChildren().find($isListNode);
@@ -1863,7 +1863,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const items = $rootList().getChildren().filter($isListItemNode);
       // 'b' joined the host's existing nested list instead of a separate
       // wrapper whose ordered numbering would restart.
@@ -1924,7 +1924,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('bullet');
       const item = list.getFirstChild();
@@ -1948,7 +1948,7 @@ describe('review round 3 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const item = list.getFirstChild();
@@ -1989,7 +1989,7 @@ describe('review round 4 regression fixes', () => {
       {discrete: true},
     );
     let exported = '';
-    editor.read(() => {
+    editor.read('force-commit', () => {
       exported = $generateHtmlFromNodes(editor);
     });
     // aria-checked keeps the state readable for editors that do not consume
@@ -2008,7 +2008,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    defaultEditor.read(() => {
+    defaultEditor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const items = list.getChildren().filter($isListItemNode);
@@ -2033,7 +2033,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const item = $rootList().getFirstChild();
       invariant($isListItemNode(item), 'expected a list item');
       expect(item.getChecked()).toBe(true);
@@ -2064,7 +2064,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const outer = $rootList();
       expect(outer.getListType()).toBe('number');
       const host = outer
@@ -2100,14 +2100,14 @@ describe('review round 4 regression fixes', () => {
     const dep = getExtensionDependencyFromEditor(editor, ListExtension);
     dep.output.hasSemanticNesting.value = false;
     // The toggle marks all list items dirty; flush the queued update.
-    editor.read(() => {});
+    editor.read('force-commit', () => {});
 
     expect(li.querySelector('input')).toBeNull();
     expect(li.getAttribute('role')).toBe('checkbox');
     expect(li.getAttribute('aria-checked')).toBe('true');
 
     dep.output.hasSemanticNesting.value = true;
-    editor.read(() => {});
+    editor.read('force-commit', () => {});
     expect(li.querySelector('input')).not.toBeNull();
     expect(li.getAttribute('role')).toBe(null);
   });
@@ -2128,7 +2128,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const rootChildren = $getRoot().getChildren();
       // paragraph('a'), then a list still containing the nested rows and 'b'.
       expect($isParagraphNode(rootChildren[0])).toBe(true);
@@ -2177,7 +2177,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const texts = $getRoot()
         .getAllTextNodes()
         .map(text => text.getTextContent());
@@ -2217,7 +2217,7 @@ describe('review round 4 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const texts = $getRoot()
         .getAllTextNodes()
         .map(text => text.getTextContent());
@@ -2248,7 +2248,7 @@ describe('review round 5 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const rootChildren = $getRoot().getChildren();
       // list [a], the new paragraph, and a list carrying the nested rows.
       expect(rootChildren).toHaveLength(3);
@@ -2280,7 +2280,7 @@ describe('review round 5 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       const outer = $rootList();
       // The wrapper is not an "empty row": the nested level converts, the
       // outer list keeps its type (pre-existing behavior).
@@ -2341,7 +2341,7 @@ describe('review round 5 regression fixes', () => {
       },
       {discrete: true},
     );
-    editor.read(() => {
+    editor.read('force-commit', () => {
       // The emptied row became a paragraph; the nested rows stayed a list.
       expect($getRoot().getChildren().some($isParagraphNode)).toBe(true);
       const texts = $getRoot()
@@ -2420,7 +2420,7 @@ describe('review round 5 regression fixes', () => {
       },
       {discrete: true},
     );
-    defaultEditor.read(() => {
+    defaultEditor.read('force-commit', () => {
       const list = $rootList();
       expect(list.getListType()).toBe('check');
       const items = list.getChildren().filter($isListItemNode);
