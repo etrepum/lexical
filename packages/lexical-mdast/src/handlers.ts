@@ -44,6 +44,7 @@ import {
   $isListItemNode,
   $isListNode,
   $listItemEmitsRow,
+  $markPlainImportedCheckRows,
 } from '@lexical/list';
 import {
   $createHeadingNode,
@@ -269,10 +270,16 @@ export const $importList: MdastImportHandler<List> = (node, ctx) => {
       }
     }
   }
-  return $append(
+  $append(
     list,
     node.children.flatMap(child => ctx.importNode(child)),
   );
+  // A GitHub mixed task list arrives as one mdast list with some items'
+  // `checked` set to null (not a task); those import with an undefined checked
+  // field, so mark them plain — same normalization the DOM import applies — so
+  // they render as bare rows rather than unchecked boxes.
+  $markPlainImportedCheckRows(list.getChildren() as ListItemNode[], list);
+  return list;
 };
 
 export const $importListItem: MdastImportHandler<ListItem> = (node, ctx) => {
@@ -612,7 +619,10 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     }
     const blocks = ctx.exportBlocks(child);
     const item: ListItem = {
-      checked: listType === 'check' ? (child.getChecked() ?? false) : null,
+      // getChecked() is a boolean only for a task row; a plain row in a mixed
+      // check list (or any non-check row) reports undefined, which maps to
+      // mdast's `null` — "not a task" — so it serializes as a bare `- item`.
+      checked: child.getChecked() ?? null,
       // An emptied host row (its inline content deleted, only nested lists
       // remain) renders a blank content line. exportBlocks only adds the
       // fallback empty paragraph when there are NO blocks at all, so the

@@ -18,7 +18,9 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
+  $isListSemanticNestingEnabled,
   $listItemEmitsRow,
+  $markPlainImportedCheckRows,
   ListItemNode,
   ListNode,
   type ListType,
@@ -429,7 +431,35 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       firstMatchChar === listMarkerState.parse(firstMatchChar)
         ? firstMatchChar
         : undefined;
-    if ($isListNode(nextNode) && nextNode.getListType() === listType) {
+    // GitHub renders consecutive `- [ ]` and `- ` lines as one task list (the
+    // plain rows have no checkbox). In the semantic nesting mode, treat bullet
+    // and check as the same kind so those lines merge into a single list
+    // instead of splitting into a bullet list and a check list; the resulting
+    // list is a check list if either side is, and its non-task rows are marked
+    // plain by $reconcileMixedList. Outside that mode the classic same-type
+    // rule stands, so default-mode Markdown import is unchanged.
+    const semantic = $isListSemanticNestingEnabled();
+    const isUnordered = (type: ListType) =>
+      type === 'bullet' || type === 'check';
+    const $mergeable = (sibling: ListNode): boolean =>
+      sibling.getListType() === listType ||
+      (semantic && isUnordered(sibling.getListType()) && isUnordered(listType));
+    // Promote a merged list to a check list when a task row joined it, then
+    // mark its non-task rows plain. A no-op outside the semantic mode.
+    const $reconcileMixedList = (list: ListNode): void => {
+      if (!semantic) {
+        return;
+      }
+      if (listType === 'check' && list.getListType() !== 'check') {
+        list.setListType('check');
+      }
+      $markPlainImportedCheckRows(
+        list.getChildren().filter($isListItemNode),
+        list,
+      );
+    };
+    let targetList: ListNode;
+    if ($isListNode(nextNode) && $mergeable(nextNode)) {
       if (listMarker) {
         $setState(nextNode, listMarkerState, listMarker);
       }
@@ -445,17 +475,16 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       if (listType === 'number') {
         nextNode.setStart(Number(match[2]));
       }
+      targetList = nextNode;
       parentNode.remove();
-    } else if (
-      $isListNode(previousNode) &&
-      previousNode.getListType() === listType
-    ) {
+    } else if ($isListNode(previousNode) && $mergeable(previousNode)) {
       if (listMarker) {
         $setState(previousNode, listMarkerState, listMarker);
       }
       // The new item is appended at the end and inherits the existing
       // sequence, so the typed number is intentionally ignored here.
       previousNode.append(listItem);
+      targetList = previousNode;
       parentNode.remove();
     } else {
       const list = $createListNode(
@@ -467,7 +496,12 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       }
       list.append(listItem);
       parentNode.replace(list);
+      targetList = list;
     }
+    // Reconcile before appending content / indenting: the mark keys off the
+    // item's checked field (already set at creation), and setIndent may move
+    // the row into a nested list where it is no longer a direct child.
+    $reconcileMixedList(targetList);
     listItem.append(...children);
     if (!isImport) {
       listItem.select(0, 0);
@@ -506,11 +540,15 @@ const $listExport = (
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
         const listType = listNode.getListType();
         const listMarker = $getState(listNode, listMarkerState);
+        // getChecked() is a boolean only for a task row; a plain row in a
+        // mixed check list reports undefined and exports as a bare `- item`,
+        // matching GitHub's mixed task lists.
+        const checked = listItemNode.getChecked();
         const prefix =
           listType === 'number'
             ? `${listNode.getStart() + index}. `
-            : listType === 'check'
-              ? `${listMarker} [${listItemNode.getChecked() ? 'x' : ' '}] `
+            : listType === 'check' && checked !== undefined
+              ? `${listMarker} [${checked ? 'x' : ' '}] `
               : listMarker + ' ';
         // exportChildren yields only the row's own content; nested
         // ListNode children are handled below (see the list-item guard in

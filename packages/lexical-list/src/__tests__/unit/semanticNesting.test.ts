@@ -3241,7 +3241,11 @@ describe('semantic ≡ default Markdown under editing', () => {
       rows: ['a', 'b', 'c', 'd'],
     },
     {
-      markdown: '- [x] a\n  - [ ] b\n- c',
+      // All-check rows: no bullet/check mix, so the semantic mixed-list merge
+      // does not apply and the sem ≡ def invariant still holds. (A plain
+      // bullet adjacent to check rows is covered by its own divergence test
+      // below, since merging is a deliberate semantic-only behavior.)
+      markdown: '- [x] a\n  - [ ] b\n- [ ] c',
       name: 'nested check list',
       rows: ['a', 'b', 'c'],
     },
@@ -3503,6 +3507,102 @@ describe('mixed check list HTML round-trip (semantic mode)', () => {
       // plain row — mixed task lists are a semantic-mode feature.
       expect(b.getListItemPlain()).toBe(false);
       expect(b.getChecked()).toBe(false);
+    });
+  });
+});
+
+describe('mixed check list Markdown round-trip (semantic mode)', () => {
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  function importMarkdown(editor: LexicalEditor, markdown: string): void {
+    editor.update(() => $convertFromMarkdownString(markdown, MD), {
+      discrete: true,
+    });
+  }
+
+  function exportMarkdown(editor: LexicalEditor): string {
+    let out = '';
+    editor.read('force-commit', () => {
+      out = $convertToMarkdownString(MD);
+    });
+    return out;
+  }
+
+  test('consecutive task and plain lines import as one check list', () => {
+    using editor = buildCheckEditor();
+    importMarkdown(editor, '- [ ] check\n- no check\n- [x] done');
+    editor.read('force-commit', () => {
+      // One list, not three: the plain line joined the task list.
+      expect($getRoot().getChildrenSize()).toBe(1);
+      const list = $rootList();
+      expect(list.getListType()).toBe('check');
+      const [a, b, c] = list.getChildren() as ListItemNode[];
+      expect(a.getChecked()).toBe(false);
+      expect(b.getChecked()).toBeUndefined();
+      expect(b.getListItemPlain()).toBe(true);
+      expect(c.getChecked()).toBe(true);
+    });
+  });
+
+  test('a plain line before the first task promotes the list to a check list', () => {
+    using editor = buildCheckEditor();
+    importMarkdown(editor, '- no check\n- [ ] check');
+    editor.read('force-commit', () => {
+      expect($getRoot().getChildrenSize()).toBe(1);
+      const list = $rootList();
+      expect(list.getListType()).toBe('check');
+      const [a, b] = list.getChildren() as ListItemNode[];
+      // The pre-existing bullet row became a plain row of the task list.
+      expect(a.getListItemPlain()).toBe(true);
+      expect(a.getChecked()).toBeUndefined();
+      expect(b.getChecked()).toBe(false);
+    });
+  });
+
+  test('a mixed list round-trips through Markdown byte-for-byte', () => {
+    using editor = buildCheckEditor();
+    const markdown = '- [ ] check\n- no check\n- [x] done';
+    importMarkdown(editor, markdown);
+    expect(exportMarkdown(editor)).toBe(markdown);
+  });
+
+  test('a programmatic mixed list exports plain rows as bare items', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        $clearAndAppend(
+          $createListNode('check').append(
+            $createListItemNode(true).append($createTextNode('a')),
+            $createListItemNode(false)
+              .append($createTextNode('b'))
+              .setListItemPlain(true),
+            $createListItemNode(false).append($createTextNode('c')),
+          ),
+        );
+      },
+      {discrete: true},
+    );
+    expect(exportMarkdown(editor)).toBe('- [x] a\n- b\n- [ ] c');
+  });
+
+  test('default mode keeps the classic split (feature is semantic-only)', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting: false}),
+          CheckListExtension,
+        ],
+        name: 'default-md-check-host',
+      }),
+    );
+    importMarkdown(editor, '- [ ] check\n- no check\n- [x] done');
+    editor.read('force-commit', () => {
+      // Unchanged: a check list, a bullet list, then a check list.
+      const types = $getRoot()
+        .getChildren()
+        .filter($isListNode)
+        .map(list => list.getListType());
+      expect(types).toEqual(['check', 'bullet', 'check']);
     });
   });
 });

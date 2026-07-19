@@ -67,7 +67,7 @@ Type \`[^another]\` to mint one.
 2. Ordered list item two
 
 - [x] Streaming shortcuts share the import grammar
-- [x] Syntax preserved via NodeState
+- Plain and task rows share one list, GitHub-style
 - [ ] Ship it
 
 ## Alerts

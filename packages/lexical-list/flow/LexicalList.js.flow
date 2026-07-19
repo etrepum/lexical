@@ -108,6 +108,15 @@ declare export function $isEmptiedHostRow(listItem: ListItemNode): boolean;
 
 declare export function $isTaskListItem(node: ListItemNode): boolean;
 
+declare export function $isListSemanticNestingEnabled(
+  editor?: LexicalEditor,
+): boolean;
+
+declare export function $markPlainImportedCheckRows(
+  items: ListItemNode[],
+  listNode: ListNode,
+): void;
+
 declare export function $listItemEmitsRow(
   listItem: ListItemNode,
   hasSelection: boolean,

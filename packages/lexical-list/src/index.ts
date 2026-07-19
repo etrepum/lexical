@@ -27,6 +27,10 @@ import {
   type SerializedListNode,
 } from './LexicalListNode';
 import {
+  $isListSemanticNestingEnabled,
+  $markPlainImportedCheckRows,
+} from './semanticNesting';
+import {
   $getListDepth,
   $isEmptiedHostRow,
   $isTaskListItem,
@@ -63,9 +67,11 @@ export {
   $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
+  $isListSemanticNestingEnabled,
   $isTaskListItem,
   $isWrapperListItemNode,
   $listItemEmitsRow,
+  $markPlainImportedCheckRows,
   $removeList,
   INSERT_CHECK_LIST_COMMAND,
   ListItemNode,
