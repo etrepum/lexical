@@ -432,13 +432,15 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
         ? firstMatchChar
         : undefined;
     // GitHub renders consecutive `- [ ]` and `- ` lines as one task list (the
-    // plain rows have no checkbox). In the semantic nesting mode, treat bullet
-    // and check as the same kind so those lines merge into a single list
-    // instead of splitting into a bullet list and a check list; the resulting
-    // list is a check list if either side is, and its non-task rows are marked
-    // plain by $reconcileMixedList. Outside that mode the classic same-type
-    // rule stands, so default-mode Markdown import is unchanged.
-    const semantic = $isListSemanticNestingEnabled();
+    // plain rows have no checkbox). When importing in the semantic nesting
+    // mode, treat bullet and check as the same kind so those lines merge into
+    // a single list instead of splitting into a bullet list and a check list;
+    // the resulting list is a check list if either side is, and its non-task
+    // rows are marked plain by $reconcileMixedList. Restricted to import
+    // (isImport): live typing keeps the classic same-type rule so a typed
+    // checkbox never retroactively converts an adjacent bullet list, and
+    // default-mode import is unchanged.
+    const semantic = isImport && $isListSemanticNestingEnabled();
     const isUnordered = (type: ListType) =>
       type === 'bullet' || type === 'check';
     const $mergeable = (sibling: ListNode): boolean =>
