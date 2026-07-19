@@ -12,7 +12,6 @@ import {
   $copyNode,
   $createParagraphNode,
   $getDocument,
-  $getEditor,
   $getSelection,
   $getSiblingCaret,
   $insertNodeToNearestRootAtCaret,
@@ -244,16 +243,6 @@ export class ListItemNode extends ElementNode {
     const direction = this.getDirection();
     if (direction) {
       element.dir = direction;
-    }
-
-    const checkboxInput = getListItemCheckboxDOM(element);
-    if (checkboxInput !== null) {
-      // The generated id and the aria-labelledby that references it are for
-      // the live DOM only: exported HTML rendered alongside the editor (or
-      // more than once) would otherwise carry duplicate ids and ambiguous
-      // label references.
-      element.removeAttribute('id');
-      checkboxInput.removeAttribute('aria-labelledby');
     }
 
     // Only dedicated wrapper items merge into the preceding <li> on export;
@@ -743,27 +732,52 @@ export function getListItemCheckboxDOM(
     : null;
 }
 
-function $createListItemCheckboxDOM(
-  dom: HTMLElement,
-  listItemNode: ListItemNode,
-): HTMLInputElement {
+function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
   const input = dom.ownerDocument.createElement('input');
   input.type = 'checkbox';
   // Focus-mode navigation (checkList.ts) moves focus between rows with the
   // arrow keys; keep the inputs out of the tab order like the
   // li[tabIndex=-1] focus target they replace.
   input.tabIndex = -1;
-  // Label the input with the row's content: a bare input announces as a
-  // nameless checkbox, whereas the role="checkbox" li it replaces exposed
-  // its text content as the accessible name. The li gets a generated id
-  // (scoped by editor and node key) for aria-labelledby to reference.
-  if (!dom.id) {
-    dom.id = `lexical-listitem-${$getEditor().getKey()}-${listItemNode.getKey()}`;
-  }
-  input.setAttribute('aria-labelledby', dom.id);
+  // The accessible-name wiring (a generated li id + aria-labelledby on the
+  // input) is a strictly render-time concern, applied by ListExtension's
+  // DOMRenderExtension override ($decorateListItemDOM) so that generated
+  // ids never leak into exported HTML.
   setDOMUnmanaged(input);
   dom.insertBefore(input, dom.firstChild);
   return input;
+}
+
+/**
+ * Render-time accessible-name wiring for a check row's native checkbox
+ * input: a bare input announces as a nameless checkbox, whereas the
+ * role="checkbox" li it replaces exposed its text content as the
+ * accessible name. The li gets a generated id (scoped by editor and node
+ * key) for aria-labelledby to reference. Registered by ListExtension as a
+ * DOMRenderExtension `$decorateDOM` override — reconciler-only, so
+ * exported HTML never carries the generated ids.
+ *
+ * @internal
+ */
+export function decorateListItemDOM(
+  node: ListItemNode,
+  prevNode: null | ListItemNode,
+  dom: HTMLElement,
+  editor: LexicalEditor,
+): void {
+  const input = getListItemCheckboxDOM(dom);
+  if (input === null) {
+    if (dom.id.startsWith('lexical-listitem-')) {
+      dom.removeAttribute('id');
+    }
+    return;
+  }
+  if (!dom.id) {
+    dom.id = `lexical-listitem-${editor.getKey()}-${node.getKey()}`;
+  }
+  if (input.getAttribute('aria-labelledby') !== dom.id) {
+    input.setAttribute('aria-labelledby', dom.id);
+  }
 }
 
 /** Requires an active editor (runs in reconcile and exportDOM contexts). */
@@ -788,7 +802,7 @@ function $updateListItemChecked(
 
   if (useNativeInput) {
     const checkboxInput =
-      input !== null ? input : $createListItemCheckboxDOM(dom, listItemNode);
+      input !== null ? input : createListItemCheckboxDOM(dom);
     // Sync the property (live state) and the attribute (via defaultChecked;
     // what outerHTML / exportDOM serialize) together.
     checkboxInput.checked = checked;

@@ -7,7 +7,12 @@
  */
 
 import {effect, namedSignals} from '@lexical/extension';
-import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
+import {
+  CoreImportExtension,
+  DOMImportExtension,
+  domOverride,
+  DOMRenderExtension,
+} from '@lexical/html';
 import {
   configExtension,
   defineExtension,
@@ -16,7 +21,7 @@ import {
 } from 'lexical';
 
 import {registerCheckList} from './checkList';
-import {ListItemNode} from './LexicalListItemNode';
+import {decorateListItemDOM, ListItemNode} from './LexicalListItemNode';
 import {ListNode} from './LexicalListNode';
 import {ListImportRules} from './ListImportExtension';
 import {registerList, registerListStrictIndentTransform} from './registerList';
@@ -80,6 +85,17 @@ export const ListExtension = /* @__PURE__ */ defineExtension({
     CoreImportExtension,
     /* @__PURE__ */ configExtension(DOMImportExtension, {
       rules: ListImportRules,
+    }),
+    // Render-time accessible-name wiring for the semantic mode's native
+    // checkbox inputs (a generated li id + aria-labelledby). $decorateDOM
+    // runs only in the reconciler, so the generated ids never leak into
+    // exported HTML.
+    /* @__PURE__ */ configExtension(DOMRenderExtension, {
+      overrides: [
+        /* @__PURE__ */ domOverride([ListItemNode], {
+          $decorateDOM: decorateListItemDOM,
+        }),
+      ],
     }),
   ],
   name: '@lexical/list/List',
