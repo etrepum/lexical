@@ -117,9 +117,17 @@ const theme = {
   },
   link: 'text-blue-600 underline dark:text-blue-400',
   list: {
-    checklist: 'list-none pl-0',
+    // A semantic check list is a normal <ul> (it already gets the `ul` key's
+    // list-disc): the marker is controlled per row, so the checkbox rows drop
+    // their own bullet (listitem*Native's list-none) while a plain row in a
+    // mixed task list keeps it. The list must NOT force list-none here, or it
+    // would kill the plain rows' bullets too.
+    checklist: '',
     listitem: 'mx-6 my-0.5',
-    listitemCheckbox: 'mr-2 cursor-pointer align-middle',
+    // Hang the checkbox in the marker column like a bullet: an explicit size
+    // plus a matching negative left margin means it takes no inline space, so
+    // its row's text aligns with the plain (bulleted) rows' text.
+    listitemCheckbox: '-ml-6 h-4 w-4 mr-2 cursor-pointer align-middle',
     // This example enables the semantic nesting ListExtension config, so
     // check-list rows render a real <input type="checkbox"> and the
     // reconciler applies the *Native theme keys (not listitemChecked /
