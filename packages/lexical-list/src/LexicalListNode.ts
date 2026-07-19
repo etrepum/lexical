@@ -43,7 +43,7 @@ import {
 import {
   $getListDepth,
   $isWrapperListItemNode,
-  findCheckboxInputChild,
+  hasCheckboxInputRowChild,
 } from './utils';
 
 export type SerializedListNode = Spread<
@@ -389,18 +389,12 @@ function $isDomChecklist(domNode: HTMLElement) {
   // semantic nesting mode, which consumes class-less checkbox inputs on
   // import — for task-list rows that render a real checkbox input (the
   // mode's own export, GitHub HTML without the container class).
-  const recognizeCheckboxInputs = $isListSemanticNestingEnabled();
   for (const child of domNode.childNodes) {
-    if (isHTMLElement(child)) {
-      if (
-        child.hasAttribute('aria-checked') ||
-        (recognizeCheckboxInputs && findCheckboxInputChild(child) !== null)
-      ) {
-        return true;
-      }
+    if (isHTMLElement(child) && child.hasAttribute('aria-checked')) {
+      return true;
     }
   }
-  return false;
+  return $isListSemanticNestingEnabled() && hasCheckboxInputRowChild(domNode);
 }
 
 function isHTMLOListElement(node: unknown): node is HTMLOListElement {

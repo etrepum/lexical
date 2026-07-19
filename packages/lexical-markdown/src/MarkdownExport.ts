@@ -285,6 +285,29 @@ function $exportChildrenForSelection(
       }
     }
 
+    if ($isListItemNode(node) && $isListNode(child)) {
+      // A nested list inside a list item row (either the sole content of a
+      // dedicated wrapper or trailing a row's content in the semantic
+      // representation) is exported by the list transformer at the next
+      // depth; exporting it as row content would duplicate it (mirrors the
+      // guard in $exportChildren). Its selectedness still propagates so
+      // the enclosing list stays included when only nested rows are
+      // selected.
+      const nestedResult = $exportChildrenForSelection(
+        child,
+        selection,
+        textFormatTransformers,
+        textMatchTransformers,
+        shouldPreserveNewLines,
+        unclosedTags,
+        unclosableTags,
+      );
+      if (nestedResult.shouldInclude) {
+        anyChildIncluded = true;
+      }
+      continue;
+    }
+
     if ($isLineBreakNode(child)) {
       if (childIncluded) {
         output.push($exportLineBreak(child));

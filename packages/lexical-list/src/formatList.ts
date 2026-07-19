@@ -43,7 +43,7 @@ import {
   $getAllListItems,
   $getNewListStart,
   $getTopListNode,
-  $hasRowContent,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   $removeHighestEmptyListParent,
   listSemanticNestingState,
@@ -52,6 +52,7 @@ import {
 function $isSelectingEmptyListItem(
   anchorNode: ListItemNode | LexicalNode,
   nodes: LexicalNode[],
+  isCollapsed: boolean,
 ): boolean {
   if (!$isListItemNode(anchorNode)) {
     return false;
@@ -65,17 +66,14 @@ function $isSelectingEmptyListItem(
   if (anchorNode.is(nodes[0])) {
     return anchorNode.getChildrenSize() === 0;
   }
-  // An emptied host row (semantic representation): the caret is an element
-  // point on the li, but getNodes() resolves into its nested list. The row
-  // is visually empty, so list commands target its own list level — the
-  // same behavior the default representation's empty item gets. A
-  // dedicated wrapper (unmarked lists) is NOT such a row: commands on a
-  // selection inside it keep targeting the nested list, as before.
-  return (
-    anchorNode.getFirstChild() !== null &&
-    !$hasRowContent(anchorNode) &&
-    !$isWrapperListItemNode(anchorNode)
-  );
+  // An emptied host row (semantic representation): a collapsed caret is an
+  // element point on the li, but getNodes() resolves into its nested list.
+  // The row is visually empty, so list commands target its own list level —
+  // the same behavior the default representation's empty item gets. Only
+  // for a collapsed selection: a RANGE anchored on the li reaching into the
+  // nested rows produces the same getNodes() shape, and must keep targeting
+  // the nested list that actually holds the selected text.
+  return isCollapsed && $isEmptiedHostRow(anchorNode);
 }
 
 /**
@@ -106,7 +104,9 @@ export function $insertList(listType: ListType): void {
           anchorNode.append(paragraph);
           nodes = paragraph.select().getNodes();
         }
-      } else if ($isSelectingEmptyListItem(anchorNode, nodes)) {
+      } else if (
+        $isSelectingEmptyListItem(anchorNode, nodes, selection.isCollapsed())
+      ) {
         const list = $createListNode(listType);
 
         if ($isRootOrShadowRoot(anchorNodeParent)) {
@@ -305,7 +305,7 @@ export function $removeList(): void {
     const nodes = selection.getNodes();
     const anchorNode = selection.anchor.getNode();
 
-    if ($isSelectingEmptyListItem(anchorNode, nodes)) {
+    if ($isSelectingEmptyListItem(anchorNode, nodes, selection.isCollapsed())) {
       listNodes.add($getTopListNode(anchorNode));
     } else {
       for (let i = 0; i < nodes.length; i++) {
@@ -638,18 +638,24 @@ export function $handleListInsertParagraph(
     (anchor.getChildrenSize() === 0 ||
       // An emptied host row (semantic representation): only marked nested
       // lists remain, the row itself is visually empty.
-      (!$hasRowContent(anchor) && !$isWrapperListItemNode(anchor)))
+      $isEmptiedHostRow(anchor))
   ) {
     // Empty list item (element selection)
     listItem = anchor;
   } else if ($isTextNode(anchor)) {
     // Check if the entire list item contains only whitespace text nodes
+    // (nested ListNode children — the semantic representation — do not
+    // make the row non-empty; they are handled by the parking below).
     const parentListItem = anchor.getParent();
     if (
       $isListItemNode(parentListItem) &&
       parentListItem
         .getChildren()
-        .every(node => $isTextNode(node) && node.getTextContent().trim() === '')
+        .every(
+          node =>
+            $isListNode(node) ||
+            ($isTextNode(node) && node.getTextContent().trim() === ''),
+        )
     ) {
       listItem = parentListItem;
     }
@@ -658,12 +664,6 @@ export function $handleListInsertParagraph(
   if (listItem === null) {
     return false;
   }
-
-  // An emptied host row's nested lists are the following rows' content;
-  // park them in a dedicated wrapper (like the default representation's
-  // shape) so the split below carries them and the row's removal cannot
-  // take them along.
-  $parkNestedListsInWrapper(listItem);
 
   const topListNode = $getTopListNode(listItem);
   const parent = listItem.getParent();
@@ -684,12 +684,20 @@ export function $handleListInsertParagraph(
     replacementNode = $copyNode(grandparent);
     grandparent.insertAfter(replacementNode);
   } else {
+    // Unhandled container: decline WITHOUT having mutated anything (the
+    // parking below must not run before this classification).
     return false;
   }
   replacementNode
     .setTextStyle(selection.style)
     .setTextFormat(selection.format)
     .select();
+
+  // An emptied (or whitespace-only) host row's nested lists are the
+  // following rows' content; park them in a dedicated wrapper (like the
+  // default representation's shape) so the split below carries them and
+  // the row's removal cannot take them along.
+  $parkNestedListsInWrapper(listItem);
 
   const nextSiblings = listItem.getNextSiblings();
   // A semantic host may hold further nested lists after the split one; they
@@ -700,16 +708,18 @@ export function $handleListInsertParagraph(
     ? parent.getNextSiblings().filter($isListNode)
     : [];
 
+  const $createContinuationList = (): ListNode => {
+    const newStart = restoreNumbering ? $getNewListStart(parent, listItem) : 1;
+    const newList = $copyNode(parent).setStart(newStart);
+    newList.append(...nextSiblings);
+    return newList;
+  };
+
   if ($isListItemNode(replacementNode)) {
     if (nextSiblings.length > 0 || trailingLists.length > 0) {
       const carriedLists: ListNode[] = [];
       if (nextSiblings.length > 0) {
-        const newStart = restoreNumbering
-          ? $getNewListStart(parent, listItem)
-          : 1;
-        const newList = $copyNode(parent).setStart(newStart);
-        newList.append(...nextSiblings);
-        carriedLists.push(newList);
+        carriedLists.push($createContinuationList());
       }
       for (const trailingList of trailingLists) {
         $setState(trailingList, listSemanticNestingState, () => false);
@@ -722,10 +732,7 @@ export function $handleListInsertParagraph(
   } else if (nextSiblings.length > 0) {
     // Top-level split: the rows after the removed item continue in a new
     // list following the paragraph (trailingLists is always empty here).
-    const newStart = restoreNumbering ? $getNewListStart(parent, listItem) : 1;
-    const newList = $copyNode(parent).setStart(newStart);
-    newList.append(...nextSiblings);
-    replacementNode.insertAfter(newList);
+    replacementNode.insertAfter($createContinuationList());
   }
 
   // Don't leave hanging nested empty lists

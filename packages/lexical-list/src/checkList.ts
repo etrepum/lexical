@@ -20,6 +20,7 @@ import {
   createCommand,
   getActiveElement,
   getNearestEditorFromDOMNode,
+  getParentElement,
   isHTMLElement,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
@@ -42,7 +43,7 @@ import {
   type ListItemNode,
 } from './LexicalListItemNode';
 import {$isListNode} from './LexicalListNode';
-import {$getAllListItems, $getTopListNode} from './utils';
+import {$getAllListItems, $getTopListNode, $isEmptiedHostRow} from './utils';
 
 /**
  * The <li> whose native checkbox input (semantic nesting mode) is `target`,
@@ -50,7 +51,7 @@ import {$getAllListItems, $getTopListNode} from './utils';
  */
 function getCheckboxInputRow(target: EventTarget | null): HTMLElement | null {
   if (isHTMLElement(target) && target.nodeName === 'INPUT') {
-    const listItemElement = target.parentElement;
+    const listItemElement = getParentElement(target);
     if (
       isHTMLElement(listItemElement) &&
       getListItemCheckboxDOM(listItemElement) === target
@@ -104,6 +105,20 @@ export function registerCheckList(
     const last = target.__lexicalCheckListLastHandled as number | undefined;
     return last !== undefined && event.timeStamp - last < DEDUP_WINDOW_MS;
   };
+  // The record pairs one handled touch pointerup with the one click the
+  // browser synthesizes right after it; consuming it on that click keeps
+  // later legitimate activations within the window (a follow-up Space
+  // press or mouse click on the same checkbox) from being swallowed.
+  const consumeDedupRecord = (
+    event: PointerEvent | MouseEvent | TouchEvent,
+  ): boolean => {
+    if (!isWithinDedupWindow(event)) {
+      return false;
+    }
+    // @ts-ignore internal field
+    delete (event.target as HTMLElement).__lexicalCheckListLastHandled;
+    return true;
+  };
   const recordHandled = (event: PointerEvent | MouseEvent | TouchEvent) => {
     const target = event.target;
     if (isHTMLElement(target)) {
@@ -112,7 +127,7 @@ export function registerCheckList(
     }
   };
   const configHandleClick = (event: PointerEvent | MouseEvent | TouchEvent) => {
-    if (isWithinDedupWindow(event)) {
+    if (consumeDedupRecord(event)) {
       // Already handled at pointerup. A click on the row's native checkbox
       // input (semantic nesting mode) would still apply the browser's own
       // toggle on top of the editor's — suppress it. (preventDefault makes
@@ -528,7 +543,7 @@ function handleArrowUpOrDown(
       const nextListItem = $findCheckListItemSibling(listItem, backward);
 
       if (nextListItem != null) {
-        if ($isListNode(nextListItem.getFirstChild())) {
+        if ($isEmptiedHostRow(nextListItem)) {
           // An emptied host row: selectStart() would descend into the
           // first nested row's text; anchor the selection on the row
           // itself so selection and checkbox focus agree.

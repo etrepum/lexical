@@ -38,7 +38,7 @@ import {
   $isListSemanticNestingEnabled,
   $markNestedListsAsSemantic,
 } from './semanticNesting';
-import {findCheckboxInputChild} from './utils';
+import {findCheckboxInputChild, hasCheckboxInputRowChild} from './utils';
 
 /**
  * Mirrors the legacy `isDomChecklist` heuristic from
@@ -53,17 +53,8 @@ function $isDomChecklist(domNode: HTMLElement): boolean {
     // Class-less checkbox inputs — the semantic nesting mode's own export,
     // or GitHub HTML without the container classes — are only consumed in
     // that mode; default-mode editors keep importing them unchanged.
-    ($isListSemanticNestingEnabled() && hasCheckboxInputRow(domNode))
+    ($isListSemanticNestingEnabled() && hasCheckboxInputRowChild(domNode))
   );
-}
-
-function hasCheckboxInputRow(listElement: HTMLElement): boolean {
-  for (const child of listElement.children) {
-    if (child.tagName === 'LI' && findCheckboxInputChild(child) !== null) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**

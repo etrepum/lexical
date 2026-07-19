@@ -22,6 +22,7 @@ import {
   ListExtension,
   type ListNode,
 } from '@lexical/list';
+import {$getAllListItems} from '@lexical/list/src/utils';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
   $createTextNode,
@@ -203,30 +204,13 @@ function $rootList(): ListNode {
 
 /** Rendered text of every row (li) in visual order, wrappers excluded. */
 function $rowTexts(): string[] {
-  const rows: string[] = [];
-  const $walk = (list: ListNode) => {
-    for (const child of list.getChildren()) {
-      if (!$isListItemNode(child)) {
-        continue;
-      }
-      if (!$isWrapperListItemNode(child)) {
-        rows.push(
-          child
-            .getChildren()
-            .filter($isTextNode)
-            .map(textNode => textNode.getTextContent())
-            .join(''),
-        );
-      }
-      for (const nested of child.getChildren()) {
-        if ($isListNode(nested)) {
-          $walk(nested);
-        }
-      }
-    }
-  };
-  $walk($rootList());
-  return rows;
+  return $getAllListItems($rootList()).map(row =>
+    row
+      .getChildren()
+      .filter($isTextNode)
+      .map(textNode => textNode.getTextContent())
+      .join(''),
+  );
 }
 
 /** Asserts the fixture's semantic shape: no dedicated wrapper items. */

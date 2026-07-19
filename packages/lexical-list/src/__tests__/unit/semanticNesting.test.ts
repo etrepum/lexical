@@ -39,6 +39,7 @@ import {
   $convertToMarkdownString,
   TRANSFORMERS,
 } from '@lexical/markdown';
+import {$createQuoteNode, RichTextExtension} from '@lexical/rich-text';
 import {$setBlocksType} from '@lexical/selection';
 import {
   $createParagraphNode,
@@ -48,6 +49,7 @@ import {
   $getSelection,
   $getState,
   $insertNodes,
+  $isElementNode,
   $isParagraphNode,
   $isRangeSelection,
   $setState,
@@ -2426,5 +2428,218 @@ describe('review round 5 regression fixes', () => {
       const items = list.getChildren().filter($isListItemNode);
       expect(items.map(item => item.getChecked())).toEqual([true, false]);
     });
+  });
+});
+
+describe('review round 6 regression fixes', () => {
+  function $createEmptiedHost(...nested: string[]): ListItemNode {
+    const list = $createListNode('bullet').append(
+      ...nested.map(item =>
+        $createListItemNode().append($createTextNode(item)),
+      ),
+    );
+    $setState(list, listSemanticNestingState, true);
+    return $createListItemNode().append(list);
+  }
+
+  test('a range anchored on an emptied host row targets the nested list, not the row', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const host = $createEmptiedHost('xyz');
+        $clearAndAppend(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('a')),
+            host,
+          ),
+        );
+        const nestedText = $getRoot()
+          .getAllTextNodes()
+          .find(text => text.getTextContent() === 'xyz');
+        invariant(nestedText !== undefined, 'expected nested text');
+        const listSelection = host.select(0, 0);
+        listSelection.focus.set(nestedText.getKey(), 2, 'text');
+        $insertList('number');
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      // The RANGE is not an empty-item selection: the nested list holding
+      // the selected text converts, the outer list keeps its type.
+      const outer = $rootList();
+      expect(outer.getListType()).toBe('bullet');
+      const nested = outer
+        .getChildren()
+        .filter($isListItemNode)
+        .flatMap(item => item.getChildren())
+        .find($isListNode);
+      invariant(nested !== undefined, 'expected the nested list');
+      expect(nested.getListType()).toBe('number');
+    });
+  });
+
+  test('Enter declines without mutating when the list container is unsupported', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          RichTextExtension,
+          configExtension(ListExtension, {hasSemanticNesting: true}),
+        ],
+        name: 'semantic-r6-quote-host',
+      }),
+    );
+    let handled = true;
+    editor.update(
+      () => {
+        const host = $createEmptiedHost('b');
+        const list = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('a')),
+          host,
+        );
+        $getRoot().clear().append($createQuoteNode().append(list));
+        host.select(0, 0);
+        handled = $handleListInsertParagraph();
+      },
+      {discrete: true},
+    );
+    expect(handled).toBe(false);
+    editor.read('force-commit', () => {
+      // Declined WITHOUT restructuring: the emptied host still owns its
+      // marked nested list; no wrapper was inserted.
+      const quote = $getRoot().getFirstChild();
+      invariant(quote !== null && $isElementNode(quote), 'expected the quote');
+      const list = quote.getFirstChild();
+      invariant($isListNode(list), 'expected the list');
+      const items = list.getChildren().filter($isListItemNode);
+      expect(items).toHaveLength(2);
+      const host = items[1];
+      const nested = host.getChildren().find($isListNode);
+      invariant(nested !== undefined, 'expected the nested list');
+      expect($getState(nested, listSemanticNestingState)).toBe(true);
+      expect($isWrapperListItemNode(host)).toBe(false);
+    });
+  });
+
+  test('Enter on a whitespace-only host row takes the empty-item path', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const nested = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('b')),
+        );
+        $setState(nested, listSemanticNestingState, true);
+        const host = $createListItemNode().append(
+          $createTextNode('  '),
+          nested,
+        );
+        $clearAndAppend(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('a')),
+            host,
+          ),
+        );
+        const whitespace = host.getFirstChild<TextNode>();
+        invariant(whitespace !== null, 'expected the whitespace text');
+        whitespace.select(1, 1);
+        expect($handleListInsertParagraph()).toBe(true);
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const rootChildren = $getRoot().getChildren();
+      // list [a], the new paragraph, and a list carrying the nested rows —
+      // same as the childless empty item.
+      expect(rootChildren).toHaveLength(3);
+      expect($isParagraphNode(rootChildren[1])).toBe(true);
+      expect($isListNode(rootChildren[2])).toBe(true);
+      expect(rootChildren[2].getTextContent().replace(/\s+/g, '')).toBe('b');
+    });
+  });
+
+  test('selection markdown export keeps a host row and its nested rows separate', () => {
+    using editor = buildEditor();
+    let markdown = '';
+    editor.update(
+      () => {
+        $clearAndAppend(
+          $createListNode('bullet').append(
+            $createHostItem('a', 'x', 'y'),
+            $createListItemNode().append($createTextNode('b')),
+          ),
+        );
+        const texts = $getRoot().getAllTextNodes();
+        const a = texts.find(text => text.getTextContent() === 'a');
+        const b = texts.find(text => text.getTextContent() === 'b');
+        invariant(a !== undefined && b !== undefined, 'expected fixture text');
+        const listSelection = a.select(0, 0);
+        listSelection.focus.set(b.getKey(), 1, 'text');
+        markdown = $convertSelectionToMarkdownString(
+          TRANSFORMERS,
+          listSelection,
+        );
+      },
+      {discrete: true},
+    );
+    // The nested rows appear once, at depth — not flattened into 'a'.
+    expect(markdown).toBe('- a\n    - x\n    - y\n- b');
+  });
+
+  test('exported HTML carries no render-time attributes on checkbox inputs', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting: true}),
+          CheckListExtension,
+        ],
+        name: 'semantic-r6-export-host',
+      }),
+    );
+    editor.update(
+      () => {
+        $clearAndAppend(
+          $createListNode('check').append(
+            $createListItemNode(true).append($createTextNode('done')),
+          ),
+        );
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const exported = $generateHtmlFromNodes(editor);
+      expect(exported).toContain('<input type="checkbox"');
+      expect(exported).not.toContain('tabindex');
+      expect(exported).not.toContain('aria-labelledby');
+      expect(exported).not.toContain('id=');
+    });
+  });
+
+  test('both import pipelines agree on class-less checkbox rows not wrapped in li', () => {
+    const checkboxRowHtml =
+      '<ul><div><input type="checkbox" checked>milk</div></ul>';
+    using legacyEditor = buildEditor();
+    legacyEditor.update(
+      () => {
+        const dom = new DOMParser().parseFromString(
+          checkboxRowHtml,
+          'text/html',
+        );
+        $getRoot()
+          .clear()
+          .append(...$generateNodesFromDOM(legacyEditor, dom));
+      },
+      {discrete: true},
+    );
+    const legacyType = legacyEditor.read('force-commit', () =>
+      $rootList().getListType(),
+    );
+
+    using rulesEditor = buildEditor();
+    importIntoViaPipeline(rulesEditor, checkboxRowHtml);
+    const rulesType = rulesEditor.read('force-commit', () =>
+      $rootList().getListType(),
+    );
+
+    expect(legacyType).toBe('check');
+    expect(rulesType).toBe(legacyType);
   });
 });

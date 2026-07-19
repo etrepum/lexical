@@ -143,6 +143,23 @@ export function $hasRowContent(listItem: ListItemNode): boolean {
 }
 
 /**
+ * An "emptied host row": an item that renders a row of its own even though
+ * its inline content was deleted — it has children, none of them inline
+ * (all nested ListNodes), and at least one of the lists carries the
+ * semantic nesting mark (an item whose lists are all unmarked is a
+ * dedicated wrapper instead). The row shows its marker/checkbox with no
+ * text; commands that special-case "empty list item" treat it like the
+ * default representation's childless item.
+ */
+export function $isEmptiedHostRow(listItem: ListItemNode): boolean {
+  return (
+    listItem.getFirstChild() !== null &&
+    !$hasRowContent(listItem) &&
+    !$isWrapperListItemNode(listItem)
+  );
+}
+
+/**
  * Copy {@link listSemanticNestingState} from one list to another. Used
  * whenever an operation replaces a list with a freshly created one (list
  * retype, outdent splits): without the carried mark, an emptied host row
@@ -154,6 +171,21 @@ export function $copySemanticNestingMark(from: ListNode, to: ListNode): void {
     listSemanticNestingState,
     $getState(from, listSemanticNestingState),
   );
+}
+
+/**
+ * Whether any direct child of the list element holds a direct
+ * `input[type=checkbox]` child — the shared checklist heuristic for
+ * class-less task-list HTML, used identically by both import pipelines so
+ * the same paste cannot classify differently between them.
+ */
+export function hasCheckboxInputRowChild(listElement: Element): boolean {
+  for (const child of listElement.children) {
+    if (findCheckboxInputChild(child) !== null) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

@@ -22,7 +22,6 @@ import {
   $rewindSiblingCaret,
   $setDirectionFromDOM,
   $setFormatFromDOM,
-  $setState,
   addClassNamesToElement,
   type BaseSelection,
   buildImportMap,
@@ -64,7 +63,6 @@ import {
   $hasNestedListChild,
   $isWrapperListItemNode,
   findCheckboxInputChild,
-  listSemanticNestingState,
 } from './utils';
 
 export type SerializedListItemNode = Spread<
@@ -311,7 +309,7 @@ export class ListItemNode extends ElementNode {
     // needs offsets relative to the children that actually transfer, so
     // record where the nested lists sat before they are parked away.
     const listChildIndexes: number[] = [];
-    if (includeChildren) {
+    if (includeChildren && $hasNestedListChild(this)) {
       let childIndex = 0;
       for (const child of this.getChildren()) {
         if ($isListNode(child)) {
@@ -471,34 +469,16 @@ export class ListItemNode extends ElementNode {
       return true;
     }
 
-    // Nested lists (semantic representation) keep their depth: they move
-    // into a dedicated wrapper item at the head of the split-off list, so
-    // their rows stay one level below the demoted row — matching what the
-    // default representation produces for the equivalent document. The
-    // semantic nesting marks are cleared because the lists are now hosted
-    // by a wrapper, not a row.
-    const nestedLists: ListNode[] = [];
-    const inlineChildren: LexicalNode[] = [];
-    for (const child of this.getChildren()) {
-      if ($isListNode(child)) {
-        nestedLists.push(child);
-      } else {
-        inlineChildren.push(child);
-      }
-    }
-    const paragraph = $createParagraphNode().append(...inlineChildren);
+    // Nested lists (semantic representation) keep their depth: parked in a
+    // dedicated wrapper item that lands at the head of the split-off list,
+    // so their rows stay one level below the demoted row — matching what
+    // the default representation produces for the equivalent document.
+    $parkNestedListsInWrapper(this);
+    const paragraph = $createParagraphNode().append(...this.getChildren());
 
     const nextSiblings = this.getNextSiblings();
-    if (nextSiblings.length > 0 || nestedLists.length > 0) {
+    if (nextSiblings.length > 0) {
       const newList = $copyNode(listNode);
-      if (nestedLists.length > 0) {
-        const wrapperItem = $createListItemNode();
-        for (const nestedList of nestedLists) {
-          $setState(nestedList, listSemanticNestingState, () => false);
-          wrapperItem.append(nestedList);
-        }
-        newList.append(wrapperItem);
-      }
       newList.append(...nextSiblings);
       listNode.insertAfter(newList);
     }
@@ -629,8 +609,14 @@ export class ListItemNode extends ElementNode {
     // item whose lists carry the semantic nesting mark still renders a row
     // of its own and behaves as a block (selectable, convertible via
     // $setBlocksType, splittable) even when its inline content was
-    // deleted. Items without nested lists use the default heuristic.
-    return $hasNestedListChild(this) ? !$isWrapperListItemNode(this) : null;
+    // deleted. In both canonical representations a nested list is either
+    // the first child (wrapper) or trails the content (host), so checking
+    // the two ends keeps this O(1) on caret/selection hot paths; items
+    // without nested lists there use the default heuristic.
+    if ($isListNode(this.getFirstChild()) || $isListNode(this.getLastChild())) {
+      return !$isWrapperListItemNode(this);
+    }
+    return null;
   }
 }
 
@@ -658,12 +644,11 @@ function $setListItemThemeClassNames(
   // list (semantic representation) keeps its marker and gets the host
   // class instead, so themes can style rows that contain a sublist (e.g.
   // scope a checked style away from the nested rows).
-  const isNested = isWrapper;
   // Only computed when the theme uses the class: this runs on every
   // reconcile of a dirty item.
   const isHost =
     hostListItemClassName !== undefined &&
-    !isNested &&
+    !isWrapper &&
     $hasNestedListChild(node);
 
   // Always remove the variable theme classes first so that the className
@@ -699,7 +684,7 @@ function $setListItemThemeClassNames(
       classesToAdd.push(checkClassName);
     }
   }
-  if (nestedListItemClassName !== undefined && isNested) {
+  if (nestedListItemClassName !== undefined && isWrapper) {
     classesToAdd.push(...normalizeClassNames(nestedListItemClassName));
   }
   if (hostListItemClassName !== undefined && isHost) {
@@ -735,14 +720,10 @@ export function getListItemCheckboxDOM(
 function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
   const input = dom.ownerDocument.createElement('input');
   input.type = 'checkbox';
-  // Focus-mode navigation (checkList.ts) moves focus between rows with the
-  // arrow keys; keep the inputs out of the tab order like the
-  // li[tabIndex=-1] focus target they replace.
-  input.tabIndex = -1;
-  // The accessible-name wiring (a generated li id + aria-labelledby on the
-  // input) is a strictly render-time concern, applied by ListExtension's
-  // DOMRenderExtension override ($decorateListItemDOM) so that generated
-  // ids never leak into exported HTML.
+  // Focus-mode wiring (tabIndex) and accessible-name wiring (a generated
+  // li id + aria-labelledby on the input) are strictly render-time
+  // concerns, applied by ListExtension's DOMRenderExtension override
+  // (decorateListItemDOM) so that neither leaks into exported HTML.
   setDOMUnmanaged(input);
   dom.insertBefore(input, dom.firstChild);
   return input;
@@ -771,6 +752,13 @@ export function decorateListItemDOM(
       dom.removeAttribute('id');
     }
     return;
+  }
+  // Focus-mode navigation (checkList.ts) moves focus between rows with
+  // the arrow keys; keep the inputs out of the tab order like the
+  // li[tabIndex=-1] focus target they replace. Applied here (not in
+  // createDOM) so exported HTML keeps keyboard-focusable checkboxes.
+  if (input.getAttribute('tabindex') !== '-1') {
+    input.tabIndex = -1;
   }
   if (!dom.id) {
     dom.id = `lexical-listitem-${editor.getKey()}-${node.getKey()}`;
@@ -811,23 +799,23 @@ function $updateListItemChecked(
     input.remove();
   }
 
+  // The li carries role/tabIndex only for the ARIA emulation (with a
+  // native input, the input owns those semantics), but aria-checked on
+  // every check row: without the role it is inert for assistive
+  // technology, while HTML captured from the live DOM (drag, scrapers,
+  // non-Lexical copy paths) keeps its checked state readable by importers
+  // that do not consume checkbox inputs.
   if (isCheckbox && !useNativeInput) {
     dom.setAttribute('role', 'checkbox');
     dom.setAttribute('tabIndex', '-1');
-    dom.setAttribute('aria-checked', checked ? 'true' : 'false');
   } else {
-    // With a native input, role and tabIndex come off the li (the input
-    // owns those semantics) but aria-checked stays: without the role it is
-    // inert for assistive technology, while HTML captured from the live
-    // DOM (drag, scrapers, non-Lexical copy paths) keeps its checked
-    // state readable by importers that do not consume checkbox inputs.
     dom.removeAttribute('role');
     dom.removeAttribute('tabIndex');
-    if (useNativeInput) {
-      dom.setAttribute('aria-checked', checked ? 'true' : 'false');
-    } else {
-      dom.removeAttribute('aria-checked');
-    }
+  }
+  if (isCheckbox) {
+    dom.setAttribute('aria-checked', checked ? 'true' : 'false');
+  } else {
+    dom.removeAttribute('aria-checked');
   }
 }
 
@@ -842,7 +830,7 @@ function $convertListItemElement(domNode: HTMLElement): DOMConversionOutput {
   if (domNode.classList.contains('task-list-item') || hasSemanticNesting) {
     const input = findCheckboxInputChild(domNode);
     if (input !== null) {
-      return $convertCheckboxInput(input, domNode);
+      return $convertCheckboxInput(input, domNode, hasSemanticNesting);
     }
   }
 
@@ -854,7 +842,11 @@ function $convertListItemElement(domNode: HTMLElement): DOMConversionOutput {
         child.children.length > 0 &&
         child.children[0].tagName === 'INPUT'
       ) {
-        return $convertCheckboxInput(child.children[0], domNode);
+        return $convertCheckboxInput(
+          child.children[0],
+          domNode,
+          hasSemanticNesting,
+        );
       }
     }
   }
@@ -900,6 +892,7 @@ function $listItemConversionAfter(
 function $convertCheckboxInput(
   domNode: Element,
   listItemElement: HTMLElement,
+  markNestedLists: boolean,
 ): DOMConversionOutput {
   const isCheckboxInput = domNode.getAttribute('type') === 'checkbox';
   if (!isCheckboxInput) {
@@ -912,7 +905,7 @@ function $convertCheckboxInput(
   $setFormatFromDOM(node, listItemElement);
   $setDirectionFromDOM(node, listItemElement);
   return {
-    after: $listItemConversionAfter(node, $isListSemanticNestingEnabled()),
+    after: $listItemConversionAfter(node, markNestedLists),
     node,
   };
 }
