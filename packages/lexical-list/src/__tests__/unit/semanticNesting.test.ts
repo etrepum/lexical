@@ -2888,3 +2888,87 @@ describe('review round 7 regression fixes', () => {
     expect(rootElement.isConnected).toBe(true);
   });
 });
+
+describe('review round 8 regression fixes', () => {
+  test('isBlock() only overrides the wrapper and emptied-host shapes', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const $markedBullet = (): ListNode => {
+          const list = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('child')),
+          );
+          $setState(list, listSemanticNestingState, true);
+          return list;
+        };
+
+        // Wrapper (only unmarked nested lists): a container, not a block.
+        const wrapper = $createListItemNode().append(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('w')),
+          ),
+        );
+        expect(wrapper.isBlock()).toBe(false);
+
+        // Emptied host row (only marked nested lists): the one shape the
+        // default heuristic gets wrong — forced to block.
+        const emptied = $createListItemNode().append($markedBullet());
+        expect(emptied.isBlock()).toBe(true);
+
+        // Canonical host (leading content + trailing marked list): defers
+        // to the default heuristic (which already resolves it to a block).
+        const host = $createListItemNode().append(
+          $createTextNode('a'),
+          $markedBullet(),
+        );
+        expect(host.isBlock()).toBe(null);
+
+        // Plain content item: defers.
+        const plain = $createListItemNode().append($createTextNode('a'));
+        expect(plain.isBlock()).toBe(null);
+
+        // Non-canonical (marked list BEFORE trailing inline content):
+        // must defer, not flip to block as the previous end-checks did.
+        const nonCanonical = $createListItemNode().append(
+          $markedBullet(),
+          $createTextNode('a'),
+        );
+        expect(nonCanonical.isBlock()).toBe(null);
+      },
+      {discrete: true},
+    );
+  });
+
+  test('getDOMSlot returns the native checkbox slot only for checkbox rows', () => {
+    using editor = buildCheckEditor();
+    const rootElement = mountRootElement(editor);
+    let checkItem!: ListItemNode;
+    let plainItem!: ListItemNode;
+    editor.update(
+      () => {
+        checkItem = $createListItemNode(false).append($createTextNode('todo'));
+        $clearAndAppend($createListNode('check').append(checkItem));
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        plainItem = $createListItemNode().append($createTextNode('plain'));
+        $getRoot().append($createListNode('bullet').append(plainItem));
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const checkDom = editor.getElementByKey(checkItem.getLatest().getKey());
+      const plainDom = editor.getElementByKey(plainItem.getLatest().getKey());
+      invariant(checkDom !== null && plainDom !== null, 'expected both li');
+      // The check row's managed children sit after the native input; the
+      // plain row uses the base slot (its first child is its own text).
+      expect(checkDom.firstElementChild instanceof HTMLInputElement).toBe(true);
+      expect(plainDom.firstElementChild instanceof HTMLInputElement).toBe(
+        false,
+      );
+    });
+    expect(rootElement.isConnected).toBe(true);
+  });
+});

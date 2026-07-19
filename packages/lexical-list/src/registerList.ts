@@ -36,6 +36,7 @@ import {
 } from './formatList';
 import {$isListItemNode, ListItemNode} from './LexicalListItemNode';
 import {$isListNode, ListNode} from './LexicalListNode';
+import {$parkNestedListsInWrapper} from './semanticNesting';
 import {$getListDepth, $isWrapperListItemNode} from './utils';
 
 export const UPDATE_LIST_START_COMMAND: LexicalCommand<{
@@ -374,6 +375,11 @@ function $handleListItemBackspaceAdjacentToDecorator(): boolean {
   ) {
     return false;
   }
+  // A semantic host row's nested lists are the following rows' content, not
+  // this row's inline content: park them in a dedicated wrapper (like the
+  // default representation's shape) so demoting the row to a paragraph does
+  // not swallow the sub-list into it. A no-op for content-only items.
+  $parkNestedListsInWrapper(listItem);
   // Demote the first list item to a paragraph and slot it in before the list.
   const paragraph = $createParagraphNode().append(...listItem.getChildren());
   list.insertBefore(paragraph);

@@ -23,12 +23,7 @@ import {
   type ListItemNode,
 } from './LexicalListItemNode';
 import {$isListNode, type ListNode} from './LexicalListNode';
-import {
-  $hasRowContent,
-  $isEmptiedHostRow,
-  $isWrapperListItemNode,
-  listSemanticNestingState,
-} from './utils';
+import {$isWrapperListItemNode, listSemanticNestingState} from './utils';
 
 /**
  * Mark every ListNode among `children` with {@link listSemanticNestingState}
@@ -196,14 +191,15 @@ export function $normalizeSemanticListItem(node: ListItemNode): void {
     ) {
       $mergeWrapperListItemIntoPrevious(previousSibling, node);
     }
-  } else if ($hasRowContent(node) || $isEmptiedHostRow(node)) {
+  } else if (node.getFirstChild() !== null) {
+    // node is not a wrapper (the branch above) but has children, so it is a
+    // row of its own — either content-bearing or an emptied host row.
     // The transform only runs on dirty nodes, so also normalize from the
-    // other direction: an item that just gained content adopts a wrapper
-    // that follows it (e.g. typing into the empty item created by
-    // splitting a nested list). An emptied host row adopts the same way —
-    // it is a row of its own, and the import normalization merges the
-    // identical shape, so leaving the wrapper unadopted would make the
-    // live state diverge from a round-trip through import.
+    // other direction: such a row adopts a wrapper that follows it (e.g.
+    // typing into the empty item created by splitting a nested list). An
+    // emptied host row adopts the same way — the import normalization
+    // merges the identical shape, so leaving the wrapper unadopted would
+    // make the live state diverge from a round-trip through import.
     const nextSibling = node.getNextSibling();
     if ($isWrapperListItemNode(nextSibling)) {
       // Also marks the adopted (and existing) lists.

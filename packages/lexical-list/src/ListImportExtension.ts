@@ -279,8 +279,11 @@ function $buildChecklistItem(
 
 const TaskListItemRule = /* @__PURE__ */ defineImportRule({
   $import: (ctx, el, $next) => {
-    const input = el.querySelector(':scope > input[type="checkbox"]');
-    if (!input) {
+    // Same direct-checkbox-child predicate as the semantic ListItemRule
+    // above, so the task-list-item paste path cannot classify a row
+    // differently from it.
+    const input = findCheckboxInputChild(el);
+    if (input === null) {
       return $next();
     }
     return $buildChecklistItem(ctx, el, input, $isListSemanticNestingEnabled());

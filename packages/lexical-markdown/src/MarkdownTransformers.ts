@@ -16,7 +16,6 @@ import {
 import {
   $createListItemNode,
   $createListNode,
-  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
   $isWrapperListItemNode,
@@ -505,12 +504,16 @@ const $listExport = (
       // no inline content at all (emptied host) can only be selected as
       // the li itself, so that case falls back to the li's own selection.
       const itemChildren = listItemNode.getChildren();
+      let hasInlineChild = false;
       let hasSelectedInlineChild = false;
       if (!isWrapper && selection) {
         for (const child of itemChildren) {
-          if (!$isListNode(child) && child.isSelected(selection)) {
-            hasSelectedInlineChild = true;
-            break;
+          if (!$isListNode(child)) {
+            hasInlineChild = true;
+            if (child.isSelected(selection)) {
+              hasSelectedInlineChild = true;
+              break;
+            }
           }
         }
       }
@@ -518,10 +521,14 @@ const $listExport = (
         !isWrapper &&
         (!selection ||
           hasSelectedInlineChild ||
-          // An emptied host row (children are only nested lists) can only
-          // be selected as the li itself. Childless items are excluded, as
-          // the legacy some()-over-no-children filter always skipped them.
-          ($isEmptiedHostRow(listItemNode) &&
+          // An emptied host row — not a wrapper (guaranteed here), has
+          // children, none of them inline — can only be selected as the li
+          // itself. Childless items are excluded, as the legacy
+          // some()-over-no-children filter always skipped them. (Reusing
+          // the local isWrapper avoids re-deriving wrapper status, which
+          // $isEmptiedHostRow would walk the child links to recompute.)
+          (!hasInlineChild &&
+            itemChildren.length > 0 &&
             listItemNode.isSelected(selection)));
       if (isRow) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);

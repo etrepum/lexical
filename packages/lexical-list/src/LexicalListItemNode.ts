@@ -61,6 +61,7 @@ import {
 import {
   $copyListForSplit,
   $hasNestedListChild,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   findCheckboxInputChild,
 } from './utils';
@@ -185,9 +186,12 @@ export class ListItemNode extends ElementNode {
 
   getDOMSlot(element: HTMLElement): ElementDOMSlot<HTMLElement> {
     // Managed children go after the native checkbox input that check-list
-    // rows render in the semantic nesting mode (withAfter(null) is the
-    // default slot).
-    return super.getDOMSlot(element).withAfter(getListItemCheckboxDOM(element));
+    // rows render in the semantic nesting mode. Only rows that actually
+    // render one pay for the extra slot; every other reconcile (the common
+    // case) returns the base slot without a second allocation.
+    const slot = super.getDOMSlot(element);
+    const checkbox = getListItemCheckboxDOM(element);
+    return checkbox === null ? slot : slot.withAfter(checkbox);
   }
 
   updateListItemDOM(
@@ -616,16 +620,29 @@ export class ListItemNode extends ElementNode {
   }
 
   isBlock(): boolean | null {
-    // A dedicated wrapper is a container of nested rows, not a block; an
-    // item whose lists carry the semantic nesting mark still renders a row
-    // of its own and behaves as a block (selectable, convertible via
-    // $setBlocksType, splittable) even when its inline content was
-    // deleted. In both canonical representations a nested list is either
+    // Only items involved in nesting need an answer of their own; a plain
+    // content item (no nested list at either end) defers to the default
+    // heuristic. In both canonical representations a nested list is either
     // the first child (wrapper) or trails the content (host), so checking
-    // the two ends keeps this O(1) on caret/selection hot paths; items
-    // without nested lists there use the default heuristic.
-    if ($isListNode(this.getFirstChild()) || $isListNode(this.getLastChild())) {
-      return !$isWrapperListItemNode(this);
+    // the two ends keeps this O(1) on caret/selection hot paths.
+    if (
+      !$isListNode(this.getFirstChild()) &&
+      !$isListNode(this.getLastChild())
+    ) {
+      return null;
+    }
+    // A dedicated wrapper is a container of nested rows, not a block.
+    if ($isWrapperListItemNode(this)) {
+      return false;
+    }
+    // An emptied host row (only marked nested lists, no inline content) is
+    // the one shape the default first-child heuristic gets wrong: it still
+    // renders a row of its own and must behave as a block (selectable,
+    // convertible via $setBlocksType, splittable). A canonical host row
+    // (leading content) already resolves to a block under the default
+    // heuristic, and any transient non-canonical layout is left to it too.
+    if ($isEmptiedHostRow(this)) {
+      return true;
     }
     return null;
   }
