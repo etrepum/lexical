@@ -24,6 +24,7 @@ import {
   isHTMLElement,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ESCAPE_COMMAND,
   KEY_SPACE_COMMAND,
@@ -291,6 +292,39 @@ export function registerCheckList(
 
           return false;
         });
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand<KeyboardEvent>(
+      KEY_ARROW_RIGHT_COMMAND,
+      event => {
+        // Symmetric to ARROW_LEFT above: when a row's native checkbox input
+        // is the focused element (semantic nesting mode), Right moves the
+        // caret back into the row's text so focus is never stuck on the
+        // checkbox. Any other state defers to the default caret movement.
+        const activeItem = getActiveCheckListItem(editor);
+        if (activeItem === null) {
+          return false;
+        }
+        const checkboxInput = getListItemCheckboxDOM(activeItem);
+        if (
+          checkboxInput === null ||
+          getActiveElement(activeItem) !== checkboxInput
+        ) {
+          return false;
+        }
+        event.preventDefault();
+        // The row's caret is already at its text start (ARROW_LEFT only moves
+        // focus to the checkbox from offset 0) and the DOM selection survives
+        // the input being focused, so focusing the root element hands the
+        // caret straight back to the text. (Same move as the Escape handler
+        // above; editor.focus() would no-op here since the selection is
+        // unchanged and leave focus stranded on the input.)
+        const rootElement = editor.getRootElement();
+        if (rootElement !== null) {
+          rootElement.focus();
+        }
+        return true;
       },
       COMMAND_PRIORITY_LOW,
     ),

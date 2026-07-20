@@ -666,6 +666,28 @@ describe('semantic nested list browser behavior', () => {
       });
     });
 
+    test('ArrowLeft focuses the row checkbox from text start; ArrowRight returns to the text', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      // Caret at the very start of a check row's text.
+      placeCaret(editor, contentEditable, 'first item', 0);
+      const firstLi = findRowLi(contentEditable, 'first item');
+
+      // ArrowLeft at offset 0 hands focus to the row's native checkbox.
+      await userEvent.keyboard('{ArrowLeft}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(rowCheckbox(firstLi));
+      });
+
+      // ArrowRight is symmetric: focus goes back to the editor with the caret
+      // at the row's text start, so focus is never stranded on the checkbox.
+      await userEvent.keyboard('{ArrowRight}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(contentEditable);
+      });
+      expect(readLexicalCaret(editor)).toEqual(['first item', 0]);
+    });
+
     test('clicking and Space toggle only the host row checkbox, not the nested rows', async () => {
       const {contentEditable, editor} = mountSemanticEditor();
       setUpFixture(editor, 'check');
