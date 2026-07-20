@@ -688,6 +688,44 @@ describe('semantic nested list browser behavior', () => {
       expect(readLexicalCaret(editor)).toEqual(['first item', 0]);
     });
 
+    test('ArrowRight after ArrowDown lands on the text of the row Down moved to', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      placeCaret(editor, contentEditable, 'first item', 0);
+
+      // Enter checkbox focus, move it down a row, then exit with Right.
+      await userEvent.keyboard('{ArrowLeft}');
+      await vi.waitFor(() => {
+        expect(inlineText(focusedRow())).toBe('first item');
+      });
+      await userEvent.keyboard('{ArrowDown}');
+      await vi.waitFor(() => {
+        expect(inlineText(focusedRow())).toBe('host item');
+      });
+      await userEvent.keyboard('{ArrowRight}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(contentEditable);
+      });
+      // Not back on 'first item': Right follows the checkbox focus, which Down
+      // moved, rather than a stale caret left on the original row.
+      expect(readLexicalCaret(editor)).toEqual(['host item', 0]);
+    });
+
+    test('Left/Right round-trips leave a clean text caret (Left re-enters checkbox focus)', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      placeCaret(editor, contentEditable, 'first item', 0);
+      const firstLi = findRowLi(contentEditable, 'first item');
+
+      // Left (focus checkbox), Left (no-op, already focused), Right (back to
+      // text), Left (must re-enter checkbox focus — not land on a stray
+      // element selection before the checkbox).
+      await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowRight}{ArrowLeft}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(rowCheckbox(firstLi));
+      });
+    });
+
     test('clicking and Space toggle only the host row checkbox, not the nested rows', async () => {
       const {contentEditable, editor} = mountSemanticEditor();
       setUpFixture(editor, 'check');

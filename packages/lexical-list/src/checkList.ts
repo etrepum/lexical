@@ -314,12 +314,27 @@ export function registerCheckList(
           return false;
         }
         event.preventDefault();
-        // The row's caret is already at its text start (ARROW_LEFT only moves
-        // focus to the checkbox from offset 0) and the DOM selection survives
-        // the input being focused, so focusing the root element hands the
-        // caret straight back to the text. (Same move as the Escape handler
-        // above; editor.focus() would no-op here since the selection is
-        // unchanged and leave focus stranded on the input.)
+        // Place the caret at the *focused* row's text start, then move DOM
+        // focus off the checkbox. Ordering matters: while the input is focused
+        // the editor's DOM selection can be stale (arrow Up/Down move checkbox
+        // focus to another row without writing the DOM selection, since the
+        // reconciler won't steal focus from the input). selectStart writes a
+        // fresh DOM selection on the focused row regardless of focus, and
+        // focusing the root then hands the caret to it — so Right always lands
+        // on the text of the row whose checkbox is focused, and leaves a clean
+        // text selection so a following Left re-enters checkbox focus cleanly.
+        editor.update(() => {
+          const listItemNode = $getNearestNodeFromDOMNode(activeItem);
+          if ($isListItemNode(listItemNode)) {
+            if ($isEmptiedHostRow(listItemNode)) {
+              // Anchor on the row itself (as arrow Up/Down do): selectStart
+              // would descend into the first nested row's text.
+              listItemNode.select(0, 0);
+            } else {
+              listItemNode.selectStart();
+            }
+          }
+        });
         const rootElement = editor.getRootElement();
         if (rootElement !== null) {
           rootElement.focus();
