@@ -726,6 +726,30 @@ describe('semantic nested list browser behavior', () => {
       });
     });
 
+    test('a caret parked on the <li> before the checkbox normalizes onto the text', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      // Give the editor focus and a starting caret in the row.
+      placeCaret(editor, contentEditable, 'first item', 2);
+      const firstLi = findRowLi(contentEditable, 'first item');
+      expect(firstLi.firstChild).toBe(rowCheckbox(firstLi));
+
+      // Reproduce what vertical arrow navigation into the row does: park the
+      // DOM caret at <li> offset 0, before the checkbox input.
+      const domSelection = getDOMSelection(window);
+      invariant(domSelection !== null, 'Expected a DOM selection');
+      domSelection.setBaseAndExtent(firstLi, 0, firstLi, 0);
+      document.dispatchEvent(new Event('selectionchange'));
+
+      // It self-corrects onto the row's text, not before the checkbox.
+      await vi.waitFor(() => {
+        const current = getDOMSelection(window);
+        invariant(current !== null, 'Expected a DOM selection');
+        expect(current.anchorNode).not.toBe(firstLi);
+      });
+      expect(readLexicalCaret(editor)).toEqual(['first item', 0]);
+    });
+
     test('clicking and Space toggle only the host row checkbox, not the nested rows', async () => {
       const {contentEditable, editor} = mountSemanticEditor();
       setUpFixture(editor, 'check');

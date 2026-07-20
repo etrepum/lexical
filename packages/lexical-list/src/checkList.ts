@@ -16,9 +16,11 @@ import {
   $getSelection,
   $isElementNode,
   $isRangeSelection,
+  $setSelection,
   COMMAND_PRIORITY_LOW,
   createCommand,
   getActiveElement,
+  getDOMSelection,
   getNearestEditorFromDOMNode,
   getParentElement,
   isHTMLElement,
@@ -33,6 +35,7 @@ import {
   mergeRegister,
   registerEventListener,
   registerEventListeners,
+  SELECTION_CHANGE_COMMAND,
   SKIP_DOM_SELECTION_TAG,
   SKIP_SELECTION_FOCUS_TAG,
 } from 'lexical';
@@ -340,6 +343,55 @@ export function registerCheckList(
           rootElement.focus();
         }
         return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        // A check row renders its native checkbox as the first DOM child of
+        // the <li> (semantic nesting mode). Vertical arrow navigation into the
+        // row parks the browser caret at <li> offset 0 — before the checkbox —
+        // even though the editor selection resolves correctly to the row's
+        // text start. Re-apply the selection so the visible caret moves onto
+        // the text (past the checkbox), matching Home/click. Guarded to the
+        // parked-on-the-li case so it applies once and does not loop.
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+          return false;
+        }
+        const {anchor} = selection;
+        const anchorNode = anchor.getNode();
+        const parent = anchorNode.getParent();
+        if (
+          anchor.type !== 'text' ||
+          anchor.offset !== 0 ||
+          !$isListItemNode(parent) ||
+          !$isTaskListItem(parent) ||
+          parent.getFirstChild() !== anchorNode
+        ) {
+          return false;
+        }
+        const listItemDOM = editor.getElementByKey(parent.getKey());
+        if (
+          listItemDOM === null ||
+          getListItemCheckboxDOM(listItemDOM) === null
+        ) {
+          return false;
+        }
+        const domSelection = getDOMSelection(
+          listItemDOM.ownerDocument.defaultView,
+        );
+        if (domSelection === null || domSelection.anchorNode !== listItemDOM) {
+          // The caret is already on the text (or elsewhere) — nothing to fix,
+          // and re-applying would loop.
+          return false;
+        }
+        const cloned = selection.clone();
+        editor.update(() => {
+          $setSelection(cloned);
+        });
+        return false;
       },
       COMMAND_PRIORITY_LOW,
     ),
