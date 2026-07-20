@@ -124,18 +124,24 @@ const theme = {
     // would kill the plain rows' bullets too.
     checklist: '',
     listitem: 'mx-6 my-0.5',
-    // Hang the checkbox in the marker column like a bullet: an explicit size
-    // plus a matching negative left margin means it takes no inline space, so
-    // its row's text aligns with the plain (bulleted) rows' text.
-    listitemCheckbox: '-ml-6 h-4 w-4 mr-2 cursor-pointer align-middle',
+    // Position the checkbox absolutely in the marker column (like a list
+    // bullet) rather than inline: an inline input is a caret stop, so the
+    // row's "start" would land before the checkbox (Home/Ctrl-A/click). Out
+    // of flow, the row's text is the first thing the caret can reach, its
+    // text aligns with the plain (bulleted) rows, and wrapped lines keep the
+    // hanging indent. The *Native keys make the row `relative` so this anchors
+    // to it.
+    listitemCheckbox:
+      'absolute -left-[1.4em] top-[0.3em] h-4 w-4 cursor-pointer',
     // This example enables the semantic nesting ListExtension config, so
     // check-list rows render a real <input type="checkbox"> and the
     // reconciler applies the *Native theme keys (not listitemChecked /
     // listitemUnchecked, which draw the emulated ::before checkbox). These
-    // carry only the checked-state row styling; listitemCheckbox styles
-    // the real input.
-    listitemCheckedNative: 'list-none line-through text-zinc-500',
-    listitemUncheckedNative: 'list-none',
+    // carry only the checked-state row styling (and `relative`, the
+    // positioning context for the absolutely placed checkbox); listitemCheckbox
+    // styles the real input.
+    listitemCheckedNative: 'relative list-none line-through text-zinc-500',
+    listitemUncheckedNative: 'relative list-none',
     nested: {
       listitem: 'list-none',
     },
