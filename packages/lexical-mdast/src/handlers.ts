@@ -40,8 +40,11 @@ import {$createLinkNode, $isAutoLinkNode, $isLinkNode} from '@lexical/link';
 import {
   $createListItemNode,
   $createListNode,
+  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
+  $listItemEmitsRow,
+  $markPlainImportedCheckRows,
 } from '@lexical/list';
 import {
   $createHeadingNode,
@@ -267,10 +270,16 @@ export const $importList: MdastImportHandler<List> = (node, ctx) => {
       }
     }
   }
-  return $append(
+  $append(
     list,
     node.children.flatMap(child => ctx.importNode(child)),
   );
+  // A GitHub mixed task list arrives as one mdast list with some items'
+  // `checked` set to null (not a task); those import with an undefined checked
+  // field, so mark them plain — same normalization the DOM import applies — so
+  // they render as bare rows rather than unchecked boxes.
+  $markPlainImportedCheckRows(list.getChildren() as ListItemNode[], list);
+  return list;
 };
 
 export const $importListItem: MdastImportHandler<ListItem> = (node, ctx) => {
@@ -566,25 +575,63 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     if (!$isListItemNode(child) || !ctx.isIncluded(child)) {
       continue;
     }
-    const firstChild = child.getFirstChild();
-    // A list item whose sole child is a nested list represents nesting: attach
-    // the nested list to the previous item's children.
-    if (child.getChildrenSize() === 1 && $isListNode(firstChild)) {
-      const nested = $exportListNode(firstChild, ctx);
-      if (previousItem) {
-        previousItem.children.push(nested);
-      } else {
-        list.children.push({
-          children: [nested],
-          spread: false,
-          type: 'listItem',
-        });
+    // A dedicated wrapper item (all children are lists, none marked with
+    // the semantic nesting state) represents nesting rather than a row. So
+    // does a host row whose own inline content is not selected in a
+    // selection export: only its nested rows belong in the output, and
+    // emitting its own listItem would leak the row's checkbox/content —
+    // $listItemEmitsRow is the shared decision (also used by the markdown
+    // exporter), matching the default (wrapper) representation. In both
+    // cases the nested lists attach to the previous item's children.
+    if (!$listItemEmitsRow(child, ctx.hasSelection, ctx.isSelected)) {
+      // Collect the nested lists in one link-walk (no children snapshot),
+      // dropping any that exported empty (all their rows filtered out by a
+      // selection) so no stray empty `list` node reaches the output —
+      // matching the markdown pipeline's `if (nestedResult)` guard.
+      const nested: List[] = [];
+      for (
+        let nestedList = child.getFirstChild();
+        nestedList !== null;
+        nestedList = nestedList.getNextSibling()
+      ) {
+        if ($isListNode(nestedList)) {
+          const exported = $exportListNode(nestedList, ctx);
+          if (exported.children.length > 0) {
+            nested.push(exported);
+          }
+        }
+      }
+      // Nothing to contribute (e.g. a childless item selected as an element
+      // point): emit nothing, matching the markdown pipeline, rather than a
+      // stray empty listItem.
+      if (nested.length > 0) {
+        if (previousItem) {
+          previousItem.children.push(...nested);
+        } else {
+          list.children.push({
+            children: nested,
+            spread: false,
+            type: 'listItem',
+          });
+        }
       }
       continue;
     }
+    const blocks = ctx.exportBlocks(child);
     const item: ListItem = {
-      checked: listType === 'check' ? (child.getChecked() ?? false) : null,
-      children: ctx.exportBlocks(child),
+      // getChecked() is a boolean only for a task row; a plain row in a mixed
+      // check list (or any non-check row) reports undefined, which maps to
+      // mdast's `null` — "not a task" — so it serializes as a bare `- item`.
+      checked: child.getChecked() ?? null,
+      // An emptied host row (its inline content deleted, only nested lists
+      // remain) renders a blank content line. exportBlocks only adds the
+      // fallback empty paragraph when there are NO blocks at all, so the
+      // nested list would otherwise stand in for the row's own content;
+      // prepend the empty paragraph to match the default representation,
+      // whose childless content item produces one.
+      children: $isEmptiedHostRow(child)
+        ? [{children: [], type: 'paragraph'}, ...blocks]
+        : blocks,
       spread: false,
       type: 'listItem',
     };

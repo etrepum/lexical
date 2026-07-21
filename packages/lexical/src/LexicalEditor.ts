@@ -201,6 +201,33 @@ export interface EditorThemeClasses {
     listitem?: EditorThemeClassName;
     listitemChecked?: EditorThemeClassName;
     listitemUnchecked?: EditorThemeClassName;
+    /**
+     * Applied to a check-list row's `<li>` when it renders a real
+     * `<input type="checkbox">` — the semantic nested list representation
+     * (`@lexical/list` `ListConfig.hasSemanticNesting`) — instead of the
+     * ARIA/`::before` emulation. In that mode the reconciler applies these
+     * keys and NOT `listitemChecked`/`listitemUnchecked`, so a theme can
+     * carry only the checked-state styling (e.g. strikethrough) here
+     * without drawing a second, emulated checkbox that would overlap the
+     * native input. {@link listitemCheckbox} styles the input element
+     * itself.
+     */
+    listitemCheckedNative?: EditorThemeClassName;
+    listitemUncheckedNative?: EditorThemeClassName;
+    /**
+     * Applied to the native `<input type="checkbox">` element that a
+     * check-list row renders in the semantic nested list representation
+     * (see {@link listitemCheckedNative}).
+     */
+    listitemCheckbox?: EditorThemeClassName;
+    /**
+     * Applied to list items that render a row of their own AND contain a
+     * nested list inside the same `<li>` (the semantic nested list
+     * representation; see `@lexical/list` `ListConfig.hasSemanticNesting`).
+     * Lets themes style or scope such rows — e.g. keep a checked style from
+     * visually striking through the nested rows.
+     */
+    listitemHost?: EditorThemeClassName;
     nested?: {
       list?: EditorThemeClassName;
       listitem?: EditorThemeClassName;

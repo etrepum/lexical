@@ -6,6 +6,7 @@
  *
  */
 
+import {$isListItemNode, $isListNode} from '@lexical/list';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
   $getRoot,
@@ -284,6 +285,20 @@ function $exportChildrenForSelection(
       }
     }
 
+    if ($isListItemNode(node) && $isListNode(child)) {
+      // A nested list inside a list item row (either the sole content of a
+      // dedicated wrapper or trailing a row's content in the semantic
+      // representation) is exported by the list transformer at the next
+      // depth; exporting it as row content would duplicate it (mirrors the
+      // guard in $exportChildren). Its selectedness still propagates so
+      // the enclosing list stays included when only nested rows are
+      // selected.
+      if ($anyDescendantSelected(child, selection)) {
+        anyChildIncluded = true;
+      }
+      continue;
+    }
+
     if ($isLineBreakNode(child)) {
       if (childIncluded) {
         output.push($exportLineBreak(child));
@@ -337,6 +352,27 @@ function $exportChildrenForSelection(
   }
 
   return {markdown: output.join(''), shouldInclude: anyChildIncluded};
+}
+
+/**
+ * Whether any descendant of `node` is selected. Equivalent to the
+ * `shouldInclude` that $exportChildrenForSelection reports for `node` —
+ * every inclusion path there bottoms out in an isSelected check — without
+ * building and discarding the markdown along the way.
+ */
+function $anyDescendantSelected(
+  node: ElementNode,
+  selection: BaseSelection,
+): boolean {
+  for (const child of node.getChildren()) {
+    if (child.isSelected(selection)) {
+      return true;
+    }
+    if ($isElementNode(child) && $anyDescendantSelected(child, selection)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function $exportTopLevelElements(
@@ -452,6 +488,12 @@ function $exportChildren(
           shouldPreserveNewLines,
         ),
       );
+    } else if ($isListItemNode(node) && $isListNode(child)) {
+      // A nested list inside a list item (the semantic nested list
+      // representation) is a block, not inline content of the row; the
+      // list transformer exports it at the right depth. Flattening it here
+      // would concatenate the nested rows into the parent row's text.
+      continue;
     } else if ($isElementNode(child)) {
       // empty paragraph returns ""
       output.push(

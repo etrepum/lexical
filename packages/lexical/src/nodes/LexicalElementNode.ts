@@ -922,6 +922,19 @@ export class ElementNode
   canBeEmpty(): boolean {
     return true;
   }
+  /**
+   * Whether this element is a block for selection and caret purposes
+   * (see {@link INTERNAL_$isBlock}). Return `null` (the default) to use the
+   * built-in heuristic — a non-inline element whose first child is a leaf.
+   * Override to force block (`true`) or container (`false`) status when the
+   * child shape is ambiguous, e.g. a list item that still renders a row of
+   * its own while holding only a trailing nested list.
+   *
+   * @experimental
+   */
+  isBlock(): boolean | null {
+    return null;
+  }
   canInsertTextBefore(): boolean {
     return true;
   }

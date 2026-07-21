@@ -29,17 +29,32 @@ import {
   $isListItemNode,
   type ListItemNode,
 } from './LexicalListItemNode';
-import {$createListNode, $isListNode} from './LexicalListNode';
+import {
+  $createListNode,
+  $isListNode,
+  $normalizeSemanticChildren,
+} from './LexicalListNode';
+import {
+  $isListSemanticNestingEnabled,
+  $markNestedListsAsSemantic,
+  $markPlainImportedCheckRows,
+} from './semanticNesting';
+import {findCheckboxInputChild, hasCheckboxInputRowChild} from './utils';
 
 /**
  * Mirrors the legacy `isDomChecklist` heuristic from
  * `@lexical/list`.
  */
-function isDomChecklist(domNode: HTMLElement): boolean {
+function $isDomChecklist(domNode: HTMLElement): boolean {
   return (
     domNode.matches(
       '[__lexicallisttype="check"], .contains-task-list, [data-is-checklist="1"]',
-    ) || domNode.querySelector(':scope > [aria-checked]') !== null
+    ) ||
+    domNode.querySelector(':scope > [aria-checked]') !== null ||
+    // Class-less checkbox inputs — the semantic nesting mode's own export,
+    // or GitHub HTML without the container classes — are only consumed in
+    // that mode; default-mode editors keep importing them unchanged.
+    ($isListSemanticNestingEnabled() && hasCheckboxInputRowChild(domNode))
   );
 }
 
@@ -47,8 +62,16 @@ function isDomChecklist(domNode: HTMLElement): boolean {
  * Lift nested `ListNode`s out of `ListItemNode`s into sibling
  * `ListItemNode`s (the legacy `$normalizeChildren` shape). Also wraps any
  * non-`ListItemNode` children in a new `ListItemNode`.
+ *
+ * When semantic nesting is enabled for the active editor (see the
+ * `hasSemanticNesting` config of `ListExtension`), nested lists are
+ * instead kept inside their `ListItemNode` and dedicated wrapper `<li>`s
+ * are merged into the preceding item.
  */
 function $normalizeListChildren(children: LexicalNode[]): ListItemNode[] {
+  if ($isListSemanticNestingEnabled()) {
+    return $normalizeSemanticChildren(children, $createListItemNode);
+  }
   const out: ListItemNode[] = [];
   for (const child of children) {
     if ($isListItemNode(child)) {
@@ -73,27 +96,22 @@ const ListRule = /* @__PURE__ */ defineImportRule({
     let node;
     if (isElementOfTag(el, 'ol')) {
       node = $createListNode('number', el.start);
-    } else if (isDomChecklist(el)) {
+    } else if ($isDomChecklist(el)) {
       node = $createListNode('check');
     } else {
       node = $createListNode('bullet');
     }
     $setDirectionFromDOM(node, el);
+    const items = $normalizeListChildren(ctx.$importChildren(el));
+    // Mixed task lists: a plain `<li>` in a `contains-task-list` renders no
+    // checkbox. Same normalization as the legacy pipeline's $normalizeChildren.
+    $markPlainImportedCheckRows(items, node);
     // Propagate the list's `text-align` onto each `ListItemNode` child
     // (legacy `wrapContinuousInlines` did the same), so pasting
     // `<ul style="text-align: left"><li>…</li></ul>` ends up with the
     // alignment on the list items where the reconciler renders it as
     // `style="text-align: left"`.
-    return [
-      node.splice(
-        0,
-        0,
-        $propagateTextAlignToBlockChildren(
-          $normalizeListChildren(ctx.$importChildren(el)),
-          el,
-        ),
-      ),
-    ];
+    return [node.splice(0, 0, $propagateTextAlignToBlockChildren(items, el))];
   },
   match: sel.tag('ol', 'ul'),
   name: '@lexical/list/list',
@@ -181,6 +199,16 @@ function $flattenListItemBlocks(children: LexicalNode[]): LexicalNode[] {
 
 const ListItemRule = /* @__PURE__ */ defineImportRule({
   $import: (ctx, el) => {
+    // In the semantic nesting mode a class-less direct checkbox input marks
+    // a task-list row (the mode's own export renders one first in the li);
+    // mirrors the legacy $convertListItemElement path.
+    const hasSemanticNesting = $isListSemanticNestingEnabled();
+    if (hasSemanticNesting) {
+      const input = findCheckboxInputChild(el);
+      if (input !== null) {
+        return $buildChecklistItem(ctx, el, input, hasSemanticNesting);
+      }
+    }
     const ariaChecked = el.getAttribute('aria-checked');
     const checked =
       ariaChecked === 'true'
@@ -188,30 +216,52 @@ const ListItemRule = /* @__PURE__ */ defineImportRule({
         : ariaChecked === 'false'
           ? false
           : undefined;
-    const node = $createListItemNode(checked);
-    $setFormatFromDOM(node, el);
-    $setDirectionFromDOM(node, el);
-    return [
-      node.splice(
-        0,
-        0,
-        // Lift a sole wrapping paragraph's format onto the item *before*
-        // flattening, otherwise the paragraph would already be unwrapped and
-        // its alignment lost.
-        $flattenListItemBlocks(
-          $liftFormatFromSingleParagraph(node, ctx.$importChildren(el)),
-        ),
-      ),
-    ];
+    return $buildListItem(
+      ctx,
+      el,
+      checked,
+      checked !== undefined && hasSemanticNesting,
+    );
   },
   match: sel.tag('li'),
   name: '@lexical/list/li',
 });
 
+/**
+ * Build the ListItemNode for an imported `<li>`: apply format/direction,
+ * lift a sole wrapping paragraph's format onto the item *before* flattening
+ * (otherwise the paragraph would already be unwrapped and its alignment
+ * lost), and — when the li demonstrably renders a row (checkbox input or
+ * aria-checked) in the semantic mode — mark its nested lists so an emptied
+ * row is not reclassified as a wrapper. Shared tail of every li rule.
+ */
+function $buildListItem(
+  ctx: DOMImportContext,
+  el: HTMLElement,
+  checked: boolean | undefined,
+  markNestedLists: boolean,
+): LexicalNode[] {
+  const node = $createListItemNode(checked);
+  $setFormatFromDOM(node, el);
+  $setDirectionFromDOM(node, el);
+  node.splice(
+    0,
+    0,
+    $flattenListItemBlocks(
+      $liftFormatFromSingleParagraph(node, ctx.$importChildren(el)),
+    ),
+  );
+  if (markNestedLists) {
+    $markNestedListsAsSemantic(node.getChildren());
+  }
+  return [node];
+}
+
 function $buildChecklistItem(
   ctx: DOMImportContext,
   el: HTMLElement,
   checkboxOwner: Element,
+  markNestedLists: boolean,
 ): LexicalNode[] {
   const checkboxInput = isElementOfTag(checkboxOwner, 'input')
     ? checkboxOwner
@@ -220,27 +270,19 @@ function $buildChecklistItem(
     return [];
   }
   const checked = checkboxInput.hasAttribute('checked');
-  const node = $createListItemNode(checked);
-  $setFormatFromDOM(node, el);
-  $setDirectionFromDOM(node, el);
-  return [
-    node.splice(
-      0,
-      0,
-      $flattenListItemBlocks(
-        $liftFormatFromSingleParagraph(node, ctx.$importChildren(el)),
-      ),
-    ),
-  ];
+  return $buildListItem(ctx, el, checked, markNestedLists);
 }
 
 const TaskListItemRule = /* @__PURE__ */ defineImportRule({
   $import: (ctx, el, $next) => {
-    const input = el.querySelector(':scope > input[type="checkbox"]');
-    if (!input) {
+    // Same direct-checkbox-child predicate as the semantic ListItemRule
+    // above, so the task-list-item paste path cannot classify a row
+    // differently from it.
+    const input = findCheckboxInputChild(el);
+    if (input === null) {
       return $next();
     }
-    return $buildChecklistItem(ctx, el, input);
+    return $buildChecklistItem(ctx, el, input, $isListSemanticNestingEnabled());
   },
   match: sel.tag('li').classAll('task-list-item'),
   name: '@lexical/list/li-task-list-item',
@@ -256,7 +298,7 @@ const JoplinChecklistItemRule = /* @__PURE__ */ defineImportRule({
     if (!input) {
       return $next();
     }
-    return $buildChecklistItem(ctx, el, input);
+    return $buildChecklistItem(ctx, el, input, $isListSemanticNestingEnabled());
   },
   match: sel.tag('li').classAll('joplin-checkbox'),
   name: '@lexical/list/li-joplin-checkbox',

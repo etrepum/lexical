@@ -16,14 +16,17 @@ import {
   $getSelection,
   $isElementNode,
   $isRangeSelection,
+  $setSelection,
   COMMAND_PRIORITY_LOW,
   createCommand,
-  type ElementNode,
   getActiveElement,
+  getDOMSelection,
   getNearestEditorFromDOMNode,
+  getParentElement,
   isHTMLElement,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ESCAPE_COMMAND,
   KEY_SPACE_COMMAND,
@@ -32,13 +35,41 @@ import {
   mergeRegister,
   registerEventListener,
   registerEventListeners,
+  SELECTION_CHANGE_COMMAND,
   SKIP_DOM_SELECTION_TAG,
   SKIP_SELECTION_FOCUS_TAG,
 } from 'lexical';
 
 import {$insertList} from './formatList';
-import {$isListItemNode, type ListItemNode} from './LexicalListItemNode';
-import {$isListNode} from './LexicalListNode';
+import {
+  $isListItemNode,
+  getListItemCheckboxDOM,
+  getListItemFocusTarget,
+  type ListItemNode,
+} from './LexicalListItemNode';
+import {
+  $getAllListItems,
+  $getTopListNode,
+  $isEmptiedHostRow,
+  $isTaskListItem,
+} from './utils';
+
+/**
+ * The <li> whose native checkbox input (semantic nesting mode) is `target`,
+ * or `null` when `target` is not such an input.
+ */
+function getCheckboxInputRow(target: EventTarget | null): HTMLElement | null {
+  if (isHTMLElement(target) && target.nodeName === 'INPUT') {
+    const listItemElement = getParentElement(target);
+    if (
+      isHTMLElement(listItemElement) &&
+      getListItemCheckboxDOM(listItemElement) === target
+    ) {
+      return listItemElement;
+    }
+  }
+  return null;
+}
 
 export const INSERT_CHECK_LIST_COMMAND: LexicalCommand<void> =
   /* @__PURE__ */ createCommand('INSERT_CHECK_LIST_COMMAND');
@@ -83,6 +114,27 @@ export function registerCheckList(
     const last = target.__lexicalCheckListLastHandled as number | undefined;
     return last !== undefined && event.timeStamp - last < DEDUP_WINDOW_MS;
   };
+  // Drop the dedup record from a target, if any. Used both when a paired
+  // click consumes it and when a later activation must clear a stale one.
+  const clearDedupRecord = (target: EventTarget | null) => {
+    if (isHTMLElement(target)) {
+      // @ts-ignore internal field
+      delete target.__lexicalCheckListLastHandled;
+    }
+  };
+  // The record pairs one handled touch pointerup with the one click the
+  // browser synthesizes right after it; consuming it on that click keeps
+  // later legitimate activations within the window (a follow-up Space
+  // press or mouse click on the same checkbox) from being swallowed.
+  const consumeDedupRecord = (
+    event: PointerEvent | MouseEvent | TouchEvent,
+  ): boolean => {
+    if (!isWithinDedupWindow(event)) {
+      return false;
+    }
+    clearDedupRecord(event.target);
+    return true;
+  };
   const recordHandled = (event: PointerEvent | MouseEvent | TouchEvent) => {
     const target = event.target;
     if (isHTMLElement(target)) {
@@ -91,10 +143,21 @@ export function registerCheckList(
     }
   };
   const configHandleClick = (event: PointerEvent | MouseEvent | TouchEvent) => {
-    if (isWithinDedupWindow(event)) {
+    if (consumeDedupRecord(event)) {
+      // Already handled at pointerup. A click on the row's native checkbox
+      // input (semantic nesting mode) would still apply the browser's own
+      // toggle on top of the editor's — suppress it. (preventDefault makes
+      // the browser revert the input to its pre-click state.)
+      if (getCheckboxInputRow(event.target) !== null) {
+        event.preventDefault();
+      }
       return;
     }
-    recordHandled(event);
+    // No recordHandled here: the dedup record exists to pair a handled touch
+    // pointerup with the click the browser synthesizes right after it.
+    // Recording plain clicks too would swallow legitimate activations that
+    // follow within the window — a rapid second mouse click, or the click
+    // synthesized when Space activates the row's native checkbox input.
     handleClick(event, peekDisableTakeFocusOnClick());
   };
   const configHandlePointerUp = (event: PointerEvent) => {
@@ -160,6 +223,19 @@ export function registerCheckList(
         const activeItem = getActiveCheckListItem(editor);
 
         if (activeItem != null && editor.isEditable()) {
+          const checkboxInput = getListItemCheckboxDOM(activeItem);
+          if (
+            checkboxInput !== null &&
+            checkboxInput === getActiveElement(activeItem)
+          ) {
+            // The row's native checkbox input (semantic nesting mode) is
+            // focused: Space activates the input itself, and the resulting
+            // click event is routed through the editor by handleClick. A
+            // stale dedup record from a touch tap whose synthesized click
+            // never arrived would swallow that click — clear it first.
+            clearDedupRecord(checkboxInput);
+            return false;
+          }
           editor.update(() => {
             const listItemNode = $getNearestNodeFromDOMNode(activeItem);
 
@@ -192,24 +268,25 @@ export function registerCheckList(
                 node => $isElementNode(node) && !node.isInline(),
               );
               if ($isListItemNode(elementNode)) {
-                const parent = elementNode.getParent();
                 if (
-                  $isListNode(parent) &&
-                  parent.getListType() === 'check' &&
+                  $isTaskListItem(elementNode) &&
                   (isElement || elementNode.getFirstDescendant() === anchorNode)
                 ) {
                   const domNode = editor.getElementByKey(elementNode.__key);
 
-                  // getActiveElement rather than document.activeElement, which
-                  // reports the shadow host in a shadow root (so this would
-                  // otherwise always re-focus and swallow the arrow key).
-                  if (
-                    domNode != null &&
-                    getActiveElement(domNode) !== domNode
-                  ) {
-                    domNode.focus();
-                    event.preventDefault();
-                    return true;
+                  if (domNode != null) {
+                    // Focus mode lives on the row's native checkbox input
+                    // when it renders one (semantic nesting mode), on the li
+                    // itself otherwise. getActiveElement rather than
+                    // document.activeElement, which reports the shadow host
+                    // in a shadow root (so this would otherwise always
+                    // re-focus and swallow the arrow key).
+                    const focusTarget = getListItemFocusTarget(domNode);
+                    if (getActiveElement(domNode) !== focusTarget) {
+                      focusTarget.focus();
+                      event.preventDefault();
+                      return true;
+                    }
                   }
                 }
               }
@@ -218,6 +295,103 @@ export function registerCheckList(
 
           return false;
         });
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand<KeyboardEvent>(
+      KEY_ARROW_RIGHT_COMMAND,
+      event => {
+        // Symmetric to ARROW_LEFT above: when a row's native checkbox input
+        // is the focused element (semantic nesting mode), Right moves the
+        // caret back into the row's text so focus is never stuck on the
+        // checkbox. Any other state defers to the default caret movement.
+        const activeItem = getActiveCheckListItem(editor);
+        if (activeItem === null) {
+          return false;
+        }
+        const checkboxInput = getListItemCheckboxDOM(activeItem);
+        if (
+          checkboxInput === null ||
+          getActiveElement(activeItem) !== checkboxInput
+        ) {
+          return false;
+        }
+        event.preventDefault();
+        // Place the caret at the *focused* row's text start, then move DOM
+        // focus off the checkbox. Ordering matters: while the input is focused
+        // the editor's DOM selection can be stale (arrow Up/Down move checkbox
+        // focus to another row without writing the DOM selection, since the
+        // reconciler won't steal focus from the input). selectStart writes a
+        // fresh DOM selection on the focused row regardless of focus, and
+        // focusing the root then hands the caret to it — so Right always lands
+        // on the text of the row whose checkbox is focused, and leaves a clean
+        // text selection so a following Left re-enters checkbox focus cleanly.
+        editor.update(() => {
+          const listItemNode = $getNearestNodeFromDOMNode(activeItem);
+          if ($isListItemNode(listItemNode)) {
+            if ($isEmptiedHostRow(listItemNode)) {
+              // Anchor on the row itself (as arrow Up/Down do): selectStart
+              // would descend into the first nested row's text.
+              listItemNode.select(0, 0);
+            } else {
+              listItemNode.selectStart();
+            }
+          }
+        });
+        const rootElement = editor.getRootElement();
+        if (rootElement !== null) {
+          rootElement.focus();
+        }
+        return true;
+      },
+      COMMAND_PRIORITY_LOW,
+    ),
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        // A check row renders its native checkbox as the first DOM child of
+        // the <li> (semantic nesting mode). Vertical arrow navigation into the
+        // row parks the browser caret at <li> offset 0 — before the checkbox —
+        // even though the editor selection resolves correctly to the row's
+        // text start. Re-apply the selection so the visible caret moves onto
+        // the text (past the checkbox), matching Home/click. Guarded to the
+        // parked-on-the-li case so it applies once and does not loop.
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+          return false;
+        }
+        const {anchor} = selection;
+        const anchorNode = anchor.getNode();
+        const parent = anchorNode.getParent();
+        if (
+          anchor.type !== 'text' ||
+          anchor.offset !== 0 ||
+          !$isListItemNode(parent) ||
+          !$isTaskListItem(parent) ||
+          parent.getFirstChild() !== anchorNode
+        ) {
+          return false;
+        }
+        const listItemDOM = editor.getElementByKey(parent.getKey());
+        if (
+          listItemDOM === null ||
+          getListItemCheckboxDOM(listItemDOM) === null
+        ) {
+          return false;
+        }
+        const domSelection = getDOMSelection(
+          listItemDOM.ownerDocument.defaultView,
+        );
+        if (domSelection === null || domSelection.anchorNode !== listItemDOM) {
+          // The caret is already on the text (or elsewhere) — nothing to fix,
+          // and re-applying would loop.
+          return false;
+        }
+        const cloned = selection.clone();
+        editor.update(() => {
+          $setSelection(cloned);
+        });
+        return false;
       },
       COMMAND_PRIORITY_LOW,
     ),
@@ -269,13 +443,22 @@ function handleCheckItemEvent(
     return;
   }
 
-  // Ignore clicks on LI that have nested lists
-  const firstChild = target.firstChild;
+  // A row's native checkbox input (semantic nesting mode) IS the checkbox:
+  // no marker geometry to measure, the hit test is the input itself.
+  if (getCheckboxInputRow(target) !== null) {
+    callback();
+    return;
+  }
 
-  if (
-    isHTMLElement(firstChild) &&
-    (firstChild.tagName === 'UL' || firstChild.tagName === 'OL')
-  ) {
+  // Only rows that render a checkbox are toggleable. $updateListItemChecked
+  // stamps aria-checked on exactly those <li>s in both modes (ARIA
+  // emulation and native input) and strips it from dedicated wrapper
+  // items, so this single mode-neutral check covers rows where a theme
+  // draws a ::before marker whose area must stay clickable. Trust the
+  // reconciler-written DOM rather than inferring from child shape — a row
+  // emptied of its inline content has a list as its first Lexical child
+  // but still renders a checkbox.
+  if (!target.hasAttribute('aria-checked')) {
     return;
   }
 
@@ -343,6 +526,12 @@ function handleClick(
       const editor = getNearestEditorFromDOMNode(domNode);
 
       if (editor != null && editor.isEditable()) {
+        // When the target is the row's native checkbox input, the browser's
+        // own toggle is left to run: the editor toggle below writes the same
+        // value through the reconciler, keeping the two in agreement.
+        // (Suppressing it instead does not work — preventDefault makes the
+        // browser revert the input after dispatch, clobbering the
+        // reconciler's write.)
         editor.update(() => {
           const node = $getNearestNodeFromDOMNode(domNode);
 
@@ -351,11 +540,19 @@ function handleClick(
               $addUpdateTag(SKIP_SELECTION_FOCUS_TAG);
               $addUpdateTag(SKIP_DOM_SELECTION_TAG);
             } else {
-              domNode.focus();
+              // A click that hit the li (themed marker area) still moves
+              // focus mode onto the row's native input when it renders one;
+              // for a click on the input itself the target is the input and
+              // it keeps focus.
+              getListItemFocusTarget(domNode).focus();
             }
             node.toggleChecked();
           }
         });
+      } else if (getCheckboxInputRow(domNode) !== null) {
+        // No editable editor to route through: revert the native toggle so
+        // the input keeps reflecting the (unchanged) editor state.
+        event.preventDefault();
       }
     }
   });
@@ -385,7 +582,14 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
   // document.activeElement, which reports the shadow host when the editor is
   // in a shadow root (so the focused <li> would otherwise be invisible here).
   const rootElement = editor.getRootElement();
-  const activeElement = rootElement ? getActiveElement(rootElement) : null;
+  let activeElement = rootElement ? getActiveElement(rootElement) : null;
+
+  // Focus mode lives on the row's native checkbox input when it renders one
+  // (semantic nesting mode); resolve it to its <li>.
+  const inputRow = getCheckboxInputRow(activeElement);
+  if (inputRow !== null) {
+    activeElement = inputRow;
+  }
 
   return isHTMLElement(activeElement) &&
     activeElement.tagName === 'LI' &&
@@ -396,38 +600,41 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
     : null;
 }
 
-function findCheckListItemSibling(
+/**
+ * Whether the item renders a checkbox row of its own ($getAllListItems
+ * already excludes dedicated wrapper items). A plain row in a check list —
+ * the mixed task-list case — is not a checkbox row, so arrow navigation
+ * skips it just as it skips non-check rows.
+ */
+function $isCheckRow(node: ListItemNode): boolean {
+  return $isTaskListItem(node);
+}
+
+/**
+ * The nearest checkbox row before/after `node` in visual order within its
+ * top-level list. Walking the flattened row list ($getAllListItems returns
+ * every rendered row in visual/document order, for both representations)
+ * handles every nesting shape uniformly: semantic hosts with several
+ * nested lists, rows emptied of their content, and check rows nested below
+ * lists of other types.
+ *
+ * @internal exported for unit tests
+ */
+export function $findCheckListItemSibling(
   node: ListItemNode,
   backward: boolean,
 ): ListItemNode | null {
-  let sibling = backward ? node.getPreviousSibling() : node.getNextSibling();
-  let parent: ElementNode | null = node;
-
-  // Going up in a tree to get non-null sibling
-  while (sibling == null && $isListItemNode(parent)) {
-    // Get li -> parent ul/ol -> parent li
-    parent = parent.getParentOrThrow().getParent();
-
-    if (parent != null) {
-      sibling = backward
-        ? parent.getPreviousSibling()
-        : parent.getNextSibling();
+  const rows = $getAllListItems($getTopListNode(node));
+  const index = rows.findIndex(row => row.is(node));
+  if (index === -1) {
+    return null;
+  }
+  const step = backward ? -1 : 1;
+  for (let i = index + step; i >= 0 && i < rows.length; i += step) {
+    if ($isCheckRow(rows[i])) {
+      return rows[i];
     }
   }
-
-  // Going down in a tree to get first non-nested list item
-  while ($isListItemNode(sibling)) {
-    const firstChild = backward
-      ? sibling.getLastChild()
-      : sibling.getFirstChild();
-
-    if (!$isListNode(firstChild)) {
-      return sibling;
-    }
-
-    sibling = backward ? firstChild.getLastChild() : firstChild.getFirstChild();
-  }
-
   return null;
 }
 
@@ -446,16 +653,26 @@ function handleArrowUpOrDown(
         return;
       }
 
-      const nextListItem = findCheckListItemSibling(listItem, backward);
+      const nextListItem = $findCheckListItemSibling(listItem, backward);
 
       if (nextListItem != null) {
-        nextListItem.selectStart();
+        if ($isEmptiedHostRow(nextListItem)) {
+          // An emptied host row: selectStart() would descend into the
+          // first nested row's text; anchor the selection on the row
+          // itself so selection and checkbox focus agree.
+          nextListItem.select(0, 0);
+        } else {
+          nextListItem.selectStart();
+        }
         const dom = editor.getElementByKey(nextListItem.__key);
 
         if (dom != null) {
+          // The row's native checkbox input carries focus mode when it
+          // renders one (semantic nesting mode).
+          const focusTarget = getListItemFocusTarget(dom);
           event.preventDefault();
           setTimeout(() => {
-            dom.focus();
+            focusTarget.focus();
           }, 0);
         }
       }

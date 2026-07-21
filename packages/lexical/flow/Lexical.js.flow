@@ -356,6 +356,10 @@ export type EditorThemeClasses = {
     listitem?: EditorThemeClassName,
     listitemChecked?: EditorThemeClassName,
     listitemUnchecked?: EditorThemeClassName,
+    listitemCheckedNative?: EditorThemeClassName,
+    listitemUncheckedNative?: EditorThemeClassName,
+    listitemCheckbox?: EditorThemeClassName,
+    listitemHost?: EditorThemeClassName,
     nested?: {
       list?: EditorThemeClassName,
       listitem?: EditorThemeClassName,
@@ -1027,6 +1031,7 @@ declare export class ElementNode extends LexicalNode {
     destination: 'clone' | 'html',
   ): boolean;
   canBeEmpty(): boolean;
+  isBlock(): boolean | null;
   canInsertTextBefore(): boolean;
   canInsertTextAfter(): boolean;
   isInline(): boolean;

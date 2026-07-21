@@ -67,7 +67,7 @@ Type \`[^another]\` to mint one.
 2. Ordered list item two
 
 - [x] Streaming shortcuts share the import grammar
-- [x] Syntax preserved via NodeState
+- Plain and task rows share one list, GitHub-style
 - [ ] Ship it
 
 ## Alerts
@@ -117,12 +117,31 @@ const theme = {
   },
   link: 'text-blue-600 underline dark:text-blue-400',
   list: {
-    checklist: 'list-none pl-0',
+    // A semantic check list is a normal <ul> (it already gets the `ul` key's
+    // list-disc): the marker is controlled per row, so the checkbox rows drop
+    // their own bullet (listitem*Native's list-none) while a plain row in a
+    // mixed task list keeps it. The list must NOT force list-none here, or it
+    // would kill the plain rows' bullets too.
+    checklist: '',
     listitem: 'mx-6 my-0.5',
-    listitemChecked:
-      'relative list-none pl-6 line-through text-zinc-500 before:absolute before:top-0.5 before:left-0 before:flex before:h-4 before:w-4 before:items-center before:justify-center before:rounded-sm before:border before:border-solid before:border-zinc-400 before:bg-blue-500 before:text-[10px] before:leading-none before:text-white before:content-["✓"]',
-    listitemUnchecked:
-      'relative list-none pl-6 before:absolute before:top-0.5 before:left-0 before:h-4 before:w-4 before:rounded-sm before:border before:border-solid before:border-zinc-400 before:bg-transparent before:content-[""]',
+    // Position the checkbox absolutely in the marker column (like a list
+    // bullet) rather than inline: an inline input is a caret stop, so the
+    // row's "start" would land before the checkbox (Home/Ctrl-A/click). Out
+    // of flow, the row's text is the first thing the caret can reach, its
+    // text aligns with the plain (bulleted) rows, and wrapped lines keep the
+    // hanging indent. The *Native keys make the row `relative` so this anchors
+    // to it.
+    listitemCheckbox:
+      'absolute -left-[1.4em] top-[0.3em] h-4 w-4 cursor-pointer',
+    // This example enables the semantic nesting ListExtension config, so
+    // check-list rows render a real <input type="checkbox"> and the
+    // reconciler applies the *Native theme keys (not listitemChecked /
+    // listitemUnchecked, which draw the emulated ::before checkbox). These
+    // carry only the checked-state row styling (and `relative`, the
+    // positioning context for the absolutely placed checkbox); listitemCheckbox
+    // styles the real input.
+    listitemCheckedNative: 'relative list-none line-through text-zinc-500',
+    listitemUncheckedNative: 'relative list-none',
     nested: {
       listitem: 'list-none',
     },

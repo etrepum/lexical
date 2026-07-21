@@ -18,6 +18,9 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
+  $isListSemanticNestingEnabled,
+  $listItemEmitsRow,
+  $markPlainImportedCheckRows,
   ListItemNode,
   ListNode,
   type ListType,
@@ -428,7 +431,37 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       firstMatchChar === listMarkerState.parse(firstMatchChar)
         ? firstMatchChar
         : undefined;
-    if ($isListNode(nextNode) && nextNode.getListType() === listType) {
+    // GitHub renders consecutive `- [ ]` and `- ` lines as one task list (the
+    // plain rows have no checkbox). When importing in the semantic nesting
+    // mode, treat bullet and check as the same kind so those lines merge into
+    // a single list instead of splitting into a bullet list and a check list;
+    // the resulting list is a check list if either side is, and its non-task
+    // rows are marked plain by $reconcileMixedList. Restricted to import
+    // (isImport): live typing keeps the classic same-type rule so a typed
+    // checkbox never retroactively converts an adjacent bullet list, and
+    // default-mode import is unchanged.
+    const semantic = isImport && $isListSemanticNestingEnabled();
+    const isUnordered = (type: ListType) =>
+      type === 'bullet' || type === 'check';
+    const $mergeable = (sibling: ListNode): boolean =>
+      sibling.getListType() === listType ||
+      (semantic && isUnordered(sibling.getListType()) && isUnordered(listType));
+    // Promote a merged list to a check list when a task row joined it, then
+    // mark its non-task rows plain. A no-op outside the semantic mode.
+    const $reconcileMixedList = (list: ListNode): void => {
+      if (!semantic) {
+        return;
+      }
+      if (listType === 'check' && list.getListType() !== 'check') {
+        list.setListType('check');
+      }
+      $markPlainImportedCheckRows(
+        list.getChildren().filter($isListItemNode),
+        list,
+      );
+    };
+    let targetList: ListNode;
+    if ($isListNode(nextNode) && $mergeable(nextNode)) {
       if (listMarker) {
         $setState(nextNode, listMarkerState, listMarker);
       }
@@ -444,17 +477,16 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       if (listType === 'number') {
         nextNode.setStart(Number(match[2]));
       }
+      targetList = nextNode;
       parentNode.remove();
-    } else if (
-      $isListNode(previousNode) &&
-      previousNode.getListType() === listType
-    ) {
+    } else if ($isListNode(previousNode) && $mergeable(previousNode)) {
       if (listMarker) {
         $setState(previousNode, listMarkerState, listMarker);
       }
       // The new item is appended at the end and inherits the existing
       // sequence, so the typed number is intentionally ignored here.
       previousNode.append(listItem);
+      targetList = previousNode;
       parentNode.remove();
     } else {
       const list = $createListNode(
@@ -466,7 +498,12 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       }
       list.append(listItem);
       parentNode.replace(list);
+      targetList = list;
     }
+    // Reconcile before appending content / indenting: the mark keys off the
+    // item's checked field (already set at creation), and setIndent may move
+    // the row into a nested list where it is no longer a direct child.
+    $reconcileMixedList(targetList);
     listItem.append(...children);
     if (!isImport) {
       listItem.select(0, 0);
@@ -489,11 +526,53 @@ const $listExport = (
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
-      if (listItemNode.getChildrenSize() === 1) {
-        const firstChild = listItemNode.getFirstChild();
-        if ($isListNode(firstChild)) {
+      // A dedicated wrapper renders no row of its own, nor does a host row
+      // whose own content is not selected in a selection export; only their
+      // nested rows are exported. $listItemEmitsRow is the shared decision
+      // (also used by the mdast exporter) — a host whose nested rows alone
+      // are selected must not emit a row, matching the default
+      // representation where the unselected inline content lives in a
+      // separate li that is skipped.
+      const emitsRow = $listItemEmitsRow(
+        listItemNode,
+        selection != null,
+        node => selection != null && node.isSelected(selection),
+      );
+      if (emitsRow) {
+        const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
+        const listType = listNode.getListType();
+        const listMarker = $getState(listNode, listMarkerState);
+        // getChecked() is a boolean only for a task row; a plain row in a
+        // mixed check list reports undefined and exports as a bare `- item`,
+        // matching GitHub's mixed task lists.
+        const checked = listItemNode.getChecked();
+        const prefix =
+          listType === 'number'
+            ? `${listNode.getStart() + index}. `
+            : listType === 'check' && checked !== undefined
+              ? `${listMarker} [${checked ? 'x' : ' '}] `
+              : listMarker + ' ';
+        // exportChildren yields only the row's own content; nested
+        // ListNode children are handled below (see the list-item guard in
+        // MarkdownExport's $exportChildren).
+        let childrenText = exportChildren(listItemNode);
+        if (listType !== 'number') {
+          childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
+        }
+        output.push(indent + prefix + childrenText);
+        index++;
+      }
+      // Nested lists — the sole content of a wrapper item, or trailing a
+      // row's content in the semantic representation — export one level
+      // deeper. Link-walk, no children array allocation.
+      for (
+        let child = listItemNode.getFirstChild();
+        child !== null;
+        child = child.getNextSibling()
+      ) {
+        if ($isListNode(child)) {
           const nestedResult = $listExport(
-            firstChild,
+            child,
             exportChildren,
             depth + 1,
             selection,
@@ -501,31 +580,8 @@ const $listExport = (
           if (nestedResult) {
             output.push(nestedResult);
           }
-          continue;
         }
       }
-      // Skip unselected list items when selection is provided
-      if (
-        selection &&
-        !listItemNode.getChildren().some(child => child.isSelected(selection))
-      ) {
-        continue;
-      }
-      const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
-      const listType = listNode.getListType();
-      const listMarker = $getState(listNode, listMarkerState);
-      const prefix =
-        listType === 'number'
-          ? `${listNode.getStart() + index}. `
-          : listType === 'check'
-            ? `${listMarker} [${listItemNode.getChecked() ? 'x' : ' '}] `
-            : listMarker + ' ';
-      let childrenText = exportChildren(listItemNode);
-      if (listType !== 'number') {
-        childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
-      }
-      output.push(indent + prefix + childrenText);
-      index++;
     }
   }
 
