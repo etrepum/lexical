@@ -87,6 +87,7 @@ export {
   batch,
   computed,
   effect,
+  type ReadableSignal,
   type ReadonlySignal,
   type Signal,
   signal,

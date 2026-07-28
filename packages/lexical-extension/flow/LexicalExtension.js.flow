@@ -86,7 +86,12 @@ export interface ReadonlySignal<T = unknown> {
   valueOf(): T;
   toString(): string;
   toJSON(): T;
-  brand: symbol;  
+  brand: symbol;
+}
+export interface ReadableSignal<T = unknown> {
+  readonly value: T;
+  peek(): T;
+  subscribe(fn: (value: T) => void): () => void;
 }
 export type SignalOptions<T = unknown> = {
   watched?: (this: Signal<T>) => void;
