@@ -8,14 +8,7 @@
 
 import {batch, namedSignals} from '@lexical/extension';
 import {HistoryExtension} from '@lexical/history';
-import {mergeRegister} from '@lexical/utils';
-import {
-  $getSelection,
-  $isRangeSelection,
-  COMMAND_PRIORITY_LOW,
-  defineExtension,
-  SELECTION_CHANGE_COMMAND,
-} from 'lexical';
+import {$getSelection, $isRangeSelection, defineExtension} from 'lexical';
 
 /**
  * Owns the toolbar's reactive state. It is completely framework-agnostic — it
@@ -50,27 +43,27 @@ export const ToolbarStateExtension = /* @__PURE__ */ defineExtension({
     const out = state.getOutput();
     const $sync = () => {
       const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        // `batch` coalesces the writes into a single signal notification so
-        // subscribers re-render once per sync, not once per format flip.
-        batch(() => {
-          out.isBold.value = selection.hasFormat('bold');
-          out.isItalic.value = selection.hasFormat('italic');
-          out.isUnderline.value = selection.hasFormat('underline');
-          out.isStrikethrough.value = selection.hasFormat('strikethrough');
-        });
-      }
+      // Without a range selection (a NodeSelection on the review card, or no
+      // selection at all) there is no active text format, so reset the flags to
+      // `false` rather than leaving the previous selection's values stale.
+      const isRange = $isRangeSelection(selection);
+      // `batch` coalesces the writes into a single signal notification so
+      // subscribers re-render once per sync, not once per format flip.
+      batch(() => {
+        out.isBold.value = isRange && selection.hasFormat('bold');
+        out.isItalic.value = isRange && selection.hasFormat('italic');
+        out.isUnderline.value = isRange && selection.hasFormat('underline');
+        out.isStrikethrough.value =
+          isRange && selection.hasFormat('strikethrough');
+      });
     };
-    return mergeRegister(
-      editor.registerUpdateListener(({editorState}) => editorState.read($sync)),
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        () => {
-          $sync();
-          return false;
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
+    // A DOM selection change commits as an update (Lexical's `onSelectionChange`
+    // runs inside `updateEditorSync` and dispatches `SELECTION_CHANGE_COMMAND`
+    // there), so the update listener already fires on selection-only changes —
+    // reading the committed selection with its freshly-computed format. A
+    // separate `SELECTION_CHANGE_COMMAND` handler would be redundant here.
+    return editor.registerUpdateListener(({editorState}) =>
+      editorState.read($sync),
     );
   },
 });
