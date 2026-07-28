@@ -234,11 +234,19 @@ export const ReviewCardExtension = /* @__PURE__ */ defineExtension({
 });
 
 /**
- * The Octane rendering for every ReviewCard. `decorate()` returns each node's
- * key; this extension keeps one Octane root per live card, mounted into the
- * card's (non-editable) host DOM, and unmounts it when the card is destroyed.
- * This is the whole "render part of the editor with Octane" story: the chrome,
- * the interactive rating and the slot frames are all Octane.
+ * The Octane rendering for every ReviewCard: one Octane root per live card,
+ * mounted into the card's (non-editable) host DOM and unmounted when the card
+ * is destroyed. This is the whole "render part of the editor with Octane"
+ * story — the chrome, the interactive rating and the slot frames are all
+ * Octane.
+ *
+ * Rendering is driven by a **mutation listener**, the framework-agnostic way to
+ * bind an external renderer to a node type (it's how `HorizontalRuleExtension`
+ * renders its vanilla decorator). `registerDecoratorListener` is deliberately
+ * avoided: it exists only to feed React's `useDecorators` and has no place in a
+ * new, framework-neutral app. A `DOMRenderExtension` override could replace the
+ * host box `createDOM` builds if it needed custom structure, but here an empty
+ * box is all the Octane tree needs to mount into.
  */
 export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
   dependencies: [ReviewCardExtension, WatchEditableExtension],
@@ -248,55 +256,78 @@ export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
       editor,
       WatchEditableExtension,
     ).output;
-    // Per node key: the Octane root and the inner element it renders into. The
-    // inner element keeps Octane's initial container-clear off of the slot
-    // placeholders the reconciler parks directly in the host DOM.
+    // Keys of the live cards, and the Octane root + inner element each is
+    // rendered into. The inner element keeps Octane's initial container-clear
+    // off of the slot placeholders the reconciler parks in the host DOM.
+    const liveKeys = new Set<NodeKey>();
     const mounts = new Map<
       NodeKey,
-      {host: HTMLElement; mount: HTMLElement; root: Root}
+      {host: HTMLElement; container: HTMLElement; root: Root}
     >();
 
     const unmountKey = (key: NodeKey) => {
       const entry = mounts.get(key);
       if (entry) {
         entry.root.unmount();
-        entry.mount.remove();
+        entry.container.remove();
         mounts.delete(key);
       }
     };
 
-    return mergeRegister(
-      editor.registerDecoratorListener<string>(decorators => {
-        const keys = new Set(Object.keys(decorators));
-        for (const key of keys) {
-          const host = editor.getElementByKey(key);
-          if (host === null) {
-            continue;
-          }
-          const entry = mounts.get(key);
-          // Re-mount if the host DOM was recreated (e.g. the node was moved).
-          if (entry && entry.host === host) {
-            continue;
-          }
-          if (entry) {
-            unmountKey(key);
-          }
-          const mount = document.createElement('div');
-          mount.className = 'octane-review-root';
-          host.appendChild(mount);
-          const root = createRoot(mount);
-          root.render(
-            <ReviewCardChrome
-              editor={editor}
-              nodeKey={key}
-              editable={editable}
-            />,
-          );
-          mounts.set(key, {host, mount, root});
+    const mountKey = (key: NodeKey) => {
+      const host = editor.getElementByKey(key);
+      if (host === null) {
+        // The node's DOM isn't attached yet (e.g. a card seeded before the
+        // root element was set); the root listener retries once it is.
+        return;
+      }
+      const entry = mounts.get(key);
+      if (entry) {
+        if (entry.host === host) {
+          return; // Already mounted on the current host DOM.
         }
-        for (const key of [...mounts.keys()]) {
-          if (!keys.has(key)) {
+        unmountKey(key); // Host element was recreated — remount into the new one.
+      }
+      const container = document.createElement('div');
+      container.className = 'octane-review-root';
+      host.appendChild(container);
+      const root = createRoot(container);
+      root.render(
+        <ReviewCardChrome editor={editor} nodeKey={key} editable={editable} />,
+      );
+      mounts.set(key, {container, host, root});
+    };
+
+    return mergeRegister(
+      editor.registerMutationListener(
+        ReviewCardNode,
+        nodes => {
+          for (const [key, mutation] of nodes) {
+            if (mutation === 'destroyed') {
+              liveKeys.delete(key);
+              unmountKey(key);
+            } else {
+              liveKeys.add(key);
+              mountKey(key);
+            }
+          }
+        },
+        // Fire for cards already present when the editor is built (the seeded
+        // sample), not just for later edits.
+        {skipInitialization: false},
+      ),
+      // `setRootElement` commits pending updates (attaching node DOM) before it
+      // fires root listeners, so `getElementByKey` resolves here. This mounts
+      // cards whose host DOM only became available when the editor attached,
+      // and tears every root down when it detaches (e.g. on dispose).
+      editor.registerRootListener(rootElement => {
+        if (rootElement === null) {
+          for (const key of [...mounts.keys()]) {
             unmountKey(key);
+          }
+        } else {
+          for (const key of liveKeys) {
+            mountKey(key);
           }
         }
       }),

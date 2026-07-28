@@ -18,8 +18,12 @@ framework-neutral seams so the modern extension model stays front and center.
 - **A `DecoratorNode` rendered by Octane.** `ReviewCardNode`
   ([`src/ReviewCardNode.ts`](./src/ReviewCardNode.ts)) is an atomic block whose
   chrome — an interactive star widget and two editable frames — is an Octane
-  component mounted per node key into the node's host DOM
-  ([`src/ReviewCardExtension.tsx`](./src/ReviewCardExtension.tsx)).
+  root mounted per node key into the node's host DOM
+  ([`src/ReviewCardExtension.tsx`](./src/ReviewCardExtension.tsx)). The mount is
+  driven by a **mutation listener** (the framework-agnostic binding, as in
+  `HorizontalRuleExtension`), not `registerDecoratorListener` — that listener
+  and `decorate()` exist only to feed React's `useDecorators`, so a
+  framework-neutral node skips both.
 - **`$config`, NodeState and named slots.** One `$config()` call declares the
   node's type, its `rating` NodeState (`createState`) and its `quote` /
   `attribution` **slots**. Slots replace nested editors: both regions are edited

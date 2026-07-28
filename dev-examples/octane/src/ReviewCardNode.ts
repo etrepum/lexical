@@ -54,10 +54,14 @@ const ratingState = /* @__PURE__ */ createState('rating', {
  *   framework. Here that framework is **Octane** — see `ReviewCardExtension`.
  *
  * The DOM produced by `createDOM` is just an empty, non-editable host box; the
- * Octane chrome is mounted into it and reveals the slot containers the
- * reconciler parks inside (hidden) on every commit.
+ * Octane chrome is mounted into it (by `OctaneReviewCardExtension`, off a
+ * mutation listener) and reveals the slot containers the reconciler parks
+ * inside (hidden) on every commit. There is deliberately no `decorate()`
+ * override: `decorate()` and `registerDecoratorListener` exist to feed React's
+ * `useDecorators`, so a framework-agnostic node leaves the base `null` in place
+ * and drives its own rendering.
  */
-export class ReviewCardNode extends DecoratorNode<string> {
+export class ReviewCardNode extends DecoratorNode<null> {
   $config() {
     return this.config('octane-review-card', {
       extends: DecoratorNode,
@@ -88,15 +92,6 @@ export class ReviewCardNode extends DecoratorNode<string> {
 
   isInline(): false {
     return false;
-  }
-
-  /**
-   * The rendering is owned by Octane (mounted per node key by
-   * `ReviewCardExtension`), not by a decorator framework wired into the
-   * reconciler, so the value here is just the node key that keys that mount.
-   */
-  decorate(): string {
-    return this.__key;
   }
 
   /**
