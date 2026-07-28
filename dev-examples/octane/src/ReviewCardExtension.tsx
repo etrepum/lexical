@@ -10,6 +10,7 @@
 
 import {
   getExtensionDependencyFromEditor,
+  namedSignals,
   type ReadableSignal,
   WatchEditableExtension,
 } from '@lexical/extension';
@@ -35,7 +36,7 @@ import {
   type LexicalEditor,
   type NodeKey,
 } from 'lexical';
-import {createRoot, type Root, useState} from 'octane';
+import {createPortal, useState} from 'octane';
 
 import {useEditorRead, useSignal, useSlotRef} from './octane-bridge';
 import {
@@ -230,100 +231,81 @@ export const ReviewCardExtension = /* @__PURE__ */ defineExtension({
 });
 
 /**
- * The Octane rendering for every ReviewCard: one Octane root per live card,
- * mounted into the card's (non-editable) host DOM and unmounted when the card
- * is destroyed. This is the whole "render part of the editor with Octane"
- * story — the chrome, the interactive rating and the slot frames are all
- * Octane.
- *
- * Rendering is driven by a **mutation listener**, the framework-agnostic way to
- * bind an external renderer to a node type (it's how `HorizontalRuleExtension`
- * renders its vanilla decorator). `registerDecoratorListener` is deliberately
- * avoided: it exists only to feed React's `useDecorators` and has no place in a
- * new, framework-neutral app. A `DOMRenderExtension` override could replace the
- * host box `createDOM` builds if it needed custom structure, but here an empty
- * box is all the Octane tree needs to mount into.
+ * Tracks which ReviewCards are currently live, as a signal keyed by NodeKey.
+ * A **mutation listener** is the single source of truth (the framework-agnostic
+ * way to bind an external renderer to a node type — it's how
+ * `HorizontalRuleExtension` renders its vanilla decorator, and it avoids
+ * `registerDecoratorListener`, which exists only to feed React's
+ * `useDecorators`). The Octane `ReviewCardPortals` component reads this signal
+ * and renders one chrome per live card. Nothing here imports Octane's
+ * client-only `createRoot`, so this module is safe in the SSR bundle too.
  */
 export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
+  build: () => namedSignals({liveKeys: [] as readonly NodeKey[]}),
   dependencies: [ReviewCardExtension, WatchEditableExtension],
   name: '@lexical/examples/octane/OctaneReviewCard',
-  register: editor => {
-    const editable = getExtensionDependencyFromEditor(
-      editor,
-      WatchEditableExtension,
-    ).output;
-    // The only tracking needed: the Octane root (and the inner element it
-    // renders into) for each currently-mounted card, keyed by NodeKey. The
-    // mutation listener is the single source of truth for which cards are live,
-    // so there's no separate set to keep in sync. The inner element keeps
-    // Octane's initial container-clear off of the slot placeholders the
-    // reconciler parks in the host DOM.
-    const mounts = new Map<
-      NodeKey,
-      {host: HTMLElement; container: HTMLElement; root: Root}
-    >();
-
-    const unmountKey = (key: NodeKey) => {
-      const entry = mounts.get(key);
-      if (entry) {
-        entry.root.unmount();
-        entry.container.remove();
-        mounts.delete(key);
-      }
-    };
-
-    // Idempotent: mounts the card if its host DOM exists and it isn't already
-    // mounted there, and re-mounts if the host element was recreated.
-    const mountKey = (key: NodeKey) => {
-      const host = editor.getElementByKey(key);
-      if (host === null) {
-        return;
-      }
-      const entry = mounts.get(key);
-      if (entry) {
-        if (entry.host === host) {
-          return;
-        }
-        unmountKey(key);
-      }
-      const container = document.createElement('div');
-      container.className = 'octane-review-root';
-      host.appendChild(container);
-      const root = createRoot(container);
-      root.render(
-        <ReviewCardChrome editor={editor} nodeKey={key} editable={editable} />,
-      );
-      mounts.set(key, {container, host, root});
-    };
-
-    // Deleting the current key during a Map key-iteration is well-defined (the
-    // iterator advances past it), and `unmountKey` only deletes the key it's
-    // given, so no snapshot of the keys is needed here.
-    const unmountAll = () => {
-      for (const key of mounts.keys()) {
-        unmountKey(key);
-      }
-    };
-
-    return mergeRegister(
-      editor.registerMutationListener(
-        ReviewCardNode,
-        nodes => {
-          for (const [key, mutation] of nodes) {
-            if (mutation === 'destroyed') {
-              unmountKey(key);
-            } else {
-              mountKey(key);
-            }
+  register: (editor, _config, state) => {
+    const {liveKeys} = state.getOutput();
+    return editor.registerMutationListener(
+      ReviewCardNode,
+      nodes => {
+        const next = new Set(liveKeys.peek());
+        let changed = false;
+        for (const [key, mutation] of nodes) {
+          if (mutation === 'destroyed') {
+            changed = next.delete(key) || changed;
+          } else if (!next.has(key)) {
+            next.add(key);
+            changed = true;
           }
-        },
-        // The seeded card is covered without any extra wiring: the
-        // `$initialEditorState` update stays pending until a root element
-        // exists, so `setRootElement` commits it — creating the card's DOM and
-        // firing this listener with `getElementByKey` already resolving.
-        {skipInitialization: false},
-      ),
-      unmountAll,
+        }
+        if (changed) {
+          liveKeys.value = [...next];
+        }
+      },
+      // The seeded card is covered without any extra wiring: the
+      // `$initialEditorState` update stays pending until a root element exists,
+      // so `setRootElement` commits it — creating the card's DOM and firing
+      // this listener with `getElementByKey` already resolving.
+      {skipInitialization: false},
     );
   },
 });
+
+/**
+ * The Octane rendering for every live ReviewCard: a `createPortal` per card
+ * projecting the chrome (the interactive rating and the two slot frames) into
+ * the card's host DOM, which lives inside the Lexical-managed contenteditable.
+ * This is the "render part of the editor with Octane" story. `createPortal`
+ * (unlike `createRoot`) is part of the main Octane tree, so it works under SSR
+ * too — where `liveKeys` is empty (the server editor has no live model), so
+ * nothing is portaled and the prerendered content HTML stands alone until the
+ * client hydrates.
+ */
+export function ReviewCardPortals({editor}: {editor: LexicalEditor}) {
+  const liveKeys = useSignal(
+    getExtensionDependencyFromEditor(editor, OctaneReviewCardExtension).output
+      .liveKeys,
+  );
+  const editable = getExtensionDependencyFromEditor(
+    editor,
+    WatchEditableExtension,
+  ).output;
+  return (
+    <>
+      {liveKeys.map(key => {
+        const host = editor.getElementByKey(key);
+        return host === null
+          ? null
+          : createPortal(
+              <ReviewCardChrome
+                editor={editor}
+                nodeKey={key}
+                editable={editable}
+              />,
+              host,
+            );
+      })}
+    </>
+  );
+}

@@ -11,6 +11,7 @@
   "dependencies": {
     "@lexical/clipboard": "workspace:*",
     "@lexical/extension": "workspace:*",
+    "@lexical/headless": "workspace:*",
     "@lexical/history": "workspace:*",
     "@lexical/html": "workspace:*",
     "@lexical/link": "workspace:*",

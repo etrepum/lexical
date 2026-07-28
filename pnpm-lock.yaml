@@ -472,6 +472,9 @@ importers:
       '@lexical/extension':
         specifier: workspace:*
         version: link:../../packages/lexical-extension
+      '@lexical/headless':
+        specifier: workspace:*
+        version: link:../../packages/lexical-headless
       '@lexical/history':
         specifier: workspace:*
         version: link:../../packages/lexical-history
@@ -17125,7 +17128,7 @@ snapshots:
 
   '@docusaurus/react-loadable@6.0.0(react@19.2.5)':
     dependencies:
-      '@types/react': 19.2.16
+      '@types/react': 19.2.17
       react: 19.2.5
 
   '@docusaurus/theme-classic@3.10.1(@docusaurus/faster@3.10.1(@docusaurus/types@3.10.1(@swc/core@1.15.24(@swc/helpers@0.5.21))(esbuild@0.28.1)(postcss@8.5.15)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@swc/helpers@0.5.21)(esbuild@0.28.1)(postcss@8.5.15))(@rspack/core@1.7.11(@swc/helpers@0.5.21))(@swc/core@1.15.24(@swc/helpers@0.5.21))(@types/react@19.2.17)(esbuild@0.28.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)':
@@ -20200,7 +20203,7 @@ snapshots:
   '@types/react-router@5.1.20':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.16
+      '@types/react': 19.2.17
 
   '@types/react@19.2.14':
     dependencies:

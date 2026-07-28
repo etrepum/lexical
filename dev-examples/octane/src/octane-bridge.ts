@@ -37,11 +37,15 @@ export type SlotRefCallback<T> = (element: T | null) => (() => void) | void;
  * Subscribe an Octane component to a Lexical/preact signal. `subscribe` fires
  * once immediately and again on every change; `peek()` reads the current value
  * without creating a dependency, which is exactly the `getSnapshot` contract.
+ * The same `peek()` is the server snapshot, so this works under SSR (where
+ * `subscribe` is never called).
  */
 export function useSignal<T>(signal: ReadableSignal<T>): T {
+  const getSnapshot = () => signal.peek();
   return useSyncExternalStore(
     useCallback(onChange => signal.subscribe(() => onChange()), [signal]),
-    () => signal.peek(),
+    getSnapshot,
+    getSnapshot,
   );
 }
 
@@ -53,12 +57,14 @@ export function useSignal<T>(signal: ReadableSignal<T>): T {
  * pending updates, which must never happen from a render-phase `getSnapshot`.
  */
 export function useEditorRead<T>(editor: LexicalEditor, read: () => T): T {
+  const getSnapshot = () => editor.read('latest', read);
   return useSyncExternalStore(
     useCallback(
       onChange => editor.registerUpdateListener(() => onChange()),
       [editor],
     ),
-    () => editor.read('latest', read),
+    getSnapshot,
+    getSnapshot,
   );
 }
 
