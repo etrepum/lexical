@@ -10,7 +10,7 @@
 
 import type {OctaneEditor} from './editor';
 
-import {useEffect, useRef, useState} from 'octane';
+import {useCallback, useEffect, useState} from 'octane';
 
 import {createReviewEditor} from './editor';
 import {useSignal} from './octane-bridge';
@@ -32,19 +32,22 @@ function StatePanel({context}: {context: OctaneEditor}) {
 const PLACEHOLDER = 'The whole page is Octane, the editor is Lexical…';
 
 export function App() {
-  // The Lexical editor is created once, after the contenteditable host mounts.
-  const [context, setContext] = useState<OctaneEditor | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // The editor needs no DOM to be constructed, so build it synchronously on the
+  // first render. The contenteditable host is attached later through the ref
+  // callback below — no null-context flicker, no guards on the view.
+  const [context] = useState<OctaneEditor>(createReviewEditor);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (container === null) {
-      return;
-    }
-    const built = createReviewEditor(container);
-    setContext(built);
-    return () => built.editor.dispose();
-  }, []);
+  // Attach/detach the editor's root element as the contenteditable mounts and
+  // unmounts. The callback is stable (context never changes), so it doesn't
+  // churn the root element on re-render.
+  const rootRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      context.editor.setRootElement(element);
+    },
+    [context],
+  );
+
+  useEffect(() => () => context.editor.dispose(), [context]);
 
   return (
     <div className="octane-page">
@@ -65,21 +68,19 @@ export function App() {
       </header>
 
       <div className="octane-editor-shell">
-        {context !== null ? (
-          <Toolbar editor={context.editor} toolbar={context.toolbar} />
-        ) : null}
+        <Toolbar editor={context.editor} toolbar={context.toolbar} />
         <div className="octane-editor-scroll">
           <div
             className="octane-editor-input"
             role="textbox"
             aria-placeholder={PLACEHOLDER}
             contentEditable={true}
-            ref={containerRef}
+            ref={rootRef}
           />
         </div>
       </div>
 
-      {context !== null ? <StatePanel context={context} /> : null}
+      <StatePanel context={context} />
     </div>
   );
 }

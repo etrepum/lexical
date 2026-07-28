@@ -106,6 +106,10 @@ body {
   color: var(--accent);
 }
 
+.octane-toolbar-icon {
+  font-size: 19px;
+}
+
 .octane-toolbar-item:disabled {
   opacity: 0.35;
   cursor: default;
@@ -312,14 +316,25 @@ body {
 }
 
 .octane-review-stars {
-  display: inline-flex;
-  gap: 2px;
+  /* A flex item of `.octane-review-head`; `flex: 0 0 auto` keeps it sized to
+   * its content (blockification would otherwise let it stretch and spread the
+   * stars). */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .octane-review-star {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
-  padding: 0 1px;
+  padding: 0;
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -343,6 +358,16 @@ body {
   font-size: 17px;
   line-height: 1.55;
   margin: 6px 0 10px;
+  /* Padding + a min-height give the caret somewhere to sit when the slot is
+   * empty (a freshly inserted card); with neither, an empty field collapses
+   * and the blinking cursor is invisible. */
+  padding: 4px 6px;
+  min-height: calc(1.55em + 8px);
+  border-radius: 6px;
+}
+
+.octane-review-body:focus-within {
+  background: rgba(109, 40, 217, 0.04);
 }
 
 .octane-review-body .editor-paragraph:last-child {
@@ -364,6 +389,13 @@ body {
 .octane-review-attribution-field {
   font-weight: 600;
   font-style: italic;
+  padding: 2px 6px;
+  min-height: 1.4em;
+  border-radius: 6px;
+}
+
+.octane-review-attribution-field:focus-within {
+  background: rgba(109, 40, 217, 0.04);
 }
 
 .octane-review-attribution-field .editor-paragraph {
@@ -371,6 +403,12 @@ body {
 }
 
 .octane-slot-container {
+  outline: none;
+}
+
+/* The slot containers mount as contentEditable islands; suppress the browser
+ * focus ring in favor of the subtle `:focus-within` background above. */
+.octane-review-chrome [contenteditable]:focus {
   outline: none;
 }
 

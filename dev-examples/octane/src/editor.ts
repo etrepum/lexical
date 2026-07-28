@@ -52,13 +52,9 @@ function $prepopulate(): void {
   );
 }
 
-export type ToolbarState = ReturnType<typeof buildToolbarState>;
-
-function buildToolbarState(
-  editor: ReturnType<typeof buildEditorFromExtensions>,
-) {
-  return getExtensionDependencyFromEditor(editor, ToolbarStateExtension).output;
-}
+export type ToolbarState = ReturnType<
+  typeof getExtensionDependencyFromEditor<typeof ToolbarStateExtension>
+>['output'];
 
 export interface OctaneEditor {
   editor: ReturnType<typeof buildEditorFromExtensions>;
@@ -69,19 +65,17 @@ export interface OctaneEditor {
 }
 
 /**
- * Build the framework-agnostic editor with `buildEditorFromExtensions` and wire
- * it to `container`. Every feature is an extension — including our toolbar-state
- * and Octane review-card extensions — so there is no plugin/component tree here,
- * just a topologically-sorted list. Returns the editor plus the signals the
- * Octane view layer reads.
+ * Build the framework-agnostic editor with `buildEditorFromExtensions`. Every
+ * feature is an extension — including our toolbar-state and Octane review-card
+ * extensions — so there is no plugin/component tree here, just a
+ * topologically-sorted list. The editor needs no DOM to exist: it is built
+ * synchronously and the caller attaches a root element later via
+ * `editor.setRootElement`. Returns the editor plus the signals the Octane view
+ * layer reads.
  */
-export function createReviewEditor(container: HTMLElement): OctaneEditor {
+export function createReviewEditor(): OctaneEditor {
   const editor = buildEditorFromExtensions({
     $initialEditorState: $prepopulate,
-    afterRegistration(editorInstance) {
-      editorInstance.setRootElement(container);
-      return () => editorInstance.setRootElement(null);
-    },
     dependencies: [
       RichTextExtension,
       ListExtension,
@@ -109,6 +103,7 @@ export function createReviewEditor(container: HTMLElement): OctaneEditor {
     editor,
     editorState: getExtensionDependencyFromEditor(editor, EditorStateExtension)
       .output,
-    toolbar: buildToolbarState(editor),
+    toolbar: getExtensionDependencyFromEditor(editor, ToolbarStateExtension)
+      .output,
   };
 }

@@ -7,36 +7,44 @@
  */
 
 import {batch, namedSignals} from '@lexical/extension';
+import {HistoryExtension} from '@lexical/history';
 import {mergeRegister} from '@lexical/utils';
 import {
   $getSelection,
   $isRangeSelection,
-  CAN_REDO_COMMAND,
-  CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_LOW,
   defineExtension,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 
 /**
- * Owns the toolbar's reactive state as a small set of signals and keeps them in
- * sync with the editor. This extension is completely framework-agnostic — it
- * knows nothing about Octane. The Octane `Toolbar` component reads these signals
- * through the `useSignal` bridge, so the editor-side and view-side
- * responsibilities stay cleanly separated (exactly the pattern the React
- * `useExtensionSignalValue` demos use, minus React).
+ * Owns the toolbar's reactive state. It is completely framework-agnostic — it
+ * knows nothing about Octane; the `Toolbar` component reads these signals
+ * through the `useSignal` bridge (the pattern the React `useExtensionSignalValue`
+ * demos use, minus React).
+ *
+ * The four text-format flags are derived from the selection here. Undo/redo
+ * availability is NOT re-derived: this extension depends on
+ * `HistoryExtension` and re-exposes its `canUndo` / `canRedo` signals directly,
+ * rather than mirroring `CAN_UNDO_COMMAND` / `CAN_REDO_COMMAND` (which exist for
+ * the legacy imperative flow). Declaring the dependency is what makes those
+ * signals available to `build`.
  */
 export const ToolbarStateExtension = /* @__PURE__ */ defineExtension({
-  build() {
-    return namedSignals({
-      canRedo: false,
-      canUndo: false,
-      isBold: false,
-      isItalic: false,
-      isStrikethrough: false,
-      isUnderline: false,
-    });
+  build(_editor, _config, state) {
+    const history = state.getDependency(HistoryExtension).output;
+    return {
+      ...namedSignals({
+        isBold: false,
+        isItalic: false,
+        isStrikethrough: false,
+        isUnderline: false,
+      }),
+      canRedo: history.canRedo,
+      canUndo: history.canUndo,
+    };
   },
+  dependencies: [HistoryExtension],
   name: '@lexical/examples/octane/ToolbarState',
   register(editor, _config, state) {
     const out = state.getOutput();
@@ -59,22 +67,6 @@ export const ToolbarStateExtension = /* @__PURE__ */ defineExtension({
         SELECTION_CHANGE_COMMAND,
         () => {
           $sync();
-          return false;
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-      editor.registerCommand(
-        CAN_UNDO_COMMAND,
-        payload => {
-          out.canUndo.value = payload;
-          return false;
-        },
-        COMMAND_PRIORITY_LOW,
-      ),
-      editor.registerCommand(
-        CAN_REDO_COMMAND,
-        payload => {
-          out.canRedo.value = payload;
           return false;
         },
         COMMAND_PRIORITY_LOW,

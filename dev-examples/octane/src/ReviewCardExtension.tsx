@@ -10,6 +10,7 @@
 
 import {
   getExtensionDependencyFromEditor,
+  type ReadableSignal,
   WatchEditableExtension,
 } from '@lexical/extension';
 import {
@@ -36,12 +37,7 @@ import {
 } from 'lexical';
 import {createRoot, type Root, useState} from 'octane';
 
-import {
-  type ReadableSignal,
-  useEditorRead,
-  useSignal,
-  useSlotRef,
-} from './octane-bridge';
+import {useEditorRead, useSignal, useSlotRef} from './octane-bridge';
 import {
   $createReviewCardNode,
   $isReviewCardNode,

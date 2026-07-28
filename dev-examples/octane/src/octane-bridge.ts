@@ -18,6 +18,7 @@
 // This module uses Octane hooks, so it opts into the Octane compiler with the
 // `@jsxImportSource octane` pragma above.
 
+import {type ReadableSignal} from '@lexical/extension';
 import {
   type LexicalEditor,
   mountSlotContainer,
@@ -31,13 +32,6 @@ import {useCallback, useSyncExternalStore} from 'octane';
  * cleanup function that runs when the element detaches (or the ref changes).
  */
 export type SlotRefCallback<T> = (element: T | null) => (() => void) | void;
-
-/** The minimal shape of a `@preact/signals-core` readonly signal. */
-export interface ReadableSignal<T> {
-  readonly value: T;
-  peek(): T;
-  subscribe(fn: (value: T) => void): () => void;
-}
 
 /**
  * Subscribe an Octane component to a Lexical/preact signal. `subscribe` fires
@@ -53,8 +47,10 @@ export function useSignal<T>(signal: ReadableSignal<T>): T {
 
 /**
  * Subscribe an Octane component to a value derived from the editor's committed
- * state. `read` runs inside `editor.read` after every commit; return a
- * primitive so `useSyncExternalStore`'s snapshot stays stable between commits.
+ * state. `read` runs against the latest reconciled state after every commit;
+ * return a primitive so `useSyncExternalStore`'s snapshot stays stable between
+ * commits. The `'latest'` mode is important: a bare `editor.read()` force-flushes
+ * pending updates, which must never happen from a render-phase `getSnapshot`.
  */
 export function useEditorRead<T>(editor: LexicalEditor, read: () => T): T {
   return useSyncExternalStore(
@@ -62,7 +58,7 @@ export function useEditorRead<T>(editor: LexicalEditor, read: () => T): T {
       onChange => editor.registerUpdateListener(() => onChange()),
       [editor],
     ),
-    () => editor.read(read),
+    () => editor.read('latest', read),
   );
 }
 
