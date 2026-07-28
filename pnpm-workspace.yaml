@@ -8,3 +8,9 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@lexical/*'
   - 'lexical'
+  # Used only by dev-examples/octane; Octane is a young, fast-moving package and
+  # its releases would otherwise be blocked by the minimum-release-age gate.
+  - 'octane'
+  - '@octanejs/*'
+  - '@tsrx/*'
+  - '@ripple-ts/*'

@@ -1,0 +1,404 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #1b1f24;
+  --muted: #6b7280;
+  --line: #e3e6ea;
+  --accent: #6d28d9;
+  --accent-soft: #efe9fd;
+  --star: #f5a623;
+  --code-bg: #0f172a;
+  --code-ink: #cbd5e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  line-height: 1.5;
+}
+
+.octane-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.octane-header h1 {
+  font-size: 34px;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+
+.octane-times {
+  color: var(--accent);
+}
+
+.octane-header p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.octane-header a {
+  color: var(--accent);
+}
+
+/* ---- Editor shell ---------------------------------------------------- */
+
+.octane-editor-shell {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.octane-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfbfd;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.octane-toolbar-item {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.octane-toolbar-item:hover:not(:disabled) {
+  background: #eceef1;
+}
+
+.octane-toolbar-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.octane-toolbar-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.octane-toolbar-insert {
+  min-width: auto;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.octane-toolbar-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--line);
+}
+
+.octane-editor-scroll {
+  position: relative;
+}
+
+.octane-editor-input {
+  min-height: 320px;
+  padding: 24px 28px;
+  outline: none;
+  caret-color: var(--accent);
+}
+
+.octane-editor-input:focus {
+  outline: none;
+}
+
+/* ---- Editor content -------------------------------------------------- */
+
+.editor-paragraph {
+  margin: 0 0 12px;
+}
+
+.editor-heading-h1,
+.editor-heading-h2,
+.editor-heading-h3 {
+  margin: 0 0 12px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.editor-heading-h1 {
+  font-size: 26px;
+}
+
+.editor-heading-h2 {
+  font-size: 21px;
+}
+
+.editor-heading-h3 {
+  font-size: 18px;
+}
+
+.editor-quote {
+  margin: 0 0 12px;
+  padding-left: 14px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.editor-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.editor-text-bold {
+  font-weight: 700;
+}
+
+.editor-text-italic {
+  font-style: italic;
+}
+
+.editor-text-underline {
+  text-decoration: underline;
+}
+
+.editor-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.editor-text-underline-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.editor-text-code {
+  background: #eceef1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.editor-list-ol,
+.editor-list-ul {
+  margin: 0 0 12px;
+  padding-inline-start: 24px;
+}
+
+.editor-listitem {
+  margin: 2px 0;
+}
+
+.editor-nested-listitem {
+  list-style-type: none;
+}
+
+.editor-list-check {
+  padding-inline-start: 8px;
+  list-style: none;
+}
+
+.editor-listitem-checked,
+.editor-listitem-unchecked {
+  position: relative;
+  padding-inline-start: 26px;
+  outline: none;
+  cursor: pointer;
+}
+
+.editor-listitem-checked::before,
+.editor-listitem-unchecked::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+}
+
+.editor-listitem-checked {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.editor-listitem-checked::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.editor-listitem-checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.editor-hr {
+  border: none;
+  border-top: 2px solid var(--line);
+  margin: 18px 0;
+}
+
+.editor-hr-selected {
+  border-top-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+
+/* ---- Octane-rendered review card ------------------------------------- */
+
+.octane-review-card {
+  margin: 0 0 16px;
+}
+
+.octane-review-root {
+  display: block;
+}
+
+.octane-review-chrome {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #faf8ff 0%, #ffffff 60%);
+  padding: 16px 18px;
+}
+
+.octane-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.octane-review-quote-mark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 40px;
+  line-height: 0.7;
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+.octane-review-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.octane-review-star {
+  border: 0;
+  background: transparent;
+  padding: 0 1px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #d4d7dd;
+  transition: transform 0.06s ease;
+}
+
+.octane-review-star:hover:not(:disabled) {
+  transform: scale(1.15);
+}
+
+.octane-review-star-on {
+  color: var(--star);
+}
+
+.octane-review-star:disabled {
+  cursor: default;
+}
+
+.octane-review-body {
+  font-size: 17px;
+  line-height: 1.55;
+  margin: 6px 0 10px;
+}
+
+.octane-review-body .editor-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.octane-review-attribution {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.octane-review-dash {
+  color: var(--muted);
+}
+
+.octane-review-attribution-field {
+  font-weight: 600;
+  font-style: italic;
+}
+
+.octane-review-attribution-field .editor-paragraph {
+  margin: 0;
+}
+
+.octane-slot-container {
+  outline: none;
+}
+
+/* ---- State panel ----------------------------------------------------- */
+
+.octane-state {
+  margin-top: 22px;
+  background: var(--code-bg);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.octane-state > summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 14px;
+  user-select: none;
+}
+
+.octane-state-json {
+  margin: 0;
+  padding: 0 16px 16px;
+  max-height: 340px;
+  overflow: auto;
+  color: var(--code-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
