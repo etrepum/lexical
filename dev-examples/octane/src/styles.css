@@ -430,7 +430,7 @@ body {
   user-select: none;
 }
 
-.octane-state-json {
+.octane-state-tree {
   margin: 0;
   padding: 0 16px 16px;
   max-height: 340px;

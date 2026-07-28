@@ -10,7 +10,6 @@ import {ClipboardDOMImportExtension} from '@lexical/clipboard';
 import {
   AutoFocusExtension,
   buildEditorFromExtensions,
-  EditorStateExtension,
   getExtensionDependencyFromEditor,
   HorizontalRuleExtension,
   TabIndentationExtension,
@@ -46,7 +45,7 @@ function $prepopulate(): void {
     ),
     $createSampleReviewCardNode(),
     $createParagraphNode().append(
-      $createTextNode('Everything round-trips through the JSON below. '),
+      $createTextNode('Everything is reflected in the tree below. '),
       $createTextNode('Edit away.').toggleFormat('italic'),
     ),
   );
@@ -59,9 +58,6 @@ export type ToolbarState = ReturnType<
 export interface OctaneEditor {
   editor: ReturnType<typeof buildEditorFromExtensions>;
   toolbar: ToolbarState;
-  editorState: ReturnType<
-    typeof getExtensionDependencyFromEditor<typeof EditorStateExtension>
-  >['output'];
 }
 
 /**
@@ -88,8 +84,7 @@ export function createReviewEditor(): OctaneEditor {
       // Route real `text/html` pastes through the DOMImportExtension pipeline,
       // so the review card's import rule fires on pastes too, not just on load.
       ClipboardDOMImportExtension,
-      // Reactive signals consumed by the Octane view layer.
-      EditorStateExtension,
+      // Reactive toolbar state consumed by the Octane view layer.
       ToolbarStateExtension,
       // The node + its Octane rendering.
       OctaneReviewCardExtension,
@@ -101,8 +96,6 @@ export function createReviewEditor(): OctaneEditor {
 
   return {
     editor,
-    editorState: getExtensionDependencyFromEditor(editor, EditorStateExtension)
-      .output,
     toolbar: getExtensionDependencyFromEditor(editor, ToolbarStateExtension)
       .output,
   };

@@ -35,10 +35,14 @@ framework-neutral seams so the modern extension model stays front and center.
   own import rule so it round-trips through HTML.
 - **Signals as the framework bridge.** Editor-side state lives in extensions as
   `@preact/signals-core` signals (`ToolbarStateExtension`,
-  `EditorStateExtension`, `WatchEditableExtension`); Octane reads them through a
-  three-line `useSyncExternalStore` adapter in
+  `WatchEditableExtension`, and `HistoryExtension`'s `canUndo` / `canRedo`);
+  Octane reads them — and the editor's committed state — through small
+  `useSyncExternalStore` adapters in
   [`src/octane-bridge.ts`](./src/octane-bridge.ts). The same signals would drive
   a React or Svelte view unchanged.
+- **A readable tree view.** The panel at the bottom renders a compact tree of
+  the editor state ([`src/editorTree.ts`](./src/editorTree.ts)) rather than raw
+  JSON, surfacing the ReviewCard's named slots and `rating` NodeState inline.
 
 ## Running
 
@@ -51,7 +55,7 @@ pnpm run start:dev-example octane
 
 Then open the printed URL. Try the toolbar, click the stars, edit the quote and
 the attribution, and paste rich content — everything is reflected live in the
-JSON panel at the bottom.
+tree view at the bottom.
 
 ## How the Octane compiler is scoped
 

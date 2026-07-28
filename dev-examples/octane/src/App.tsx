@@ -13,18 +13,21 @@ import type {OctaneEditor} from './editor';
 import {useCallback, useEffect, useState} from 'octane';
 
 import {createReviewEditor} from './editor';
-import {useSignal} from './octane-bridge';
+import {$renderEditorTree} from './editorTree';
+import {useEditorRead} from './octane-bridge';
 import {Toolbar} from './Toolbar';
 
-/** Live view of the editor's serialized state — proof the model round-trips. */
+/**
+ * A live, readable tree view of the editor state — easier to scan than raw JSON,
+ * and it shows the ReviewCard's named slots and `rating` NodeState inline. It
+ * re-renders on every commit via `useEditorRead`.
+ */
 function StatePanel({context}: {context: OctaneEditor}) {
-  const editorState = useSignal(context.editorState);
+  const tree = useEditorRead(context.editor, $renderEditorTree);
   return (
     <details className="octane-state" open={true}>
-      <summary>Editor state (JSON)</summary>
-      <pre className="octane-state-json">
-        {JSON.stringify(editorState.toJSON(), undefined, 2)}
-      </pre>
+      <summary>Editor tree</summary>
+      <pre className="octane-state-tree">{tree}</pre>
     </details>
   );
 }
