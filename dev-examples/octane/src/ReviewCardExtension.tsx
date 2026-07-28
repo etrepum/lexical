@@ -296,8 +296,11 @@ export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
       mounts.set(key, {container, host, root});
     };
 
+    // Deleting the current key during a Map key-iteration is well-defined (the
+    // iterator advances past it), and `unmountKey` only deletes the key it's
+    // given, so no snapshot of the keys is needed here.
     const unmountAll = () => {
-      for (const key of [...mounts.keys()]) {
+      for (const key of mounts.keys()) {
         unmountKey(key);
       }
     };
