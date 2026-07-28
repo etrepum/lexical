@@ -252,10 +252,12 @@ export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
       editor,
       WatchEditableExtension,
     ).output;
-    // Keys of the live cards, and the Octane root + inner element each is
-    // rendered into. The inner element keeps Octane's initial container-clear
-    // off of the slot placeholders the reconciler parks in the host DOM.
-    const liveKeys = new Set<NodeKey>();
+    // The only tracking needed: the Octane root (and the inner element it
+    // renders into) for each currently-mounted card, keyed by NodeKey. The
+    // mutation listener is the single source of truth for which cards are live,
+    // so there's no separate set to keep in sync. The inner element keeps
+    // Octane's initial container-clear off of the slot placeholders the
+    // reconciler parks in the host DOM.
     const mounts = new Map<
       NodeKey,
       {host: HTMLElement; container: HTMLElement; root: Root}
@@ -270,19 +272,19 @@ export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
       }
     };
 
+    // Idempotent: mounts the card if its host DOM exists and it isn't already
+    // mounted there, and re-mounts if the host element was recreated.
     const mountKey = (key: NodeKey) => {
       const host = editor.getElementByKey(key);
       if (host === null) {
-        // The node's DOM isn't attached yet (e.g. a card seeded before the
-        // root element was set); the root listener retries once it is.
         return;
       }
       const entry = mounts.get(key);
       if (entry) {
         if (entry.host === host) {
-          return; // Already mounted on the current host DOM.
+          return;
         }
-        unmountKey(key); // Host element was recreated — remount into the new one.
+        unmountKey(key);
       }
       const container = document.createElement('div');
       container.className = 'octane-review-root';
@@ -294,44 +296,31 @@ export const OctaneReviewCardExtension = /* @__PURE__ */ defineExtension({
       mounts.set(key, {container, host, root});
     };
 
+    const unmountAll = () => {
+      for (const key of [...mounts.keys()]) {
+        unmountKey(key);
+      }
+    };
+
     return mergeRegister(
       editor.registerMutationListener(
         ReviewCardNode,
         nodes => {
           for (const [key, mutation] of nodes) {
             if (mutation === 'destroyed') {
-              liveKeys.delete(key);
               unmountKey(key);
             } else {
-              liveKeys.add(key);
               mountKey(key);
             }
           }
         },
-        // Fire for cards already present when the editor is built (the seeded
-        // sample), not just for later edits.
+        // The seeded card is covered without any extra wiring: the
+        // `$initialEditorState` update stays pending until a root element
+        // exists, so `setRootElement` commits it — creating the card's DOM and
+        // firing this listener with `getElementByKey` already resolving.
         {skipInitialization: false},
       ),
-      // `setRootElement` commits pending updates (attaching node DOM) before it
-      // fires root listeners, so `getElementByKey` resolves here. This mounts
-      // cards whose host DOM only became available when the editor attached,
-      // and tears every root down when it detaches (e.g. on dispose).
-      editor.registerRootListener(rootElement => {
-        if (rootElement === null) {
-          for (const key of [...mounts.keys()]) {
-            unmountKey(key);
-          }
-        } else {
-          for (const key of liveKeys) {
-            mountKey(key);
-          }
-        }
-      }),
-      () => {
-        for (const key of [...mounts.keys()]) {
-          unmountKey(key);
-        }
-      },
+      unmountAll,
     );
   },
 });
