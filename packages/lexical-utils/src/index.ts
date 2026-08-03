@@ -1187,7 +1187,7 @@ export interface StateConfigWrapper<K extends string, V> {
 }
 
 /**
- * EXPERIMENTAL
+ * @experimental
  *
  * A convenience interface for working with {@link $getState} and
  * {@link $setState}.

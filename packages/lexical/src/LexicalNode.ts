@@ -137,9 +137,10 @@ export interface StaticNodeConfigValue<
    */
   readonly type?: Type;
   /**
-   * An alternative to the internal static transform() method
-   * that provides better type inference. If implemented this
-   * transform will be registered for this class and any subclass.
+   * The replacement for the deprecated static
+   * {@link LexicalNode.transform} method, providing better type inference.
+   * If implemented this transform will be registered for this class and any
+   * subclass.
    */
   readonly $transform?: (node: T) => void;
   /**
@@ -152,8 +153,6 @@ export interface StaticNodeConfigValue<
    */
   readonly importDOM?: DOMConversionMap;
   /**
-   * EXPERIMENTAL
-   *
    * An array of RequiredNodeStateConfig to initialize your node with
    * its state requirements. This may be used to configure serialization of
    * that state.
@@ -1593,13 +1592,14 @@ export class LexicalNode {
   }
 
   /**
-   * @experimental
+   * @deprecated Use the `$transform` property of
+   * {@link StaticNodeConfigValue} returned by `$config()` instead, which
+   * provides better type inference. Both are registered the same way, so
+   * migrating is a move from this static method to a `$config()` property.
    *
    * Registers the returned function as a transform on the node during
    * Editor initialization. Most such use cases should be addressed via
    * the {@link LexicalEditor.registerNodeTransform} API.
-   *
-   * Experimental - use at your own risk.
    */
   static transform(): ((node: LexicalNode) => void) | null {
     return null;
