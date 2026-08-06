@@ -184,21 +184,21 @@ export function registerCheckList(
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_DOWN_COMMAND,
       event => {
         return handleArrowUpOrDown(event, editor, false);
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_UP_COMMAND,
       event => {
         return handleArrowUpOrDown(event, editor, true);
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       () => {
         const activeItem = getActiveCheckListItem(editor);
@@ -217,7 +217,7 @@ export function registerCheckList(
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_SPACE_COMMAND,
       event => {
         const activeItem = getActiveCheckListItem(editor);
@@ -251,7 +251,7 @@ export function registerCheckList(
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_LEFT_COMMAND,
       event => {
         return editor.read('latest', () => {
@@ -298,7 +298,7 @@ export function registerCheckList(
       },
       COMMAND_PRIORITY_LOW,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_RIGHT_COMMAND,
       event => {
         // Symmetric to ARROW_LEFT above: when a row's native checkbox input

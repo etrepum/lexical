@@ -486,7 +486,7 @@ function onSelectionChange(
       }
     }
 
-    dispatchCommand(editor, SELECTION_CHANGE_COMMAND, undefined);
+    dispatchCommand(editor, SELECTION_CHANGE_COMMAND);
   });
 }
 
@@ -569,6 +569,40 @@ function onClick(event: PointerEvent, editor: LexicalEditor): void {
             event,
           );
           $setSelection(newSelection);
+        }
+      }
+    }
+
+    // Firefox produces no DOM range when clicking between block-level
+    // decorators (rangeCount === 0). Use click coordinates to compute
+    // the correct child offset. Only act when the click landed directly
+    // on the root element (not inside a child like a table cell).
+    if (IS_FIREFOX && domSelection !== null && domSelection.rangeCount === 0) {
+      const rootElement = editor._rootElement;
+      if (rootElement !== null && event.target === rootElement) {
+        const clientY = event.clientY;
+        let offset = rootElement.childNodes.length;
+        for (let i = 0; i < rootElement.childNodes.length; i++) {
+          const child = rootElement.childNodes[i];
+          if (isHTMLElement(child)) {
+            const rect = child.getBoundingClientRect();
+            if (clientY <= (rect.top + rect.bottom) / 2) {
+              offset = i;
+              break;
+            }
+          }
+        }
+        domSelection.setBaseAndExtent(rootElement, offset, rootElement, offset);
+        const newSelection = $internalCreateRangeSelection(
+          lastSelection,
+          domSelection,
+          editor,
+          event,
+        );
+        if (newSelection !== null) {
+          $setSelection(newSelection);
+        } else {
+          domSelection.removeAllRanges();
         }
       }
     }
@@ -987,7 +1021,7 @@ function $handleBeforeInput(event: InputEvent): boolean {
       dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
     } else if (data === DOUBLE_LINE_BREAK) {
       event.preventDefault();
-      dispatchCommand(editor, INSERT_PARAGRAPH_COMMAND, undefined);
+      dispatchCommand(editor, INSERT_PARAGRAPH_COMMAND);
     } else if (data == null && event.dataTransfer) {
       // Gets around a Safari text replacement bug.
       const text = event.dataTransfer.getData('text/plain');
@@ -1063,7 +1097,7 @@ function $handleBeforeInput(event: InputEvent): boolean {
         inputState.isInsertLineBreak = false;
         dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
       } else {
-        dispatchCommand(editor, INSERT_PARAGRAPH_COMMAND, undefined);
+        dispatchCommand(editor, INSERT_PARAGRAPH_COMMAND);
       }
 
       break;
@@ -1146,12 +1180,12 @@ function $handleBeforeInput(event: InputEvent): boolean {
     }
 
     case 'historyUndo': {
-      dispatchCommand(editor, UNDO_COMMAND, undefined);
+      dispatchCommand(editor, UNDO_COMMAND);
       break;
     }
 
     case 'historyRedo': {
-      dispatchCommand(editor, REDO_COMMAND, undefined);
+      dispatchCommand(editor, REDO_COMMAND);
       break;
     }
 
@@ -1623,10 +1657,10 @@ function $handleKeyDown(event: KeyboardEvent): boolean {
     dispatchCommand(editor, KEY_TAB_COMMAND, event);
   } else if (isUndo(event)) {
     event.preventDefault();
-    dispatchCommand(editor, UNDO_COMMAND, undefined);
+    dispatchCommand(editor, UNDO_COMMAND);
   } else if (isRedo(event)) {
     event.preventDefault();
-    dispatchCommand(editor, REDO_COMMAND, undefined);
+    dispatchCommand(editor, REDO_COMMAND);
   } else {
     const prevSelection = editor._editorState._selection;
     if (isSelectAll(event)) {

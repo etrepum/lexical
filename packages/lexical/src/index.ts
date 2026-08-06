@@ -31,6 +31,7 @@ export {
   $comparePointCaretNext,
   $extendCaretToRange,
   $getAdjacentChildCaret,
+  $getCaretInDirection,
   $getCaretRange,
   $getChildCaret,
   $getChildCaretOrSelf,
@@ -53,7 +54,6 @@ export {
   $caretFromPoint,
   $caretRangeFromSelection,
   $getAdjacentSiblingOrParentSiblingCaret,
-  $getCaretInDirection,
   $getCaretRangeInDirection,
   $getChildCaretAtIndex,
   $insertNodeToNearestRootAtCaret,
@@ -137,9 +137,11 @@ export {
 export type {DOMSlot} from './LexicalDOMSlot';
 export type {ElementDOMSlot} from './LexicalDOMSlot';
 export type {
+  AnyLexicalCommand,
   CommandListener,
   CommandListenerPriority,
   CommandListenerPriorityBefore,
+  CommandPayloadArgs,
   CommandPayloadType,
   CreateEditorArgs,
   DOMSlotForNode,

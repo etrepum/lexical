@@ -31,6 +31,8 @@ import {
   $getSlotNames,
   $getSlotNameWithinHost,
   $isElementNode,
+  $isLineBreakNode,
+  $isNodeSelection,
   $isParagraphNode,
   $isRangeSelection,
   $isSlotHost,
@@ -409,6 +411,31 @@ describe('named-slots: core foundation', () => {
         expect(() => sibling.insertAfter(slot)).toThrow();
         expect(() => sibling.insertBefore(slot)).toThrow();
         expect(() => sibling.replace(slot)).toThrow();
+      },
+      {discrete: true},
+    );
+  });
+
+  test('replace() on a slotted node throws (use $setSlot)', () => {
+    using editor = createSlotEditor();
+
+    editor.update(
+      () => {
+        const host = $createParagraphNode();
+        $getRoot().append(host);
+        const slot = $createTestShadowRootNode();
+        $setSlot(host, 'title', slot);
+
+        // Without the slot-aware guard this would throw the generic
+        // getParentOrThrow invariant; the guard names the actual mistake
+        // (including the node and host types) and the fix ($setSlot on
+        // the host).
+        expect(() => slot.replace($createParagraphNode())).toThrow(
+          /\(type paragraph\)[\s\S]*\$setSlot/,
+        );
+        // Nothing was mutated by the failed replace.
+        expect($getSlot(host, 'title')).not.toBe(null);
+        expect($getSlot(host, 'title')!.is(slot)).toBe(true);
       },
       {discrete: true},
     );
@@ -1989,6 +2016,79 @@ describe('named-slots: core foundation', () => {
     expect(remaining).toBe('TEXT');
   });
 
+  // #8904: a slot-bearing decorator host at the selection boundary is
+  // deleted by backspace like any other block decorator — as a whole unit,
+  // slots included. (Merging an ElementNode host away is still refused, see
+  // the next test: a merge keeps children but silently drops slots.)
+  test('backspace after a slot-bearing decorator host removes it (#8904)', () => {
+    using editor = createSlotEditor();
+    let hostKey = '';
+    let textKey = '';
+    editor.update(
+      () => {
+        const host = $createTestDecoratorNode().setIsInline(false);
+        $setSlot(host, 'quote', $slotContainer('QUOTE'));
+        const text = $createTextNode('after');
+        $getRoot().append(host, $createParagraphNode().append(text));
+        hostKey = host.getKey();
+        textKey = text.getKey();
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        const sel = $createRangeSelection();
+        sel.anchor.set(textKey, 0, 'text');
+        sel.focus.set(textKey, 0, 'text');
+        $setSelection(sel);
+        sel.deleteCharacter(true);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      expect($getNodeByKey(hostKey)).toBe(null);
+      expect($getRoot().getChildrenSize()).toBe(1);
+      expect($getRoot().getTextContent()).toBe('after');
+    });
+  });
+
+  test('backspace in an empty paragraph after a slot-bearing decorator host selects it (#8904)', () => {
+    using editor = createSlotEditor();
+    let hostKey = '';
+    let paragraphKey = '';
+    editor.update(
+      () => {
+        const host = $createTestDecoratorNode().setIsInline(false);
+        $setSlot(host, 'quote', $slotContainer('QUOTE'));
+        const paragraph = $createParagraphNode();
+        $getRoot().append(host, paragraph);
+        hostKey = host.getKey();
+        paragraphKey = paragraph.getKey();
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        const sel = $createRangeSelection();
+        sel.anchor.set(paragraphKey, 0, 'element');
+        sel.focus.set(paragraphKey, 0, 'element');
+        $setSelection(sel);
+        sel.deleteCharacter(true);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      // The empty paragraph is dropped and the host is node-selected, same
+      // as any other block decorator; the next backspace deletes it.
+      expect($getNodeByKey(paragraphKey)).toBe(null);
+      const host = $getNodeByKey(hostKey);
+      expect(host).not.toBe(null);
+      const sel = $getSelection();
+      assert($isNodeSelection(sel));
+      expect(sel.getNodes().map(node => node.getKey())).toEqual([hostKey]);
+    });
+  });
+
   test('backspace at the start of a host child does not merge the slot-bearing host away', () => {
     using editor = createSlotEditor();
     let hostKey = '';
@@ -3222,6 +3322,129 @@ describe('named-slots: block slot values (virtual shadow root)', () => {
       const first = line.getFirstChild();
       assert(first !== null);
       expect($isTextNode(first)).toBe(true);
+    });
+  });
+
+  test('repeated linebreaks into a bare block value stay in insertion order (#8897)', () => {
+    using editor = createSlotEditor();
+    let lineKey = '';
+    editor.update(
+      () => {
+        const {line} = $createLineSlotHost();
+        lineKey = line.getKey();
+        const text = line.getFirstChild();
+        assert(text !== null && $isTextNode(text));
+        text.select(5, 5).insertLineBreak();
+      },
+      {discrete: true},
+    );
+    // A LineBreakNode with no next sibling resolves selectEnd() to an
+    // element-mode anchor directly on the slot value, the same shape
+    // insertNodes' slot-value redirect branch handles for Cmd+A.
+    editor.update(
+      () => {
+        for (let i = 0; i < 3; i++) {
+          const line = $getNodeByKey(lineKey);
+          assert(line !== null && $isParagraphNode(line));
+          const last = line.getLastChild();
+          assert(last !== null);
+          last.selectEnd().insertLineBreak();
+        }
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const line = $getNodeByKey(lineKey);
+      assert(line !== null && $isParagraphNode(line));
+      const children = line.getChildren();
+      expect(children[0]!.getTextContent()).toBe('Title');
+      expect(children.filter(c => $isLineBreakNode(c)).length).toBe(4);
+    });
+  });
+
+  test('insertNodes at the end of a bare block value inserts at the end, not the start', () => {
+    using editor = createSlotEditor();
+    let lineKey = '';
+    editor.update(
+      () => {
+        const {line} = $createLineSlotHost();
+        lineKey = line.getKey();
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        const line = $getNodeByKey(lineKey);
+        assert(line !== null && $isParagraphNode(line));
+        // Element-mode anchor on the slot value itself, offset at the end.
+        line
+          .select(line.getChildrenSize(), line.getChildrenSize())
+          .insertNodes([$createTextNode('!')]);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const line = $getNodeByKey(lineKey);
+      assert(line !== null && $isParagraphNode(line));
+      expect(line.getTextContent()).toBe('Title!');
+    });
+  });
+
+  test('backspace deletes trailing linebreaks in a bare block value one at a time (#8898)', () => {
+    using editor = createSlotEditor();
+    let lineKey = '';
+    editor.update(
+      () => {
+        const {line} = $createLineSlotHost();
+        lineKey = line.getKey();
+        const text = line.getFirstChild();
+        assert(text !== null && $isTextNode(text));
+        text.select(5, 5).insertLineBreak();
+        line.getLastChild()!.selectEnd().insertLineBreak();
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const line = $getNodeByKey(lineKey);
+      assert(line !== null && $isParagraphNode(line));
+      expect(line.getChildren().filter(c => $isLineBreakNode(c)).length).toBe(
+        2,
+      );
+    });
+    // Same element-mode anchor shape as the insertLineBreak tests above:
+    // deleteCharacter's sibling-caret exploration must delete the
+    // LineBreakNode it finds instead of falling through to the slot-edge
+    // boundary check with nothing deleted.
+    editor.update(
+      () => {
+        const line = $getNodeByKey(lineKey);
+        assert(line !== null && $isParagraphNode(line));
+        line.getLastChild()!.selectEnd().deleteCharacter(true);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const line = $getNodeByKey(lineKey);
+      assert(line !== null && $isParagraphNode(line));
+      expect(line.getChildren().filter(c => $isLineBreakNode(c)).length).toBe(
+        1,
+      );
+    });
+    editor.update(
+      () => {
+        const line = $getNodeByKey(lineKey);
+        assert(line !== null && $isParagraphNode(line));
+        line.getLastChild()!.selectEnd().deleteCharacter(true);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const line = $getNodeByKey(lineKey);
+      assert(line !== null && $isParagraphNode(line));
+      expect(line.getTextContent()).toBe('Title');
+      expect(line.getChildren().filter(c => $isLineBreakNode(c)).length).toBe(
+        0,
+      );
     });
   });
 

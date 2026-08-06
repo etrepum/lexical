@@ -92,7 +92,6 @@ import {
   DRAGSTART_COMMAND,
   DROP_COMMAND,
   type EditorConfig,
-  type ElementFormatType,
   ElementNode,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
@@ -217,7 +216,7 @@ export class QuoteNode extends ElementNode {
     addClassNamesToElement(element, config.theme.quote);
     return element;
   }
-  updateDOM(prevNode: this, dom: HTMLElement): boolean {
+  updateDOM(prevNode: this, dom: HTMLElement, config: EditorConfig): boolean {
     return false;
   }
 
@@ -439,7 +438,11 @@ export class HeadingNode extends ElementNode {
     const newElement =
       isAtEnd || !selection
         ? $createParagraphNode()
-        : $createHeadingNode(this.getTag());
+        : // The heading is split in two, so the second half keeps the
+          // block format and style of the first, like ParagraphNode does.
+          $createHeadingNode(this.getTag())
+            .setFormat(this.getFormatType())
+            .setStyle(this.getStyle());
     const direction = this.getDirection();
     newElement.setDirection(direction);
     this.insertAfter(newElement, restoreSelection);
@@ -574,6 +577,11 @@ function $isTargetWithinDecorator(target: HTMLElement): boolean {
 function $isSelectionAtEndOfRoot(selection: RangeSelection) {
   const focus = selection.focus;
   return focus.key === 'root' && focus.offset === $getRoot().getChildrenSize();
+}
+
+function $isSelectionAtStartOfRoot(selection: RangeSelection) {
+  const focus = selection.focus;
+  return focus.key === 'root' && focus.offset === 0;
 }
 
 function $isSelectionCollapsedAtFrontOfIndentedBlock(
@@ -833,7 +841,7 @@ function $tryDecoratorLineNavigation(
   if (
     focus.type === 'element' &&
     $isElementNode(focusNode) &&
-    ($isRootNode(focusNode) || $isShadowRootNode(focusNode))
+    $isRootOrShadowRoot(focusNode)
   ) {
     const adjacentChild = focusCaret.getNodeAtCaret();
     if (adjacentChild !== null && $isSelectableBlockDecorator(adjacentChild)) {
@@ -1121,18 +1129,62 @@ function $promoteNodeSelectionToBlockEdge(
   return true;
 }
 
+/**
+ * Decides whether a paste event carrying files should be handled by
+ * dispatching {@link DRAG_DROP_PASTE} with those files, rather than falling
+ * through to the regular HTML paste handling.
+ *
+ * @param files - The files present on the clipboard, if any
+ * @param hasTextContent - Whether the clipboard also carries text/html or
+ * text/plain content
+ */
+export type ShouldHandlePasteAsFiles = (
+  files: File[],
+  hasTextContent: boolean,
+) => boolean;
+
+/**
+ * The historical behavior: files are only handled when the clipboard carries
+ * no text content at all. Note that browsers put a text/html fallback on the
+ * clipboard alongside the file when an image is copied via the context menu,
+ * so this default routes such images through the HTML importer.
+ */
+export function defaultShouldHandlePasteAsFiles(
+  files: File[],
+  hasTextContent: boolean,
+): boolean {
+  return files.length > 0 && !hasTextContent;
+}
+
 export function registerRichText(
   editor: LexicalEditor,
   escapeFormatTriggers: ReadonlySignal<EscapeFormatTriggerConfig> = signal(
     DEFAULT_ESCAPE_FORMAT_TRIGGERS,
   ),
+  shouldHandlePasteAsFiles: ReadonlySignal<ShouldHandlePasteAsFiles> = signal(
+    defaultShouldHandlePasteAsFiles,
+  ),
 ): () => void {
   const removeListener = mergeRegister(
     editor.registerCommand(
       CLICK_COMMAND,
-      () => {
+      event => {
         const selection = $getSelection();
         if ($isNodeSelection(selection)) {
+          // A click on an already-selected node is an interaction with that
+          // node (its own click handler may select it, open an editor, …),
+          // not a deselect gesture. Keep the selection when the click target
+          // is inside the selected node's DOM; clicking anywhere else still
+          // deselects (facebook/lexical#8907).
+          const eventTarget = event.target;
+          if (isHTMLElement(eventTarget)) {
+            for (const node of selection.getNodes()) {
+              const dom = editor.getElementByKey(node.getKey());
+              if (dom !== null && dom.contains(eventTarget)) {
+                return false;
+              }
+            }
+          }
           selection.clear();
           return true;
         }
@@ -1148,7 +1200,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<boolean>(
+    editor.registerCommand(
       DELETE_CHARACTER_COMMAND,
       isBackward => {
         const selection = $getSelection();
@@ -1163,7 +1215,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<boolean>(
+    editor.registerCommand(
       DELETE_WORD_COMMAND,
       isBackward => {
         const selection = $getSelection();
@@ -1175,7 +1227,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<boolean>(
+    editor.registerCommand(
       DELETE_LINE_COMMAND,
       isBackward => {
         const selection = $getSelection();
@@ -1228,7 +1280,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<TextFormatType>(
+    editor.registerCommand(
       FORMAT_TEXT_COMMAND,
       format => {
         const selection = $getSelection();
@@ -1252,7 +1304,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<ElementFormatType>(
+    editor.registerCommand(
       FORMAT_ELEMENT_COMMAND,
       format => {
         const selection = $getSelection();
@@ -1274,7 +1326,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<boolean>(
+    editor.registerCommand(
       INSERT_LINE_BREAK_COMMAND,
       selectStart => {
         const selection = $getSelection();
@@ -1334,7 +1386,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_UP_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1348,6 +1400,10 @@ export function registerRichText(
             return true;
           }
         } else if ($isRangeSelection(selection)) {
+          if ($isSelectionAtStartOfRoot(selection)) {
+            event.preventDefault();
+            return true;
+          }
           if (
             !event.shiftKey &&
             $tryBlockCursorShadowRootNavigation(selection, 'previous')
@@ -1371,7 +1427,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_DOWN_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1415,7 +1471,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_LEFT_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1463,7 +1519,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_ARROW_RIGHT_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1511,7 +1567,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1529,7 +1585,7 @@ export function registerRichText(
         if ($isRangeSelection(selection)) {
           if ($isSelectionCollapsedAtFrontOfIndentedBlock(selection)) {
             event.preventDefault();
-            return editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+            return editor.dispatchCommand(OUTDENT_CONTENT_COMMAND);
           }
           // On iOS, blocking the keydown event's default prevents the system
           // keyboard from updating its autocomplete/autocorrect suggestion bar
@@ -1549,7 +1605,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       KEY_DELETE_COMMAND,
       event => {
         const selection = $getSelection();
@@ -1569,7 +1625,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent | null>(
+    editor.registerCommand(
       KEY_ENTER_COMMAND,
       event => {
         let selection = $getSelection();
@@ -1620,7 +1676,7 @@ export function registerRichText(
             return editor.dispatchCommand(INSERT_LINE_BREAK_COMMAND, false);
           }
         }
-        return editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined);
+        return editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND);
       },
       COMMAND_PRIORITY_EDITOR,
     ),
@@ -1636,7 +1692,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<DragEvent>(
+    editor.registerCommand(
       DROP_COMMAND,
       event => {
         const [, files] = eventFiles(event);
@@ -1672,7 +1728,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<DragEvent>(
+    editor.registerCommand(
       DRAGSTART_COMMAND,
       event => {
         const [isFileTransfer] = eventFiles(event);
@@ -1700,7 +1756,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<DragEvent>(
+    editor.registerCommand(
       DRAGOVER_COMMAND,
       event => {
         const [isFileTransfer] = eventFiles(event);
@@ -1771,7 +1827,7 @@ export function registerRichText(
       PASTE_COMMAND,
       event => {
         const [, files, hasTextContent] = eventFiles(event);
-        if (files.length > 0 && !hasTextContent) {
+        if (shouldHandlePasteAsFiles.peek()(files, hasTextContent)) {
           editor.dispatchCommand(DRAG_DROP_PASTE, files);
           return true;
         }
@@ -1830,7 +1886,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       MOVE_TO_END,
       event => {
         const selection = $getSelection();
@@ -1871,7 +1927,7 @@ export function registerRichText(
       },
       COMMAND_PRIORITY_EDITOR,
     ),
-    editor.registerCommand<KeyboardEvent>(
+    editor.registerCommand(
       MOVE_TO_START,
       event => {
         const selection = $getSelection();
