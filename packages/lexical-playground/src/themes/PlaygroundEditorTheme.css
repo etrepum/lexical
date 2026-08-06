@@ -208,7 +208,7 @@
 .PlaygroundEditorTheme__code[data-word-wrap='true']:before {
   display: none;
 }
-.PlaygroundEditorTheme__code .code-gutter {
+.PlaygroundEditorTheme__codeGutter {
   position: sticky;
   left: 0;
   float: left;
@@ -223,11 +223,11 @@
   z-index: 3;
   user-select: none;
 }
-.PlaygroundEditorTheme__code .code-gutter span {
+.PlaygroundEditorTheme__codeGutter span {
   display: block;
   line-height: 1.53;
 }
-.PlaygroundEditorTheme__code .code-content {
+.PlaygroundEditorTheme__codeContent {
   display: block;
   overflow: visible;
 }

@@ -177,6 +177,8 @@ export interface EditorThemeClasses {
   blockCursor?: EditorThemeClassName;
   characterLimit?: EditorThemeClassName;
   code?: EditorThemeClassName;
+  codeContent?: EditorThemeClassName;
+  codeGutter?: EditorThemeClassName;
   codeHighlight?: Record<string, EditorThemeClassName>;
   hashtag?: EditorThemeClassName;
   specialText?: EditorThemeClassName;

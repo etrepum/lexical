@@ -198,7 +198,7 @@ test.describe('CodeActionMenu', () => {
     await waitForSelector(page, 'button[aria-label="word wrap"]');
 
     // Enable word wrap: the code block switches to the real-gutter DOM
-    // structure (.code-gutter spans + .code-content wrapper) and marks
+    // structure (gutter spans + content wrapper) and marks
     // itself with data-word-wrap.
     await click(page, 'button[aria-label="word wrap"]');
     await waitForSelector(
@@ -209,9 +209,10 @@ test.describe('CodeActionMenu', () => {
     const wrapped = await evaluate(page, () => {
       const code = document.querySelector('code.PlaygroundEditorTheme__code');
       return {
-        contentText: code.querySelector('.code-content').textContent,
+        contentText: code.querySelector('.PlaygroundEditorTheme__codeContent')
+          .textContent,
         gutterLines: Array.from(
-          code.querySelectorAll('.code-gutter span'),
+          code.querySelectorAll('.PlaygroundEditorTheme__codeGutter span'),
           span => span.textContent,
         ),
         title: document
@@ -236,7 +237,8 @@ test.describe('CodeActionMenu', () => {
       const code = document.querySelector('code.PlaygroundEditorTheme__code');
       return {
         dataGutter: code.getAttribute('data-gutter'),
-        hasGutterEl: code.querySelector('.code-gutter') !== null,
+        hasGutterEl:
+          code.querySelector('.PlaygroundEditorTheme__codeGutter') !== null,
         title: document
           .querySelector('button[aria-label="word wrap"]')
           .getAttribute('title'),

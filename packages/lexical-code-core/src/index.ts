@@ -27,6 +27,8 @@ export type {SerializedCodeNode} from './CodeNode';
 export {
   $createCodeNode,
   $isCodeNode,
+  CODE_CONTENT_DATA_ATTRIBUTE,
+  CODE_GUTTER_DATA_ATTRIBUTE,
   CodeNode,
   DEFAULT_CODE_LANGUAGE,
   getDefaultCodeLanguage,

@@ -65,8 +65,8 @@ describe('CodeGutter', () => {
         const codeEl = testEnv.container.querySelector('code');
         expect(codeEl).not.toBeNull();
         expect(codeEl!.getAttribute('data-gutter')).toBe('1\n2\n3');
-        // Classic mode renders no real `.code-gutter` element.
-        expect(codeEl!.querySelector('.code-gutter')).toBeNull();
+        // Classic mode renders no real gutter element.
+        expect(codeEl!.querySelector('[data-lexical-code-gutter]')).toBeNull();
       } finally {
         cleanup();
       }
@@ -112,7 +112,7 @@ describe('CodeGutter', () => {
       }
     });
 
-    it('populates .code-gutter spans and observes content in word-wrap mode', () => {
+    it('populates gutter spans and observes content in word-wrap mode', () => {
       const {editor} = testEnv;
       MockResizeObserver.instances = [];
       const cleanup = registerCodeGutter(editor);
@@ -135,14 +135,14 @@ describe('CodeGutter', () => {
         const codeEl = testEnv.container.querySelector('code');
         expect(codeEl).not.toBeNull();
         expect(codeEl!.getAttribute('data-word-wrap')).toBe('true');
-        const gutterEl = codeEl!.querySelector('.code-gutter')!;
+        const gutterEl = codeEl!.querySelector('[data-lexical-code-gutter]')!;
         expect(gutterEl).not.toBeNull();
         expect(gutterEl.children.length).toBe(2);
         expect(gutterEl.children[0].textContent).toBe('1');
         expect(gutterEl.children[1].textContent).toBe('2');
 
         // The helper must have wired a ResizeObserver to the
-        // .code-content element so wrapped-line heights stay in sync.
+        // content element so wrapped-line heights stay in sync.
         expect(MockResizeObserver.instances.length).toBe(1);
         expect(MockResizeObserver.instances[0].observe).toHaveBeenCalledTimes(
           1,

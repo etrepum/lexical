@@ -18,7 +18,12 @@ import {
 } from 'lexical';
 
 import {CodeExtension} from './CodeExtension';
-import {$isCodeNode, CodeNode} from './CodeNode';
+import {
+  $isCodeNode,
+  CODE_CONTENT_DATA_ATTRIBUTE,
+  CODE_GUTTER_DATA_ATTRIBUTE,
+  CodeNode,
+} from './CodeNode';
 
 /**
  * Update the gutter for a given {@link CodeNode}.
@@ -26,11 +31,13 @@ import {$isCodeNode, CodeNode} from './CodeNode';
  * In classic mode (no word-wrap) the line numbers are written into the
  * `data-gutter` attribute on the code element so they can be rendered by
  * a CSS pseudo-element. In word-wrap mode, the gutter is a real DOM
- * element (`.code-gutter`) populated with one `<span>` per line; the
+ * element (marked with `data-lexical-code-gutter` and styled by the
+ * `codeGutter` theme class) populated with one `<span>` per line; the
  * span heights are then synced to the wrapped content lines via
  * {@link syncGutterHeights}.
  *
- * The DOM contract (`.code-gutter` / `.code-content` children) is
+ * The DOM contract (`data-lexical-code-gutter` /
+ * `data-lexical-code-content` children) is
  * established by {@link CodeNode#createDOM} when word-wrap is enabled.
  */
 function updateCodeGutter(node: CodeNode, editor: LexicalEditor): void {
@@ -60,7 +67,9 @@ function updateCodeGutter(node: CodeNode, editor: LexicalEditor): void {
 
   if (node.getWordWrap()) {
     // Word-wrap mode: update real DOM gutter elements
-    const gutterEl = codeElement.querySelector('.code-gutter');
+    const gutterEl = codeElement.querySelector(
+      `[${CODE_GUTTER_DATA_ATTRIBUTE}]`,
+    );
     if (gutterEl) {
       // Sync number of gutter line elements
       while (gutterEl.children.length > count) {
@@ -93,15 +102,19 @@ function updateCodeGutter(node: CodeNode, editor: LexicalEditor): void {
 }
 
 /**
- * Measure the height of each logical code line in the `.code-content`
+ * Measure the height of each logical code line in the
+ * `data-lexical-code-content`
  * subtree (lines are separated by `<br>` elements that LineBreakNode
- * renders) and apply the measured height to the matching `.code-gutter`
- * span so the gutter line numbers stay vertically aligned with their
+ * renders) and apply the measured height to the matching
+ * `data-lexical-code-gutter` span so the gutter line numbers stay
+ * vertically aligned with their
  * (possibly wrapped) content lines.
  */
 function syncGutterHeights(codeElement: HTMLElement): void {
-  const gutterEl = codeElement.querySelector('.code-gutter');
-  const contentEl = codeElement.querySelector('.code-content');
+  const gutterEl = codeElement.querySelector(`[${CODE_GUTTER_DATA_ATTRIBUTE}]`);
+  const contentEl = codeElement.querySelector(
+    `[${CODE_CONTENT_DATA_ATTRIBUTE}]`,
+  );
   if (!gutterEl || !contentEl) {
     return;
   }
@@ -197,8 +210,9 @@ export function registerCodeGutter(editor: LexicalEditor): () => void {
                 const codeElement = editor.getElementByKey(key);
                 if (node.getWordWrap() && codeElement) {
                   if (!resizeObservers.has(key)) {
-                    const contentEl =
-                      codeElement.querySelector('.code-content');
+                    const contentEl = codeElement.querySelector(
+                      `[${CODE_CONTENT_DATA_ATTRIBUTE}]`,
+                    );
                     if (contentEl) {
                       const observer = new ResizeObserver(() => {
                         syncGutterHeights(codeElement);
@@ -244,7 +258,8 @@ export interface CodeGutterConfig {
 /**
  * Manages the line-number gutter for {@link "@lexical/code-core".CodeNode}
  * blocks (both classic `data-gutter` mode and the word-wrap mode that
- * uses real DOM `.code-gutter` / `.code-content` children).
+ * uses real DOM `data-lexical-code-gutter` /
+ * `data-lexical-code-content` children).
  *
  * Both {@link "@lexical/code-shiki".CodeShikiExtension} and
  * {@link "@lexical/code-prism".CodePrismExtension} declare this as a

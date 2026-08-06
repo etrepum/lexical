@@ -82,6 +82,14 @@ const LANGUAGE_DATA_ATTRIBUTE = 'data-language';
 const HIGHLIGHT_LANGUAGE_DATA_ATTRIBUTE = 'data-highlight-language';
 const THEME_DATA_ATTRIBUTE = 'data-theme';
 const WORD_WRAP_DATA_ATTRIBUTE = 'data-word-wrap';
+/**
+ * Structural markers for the word-wrap DOM contract. Styling comes from
+ * the `codeGutter` / `codeContent` entries in {@link EditorThemeClasses};
+ * these data attributes exist so the node and the gutter helpers can
+ * locate the elements without depending on any particular theme class.
+ */
+export const CODE_GUTTER_DATA_ATTRIBUTE = 'data-lexical-code-gutter';
+export const CODE_CONTENT_DATA_ATTRIBUTE = 'data-lexical-code-content';
 
 /**
  * NodeState backing for the `wordWrap` flag on a {@link CodeNode}. Using
@@ -225,11 +233,13 @@ export class CodeNode extends ElementNode {
     if (this.getWordWrap()) {
       element.setAttribute(WORD_WRAP_DATA_ATTRIBUTE, 'true');
       const gutterEl = $getDocument().createElement('div');
-      gutterEl.className = 'code-gutter';
+      gutterEl.setAttribute(CODE_GUTTER_DATA_ATTRIBUTE, 'true');
+      addClassNamesToElement(gutterEl, config.theme.codeGutter);
       setDOMUnmanaged(gutterEl);
       element.appendChild(gutterEl);
       const contentEl = $getDocument().createElement('div');
-      contentEl.className = 'code-content';
+      contentEl.setAttribute(CODE_CONTENT_DATA_ATTRIBUTE, 'true');
+      addClassNamesToElement(contentEl, config.theme.codeContent);
       element.appendChild(contentEl);
     }
 
@@ -238,7 +248,9 @@ export class CodeNode extends ElementNode {
 
   getDOMSlot(element: HTMLElement): ElementDOMSlot {
     if (this.getWordWrap()) {
-      const contentEl = element.querySelector<HTMLElement>('.code-content');
+      const contentEl = element.querySelector<HTMLElement>(
+        `[${CODE_CONTENT_DATA_ATTRIBUTE}]`,
+      );
       if (contentEl) {
         return super.getDOMSlot(element).withElement(contentEl);
       }
