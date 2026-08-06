@@ -6,18 +6,19 @@
  *
  */
 
-import type {
-  DOMExportOutput,
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
-} from 'lexical';
 import type {JSX} from 'react';
 
-import {DecoratorNode} from 'lexical';
+import {
+  $getDocument,
+  DecoratorNode,
+  type DOMExportOutput,
+  type EditorConfig,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  type SerializedLexicalNode,
+  type Spread,
+} from 'lexical';
 import * as React from 'react';
 
 type Dimension = number | 'inherit';
@@ -38,17 +39,8 @@ export class ExcalidrawNode extends DecoratorNode<JSX.Element> {
   __width: Dimension;
   __height: Dimension;
 
-  static getType(): string {
-    return 'excalidraw';
-  }
-
-  static clone(node: ExcalidrawNode): ExcalidrawNode {
-    return new ExcalidrawNode(
-      node.__data,
-      node.__width,
-      node.__height,
-      node.__key,
-    );
+  $config() {
+    return this.config('excalidraw', {extends: DecoratorNode});
   }
 
   static importJSON(serializedNode: SerializedExcalidrawNode): ExcalidrawNode {
@@ -82,7 +74,7 @@ export class ExcalidrawNode extends DecoratorNode<JSX.Element> {
 
   // View
   createDOM(config: EditorConfig): HTMLElement {
-    const span = document.createElement('span');
+    const span = $getDocument().createElement('span');
     const theme = config.theme;
     const className = theme.image;
     if (className !== undefined) {
@@ -96,7 +88,7 @@ export class ExcalidrawNode extends DecoratorNode<JSX.Element> {
   }
 
   exportDOM(editor: LexicalEditor): DOMExportOutput {
-    const element = document.createElement('span');
+    const element = $getDocument().createElement('span');
 
     element.style.display = 'inline-block';
 

@@ -6,8 +6,6 @@
  *
  */
 
-import type {LexicalEditor, LexicalNode, NodeKey} from 'lexical';
-
 import {
   $isCodeHighlightNode,
   $isCodeNode,
@@ -32,7 +30,10 @@ import {
   $isTextNode,
   $onUpdate,
   defineExtension,
+  type LexicalEditor,
+  type LexicalNode,
   mergeRegister,
+  type NodeKey,
   safeCast,
   TextNode,
 } from 'lexical';
@@ -267,11 +268,11 @@ function $updateAndRetainSelection(
 // Finds minimal diff range between two nodes lists. It returns from/to range boundaries of prevNodes
 // that needs to be replaced with `nodes` (subset of nextNodes) to make prevNodes equal to nextNodes.
 function getDiffRange(
-  prevNodes: Array<LexicalNode>,
-  nextNodes: Array<LexicalNode>,
+  prevNodes: LexicalNode[],
+  nextNodes: LexicalNode[],
 ): {
   from: number;
-  nodesForReplacement: Array<LexicalNode>;
+  nodesForReplacement: LexicalNode[];
   to: number;
 } {
   let leadingMatch = 0;
@@ -413,9 +414,9 @@ export interface CodeShikiConfig {
  * and the related keyboard handlers are activated automatically. Set
  * `tabSize` on `CodeIndentExtension` to enable space-indent outdent.
  */
-export const CodeShikiExtension = defineExtension({
+export const CodeShikiExtension = /* @__PURE__ */ defineExtension({
   build: (editor, config) => namedSignals(config),
-  config: safeCast<CodeShikiConfig>({
+  config: /* @__PURE__ */ safeCast<CodeShikiConfig>({
     disabled: false,
     tokenizer: ShikiTokenizer,
   }),
@@ -450,8 +451,8 @@ export type CodeHighlighterShikiConfig = Tokenizer;
  * `configExtension(CodeHighlighterShikiExtension, customTokenizer)`
  * continue to work without modification.
  */
-export const CodeHighlighterShikiExtension = defineExtension({
-  config: safeCast<CodeHighlighterShikiConfig>(ShikiTokenizer),
+export const CodeHighlighterShikiExtension = /* @__PURE__ */ defineExtension({
+  config: /* @__PURE__ */ safeCast<CodeHighlighterShikiConfig>(ShikiTokenizer),
   dependencies: [CodeShikiExtension],
   init: (editorConfig, config, state) => {
     // Forward the flat Tokenizer config to CodeShikiExtension's `tokenizer`

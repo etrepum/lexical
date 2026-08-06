@@ -6,8 +6,6 @@
  *
  */
 
-import type {TextFormatType} from 'lexical';
-
 import {DragonExtension} from '@lexical/dragon';
 import {
   effect,
@@ -15,15 +13,25 @@ import {
   NormalizeInlineElementsExtension,
   NormalizeTripleClickSelectionExtension,
 } from '@lexical/extension';
-import {defineExtension, safeCast, shallowMergeConfig} from 'lexical';
+import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
+import {
+  configExtension,
+  defineExtension,
+  safeCast,
+  shallowMergeConfig,
+  type TextFormatType,
+} from 'lexical';
 
 import {
+  defaultShouldHandlePasteAsFiles,
   type EscapeFormatTriggerConfig,
   HeadingNode,
   QuoteNode,
   registerRichText,
+  type ShouldHandlePasteAsFiles,
   type TriggerConfig,
 } from './index';
+import {RichTextImportRules} from './RichTextImportExtension';
 
 /**
  * Configuration for {@link RichTextExtension}.
@@ -52,6 +60,7 @@ import {
  */
 export interface RichTextConfig {
   escapeFormatTriggers: EscapeFormatTriggerConfig;
+  shouldHandlePasteAsFiles: ShouldHandlePasteAsFiles;
 }
 
 const DEFAULT_RICH_TEXT_CONFIG: RichTextConfig = {
@@ -60,6 +69,7 @@ const DEFAULT_RICH_TEXT_CONFIG: RichTextConfig = {
     lowercase: {enter: true, space: true, tab: true},
     uppercase: {enter: true, space: true, tab: true},
   },
+  shouldHandlePasteAsFiles: defaultShouldHandlePasteAsFiles,
 };
 
 function mergeTriggerConfig(
@@ -97,20 +107,47 @@ function mergeRichTextConfig(
   return merged;
 }
 
-export const RichTextExtension = defineExtension({
+export const RichTextExtension = /* @__PURE__ */ defineExtension({
   build: (_editor, config) => namedSignals(config),
-  config: safeCast<RichTextConfig>(DEFAULT_RICH_TEXT_CONFIG),
+  config: /* @__PURE__ */ safeCast<RichTextConfig>(DEFAULT_RICH_TEXT_CONFIG),
   conflictsWith: ['@lexical/plain-text'],
   dependencies: [
     DragonExtension,
     NormalizeInlineElementsExtension,
     NormalizeTripleClickSelectionExtension,
+    // DOMImportExtension support for the nodes registered here. Inert
+    // unless the editor routes HTML through the pipeline (e.g. via
+    // ClipboardDOMImportExtension or $generateNodesFromDOMViaExtension).
+    CoreImportExtension,
+    /* @__PURE__ */ configExtension(DOMImportExtension, {
+      rules: RichTextImportRules,
+    }),
   ],
   mergeConfig: mergeRichTextConfig,
   name: '@lexical/rich-text',
   nodes: () => [HeadingNode, QuoteNode],
   register: (editor, _config, state) =>
-    effect(() =>
-      registerRichText(editor, state.getOutput().escapeFormatTriggers),
-    ),
+    effect(() => {
+      const {escapeFormatTriggers, shouldHandlePasteAsFiles} =
+        state.getOutput();
+      return registerRichText(
+        editor,
+        escapeFormatTriggers,
+        shouldHandlePasteAsFiles,
+      );
+    }),
+});
+
+/**
+ * Bundles {@link RichTextImportRules} together with the runtime
+ * {@link RichTextExtension}.
+ *
+ * @experimental
+ * @deprecated {@link RichTextExtension} now registers
+ * {@link RichTextImportRules} (and `CoreImportExtension`) itself —
+ * depend on it directly instead.
+ */
+export const RichTextImportExtension = /* @__PURE__ */ defineExtension({
+  dependencies: [RichTextExtension],
+  name: '@lexical/rich-text/Import',
 });

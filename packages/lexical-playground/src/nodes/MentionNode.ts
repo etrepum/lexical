@@ -8,6 +8,7 @@
 
 import {
   $applyNodeReplacement,
+  $getDocument,
   type DOMExportOutput,
   type EditorConfig,
   type LexicalNode,
@@ -28,8 +29,8 @@ const mentionBackgroundColor = 'rgba(24, 119, 232, 0.2)';
 export class MentionNode extends TextNode {
   __mention: string;
 
-  static getType(): string {
-    return 'mention';
+  $config() {
+    return this.config('mention', {extends: TextNode});
   }
 
   static clone(node: MentionNode): MentionNode {
@@ -63,7 +64,7 @@ export class MentionNode extends TextNode {
   }
 
   exportDOM(): DOMExportOutput {
-    const element = document.createElement('span');
+    const element = $getDocument().createElement('span');
     element.setAttribute('data-lexical-mention', 'true');
     if (this.__text !== this.__mention) {
       element.setAttribute('data-lexical-mention-name', this.__mention);

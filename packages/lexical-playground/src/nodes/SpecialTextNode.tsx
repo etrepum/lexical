@@ -6,23 +6,23 @@
  *
  */
 
-import type {EditorConfig, LexicalNode, SerializedTextNode} from 'lexical';
-
-import {addClassNamesToElement} from '@lexical/utils';
-import {$applyNodeReplacement, TextNode} from 'lexical';
+import {
+  $applyNodeReplacement,
+  $getDocument,
+  addClassNamesToElement,
+  type EditorConfig,
+  type LexicalNode,
+  TextNode,
+} from 'lexical';
 
 /** @noInheritDoc */
 export class SpecialTextNode extends TextNode {
-  static getType(): string {
-    return 'specialText';
-  }
-
-  static clone(node: SpecialTextNode): SpecialTextNode {
-    return new SpecialTextNode(node.__text, node.__key);
+  $config() {
+    return this.config('specialText', {extends: TextNode});
   }
 
   createDOM(config: EditorConfig): HTMLElement {
-    const dom = document.createElement('span');
+    const dom = $getDocument().createElement('span');
     addClassNamesToElement(dom, config.theme.specialText);
     dom.textContent = this.getTextContent();
     return dom;
@@ -37,10 +37,6 @@ export class SpecialTextNode extends TextNode {
     addClassNamesToElement(dom, config.theme.specialText);
 
     return false;
-  }
-
-  static importJSON(serializedNode: SerializedTextNode): SpecialTextNode {
-    return $createSpecialTextNode().updateFromJSON(serializedNode);
   }
 
   isTextEntity(): true {

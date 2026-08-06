@@ -63,7 +63,7 @@ function updateCodeGutter(node: CodeNode, editor: LexicalEditor): void {
         gutterEl.removeChild(gutterEl.lastChild!);
       }
       while (gutterEl.children.length < count) {
-        const span = document.createElement('span');
+        const span = codeElement.ownerDocument.createElement('span');
         span.textContent = String(gutterEl.children.length + 1);
         gutterEl.appendChild(span);
       }
@@ -108,7 +108,7 @@ function syncGutterHeights(codeElement: HTMLElement): void {
   // Measure heights of each logical line in the content
   // Lines are separated by <br> elements (LineBreakNode renders as <br>)
   const lineHeights: number[] = [];
-  const range = document.createRange();
+  const range = codeElement.ownerDocument.createRange();
 
   for (let i = 0; i <= children.length; i++) {
     const child = children[i];
@@ -175,7 +175,7 @@ export function registerCodeGutter(editor: LexicalEditor): () => void {
     editor.registerMutationListener(
       CodeNode,
       mutations => {
-        editor.getEditorState().read(() => {
+        editor.read('latest', () => {
           for (const [key, type] of mutations) {
             if (type === 'destroyed') {
               // Clean up ResizeObserver for destroyed nodes
@@ -248,9 +248,9 @@ export interface CodeGutterConfig {
  * {@link "@lexical/code-core".CodeIndentExtension} is consumed, so the
  * gutter is activated automatically alongside either highlighter.
  */
-export const CodeGutterExtension = defineExtension({
+export const CodeGutterExtension = /* @__PURE__ */ defineExtension({
   build: (_editor, config) => namedSignals(config),
-  config: safeCast<CodeGutterConfig>({
+  config: /* @__PURE__ */ safeCast<CodeGutterConfig>({
     disabled: false,
   }),
   dependencies: [CodeExtension],

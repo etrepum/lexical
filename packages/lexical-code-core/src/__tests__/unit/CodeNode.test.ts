@@ -6,13 +6,10 @@
  *
  */
 
-import type {EditorConfig} from 'lexical';
-
-import {$getRoot, NODE_STATE_KEY} from 'lexical';
-import {initializeUnitTest} from 'lexical/src/__tests__/utils';
+import {$createCodeNode, $isCodeNode, CodeNode} from '@lexical/code-core';
+import {$getRoot, type EditorConfig, NODE_STATE_KEY} from 'lexical';
+import {$assertNodeType, initializeUnitTest} from 'lexical/src/__tests__/utils';
 import {describe, expect, it} from 'vitest';
-
-import {$createCodeNode, CodeNode} from '../../CodeNode';
 
 const editorConfig = {
   namespace: '',
@@ -103,7 +100,10 @@ describe('CodeNode', () => {
             }
 
             // Re-import and confirm the value survives the round-trip.
-            const reimported = CodeNode.importJSON(wrappedJSON);
+            const reimported = $assertNodeType(
+              CodeNode.importJSON(wrappedJSON),
+              $isCodeNode,
+            );
             expect(reimported.getWordWrap()).toBe(true);
 
             // Toggling back to false strips the top-level key on re-export.

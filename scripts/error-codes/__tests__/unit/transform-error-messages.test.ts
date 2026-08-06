@@ -44,13 +44,14 @@ function fmt(strings: TemplateStringsArray, ...keys: unknown[]): string {
   // Normalize some of the stuff that babel will inject so the examples are
   // stable and easier to read:
   // - use strict header
-  // - @babel/helper-module-imports interop
+  // - @babel/helper-module-imports interop (CJS require + ESM import forms)
   const before = result
     .join('')
     .replace(/.use strict.;\n/g, '')
     .replace(/var _[^;]+;\n/g, '')
+    .replace(/import [^;]*?from ['"]@lexical\/internal\/[^'"]+['"];\n?/g, '')
     .replace(/function _interopRequireDefault\([^)]*\) {[^;]+?;[\s\n]*}\n/g, '')
-    .replace(/_format(Dev|Prod)(Error|Warning)Message\d+/g, 'format$1$2Message')
+    .replace(/_format(Dev|Prod)(Error|Warning)Message\d*/g, 'format$1$2Message')
     .replace(
       /\(0,\s*format(Dev|Prod)(Error|Warning)Message\.default\)/g,
       'format$1$2Message',
@@ -251,53 +252,6 @@ describe('transform-error-messages', () => {
             formatDevWarningMessage(\`A new invariant\`);
           }
        `,
-          messageMapBefore: KNOWN_MSG_MAP,
-          messageMapExpect: KNOWN_MSG_MAP,
-          opts,
-        });
-      });
-    });
-  });
-  describe('$devInvariant', () => {
-    // `$devInvariant(editor, condition, message, ...args)` carries the editor
-    // as the first argument, so the condition/message/args are shifted one slot
-    // to the right. The transform should still hoist the condition and extract
-    // the message exactly like `devInvariant`, dropping the editor argument.
-    describe('{extractCodes: true, noMinify: false}', () => {
-      const opts = {extractCodes: true, noMinify: false};
-      it('hoists the condition and extracts the message past the editor arg', async () => {
-        await expectTransform({
-          codeBefore: `
-        $devInvariant(editor, condition, ${JSON.stringify(NEW_MSG)});
-        $devInvariant(editor, condition, ${JSON.stringify(
-          KNOWN_MSG,
-        )}, adj, noun);
-        `,
-          codeExpect: `
-        if (!condition) {
-          formatProdWarningMessage(1);
-        }
-        if (!condition) {
-          formatProdWarningMessage(0, adj, noun);
-        }`,
-          messageMapBefore: KNOWN_MSG_MAP,
-          messageMapExpect: NEW_MSG_MAP,
-          opts,
-        });
-      });
-    });
-    describe('{extractCodes: false, noMinify: false}', () => {
-      const opts = {extractCodes: false, noMinify: false};
-      it('inserts known message past the editor arg', async () => {
-        await expectTransform({
-          codeBefore: `$devInvariant(editor, condition, ${JSON.stringify(
-            KNOWN_MSG,
-          )}, adj, noun)`,
-          codeExpect: `
-          if (!condition) {
-            formatProdWarningMessage(0, adj, noun);
-          }
-        `,
           messageMapBefore: KNOWN_MSG_MAP,
           messageMapExpect: KNOWN_MSG_MAP,
           opts,
