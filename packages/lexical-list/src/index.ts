@@ -26,7 +26,19 @@ import {
   type ListType,
   type SerializedListNode,
 } from './LexicalListNode';
-import {$getListDepth} from './utils';
+import {
+  $isListSemanticNestingEnabled,
+  $markPlainImportedCheckRows,
+} from './semanticNesting';
+import {
+  $getListDepth,
+  $isEmptiedHostRow,
+  $isTaskListItem,
+  $isWrapperListItemNode,
+  $listItemEmitsRow,
+  listItemPlainState,
+  listSemanticNestingState,
+} from './utils';
 
 export {
   type CheckListConfig,
@@ -52,13 +64,21 @@ export {
   $getListDepth,
   $handleListInsertParagraph,
   $insertList,
+  $isEmptiedHostRow,
   $isListItemNode,
   $isListNode,
+  $isListSemanticNestingEnabled,
+  $isTaskListItem,
+  $isWrapperListItemNode,
+  $listItemEmitsRow,
+  $markPlainImportedCheckRows,
   $removeList,
   INSERT_CHECK_LIST_COMMAND,
   ListItemNode,
+  listItemPlainState,
   ListNode,
   ListNodeTagType,
+  listSemanticNestingState,
   ListType,
   registerCheckList,
   SerializedListItemNode,

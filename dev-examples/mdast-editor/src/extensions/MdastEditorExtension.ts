@@ -144,7 +144,11 @@ export const MdastEditorExtension = defineExtension({
     // CodeExtension / CodeIndentExtension dependencies).
     CodeShikiExtension,
     RichTextExtension,
-    ListExtension,
+    // Use the semantic nested-list representation: nested lists render
+    // inside their preceding row's <li> (<li>text<ul>…</ul></li>) rather
+    // than in dedicated wrapper <li>s, and check rows render a real
+    // <input type="checkbox">.
+    configExtension(ListExtension, {hasSemanticNesting: true}),
     CheckListExtension,
     HistoryExtension,
     TabIndentationExtension,
