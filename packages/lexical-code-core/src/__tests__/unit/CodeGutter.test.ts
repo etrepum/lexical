@@ -8,11 +8,11 @@
 
 import {$createLineBreakNode, $getRoot} from 'lexical';
 import {initializeUnitTest} from 'lexical/src/__tests__/utils';
-import {beforeAll, describe, expect, it, vi} from 'vitest';
+import {assert, beforeAll, describe, expect, it, vi} from 'vitest';
 
 import {registerCodeGutter} from '../../CodeGutter';
 import {$createCodeHighlightNode} from '../../CodeHighlightNode';
-import {$createCodeNode} from '../../CodeNode';
+import {$createCodeNode, $isCodeNode} from '../../CodeNode';
 
 // jsdom does not implement ResizeObserver. The gutter helper instantiates
 // one when word-wrap is enabled, so provide a no-op mock with disconnect
@@ -67,6 +67,46 @@ describe('CodeGutter', () => {
         expect(codeEl!.getAttribute('data-gutter')).toBe('1\n2\n3');
         // Classic mode renders no real `.code-gutter` element.
         expect(codeEl!.querySelector('.code-gutter')).toBeNull();
+      } finally {
+        cleanup();
+      }
+    });
+
+    it('updates the gutter when a replacement changes the line count but not the child count', () => {
+      const {editor} = testEnv;
+      const cleanup = registerCodeGutter(editor);
+
+      try {
+        editor.update(
+          () => {
+            const codeNode = $createCodeNode('javascript');
+            codeNode.append(
+              $createCodeHighlightNode('one'),
+              $createLineBreakNode(),
+              $createCodeHighlightNode('two'),
+            );
+            $getRoot().append(codeNode);
+          },
+          {discrete: true},
+        );
+
+        const codeEl = testEnv.container.querySelector('code');
+        expect(codeEl!.getAttribute('data-gutter')).toBe('1\n2');
+
+        // Replace the trailing highlight node with a line break: the
+        // child count stays 3 but the line count becomes 3. A cache
+        // keyed on children length would skip this update and leave the
+        // gutter stale.
+        editor.update(
+          () => {
+            const codeNode = $getRoot().getFirstChildOrThrow();
+            assert($isCodeNode(codeNode), 'expected CodeNode');
+            codeNode.getLastChildOrThrow().replace($createLineBreakNode());
+          },
+          {discrete: true},
+        );
+
+        expect(codeEl!.getAttribute('data-gutter')).toBe('1\n2\n3');
       } finally {
         cleanup();
       }

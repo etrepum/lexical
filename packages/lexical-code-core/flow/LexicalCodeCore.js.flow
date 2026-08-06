@@ -106,6 +106,8 @@ declare export class CodeNode extends ElementNode {
   collapseAtStart(): true;
   setLanguage(language: string): void;
   getLanguage(): string | void;
+  setWordWrap(wordWrap: boolean): this;
+  getWordWrap(): boolean;
 }
 
 declare export var CodeExtension: LexicalExtension<ExtensionConfigBase, "@lexical/code", unknown, unknown>;
@@ -121,3 +123,11 @@ declare export function registerCodeIndentation(
 ): () => void;
 
 declare export var CodeIndentExtension: LexicalExtension<CodeIndentConfig, "@lexical/code-indent", unknown, unknown>;
+
+export type CodeGutterConfig = {
+  disabled: boolean,
+};
+
+declare export function registerCodeGutter(editor: LexicalEditor): () => void;
+
+declare export var CodeGutterExtension: LexicalExtension<CodeGutterConfig, "@lexical/code-gutter", unknown, unknown>;

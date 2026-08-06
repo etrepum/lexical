@@ -69,6 +69,31 @@ describe('CodeNode', () => {
         expect(exportedElement!.style.color).toBe('blue');
       });
 
+      it('round-trips wordWrap through the exported DOM', async () => {
+        const {editor} = testEnv;
+
+        await editor.update(() => {
+          // Enabled: the exported <pre> carries data-word-wrap so the
+          // $convertPreElement import rule can restore the setting on
+          // paste / HTML import.
+          const wrappedNode = $createCodeNode('javascript');
+          wrappedNode.setWordWrap(true);
+          $getRoot().append(wrappedNode);
+          const {element} = wrappedNode.exportDOM(editor);
+          expect((element as HTMLElement).getAttribute('data-word-wrap')).toBe(
+            'true',
+          );
+
+          // Disabled (default): no attribute is emitted.
+          const defaultNode = $createCodeNode('javascript');
+          $getRoot().append(defaultNode);
+          const {element: defaultElement} = defaultNode.exportDOM(editor);
+          expect(
+            (defaultElement as HTMLElement).getAttribute('data-word-wrap'),
+          ).toBeNull();
+        });
+      });
+
       it('round-trips wordWrap through JSON without changing the wire format', () => {
         const {editor} = testEnv;
 

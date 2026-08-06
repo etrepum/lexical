@@ -81,6 +81,7 @@ function hasChildDOMNodeTag(node: Node, tagName: string) {
 const LANGUAGE_DATA_ATTRIBUTE = 'data-language';
 const HIGHLIGHT_LANGUAGE_DATA_ATTRIBUTE = 'data-highlight-language';
 const THEME_DATA_ATTRIBUTE = 'data-theme';
+const WORD_WRAP_DATA_ATTRIBUTE = 'data-word-wrap';
 
 /**
  * NodeState backing for the `wordWrap` flag on a {@link CodeNode}. Using
@@ -222,7 +223,7 @@ export class CodeNode extends ElementNode {
     }
 
     if (this.getWordWrap()) {
-      element.setAttribute('data-word-wrap', 'true');
+      element.setAttribute(WORD_WRAP_DATA_ATTRIBUTE, 'true');
       const gutterEl = $getDocument().createElement('div');
       gutterEl.className = 'code-gutter';
       setDOMUnmanaged(gutterEl);
@@ -324,6 +325,10 @@ export class CodeNode extends ElementNode {
     const style = this.getStyle();
     if (style) {
       setDOMStyleFromCSS(element.style, style);
+    }
+
+    if (this.getWordWrap()) {
+      element.setAttribute(WORD_WRAP_DATA_ATTRIBUTE, 'true');
     }
     return {element};
   }
@@ -498,7 +503,11 @@ export function $isCodeNode(
 
 function $convertPreElement(domNode: HTMLElement): DOMConversionOutput {
   const language = domNode.getAttribute(LANGUAGE_DATA_ATTRIBUTE);
-  return {node: $createCodeNode(language)};
+  const node = $createCodeNode(language);
+  if (domNode.getAttribute(WORD_WRAP_DATA_ATTRIBUTE) === 'true') {
+    node.setWordWrap(true);
+  }
+  return {node};
 }
 
 function $convertDivElement(domNode: Node): DOMConversionOutput {

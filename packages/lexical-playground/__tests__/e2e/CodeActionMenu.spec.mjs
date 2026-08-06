@@ -180,6 +180,73 @@ test.describe('CodeActionMenu', () => {
     );
   });
 
+  test('Can toggle word wrap, when click `word wrap` button', async ({
+    page,
+    isCollab,
+    isPlainText,
+  }) => {
+    test.skip(isCollab);
+    test.skip(isPlainText);
+    await focusEditor(page);
+    await page.keyboard.type('``` ');
+    await page.keyboard.press('Space');
+    await page.keyboard.type('const a = 1;');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('const b = 2;');
+
+    await mouseMoveToSelector(page, 'code.PlaygroundEditorTheme__code');
+    await waitForSelector(page, 'button[aria-label="word wrap"]');
+
+    // Enable word wrap: the code block switches to the real-gutter DOM
+    // structure (.code-gutter spans + .code-content wrapper) and marks
+    // itself with data-word-wrap.
+    await click(page, 'button[aria-label="word wrap"]');
+    await waitForSelector(
+      page,
+      'code.PlaygroundEditorTheme__code[data-word-wrap="true"]',
+    );
+
+    const wrapped = await evaluate(page, () => {
+      const code = document.querySelector('code.PlaygroundEditorTheme__code');
+      return {
+        contentText: code.querySelector('.code-content').textContent,
+        gutterLines: Array.from(
+          code.querySelectorAll('.code-gutter span'),
+          span => span.textContent,
+        ),
+        title: document
+          .querySelector('button[aria-label="word wrap"]')
+          .getAttribute('title'),
+      };
+    });
+    expect(wrapped.gutterLines).toEqual(['1', '2']);
+    expect(wrapped.contentText).toContain('const a = 1;');
+    expect(wrapped.contentText).toContain('const b = 2;');
+    // The button label is derived from the node state.
+    expect(wrapped.title).toBe('Disable word wrap');
+
+    // Disable again: back to the classic data-gutter mode.
+    await click(page, 'button[aria-label="word wrap"]');
+    await waitForSelector(
+      page,
+      'code.PlaygroundEditorTheme__code:not([data-word-wrap])',
+    );
+
+    const classic = await evaluate(page, () => {
+      const code = document.querySelector('code.PlaygroundEditorTheme__code');
+      return {
+        dataGutter: code.getAttribute('data-gutter'),
+        hasGutterEl: code.querySelector('.code-gutter') !== null,
+        title: document
+          .querySelector('button[aria-label="word wrap"]')
+          .getAttribute('title'),
+      };
+    });
+    expect(classic.dataGutter).toBe('1\n2');
+    expect(classic.hasGutterEl).toBe(false);
+    expect(classic.title).toBe('Enable word wrap');
+  });
+
   test('In the case of syntactically correct code, when the `prettier` button is clicked, the code needs to be properly formatted', async ({
     page,
     isCollab,

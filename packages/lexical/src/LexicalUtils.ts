@@ -1617,6 +1617,19 @@ export function getDOMOwnerDocument(
       : null;
 }
 
+/**
+ * Scroll the given selection rect into view.
+ *
+ * Vertical scrolling is applied to the root element and its ancestors
+ * only, matching the historical behavior. When `startingElement` (the
+ * caret's own element) is provided, any horizontally scrollable
+ * container between it and the root element — e.g. an
+ * `overflow-x: auto` code block — is additionally scrolled on the X
+ * axis so the caret stays visible. Only containers whose computed
+ * `overflow-x` makes them user-scrollable are measured, so the walk
+ * from the caret to the root does not add layout-forcing rect reads
+ * for ordinary (non-scrollable) ancestors.
+ */
 export function scrollIntoViewIfNeeded(
   editor: LexicalEditor,
   selectionRect: DOMRect,
@@ -1643,11 +1656,46 @@ export function scrollIntoViewIfNeeded(
   }
   let {top: currentTop, bottom: currentBottom} = selectionRect;
   let {left: currentLeft, right: currentRight} = selectionRect;
+
+  // Phase 1: horizontal-only scrolling of scrollable containers between
+  // the caret and the root element (exclusive). Vertical scrolling is
+  // deliberately not applied here so that ancestors inside the editor
+  // (table scroll wrappers, scrollable decorators, ...) keep their
+  // vertical scroll position exactly as they did before horizontal
+  // support was added. Containers that are not horizontally scrollable
+  // are skipped without measuring their rect.
+  for (
+    let element = startingElement || null;
+    element !== null && element !== rootElement && element !== doc.body;
+    element = getParentElement(element)
+  ) {
+    const {overflowX} = defaultView.getComputedStyle(element);
+    if (overflowX !== 'auto' && overflowX !== 'scroll') {
+      continue;
+    }
+    const targetRect = element.getBoundingClientRect();
+    let hDiff = 0;
+    if (currentLeft < targetRect.left) {
+      hDiff = -(targetRect.left - currentLeft);
+    } else if (currentRight > targetRect.right) {
+      hDiff = currentRight - targetRect.right;
+    }
+    if (hDiff !== 0) {
+      const scrollLeft = element.scrollLeft;
+      element.scrollLeft += hDiff;
+      const xOffset = element.scrollLeft - scrollLeft;
+      currentLeft -= xOffset;
+      currentRight -= xOffset;
+    }
+  }
+
+  // Phase 2: the historical walk from the root element upward, applying
+  // vertical scrolling (and horizontal scrolling of the viewport itself).
   let targetTop = 0;
   let targetBottom = 0;
   let targetLeft = 0;
   let targetRight = 0;
-  let element: HTMLElement | null = startingElement || rootElement;
+  let element: HTMLElement | null = rootElement;
 
   while (element !== null) {
     const isBodyElement = element === doc.body;
@@ -1662,21 +1710,32 @@ export function scrollIntoViewIfNeeded(
         const offsetTop = visualViewport.offsetTop;
         targetTop = offsetTop;
         targetBottom = offsetTop + visualViewport.height;
+        const offsetLeft = visualViewport.offsetLeft;
+        targetLeft = offsetLeft;
+        targetRight = offsetLeft + visualViewport.width;
       } else {
         targetTop = 0;
         targetBottom = getWindow(editor).innerHeight;
+        targetLeft = 0;
+        targetRight = getWindow(editor).innerWidth;
       }
-      targetLeft = 0;
-      targetRight = getWindow(editor).innerWidth;
       // Account for CSS scroll-padding on the document element
       const computedStyle = defaultView.getComputedStyle(doc.documentElement);
       const scrollPaddingTop = parseFloat(computedStyle.scrollPaddingTop);
       const scrollPaddingBottom = parseFloat(computedStyle.scrollPaddingBottom);
+      const scrollPaddingLeft = parseFloat(computedStyle.scrollPaddingLeft);
+      const scrollPaddingRight = parseFloat(computedStyle.scrollPaddingRight);
       if (isFinite(scrollPaddingTop)) {
         targetTop += scrollPaddingTop;
       }
       if (isFinite(scrollPaddingBottom)) {
         targetBottom -= scrollPaddingBottom;
+      }
+      if (isFinite(scrollPaddingLeft)) {
+        targetLeft += scrollPaddingLeft;
+      }
+      if (isFinite(scrollPaddingRight)) {
+        targetRight -= scrollPaddingRight;
       }
     } else {
       // Reuse the rect already measured for the guard above on the first

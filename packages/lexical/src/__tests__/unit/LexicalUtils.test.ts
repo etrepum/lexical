@@ -608,6 +608,34 @@ describe('LexicalUtils tests', () => {
       }
     });
 
+    // jsdom does not implement scroll clamping, so emulate a real
+    // browser's behavior: scrollLeft/scrollTop are clamped to
+    // [0, max] and expose how far the element actually scrolled.
+    function mockScrollProps(
+      element: HTMLElement,
+      {maxScrollLeft = Infinity}: {maxScrollLeft?: number} = {},
+    ): {getScrollTopWrites: () => number} {
+      let scrollLeft = 0;
+      let scrollTop = 0;
+      let scrollTopWrites = 0;
+      Object.defineProperty(element, 'scrollLeft', {
+        configurable: true,
+        get: () => scrollLeft,
+        set: (val: number) => {
+          scrollLeft = Math.min(Math.max(val, 0), maxScrollLeft);
+        },
+      });
+      Object.defineProperty(element, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (val: number) => {
+          scrollTopWrites++;
+          scrollTop = Math.max(val, 0);
+        },
+      });
+      return {getScrollTopWrites: () => scrollTopWrites};
+    }
+
     test('scrollIntoViewIfNeeded handles horizontal scrolling', () => {
       const {editor} = testEnv;
       const rootElement = editor.getRootElement()!;
@@ -625,24 +653,20 @@ describe('LexicalUtils tests', () => {
       vi.spyOn(codeBlock, 'getBoundingClientRect').mockReturnValue(
         codeBlockRect,
       );
+      const scrollBySpy = vi
+        .spyOn(window, 'scrollBy')
+        .mockImplementation(() => {});
 
       // Selection rect is beyond the right edge of the code block (at x=250)
       const selectionRect = new DOMRect(250, 50, 2, 20);
 
-      // scrollLeft should be adjusted
-      codeBlock.scrollLeft = 0;
-      // Mock scrollLeft setter behavior (jsdom doesn't handle overflow)
-      Object.defineProperty(codeBlock, 'scrollLeft', {
-        configurable: true,
-        get: function () {
-          return this._scrollLeft || 0;
-        },
-        set: function (val) {
-          this._scrollLeft = val;
-        },
-      });
+      mockScrollProps(codeBlock);
 
-      scrollIntoViewIfNeeded(editor, selectionRect, rootElement, codeBlock);
+      try {
+        scrollIntoViewIfNeeded(editor, selectionRect, rootElement, codeBlock);
+      } finally {
+        scrollBySpy.mockRestore();
+      }
 
       // The cursor right edge (250+2=252) is 52px past the container right (200px)
       // So scrollLeft should be increased by 52
@@ -654,6 +678,7 @@ describe('LexicalUtils tests', () => {
       const rootElement = editor.getRootElement()!;
 
       const codeBlock = document.createElement('code');
+      codeBlock.style.overflowX = 'auto';
       rootElement.appendChild(codeBlock);
 
       // Code block starts at x=50
@@ -661,25 +686,89 @@ describe('LexicalUtils tests', () => {
       vi.spyOn(codeBlock, 'getBoundingClientRect').mockReturnValue(
         codeBlockRect,
       );
+      const scrollBySpy = vi
+        .spyOn(window, 'scrollBy')
+        .mockImplementation(() => {});
 
       // Selection rect is before the left edge of the code block (at x=20)
       const selectionRect = new DOMRect(20, 50, 2, 20);
 
-      Object.defineProperty(codeBlock, 'scrollLeft', {
-        configurable: true,
-        get: function () {
-          return this._scrollLeft || 0;
-        },
-        set: function (val) {
-          this._scrollLeft = val;
-        },
-      });
+      mockScrollProps(codeBlock);
+      // The block has already been scrolled 40px to the right
+      codeBlock.scrollLeft = 40;
 
-      scrollIntoViewIfNeeded(editor, selectionRect, rootElement, codeBlock);
+      try {
+        scrollIntoViewIfNeeded(editor, selectionRect, rootElement, codeBlock);
+      } finally {
+        scrollBySpy.mockRestore();
+      }
 
-      // The cursor at x=20 is 30px before the left edge (50px)
-      // So scrollLeft should be decreased by 30
-      expect(codeBlock.scrollLeft).toBe(-30);
+      // The cursor at x=20 is 30px before the left edge (50px), so
+      // scrollLeft should be decreased by 30 (40 - 30 = 10). A real
+      // browser clamps scrollLeft at 0, which the mock reproduces.
+      expect(codeBlock.scrollLeft).toBe(10);
+    });
+
+    test('scrollIntoViewIfNeeded skips ancestors that are not horizontally scrollable', () => {
+      const {editor} = testEnv;
+      const rootElement = editor.getRootElement()!;
+
+      // No overflow-x: auto/scroll on this wrapper, so the caret-to-root
+      // walk must not measure or scroll it.
+      const wrapper = document.createElement('div');
+      rootElement.appendChild(wrapper);
+
+      const rectSpy = vi.spyOn(wrapper, 'getBoundingClientRect');
+      const scrollBySpy = vi
+        .spyOn(window, 'scrollBy')
+        .mockImplementation(() => {});
+      mockScrollProps(wrapper);
+
+      const selectionRect = new DOMRect(250, 50, 2, 20);
+      try {
+        scrollIntoViewIfNeeded(editor, selectionRect, rootElement, wrapper);
+      } finally {
+        scrollBySpy.mockRestore();
+      }
+
+      expect(rectSpy).not.toHaveBeenCalled();
+      expect(wrapper.scrollLeft).toBe(0);
+    });
+
+    test('scrollIntoViewIfNeeded does not vertically scroll containers below the root element', () => {
+      const {editor} = testEnv;
+      const rootElement = editor.getRootElement()!;
+
+      // A container that is scrollable on both axes (e.g. a code block
+      // with overflow: auto). Horizontal support must not introduce
+      // vertical scrolling of ancestors below the root element — that
+      // remains the responsibility of the root/viewport walk.
+      const codeBlock = document.createElement('code');
+      codeBlock.style.overflowX = 'auto';
+      codeBlock.style.overflowY = 'auto';
+      rootElement.appendChild(codeBlock);
+
+      vi.spyOn(codeBlock, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 100),
+      );
+      const scrollBySpy = vi
+        .spyOn(window, 'scrollBy')
+        .mockImplementation(() => {});
+      const {getScrollTopWrites} = mockScrollProps(codeBlock);
+
+      // The caret is past the right edge AND below the bottom edge.
+      const selectionRect = new DOMRect(250, 150, 2, 20);
+      try {
+        scrollIntoViewIfNeeded(editor, selectionRect, rootElement, codeBlock);
+      } finally {
+        scrollBySpy.mockRestore();
+      }
+
+      // Horizontal was handled...
+      expect(codeBlock.scrollLeft).toBe(52);
+      // ...but the container's vertical scroll was never touched.
+      expect(getScrollTopWrites()).toBe(0);
+      expect(codeBlock.scrollTop).toBe(0);
     });
 
     test('scrollIntoViewIfNeeded ignores a selection rect that lies entirely above the editor', () => {

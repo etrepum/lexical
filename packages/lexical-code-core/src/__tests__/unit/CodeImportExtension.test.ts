@@ -83,6 +83,24 @@ describe('CodeImportExtension', () => {
     });
   });
 
+  test('<pre data-word-wrap="true"> sets wordWrap', () => {
+    using editor = buildEditor();
+    importInto(editor, '<pre data-word-wrap="true">x</pre>');
+    editor.read(() => {
+      const node = $rootCode();
+      expect(node.getWordWrap()).toBe(true);
+    });
+  });
+
+  test('<pre> without data-word-wrap leaves wordWrap disabled', () => {
+    using editor = buildEditor();
+    importInto(editor, '<pre>x</pre>');
+    editor.read(() => {
+      const node = $rootCode();
+      expect(node.getWordWrap()).toBe(false);
+    });
+  });
+
   test('multi-line <code> imports as CodeNode (not inline)', () => {
     using editor = buildEditor();
     importInto(editor, '<code>line1\nline2</code>');

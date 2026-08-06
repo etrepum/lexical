@@ -102,6 +102,8 @@ declare export class CodeNode extends ElementNode {
   collapseAtStart(): true;
   setLanguage(language: string): void;
   getLanguage(): string | void;
+  setWordWrap(wordWrap: boolean): this;
+  getWordWrap(): boolean;
 }
 
 declare export var CodeExtension: LexicalExtension<ExtensionConfigBase, "@lexical/code", unknown, unknown>;

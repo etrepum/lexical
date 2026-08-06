@@ -3981,16 +3981,24 @@ export function $updateDOMSelection(
       } else {
         selectionRect = selectionTarget.getBoundingClientRect();
       }
-      const selectionElement =
-        selectionTarget instanceof HTMLElement
-          ? selectionTarget
-          : selectionTarget instanceof Text
-            ? selectionTarget.parentElement
-            : selectionTarget instanceof Range
-              ? selectionTarget.startContainer instanceof HTMLElement
-                ? selectionTarget.startContainer
-                : selectionTarget.startContainer.parentElement
-              : null;
+      // Resolve the caret's own element so scrollIntoViewIfNeeded can also
+      // scroll any horizontally scrollable container between the caret and
+      // the root element (e.g. an overflow-x code block). Use the
+      // realm-safe helpers rather than instanceof so this keeps working
+      // when the editor lives in an iframe (whose DOM constructors are
+      // different realm objects).
+      let selectionElement: HTMLElement | null;
+      if (isHTMLElement(selectionTarget)) {
+        selectionElement = selectionTarget;
+      } else if (isDOMTextNode(selectionTarget)) {
+        selectionElement = selectionTarget.parentElement;
+      } else {
+        // getCurrentRange() returned a Range
+        const {startContainer} = selectionTarget;
+        selectionElement = isHTMLElement(startContainer)
+          ? startContainer
+          : startContainer.parentElement;
+      }
       scrollIntoViewIfNeeded(
         editor,
         selectionRect,

@@ -11,6 +11,8 @@ import {
   moveToEditorBeginning,
   moveToEditorEnd,
   moveToEnd,
+  moveToLineBeginning,
+  moveToLineEnd,
   moveToStart,
   pressShiftEnter,
   selectAll,
@@ -20,6 +22,8 @@ import {
   assertHTML,
   assertSelection,
   click,
+  evaluate,
+  expect,
   focusEditor,
   html,
   initialize,
@@ -33,6 +37,42 @@ async function toggleCodeBlock(page) {
 
 test.describe('CodeBlock', () => {
   test.beforeEach(({isCollab, page}) => initialize({isCollab, page}));
+
+  test('Horizontally scrolls an overflowing code block to keep the caret visible', async ({
+    page,
+    isCollab,
+    isPlainText,
+  }) => {
+    test.skip(isCollab);
+    test.skip(isPlainText);
+    await focusEditor(page);
+    await page.keyboard.type('``` ');
+    // Long enough to overflow the editor width so the code block
+    // (overflow-x: auto) becomes horizontally scrollable.
+    await page.keyboard.type('const aVeryLongIdentifier = 1; '.repeat(10));
+
+    const getScrollLeft = () =>
+      evaluate(
+        page,
+        () =>
+          document.querySelector('code.PlaygroundEditorTheme__code').scrollLeft,
+      );
+
+    // Typing left the caret at the end of the line, so the block must
+    // have scrolled right to keep it visible.
+    const scrollLeftAtEnd = await getScrollLeft();
+    expect(scrollLeftAtEnd).toBeGreaterThan(0);
+
+    // Jumping to the start of the line scrolls back left...
+    await moveToLineBeginning(page);
+    const scrollLeftAtStart = await getScrollLeft();
+    expect(scrollLeftAtStart).toBeLessThan(scrollLeftAtEnd);
+
+    // ...and jumping to the end scrolls right again.
+    await moveToLineEnd(page);
+    expect(await getScrollLeft()).toBeGreaterThan(scrollLeftAtStart);
+  });
+
   test('Can create code block with markdown', async ({page, isRichText}) => {
     await focusEditor(page);
     await page.keyboard.type('``` alert(1);');

@@ -40,19 +40,23 @@ function updateCodeGutter(node: CodeNode, editor: LexicalEditor): void {
   }
   const children = node.getChildren();
   const childrenLength = children.length;
-  // @ts-ignore: internal field
-  if (childrenLength === codeElement.__cachedChildrenLength) {
-    // Avoid updating the attribute if the children length hasn't changed.
-    return;
-  }
-  // @ts-ignore:: internal field
-  codeElement.__cachedChildrenLength = childrenLength;
   let count = 1;
   for (let i = 0; i < childrenLength; i++) {
     if ($isLineBreakNode(children[i])) {
       count++;
     }
   }
+  // Cache the computed line count (not the children length — replacing
+  // children can change the number of line breaks without changing the
+  // child count) so unchanged updates skip the DOM work. Height changes
+  // in word-wrap mode are covered by the ResizeObserver in
+  // registerCodeGutter, so they don't need to bust this cache.
+  // @ts-ignore: internal field
+  if (count === codeElement.__cachedLineCount) {
+    return;
+  }
+  // @ts-ignore: internal field
+  codeElement.__cachedLineCount = count;
 
   if (node.getWordWrap()) {
     // Word-wrap mode: update real DOM gutter elements

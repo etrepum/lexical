@@ -8,6 +8,7 @@
 import {$isCodeNode} from '@lexical/code';
 import {$getNearestNodeFromDOMNode, type LexicalEditor} from 'lexical';
 import * as React from 'react';
+import {useCallback, useEffect, useState} from 'react';
 
 interface Props {
   editor: LexicalEditor;
@@ -15,7 +16,30 @@ interface Props {
 }
 
 export function WordWrapButton({editor, getCodeDOMNode}: Props) {
-  const [isWordWrap, setIsWordWrap] = React.useState(false);
+  const [isWordWrap, setIsWordWrap] = useState(false);
+
+  // The action menu is a single shared instance that moves between code
+  // blocks, so the label must be derived from the currently hovered
+  // node rather than tracked locally — otherwise it goes stale when the
+  // menu moves to another block or when the node changes underneath us
+  // (undo/redo, collaboration).
+  const syncFromNode = useCallback(() => {
+    const codeDOMNode = getCodeDOMNode();
+    if (!codeDOMNode) {
+      return;
+    }
+    editor.read('latest', () => {
+      const codeNode = $getNearestNodeFromDOMNode(codeDOMNode);
+      if ($isCodeNode(codeNode)) {
+        setIsWordWrap(codeNode.getWordWrap());
+      }
+    });
+  }, [editor, getCodeDOMNode]);
+
+  useEffect(() => {
+    syncFromNode();
+    return editor.registerUpdateListener(syncFromNode);
+  }, [editor, syncFromNode]);
 
   function handleClick(): void {
     const codeDOMNode = getCodeDOMNode();
@@ -28,9 +52,7 @@ export function WordWrapButton({editor, getCodeDOMNode}: Props) {
       const codeNode = $getNearestNodeFromDOMNode(codeDOMNode);
 
       if ($isCodeNode(codeNode)) {
-        const newWordWrap = !codeNode.getWordWrap();
-        codeNode.setWordWrap(newWordWrap);
-        setIsWordWrap(newWordWrap);
+        codeNode.setWordWrap(!codeNode.getWordWrap());
       }
     });
   }
