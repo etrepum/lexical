@@ -3606,3 +3606,155 @@ describe('mixed check list Markdown round-trip (semantic mode)', () => {
     });
   });
 });
+
+describe('review round 14 regression fixes', () => {
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  test('an indented task line nests as a check list without retyping the outer list', () => {
+    using editor = buildCheckEditor();
+    editor.update(() => $convertFromMarkdownString('- a\n    - [ ] t', MD), {
+      discrete: true,
+    });
+    editor.read('force-commit', () => {
+      // GitHub's rendering: a bullet list whose row 'a' hosts a nested CHECK
+      // list — the reconcile must apply to the list the row finally landed
+      // in, not the top-level merge target.
+      const outer = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      expect(outer.getListType()).toBe('bullet');
+      const host = $assertNodeType(outer.getFirstChild(), $isListItemNode);
+      const nested = $assertNodeType(
+        host.getChildren().find($isListNode),
+        $isListNode,
+      );
+      expect(nested.getListType()).toBe('check');
+      expect($convertToMarkdownString(MD)).toBe('- a\n    - [ ] t');
+    });
+  });
+
+  test('indenting into a multi-list wrapper appends to its LAST list (document order)', () => {
+    using editor = buildEditor({hasSemanticNesting: false});
+    let rowC!: ListItemNode;
+    editor.update(
+      () => {
+        // [A, wrapper(ul[x], ol[y]), C] — multi-list wrappers arise from
+        // delete-collapse, parking, and outdent splits.
+        const wrapper = $createListItemNode().append(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('x')),
+          ),
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode('y')),
+          ),
+        );
+        rowC = $createListItemNode().append($createTextNode('C'));
+        $clearAndAppend(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('A')),
+            wrapper,
+            rowC,
+          ),
+        );
+      },
+      {discrete: true},
+    );
+    editor.update(() => rowC.getLatest().setIndent(1), {discrete: true});
+    editor.read('force-commit', () => {
+      // C joins the wrapper's last list, keeping document order — not the
+      // first list, which would insert it above the ol's rows.
+      const texts = $getRoot()
+        .getAllTextNodes()
+        .map(text => text.getTextContent());
+      expect(texts).toEqual(['A', 'x', 'y', 'C']);
+    });
+  });
+
+  test('indenting after a host with a cross-type trailing list keeps the row type', () => {
+    using editor = buildEditor();
+    let rowB!: ListItemNode;
+    editor.update(
+      () => {
+        // bullet list: host A trailing a NUMBER sublist, then bullet row B.
+        const host = $createListItemNode().append(
+          $createTextNode('A'),
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode('n1')),
+          ),
+        );
+        rowB = $createListItemNode().append($createTextNode('B'));
+        $clearAndAppend($createListNode('bullet').append(host, rowB));
+      },
+      {discrete: true},
+    );
+    editor.update(() => rowB.getLatest().setIndent(1), {discrete: true});
+    editor.read('force-commit', () => {
+      // B nests in a new bullet list rather than joining the numbered one
+      // (which would silently retype it), and document order holds.
+      const b = $getRoot()
+        .getAllTextNodes()
+        .find(text => text.getTextContent() === 'B');
+      invariant(b !== undefined, 'expected row B');
+      const bList = b.getParent()!.getParent();
+      expect($isListNode(bList) && bList.getListType()).toBe('bullet');
+      expect(
+        $getRoot()
+          .getAllTextNodes()
+          .map(text => text.getTextContent()),
+      ).toEqual(['A', 'n1', 'B']);
+    });
+  });
+
+  test('a checkbox input with an uppercase type attribute imports checked (default mode)', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting: false}),
+          CheckListExtension,
+        ],
+        name: 'uppercase-type-host',
+      }),
+    );
+    // HTML attribute selectors match `type` ASCII case-insensitively, so the
+    // predicate that replaced them must too.
+    importIntoViaPipeline(
+      editor,
+      '<ul class="contains-task-list"><li class="task-list-item"><input type="CHECKBOX" checked> done</li></ul>',
+    );
+    editor.read('force-commit', () => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      expect(list.getListType()).toBe('check');
+      const row = $assertNodeType(list.getFirstChild(), $isListItemNode);
+      expect(row.getChecked()).toBe(true);
+    });
+  });
+
+  test('a row split off a plain row is another plain row (intended, GitHub-style)', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        // Plain-marked host with an empty nested check item; Enter outdents
+        // the empty item into a new sibling row created from the host.
+        const emptyItem = $createListItemNode(false);
+        const host = $createListItemNode(false)
+          .append(
+            $createTextNode('plain host'),
+            $createListNode('check').append(emptyItem),
+          )
+          .setListItemPlain(true);
+        $clearAndAppend($createListNode('check').append(host));
+        emptyItem.select(0, 0);
+      },
+      {discrete: true},
+    );
+    editor.update(() => void $handleListInsertParagraph(), {discrete: true});
+    editor.read('force-commit', () => {
+      // Plain-ness is the row's kind and rides along on split — unlike
+      // __checked, which resets so a split row is never pre-checked.
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      const rows = list.getChildren().filter($isListItemNode);
+      expect(rows.length).toBe(2);
+      expect(rows[0].getListItemPlain()).toBe(true);
+      expect(rows[1].getListItemPlain()).toBe(true);
+      expect(rows[1].getChecked()).toBeUndefined();
+    });
+  });
+});

@@ -60,6 +60,14 @@ export interface ListConfig {
    * the representation there. Disabling does not convert content back to
    * the default representation.
    *
+   * The flag also enables GitHub-style mixed task lists: check rows render
+   * real `<input type="checkbox">` elements, a `contains-task-list` (or
+   * mdast list) mixing task rows and plain `<li>`s imports as one check
+   * list whose plain rows carry `listItemPlainState` (no checkbox), and
+   * Markdown import merges consecutive `- [ ]` / `- ` lines into a single
+   * list. As with the nesting shape, only *producing* mixed lists is gated;
+   * the plain-row mark is honored unconditionally.
+   *
    * @experimental
    */
   hasSemanticNesting: boolean;

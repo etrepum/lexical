@@ -47,11 +47,11 @@ import {
   getListItemFocusTarget,
   type ListItemNode,
 } from './LexicalListItemNode';
+import {$isListNode} from './LexicalListNode';
 import {
-  $getAllListItems,
-  $getTopListNode,
   $isEmptiedHostRow,
   $isTaskListItem,
+  $isWrapperListItemNode,
 } from './utils';
 
 /**
@@ -601,22 +601,140 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
 }
 
 /**
- * Whether the item renders a checkbox row of its own ($getAllListItems
- * already excludes dedicated wrapper items). A plain row in a check list —
- * the mixed task-list case — is not a checkbox row, so arrow navigation
- * skips it just as it skips non-check rows.
+ * Whether the item renders a checkbox row of its own (the traversal skips
+ * dedicated wrapper items separately). A plain row in a check list — the
+ * mixed task-list case — is not a checkbox row, so arrow navigation skips
+ * it just as it skips non-check rows.
  */
 function $isCheckRow(node: ListItemNode): boolean {
   return $isTaskListItem(node);
 }
 
+/** The first ListItemNode of the item's first non-empty nested list. */
+function $firstNestedRow(item: ListItemNode): ListItemNode | null {
+  for (
+    let child = item.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    if ($isListNode(child)) {
+      const first = child.getFirstChild();
+      if ($isListItemNode(first)) {
+        return first;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The item's last descendant row in document order: itself, or — when it
+ * holds nested lists — the deep-last item of its last non-empty nested list
+ * (nested lists trail the row's own content in both representations).
+ */
+function $deepLastRow(item: ListItemNode): ListItemNode {
+  for (
+    let child = item.getLastChild();
+    child !== null;
+    child = child.getPreviousSibling()
+  ) {
+    if ($isListNode(child)) {
+      const last = child.getLastChild();
+      if ($isListItemNode(last)) {
+        return $deepLastRow(last);
+      }
+    }
+  }
+  return item;
+}
+
+/**
+ * The document-order successor/predecessor ListItemNode within the item's
+ * top-level list, or null at either end. Document order: a row precedes its
+ * nested lists' rows (nested lists trail the content in both
+ * representations), so the successor descends into the first nested list
+ * before moving to the next sibling, and the predecessor of a list's first
+ * item is the item holding that list (a host row, or a wrapper the caller
+ * skips).
+ */
+function $adjacentListItem(
+  item: ListItemNode,
+  backward: boolean,
+): ListItemNode | null {
+  if (backward) {
+    const previous = item.getPreviousSibling();
+    if ($isListItemNode(previous)) {
+      return $deepLastRow(previous);
+    }
+    const list = item.getParent();
+    if (!$isListNode(list)) {
+      return null;
+    }
+    const holder = list.getParent();
+    if (!$isListItemNode(holder)) {
+      // The top-level list's first item: nothing before it.
+      return null;
+    }
+    // A preceding sibling nested list of the same holder ends just before
+    // this list's first item; otherwise the holder itself is the
+    // predecessor (its row precedes its nested lists).
+    for (
+      let sibling = list.getPreviousSibling();
+      sibling !== null;
+      sibling = sibling.getPreviousSibling()
+    ) {
+      if ($isListNode(sibling)) {
+        const last = sibling.getLastChild();
+        if ($isListItemNode(last)) {
+          return $deepLastRow(last);
+        }
+      }
+    }
+    return holder;
+  }
+  const down = $firstNestedRow(item);
+  if (down !== null) {
+    return down;
+  }
+  for (let current: ListItemNode = item; ; ) {
+    const next = current.getNextSibling();
+    if ($isListItemNode(next)) {
+      return next;
+    }
+    const list = current.getParent();
+    if (!$isListNode(list)) {
+      return null;
+    }
+    const holder = list.getParent();
+    if (!$isListItemNode(holder)) {
+      // The end of the top-level list.
+      return null;
+    }
+    // The holder's next sibling nested list continues where this one ends.
+    for (
+      let sibling = list.getNextSibling();
+      sibling !== null;
+      sibling = sibling.getNextSibling()
+    ) {
+      if ($isListNode(sibling)) {
+        const first = sibling.getFirstChild();
+        if ($isListItemNode(first)) {
+          return first;
+        }
+      }
+    }
+    current = holder;
+  }
+}
+
 /**
  * The nearest checkbox row before/after `node` in visual order within its
- * top-level list. Walking the flattened row list ($getAllListItems returns
- * every rendered row in visual/document order, for both representations)
- * handles every nesting shape uniformly: semantic hosts with several
- * nested lists, rows emptied of their content, and check rows nested below
- * lists of other types.
+ * top-level list. A directional document-order traversal that early-exits
+ * at the first checkbox row — no flattening of the whole list (this runs
+ * per arrow keypress) — handling every nesting shape uniformly: semantic
+ * hosts with several nested lists, rows emptied of their content, and
+ * check rows nested below lists of other types. Dedicated wrapper items
+ * render no row and are stepped over.
  *
  * @internal exported for unit tests
  */
@@ -624,15 +742,13 @@ export function $findCheckListItemSibling(
   node: ListItemNode,
   backward: boolean,
 ): ListItemNode | null {
-  const rows = $getAllListItems($getTopListNode(node));
-  const index = rows.findIndex(row => row.is(node));
-  if (index === -1) {
-    return null;
-  }
-  const step = backward ? -1 : 1;
-  for (let i = index + step; i >= 0 && i < rows.length; i += step) {
-    if ($isCheckRow(rows[i])) {
-      return rows[i];
+  for (
+    let row = $adjacentListItem(node, backward);
+    row !== null;
+    row = $adjacentListItem(row, backward)
+  ) {
+    if (!$isWrapperListItemNode(row) && $isCheckRow(row)) {
+      return row;
     }
   }
   return null;

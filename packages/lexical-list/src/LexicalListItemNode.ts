@@ -67,6 +67,7 @@ import {
   $isTaskListItem,
   $isWrapperListItemNode,
   findCheckboxInputChild,
+  isCheckboxInputElement,
   listItemPlainState,
   listSemanticNestingState,
 } from './utils';
@@ -706,6 +707,36 @@ export class ListItemNode extends ElementNode {
   }
 }
 
+/**
+ * Per-theme-object cache of normalized class-name arrays: this runs on every
+ * reconcile of a dirty list item, and normalizeClassNames re-splits the
+ * theme's (potentially long, e.g. Tailwind) class strings each time. The
+ * theme object is stable for the editor's lifetime, so cache the split
+ * arrays keyed by the owning theme sub-object and property name.
+ */
+const themeClassNamesCache = new WeakMap<object, Map<string, string[]>>();
+
+function getCachedThemeClassNames(
+  themeObject: object,
+  key: string,
+  value: string | undefined,
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  let cache = themeClassNamesCache.get(themeObject);
+  if (cache === undefined) {
+    cache = new Map();
+    themeClassNamesCache.set(themeObject, cache);
+  }
+  let classNames = cache.get(key);
+  if (classNames === undefined) {
+    classNames = normalizeClassNames(value);
+    cache.set(key, classNames);
+  }
+  return classNames;
+}
+
 function $setListItemThemeClassNames(
   dom: HTMLElement,
   editorThemeClasses: EditorThemeClasses,
@@ -718,9 +749,43 @@ function $setListItemThemeClassNames(
     return;
   }
 
-  const listItemClassName = listTheme.listitem;
-  const nestedListItemClassName = listTheme.nested && listTheme.nested.listitem;
-  const hostListItemClassName = listTheme.listitemHost;
+  const listItemClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitem',
+    listTheme.listitem,
+  );
+  const nestedListItemClassNames = listTheme.nested
+    ? getCachedThemeClassNames(
+        listTheme.nested,
+        'listitem',
+        listTheme.nested.listitem,
+      )
+    : undefined;
+  const hostListItemClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemHost',
+    listTheme.listitemHost,
+  );
+  const checkedClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemChecked',
+    listTheme.listitemChecked,
+  );
+  const uncheckedClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemUnchecked',
+    listTheme.listitemUnchecked,
+  );
+  const checkedNativeClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemCheckedNative',
+    listTheme.listitemCheckedNative,
+  );
+  const uncheckedNativeClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemUncheckedNative',
+    listTheme.listitemUncheckedNative,
+  );
   // Task-ness (not the parent list type) gates the checked/unchecked theme
   // classes, so a plain row in a check list — the mixed task-list case —
   // gets neither. A wrapper never renders a row, so exclude it explicitly.
@@ -735,7 +800,7 @@ function $setListItemThemeClassNames(
   // Only computed when the theme uses the class: this runs on every
   // reconcile of a dirty item.
   const isHost =
-    hostListItemClassName !== undefined &&
+    hostListItemClassNames !== undefined &&
     !isWrapper &&
     $hasNestedListChild(node);
 
@@ -746,51 +811,51 @@ function $setListItemThemeClassNames(
   // linger together). classList.remove on a missing class is a no-op, so
   // this is safe even on a freshly-created element.
   const classesToRemove: string[] = [];
-  for (const checkClassName of [
-    listTheme.listitemChecked,
-    listTheme.listitemUnchecked,
-    listTheme.listitemCheckedNative,
-    listTheme.listitemUncheckedNative,
+  for (const checkClassNames of [
+    checkedClassNames,
+    uncheckedClassNames,
+    checkedNativeClassNames,
+    uncheckedNativeClassNames,
   ]) {
-    if (checkClassName !== undefined) {
-      classesToRemove.push(...normalizeClassNames(checkClassName));
+    if (checkClassNames !== undefined) {
+      classesToRemove.push(...checkClassNames);
     }
   }
-  if (nestedListItemClassName !== undefined) {
-    classesToRemove.push(...normalizeClassNames(nestedListItemClassName));
+  if (nestedListItemClassNames !== undefined) {
+    classesToRemove.push(...nestedListItemClassNames);
   }
-  if (hostListItemClassName !== undefined) {
-    classesToRemove.push(...normalizeClassNames(hostListItemClassName));
+  if (hostListItemClassNames !== undefined) {
+    classesToRemove.push(...hostListItemClassNames);
   }
   if (classesToRemove.length > 0) {
     removeClassNamesFromElement(dom, ...classesToRemove);
   }
 
   const classesToAdd: string[] = [];
-  if (listItemClassName !== undefined) {
-    classesToAdd.push(...normalizeClassNames(listItemClassName));
+  if (listItemClassNames !== undefined) {
+    classesToAdd.push(...listItemClassNames);
   }
   if (isTaskItem) {
     // A row rendering a native <input type=checkbox> (semantic nesting)
     // uses its own theme keys so it never draws the emulated ::before
     // checkbox on top of the real input; every other check row uses the
     // ARIA-emulation keys.
-    const checkClassName = useNativeCheckbox
+    const checkClassNames = useNativeCheckbox
       ? checked
-        ? listTheme.listitemCheckedNative
-        : listTheme.listitemUncheckedNative
+        ? checkedNativeClassNames
+        : uncheckedNativeClassNames
       : checked
-        ? listTheme.listitemChecked
-        : listTheme.listitemUnchecked;
-    if (checkClassName !== undefined) {
-      classesToAdd.push(...normalizeClassNames(checkClassName));
+        ? checkedClassNames
+        : uncheckedClassNames;
+    if (checkClassNames !== undefined) {
+      classesToAdd.push(...checkClassNames);
     }
   }
-  if (nestedListItemClassName !== undefined && isWrapper) {
-    classesToAdd.push(...normalizeClassNames(nestedListItemClassName));
+  if (nestedListItemClassNames !== undefined && isWrapper) {
+    classesToAdd.push(...nestedListItemClassNames);
   }
-  if (hostListItemClassName !== undefined && isHost) {
-    classesToAdd.push(...normalizeClassNames(hostListItemClassName));
+  if (hostListItemClassNames !== undefined && isHost) {
+    classesToAdd.push(...hostListItemClassNames);
   }
   if (classesToAdd.length > 0) {
     addClassNamesToElement(dom, ...classesToAdd);
@@ -798,11 +863,15 @@ function $setListItemThemeClassNames(
 
   // Style the native checkbox input itself (semantic nesting), if the
   // theme provides a class for it. The input is the row's first child.
-  const checkboxClassName = listTheme.listitemCheckbox;
-  if (checkboxClassName !== undefined) {
+  const checkboxClassNames = getCachedThemeClassNames(
+    listTheme,
+    'listitemCheckbox',
+    listTheme.listitemCheckbox,
+  );
+  if (checkboxClassNames !== undefined) {
     const input = getListItemCheckboxDOM(dom);
     if (input !== null) {
-      addClassNamesToElement(input, ...normalizeClassNames(checkboxClassName));
+      addClassNamesToElement(input, ...checkboxClassNames);
     }
   }
 }
@@ -1027,8 +1096,7 @@ function $convertCheckboxInput(
   listItemElement: HTMLElement,
   markNestedLists: boolean,
 ): DOMConversionOutput {
-  const isCheckboxInput = domNode.getAttribute('type') === 'checkbox';
-  if (!isCheckboxInput) {
+  if (!isCheckboxInputElement(domNode)) {
     return {node: null};
   }
   const checked = domNode.hasAttribute('checked');

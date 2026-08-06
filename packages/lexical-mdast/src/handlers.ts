@@ -277,8 +277,10 @@ export const $importList: MdastImportHandler<List> = (node, ctx) => {
   // A GitHub mixed task list arrives as one mdast list with some items'
   // `checked` set to null (not a task); those import with an undefined checked
   // field, so mark them plain — same normalization the DOM import applies — so
-  // they render as bare rows rather than unchecked boxes.
-  $markPlainImportedCheckRows(list.getChildren() as ListItemNode[], list);
+  // they render as bare rows rather than unchecked boxes. Filter rather than
+  // cast: a custom handler may return a non-ListItemNode into the list (the
+  // markdown pipeline's equivalent call filters the same way).
+  $markPlainImportedCheckRows(list.getChildren().filter($isListItemNode), list);
   return list;
 };
 

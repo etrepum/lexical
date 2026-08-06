@@ -39,23 +39,15 @@ import {
   $markNestedListsAsSemantic,
   $markPlainImportedCheckRows,
 } from './semanticNesting';
-import {findCheckboxInputChild, hasCheckboxInputRowChild} from './utils';
+import {
+  findCheckboxInputChild,
+  isCheckboxInputElement,
+  isDomChecklistElement,
+} from './utils';
 
-/**
- * Mirrors the legacy `isDomChecklist` heuristic from
- * `@lexical/list`.
- */
+/** The shared checklist heuristic (same predicate as the legacy pipeline). */
 function $isDomChecklist(domNode: HTMLElement): boolean {
-  return (
-    domNode.matches(
-      '[__lexicallisttype="check"], .contains-task-list, [data-is-checklist="1"]',
-    ) ||
-    domNode.querySelector(':scope > [aria-checked]') !== null ||
-    // Class-less checkbox inputs — the semantic nesting mode's own export,
-    // or GitHub HTML without the container classes — are only consumed in
-    // that mode; default-mode editors keep importing them unchanged.
-    ($isListSemanticNestingEnabled() && hasCheckboxInputRowChild(domNode))
-  );
+  return isDomChecklistElement(domNode, $isListSemanticNestingEnabled());
 }
 
 /**
@@ -266,7 +258,7 @@ function $buildChecklistItem(
   const checkboxInput = isElementOfTag(checkboxOwner, 'input')
     ? checkboxOwner
     : checkboxOwner.querySelector<HTMLInputElement>('input[type="checkbox"]');
-  if (!checkboxInput || checkboxInput.getAttribute('type') !== 'checkbox') {
+  if (!checkboxInput || !isCheckboxInputElement(checkboxInput)) {
     return [];
   }
   const checked = checkboxInput.hasAttribute('checked');

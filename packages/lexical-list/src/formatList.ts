@@ -492,7 +492,10 @@ export function $handleIndent(listItemNode: ListItemNode): void {
       }
     }
   } else if ($isWrapperListItemNode(previousSibling)) {
-    const innerList = previousSibling.getFirstChild();
+    // Append into the wrapper's LAST list: a multi-list wrapper's later
+    // lists are later rows in document order, so joining the first list
+    // would insert this row above them (reordering the document).
+    const innerList = previousSibling.getLastChild();
 
     if ($isListNode(innerList)) {
       innerList.append(listItemNode);
@@ -502,11 +505,19 @@ export function $handleIndent(listItemNode: ListItemNode): void {
       ? previousSibling.getLastChild()
       : null;
 
-    if ($isListNode(previousTrailingList)) {
-      // The previous sibling is a host row with a trailing nested list
-      // (semantic representation): continue that list rather than starting
-      // a separate wrapper alongside it, which would restart ordered
-      // numbering. A move preserves the list's semantic nesting mark.
+    if (
+      $isListNode(previousTrailingList) &&
+      $isListNode(parent) &&
+      previousTrailingList.getListType() === parent.getListType()
+    ) {
+      // The previous sibling is a host row with a trailing nested list of
+      // the SAME type (semantic representation): continue that list rather
+      // than starting a separate wrapper alongside it, which would restart
+      // ordered numbering. A move preserves the list's semantic nesting
+      // mark. A trailing list of a different type is left alone — joining
+      // it would silently retype this row (e.g. a check row losing its
+      // checkbox) — so the fallback below nests the row in a new list of
+      // its own type instead.
       previousTrailingList.append(listItemNode);
     } else if ($isListNode(parent)) {
       // otherwise, we need to create a new nested ListNode

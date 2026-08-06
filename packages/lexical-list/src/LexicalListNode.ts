@@ -44,7 +44,7 @@ import {
 import {
   $getListDepth,
   $isWrapperListItemNode,
-  hasCheckboxInputRowChild,
+  isDomChecklistElement,
 } from './utils';
 
 export type SerializedListNode = Spread<
@@ -378,26 +378,7 @@ export function $normalizeSemanticChildren(
 }
 
 function $isDomChecklist(domNode: HTMLElement) {
-  if (
-    domNode.getAttribute('__lexicallisttype') === 'check' ||
-    // is github checklist
-    domNode.classList.contains('contains-task-list') ||
-    // is joplin checklist
-    domNode.getAttribute('data-is-checklist') === '1'
-  ) {
-    return true;
-  }
-  // if children are checklist items, the node is a checklist ul. Applicable
-  // for googledoc checklist pasting (aria-checked) and — only in the
-  // semantic nesting mode, which consumes class-less checkbox inputs on
-  // import — for task-list rows that render a real checkbox input (the
-  // mode's own export, GitHub HTML without the container class).
-  for (const child of domNode.childNodes) {
-    if (isHTMLElement(child) && child.hasAttribute('aria-checked')) {
-      return true;
-    }
-  }
-  return $isListSemanticNestingEnabled() && hasCheckboxInputRowChild(domNode);
+  return isDomChecklistElement(domNode, $isListSemanticNestingEnabled());
 }
 
 function isHTMLOListElement(node: unknown): node is HTMLOListElement {

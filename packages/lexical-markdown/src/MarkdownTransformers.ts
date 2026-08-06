@@ -464,7 +464,6 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
         list,
       );
     };
-    let targetList: ListNode;
     if ($isListNode(nextNode) && $mergeable(nextNode)) {
       if (listMarker) {
         $setState(nextNode, listMarkerState, listMarker);
@@ -481,7 +480,6 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       if (listType === 'number') {
         nextNode.setStart(Number(match[2]));
       }
-      targetList = nextNode;
       parentNode.remove();
     } else if ($isListNode(previousNode) && $mergeable(previousNode)) {
       if (listMarker) {
@@ -490,7 +488,6 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       // The new item is appended at the end and inherits the existing
       // sequence, so the typed number is intentionally ignored here.
       previousNode.append(listItem);
-      targetList = previousNode;
       parentNode.remove();
     } else {
       const list = $createListNode(
@@ -502,12 +499,7 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       }
       list.append(listItem);
       parentNode.replace(list);
-      targetList = list;
     }
-    // Reconcile before appending content / indenting: the mark keys off the
-    // item's checked field (already set at creation), and setIndent may move
-    // the row into a nested list where it is no longer a direct child.
-    $reconcileMixedList(targetList);
     listItem.append(...children);
     if (!isImport) {
       listItem.select(0, 0);
@@ -515,6 +507,16 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
     const indent = getIndent(match[1]);
     if (indent) {
       listItem.setIndent(indent);
+    }
+    // Reconcile AFTER indenting, against the list the row finally landed in:
+    // an indented line merges into the previous top-level list first and only
+    // then nests via setIndent, so reconciling the merge target would promote
+    // the OUTER list to a check list for a task line that belongs to a nested
+    // list (e.g. importing '- a\n    - [ ] t' must yield a bullet list whose
+    // nested list is the check list, exactly as GitHub renders it).
+    const finalList = listItem.getParent();
+    if ($isListNode(finalList)) {
+      $reconcileMixedList(finalList);
     }
   };
 };

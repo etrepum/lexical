@@ -65,6 +65,17 @@ export const listSemanticNestingState = /* @__PURE__ */ createState(
  * Only meaningful for an item whose parent is a `check` ListNode; the list
  * item `$transform` clears it when the row moves to any other list type.
  *
+ * Deliberately NOT `resetOnCopyNode`: plain-ness is the row's kind, so a row
+ * split off a plain row (Enter) is another plain row — matching GitHub,
+ * where a `- ` line continues as a `- ` line. This differs from `__checked`,
+ * which is row state: `resetOnCopyNodeFrom` clears it so a row split off a
+ * checked row is an UNchecked checkbox, not a pre-checked one.
+ *
+ * Producing plain rows (import/markdown merging) is currently gated on the
+ * `hasSemanticNesting` config of `ListExtension` — the mode that renders
+ * GitHub-style native checkboxes — though the mark itself is honored
+ * unconditionally.
+ *
  * @experimental
  */
 export const listItemPlainState = /* @__PURE__ */ createState('listItemPlain', {
@@ -309,6 +320,41 @@ export function $copyListForSplit(list: ListNode): ListNode {
 }
 
 /**
+ * Whether the `<ul>`/`<ol>` element is a check list. The single encoding of
+ * the checklist-import heuristic, shared verbatim by both import pipelines
+ * (the legacy importDOM conversion and the rules-based DOMImportExtension)
+ * so the same pasted HTML cannot classify differently between them.
+ * `hasSemanticNesting` gates the class-less checkbox-input detection (the
+ * semantic nesting mode's own export, or GitHub HTML without the container
+ * classes) — passed in rather than resolved here so this stays a pure DOM
+ * predicate.
+ */
+export function isDomChecklistElement(
+  domNode: HTMLElement,
+  hasSemanticNesting: boolean,
+): boolean {
+  if (
+    domNode.getAttribute('__lexicallisttype') === 'check' ||
+    // is github checklist
+    domNode.classList.contains('contains-task-list') ||
+    // is joplin checklist
+    domNode.getAttribute('data-is-checklist') === '1'
+  ) {
+    return true;
+  }
+  // If children are checklist rows, the element is a checklist ul: rows with
+  // aria-checked (Google Docs paste, this library's own emulated-checkbox
+  // export), and — only in the semantic nesting mode, which consumes
+  // class-less checkbox inputs on import — rows with a real checkbox input.
+  for (const child of domNode.children) {
+    if (child.hasAttribute('aria-checked')) {
+      return true;
+    }
+  }
+  return hasSemanticNesting && hasCheckboxInputRowChild(domNode);
+}
+
+/**
  * Whether any direct child of the list element holds a direct
  * `input[type=checkbox]` child — the shared checklist heuristic for
  * class-less task-list HTML, used identically by both import pipelines so
@@ -324,6 +370,20 @@ export function hasCheckboxInputRowChild(listElement: Element): boolean {
 }
 
 /**
+ * Whether the element is an `<input type="checkbox">`. The type value is
+ * compared ASCII case-insensitively — HTML attribute selectors treat `type`
+ * that way, so the querySelector-based detection this predicate replaced
+ * recognized e.g. `type="CHECKBOX"`. The single encoding of the check, shared
+ * by every import path that consumes checkbox inputs.
+ */
+export function isCheckboxInputElement(element: Element): boolean {
+  return (
+    element.tagName === 'INPUT' &&
+    (element.getAttribute('type') || '').toLowerCase() === 'checkbox'
+  );
+}
+
+/**
  * The direct `input[type=checkbox]` child of a list item element, if any.
  * The presence of one marks a task-list row in GitHub HTML and in the
  * semantic nesting mode's own export.
@@ -332,10 +392,7 @@ export function findCheckboxInputChild(
   listItemElement: Element,
 ): Element | null {
   for (const child of listItemElement.children) {
-    if (
-      child.tagName === 'INPUT' &&
-      child.getAttribute('type') === 'checkbox'
-    ) {
+    if (isCheckboxInputElement(child)) {
       return child;
     }
   }
