@@ -19,7 +19,12 @@ import {
   createImportState,
 } from '@lexical/html';
 import {$isLinkNode} from '@lexical/link';
-import {$isListNode} from '@lexical/list';
+import {
+  $createListItemNode,
+  $createListNode,
+  $isListNode,
+  listSemanticNestingState,
+} from '@lexical/list';
 import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
 import {$isTableNode} from '@lexical/table';
 import {
@@ -33,6 +38,7 @@ import {
   $isRangeSelection,
   $isTextNode,
   $setSelectionFromCaretRange,
+  $setState,
   defineExtension,
   TEXT_TYPE_TO_FORMAT,
   type TextNode,
@@ -668,6 +674,19 @@ describe('@lexical/mdast import/export', () => {
       ).toBe('[link](https://example.com)');
     });
 
+    it('keeps a list row when only its link text is partially selected', () => {
+      // A list item whose only content is a link: a partial selection
+      // inside the link must still emit the row. Regression — the shared
+      // row-emit decision checked only direct-child selection, so the link
+      // element (not itself in getNodes()) read as unselected and the row
+      // (and its content) was dropped.
+      expect(
+        selectionExport('- [link text](https://example.com)', textNodes =>
+          textNodes[0].select(0, 4),
+        ),
+      ).toBe('- [link](https://example.com)');
+    });
+
     it('exposes the selection to contributed to-markdown handlers', () => {
       // A contributed root handler whose output depends on the export's
       // scope (e.g. appending end-of-document data like footnote
@@ -1043,5 +1062,195 @@ describe('@lexical/mdast import/export', () => {
       {discrete: true},
     );
     expect(editor.read(() => $convertToMarkdownString())).toBe('# Still works');
+  });
+});
+
+describe('semantic nested list representation', () => {
+  it('exports host items and emptied rows as their own list items', () => {
+    using editor = createEditor();
+    editor.update(
+      () => {
+        // Semantic representation from @lexical/list: a host item with a
+        // marked nested list, and a row whose inline content was deleted
+        // (its marked list proves it is a real row, not a wrapper).
+        const $markedList = (text: string) => {
+          const list = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode(text)),
+          );
+          $setState(list, listSemanticNestingState, true);
+          return list;
+        };
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append(
+                $createTextNode('a'),
+                $markedList('x'),
+              ),
+              $createListItemNode().append($markedList('y')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+
+    const tree = editor.read('force-commit', () => $convertToMdast());
+    const list = tree.children[0];
+    assert(list.type === 'list', 'expected a list');
+    // Two list items: the emptied row is not merged into the previous one.
+    expect(list.children).toHaveLength(2);
+    const [first, second] = list.children;
+    expect(first.children.map(child => child.type)).toEqual([
+      'paragraph',
+      'list',
+    ]);
+    // The emptied row keeps a (blank) content paragraph ahead of its nested
+    // list, matching the default representation's childless content item —
+    // otherwise the marker would collapse onto the nested list.
+    expect(second.children.map(child => child.type)).toEqual([
+      'paragraph',
+      'list',
+    ]);
+    assert(second.children[0].type === 'paragraph', 'expected a paragraph');
+    expect(second.children[0].children).toHaveLength(0);
+  });
+
+  it('a partial selection of only nested rows does not leak the host row checkbox', () => {
+    // A check host row whose own inline content is unselected must not emit
+    // its own listItem (which would leak its checkbox state onto an empty
+    // row); only its selected nested rows belong in the output. The
+    // semantic representation must match the default (wrapper) one, where
+    // the host content lives in a separate, unselected li.
+    const exportNestedOnly = (semantic: boolean): string => {
+      using editor = createEditor();
+      editor.update(
+        () => {
+          const nested = $createListNode('check').append(
+            $createListItemNode(false).append($createTextNode('b')),
+          );
+          let root;
+          if (semantic) {
+            $setState(nested, listSemanticNestingState, true);
+            root = $createListNode('check').append(
+              $createListItemNode(true).append($createTextNode('a'), nested),
+            );
+          } else {
+            // Default representation: the host content and the nested list
+            // live in separate items (the second is a dedicated wrapper).
+            root = $createListNode('check').append(
+              $createListItemNode(true).append($createTextNode('a')),
+              $createListItemNode(false).append(nested),
+            );
+          }
+          $getRoot().clear().append(root);
+          const bText = $getRoot().getAllTextNodes()[1];
+          assert(
+            bText.getTextContent() === 'b',
+            'expected the nested row text',
+          );
+          bText.select(0, 1);
+        },
+        {discrete: true},
+      );
+      return editor.read(() => $convertSelectionToMarkdownString());
+    };
+
+    const semantic = exportNestedOnly(true);
+    expect(semantic).not.toContain('[x]');
+    expect(semantic).toContain('b');
+    // Both representations of the same logical document export identically.
+    expect(semantic).toBe(exportNestedOnly(false));
+  });
+
+  it('an emptied host row keeps its blank content line (semantic == default)', () => {
+    const exportEmptiedHost = (semantic: boolean): string => {
+      using editor = createEditor();
+      editor.update(
+        () => {
+          const nested = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('n')),
+          );
+          let root;
+          if (semantic) {
+            $setState(nested, listSemanticNestingState, true);
+            root = $createListNode('bullet').append(
+              $createListItemNode().append(nested),
+            );
+          } else {
+            // Default representation: a childless content item followed by
+            // a dedicated wrapper holding the nested list.
+            root = $createListNode('bullet').append(
+              $createListItemNode(),
+              $createListItemNode().append(nested),
+            );
+          }
+          $getRoot().clear().append(root);
+        },
+        {discrete: true},
+      );
+      return editor.read(() => $convertToMarkdownString());
+    };
+
+    const semantic = exportEmptiedHost(true);
+    // The blank row and the nested list stay on separate lines — the marker
+    // must not collapse onto the nested list (`- - n`).
+    expect(semantic).toBe('-\n  - n');
+    expect(semantic).toBe(exportEmptiedHost(false));
+  });
+
+  it('a selection covering only a later list of a multi-list wrapper emits no empty list', () => {
+    using editor = createEditor();
+    let oneText!: TextNode;
+    editor.update(
+      () => {
+        // A dedicated wrapper holding a bullet list then a number list.
+        const bullets = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('a')),
+        );
+        oneText = $createTextNode('1');
+        const numbers = $createListNode('number').append(
+          $createListItemNode().append(oneText),
+        );
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('host')),
+              $createListItemNode().append(bullets, numbers),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        oneText.select(0, 1);
+      },
+      {discrete: true},
+    );
+    // Only the numbered row is selected; the fully-unselected bullet list
+    // must not leave a stray empty `list` node in the exported tree.
+    const tree = editor.read(() => $convertToMdast());
+    const emptyLists: number[] = [];
+    const walk = (node: {type?: string; children?: unknown[]}) => {
+      if (
+        node.type === 'list' &&
+        (!node.children || node.children.length === 0)
+      ) {
+        emptyLists.push(1);
+      }
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          walk(child as {type?: string; children?: unknown[]});
+        }
+      }
+    };
+    walk(tree as {type?: string; children?: unknown[]});
+    expect(emptyLists).toHaveLength(0);
+    // And the selected numbered content is present.
+    expect(editor.read(() => $convertSelectionToMarkdownString())).toContain(
+      '1. 1',
+    );
   });
 });
