@@ -83,7 +83,7 @@ function $normalizeListChildren(children: LexicalNode[]): ListItemNode[] {
   return out;
 }
 
-const ListRule = /* @__PURE__ */ defineImportRule({
+const ListRule = defineImportRule({
   $import: (ctx, el) => {
     let node;
     if (isElementOfTag(el, 'ol')) {
@@ -189,7 +189,7 @@ function $flattenListItemBlocks(children: LexicalNode[]): LexicalNode[] {
   return out;
 }
 
-const ListItemRule = /* @__PURE__ */ defineImportRule({
+const ListItemRule = defineImportRule({
   $import: (ctx, el) => {
     // In the semantic nesting mode a class-less direct checkbox input marks
     // a task-list row (the mode's own export renders one first in the li);
@@ -265,7 +265,7 @@ function $buildChecklistItem(
   return $buildListItem(ctx, el, checked, markNestedLists);
 }
 
-const TaskListItemRule = /* @__PURE__ */ defineImportRule({
+const TaskListItemRule = defineImportRule({
   $import: (ctx, el, $next) => {
     // Same direct-checkbox-child predicate as the semantic ListItemRule
     // above, so the task-list-item paste path cannot classify a row
@@ -280,7 +280,7 @@ const TaskListItemRule = /* @__PURE__ */ defineImportRule({
   name: '@lexical/list/li-task-list-item',
 });
 
-const JoplinChecklistItemRule = /* @__PURE__ */ defineImportRule({
+const JoplinChecklistItemRule = defineImportRule({
   $import: (ctx, el, $next) => {
     const wrapper = el.querySelector(':scope > .checkbox-wrapper');
     if (!wrapper) {

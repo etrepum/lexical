@@ -143,6 +143,30 @@ class ReservedDeclaredHostNode extends ElementNode {
   }
 }
 
+class WrappedSlotHostNode extends ElementNode {
+  $config() {
+    return this.config('wrapped_slot_host', {
+      extends: ElementNode,
+      slots: ['title'],
+    });
+  }
+  createDOM() {
+    const host = document.createElement('div');
+    const content = document.createElement('span');
+    content.dataset.content = 'true';
+    host.appendChild(content);
+    return host;
+  }
+  updateDOM() {
+    return false;
+  }
+  getDOMSlot(dom: HTMLElement) {
+    return super
+      .getDOMSlot(dom)
+      .withElement(dom.querySelector<HTMLElement>('[data-content]') ?? dom);
+  }
+}
+
 const mountedRoots: HTMLElement[] = [];
 afterEach(() => {
   while (mountedRoots.length > 0) {
@@ -170,6 +194,7 @@ function createSlotEditor(): LexicalEditorWithDispose {
         ReorderedHostNode,
         DupDeclaredHostNode,
         ReservedDeclaredHostNode,
+        WrappedSlotHostNode,
       ],
     }),
   );
@@ -182,6 +207,35 @@ function createSlotEditor(): LexicalEditorWithDispose {
 }
 
 describe('named-slots: core foundation', () => {
+  test('an empty wrapped child area gets a managed line break', () => {
+    using editor = createSlotEditor();
+    let hostKey = '';
+
+    editor.update(
+      () => {
+        const host = $create(WrappedSlotHostNode).append(
+          $createTextNode('Body'),
+        );
+        $getRoot().append(host);
+        $setSlot(host, 'title', $slotContainer('Title'));
+        hostKey = host.getKey();
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        $assertNodeType($getNodeByKey(hostKey), $isElementNode).clear();
+      },
+      {discrete: true},
+    );
+
+    const hostDom = editor.getElementByKey(hostKey)!;
+    const content = hostDom.querySelector('[data-content]')!;
+    expect(
+      content.querySelector('[data-lexical-managed-linebreak="true"]'),
+    ).not.toBe(null);
+  });
+
   test('a slotted node is reachable, parentless, and attached', () => {
     using editor = createSlotEditor();
     let hostKey = '';
@@ -1398,6 +1452,29 @@ describe('named-slots: core foundation', () => {
     // A truly empty host (no slots, no children) still gets the br — the
     // gate is scoped to slots-only hosts.
     expect(directBr(editor.getElementByKey(emptyHostKey)!)).not.toBe(undefined);
+
+    editor.update(
+      () => {
+        $removeSlot(
+          $assertNodeType($getNodeByKey(slotHostKey), $isElementNode),
+          'title',
+        );
+      },
+      {discrete: true},
+    );
+    expect(directBr(editor.getElementByKey(slotHostKey)!)).not.toBe(undefined);
+
+    editor.update(
+      () => {
+        $setSlot(
+          $assertNodeType($getNodeByKey(slotHostKey), $isElementNode),
+          'title',
+          $slotContainer('New title'),
+        );
+      },
+      {discrete: true},
+    );
+    expect(directBr(editor.getElementByKey(slotHostKey)!)).toBeUndefined();
   });
 
   test('descendant navigation stays children-only (slots stay out of selection)', () => {
@@ -1781,49 +1858,102 @@ describe('named-slots: core foundation', () => {
     expect(text).toContain('SLOTTEXT');
   });
 
-  test('replace(includeChildren) carries slots onto the replacement', () => {
+  // Slots are tightly bound to their host node, so replace() must not move
+  // them onto the replacement — the replaced host keeps its slot map, and when
+  // it stays detached the slot subtree is garbage-collected with it at commit
+  // (via the dual-channel slot GC).
+  test('replace(includeChildren) does not transfer slots; they GC with the replaced host', () => {
     using editor = createSlotEditor();
-    let survived = false;
+    let newHostKey = '';
+    let oldHostKey = '';
+    let slotKey = '';
     editor.update(
       () => {
         const host = $createParagraphNode();
         const slot = $slotContainer('SLOTTEXT');
         $getRoot().append(host);
         $setSlot(host, 'title', slot);
+        oldHostKey = host.getKey();
+        slotKey = slot.getKey();
         const newHost = $createParagraphNode();
         host.replace(newHost, true);
-        const got = $getSlot(newHost, 'title');
-        survived = got !== null && got.getTextContent() === 'SLOTTEXT';
+        newHostKey = newHost.getKey();
+        // The slot stays on the replaced host, not the replacement.
+        expect($getSlot(newHost, 'title')).toBe(null);
+        expect($getSlotNames(newHost)).toEqual([]);
+        expect($getSlot(host, 'title')!.is(slot)).toBe(true);
+        expect(host.isAttached()).toBe(false);
       },
       {discrete: true},
     );
-    expect(survived).toBe(true);
+    editor.read(() => {
+      // The detached host and its slot subtree were garbage-collected.
+      expect($getNodeByKey(oldHostKey)).toBe(null);
+      expect($getNodeByKey(slotKey)).toBe(null);
+      expect($getNodeByKey(newHostKey)!.isAttached()).toBe(true);
+    });
   });
 
-  // Decorator hosts can't carry children (includeChildren stays false), so the
-  // slot re-home must run independently of that gate; otherwise replacing a
-  // decorator host orphans its slots. Fails before the re-home left the
-  // includeChildren branch, passes after.
-  test('replace carries slots onto a decorator host without includeChildren', () => {
+  test('replace on a decorator host does not transfer slots; they GC with it', () => {
     using editor = createSlotEditor();
-    let survived = false;
-    let oldHostAttached = true;
+    let oldHostKey = '';
+    let slotKey = '';
     editor.update(
       () => {
         const host = $createTestDecoratorNode().setIsInline(false);
         const slot = $slotContainer('SLOTTEXT');
         $getRoot().append(host);
         $setSlot(host, 'media', slot);
+        oldHostKey = host.getKey();
+        slotKey = slot.getKey();
         const newHost = $createTestDecoratorNode().setIsInline(false);
         host.replace(newHost);
-        const got = $getSlot(newHost, 'media');
-        survived = got !== null && got.getTextContent() === 'SLOTTEXT';
-        oldHostAttached = host.isAttached();
+        expect($getSlot(newHost, 'media')).toBe(null);
+        expect($getSlot(host, 'media')!.is(slot)).toBe(true);
+        expect(host.isAttached()).toBe(false);
       },
       {discrete: true},
     );
-    expect(survived).toBe(true);
-    expect(oldHostAttached).toBe(false);
+    editor.read(() => {
+      expect($getNodeByKey(oldHostKey)).toBe(null);
+      expect($getNodeByKey(slotKey)).toBe(null);
+    });
+  });
+
+  // Regression for facebook/lexical#8936: $wrapNodeInElement is
+  // `node.replace(wrapper); wrapper.append(node)`. Because replace leaves the
+  // slot map on the node, the wrapped host keeps its slots when it is
+  // reattached in the same update.
+  test('a replaced host reattached in the same update keeps its slots (wrap pattern)', () => {
+    using editor = createSlotEditor();
+    let hostKey = '';
+    let slotKey = '';
+    editor.update(
+      () => {
+        const host = $createParagraphNode();
+        const slot = $slotContainer('SLOTTEXT');
+        $getRoot().append(host);
+        $setSlot(host, 'title', slot);
+        hostKey = host.getKey();
+        slotKey = slot.getKey();
+        // the $wrapNodeInElement pattern from @lexical/utils
+        const wrapper = $createTestShadowRootNode();
+        host.replace(wrapper);
+        wrapper.append(host);
+        expect($getSlot(host, 'title')!.is(slot)).toBe(true);
+        expect($getSlotNames(wrapper)).toEqual([]);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const host = $assertNodeType($getNodeByKey(hostKey), $isParagraphNode);
+      expect(host.isAttached()).toBe(true);
+      const slot = $getSlot(host, 'title');
+      expect(slot).not.toBe(null);
+      expect(slot!.getKey()).toBe(slotKey);
+      expect(slot!.getTextContent()).toBe('SLOTTEXT');
+      expect($getSlotHost(slot!)!.is(host)).toBe(true);
+    });
   });
 
   // Slots are a separate channel, so $destroyNode's child recursion doesn't

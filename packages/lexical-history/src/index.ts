@@ -660,10 +660,11 @@ interface HistoryExtensionInit {
 /**
  * The output signals exposed by {@link HistoryExtension}.
  *
- * Config-derived signals (`delay`, `disabled`, `historyState`, `now`) are
- * writable so that peer extensions such as {@link SharedHistoryExtension} can
- * redirect them at runtime.  The `canUndo` / `canRedo` signals are
- * **readonly** for consumers — they are derived from the current
+ * Config-derived signals (`delay`, `disabled`, `historyState`, `maxDepth`,
+ * `now`) are writable so that peer extensions such as
+ * {@link SharedHistoryExtension} can redirect them at runtime.
+ * The `canUndo` / `canRedo` signals are **readonly** for
+ * consumers — they are derived from the current
  * {@link HistoryState} and kept in sync automatically.
  */
 export interface HistoryExtensionOutput {
@@ -697,7 +698,7 @@ export interface HistoryExtensionOutput {
  * Registers necessary listeners to manage undo/redo history stack and related
  * editor commands, via the \@lexical/history module.
  */
-export const HistoryExtension = /* @__PURE__ */ defineExtension({
+export const HistoryExtension = defineExtension({
   build: (
     editor,
     {delay, createInitialHistoryState, disabled, maxDepth, now},
@@ -719,7 +720,7 @@ export const HistoryExtension = /* @__PURE__ */ defineExtension({
       ...state.getInitResult(),
     };
   },
-  config: /* @__PURE__ */ safeCast<HistoryConfig>({
+  config: safeCast<HistoryConfig>({
     createInitialHistoryState: createEmptyHistoryState,
     delay: 300,
     disabled: typeof window === 'undefined',
@@ -789,18 +790,18 @@ export interface SharedHistoryConfig {
  * editor commands, via the \@lexical/history module, only if the parent editor
  * has a history plugin implementation.
  */
-export const SharedHistoryExtension = /* @__PURE__ */ defineExtension({
+export const SharedHistoryExtension = defineExtension({
   build: (editor, {disabled, parentEditor}) =>
     namedSignals({
       disabled,
       parentEditor: parentEditor || editor._parentEditor,
     }),
-  config: /* @__PURE__ */ safeCast<SharedHistoryConfig>({
+  config: safeCast<SharedHistoryConfig>({
     disabled: false,
     parentEditor: null,
   }),
   dependencies: [
-    /* @__PURE__ */ configExtension(HistoryExtension, {
+    configExtension(HistoryExtension, {
       disabled: true,
     }),
   ],
@@ -819,6 +820,10 @@ export const SharedHistoryExtension = /* @__PURE__ */ defineExtension({
           output.delay.value = parentOutput.delay.value;
           output.historyState.value = parentOutput.historyState.value;
           output.now.value = parentOutput.now.value;
+          // The cap must come from the parent too: the child pushes onto the
+          // parent's shared undoStack, so applying the child's own (default
+          // null) maxDepth would silently void the limit the app configured.
+          output.maxDepth.value = parentOutput.maxDepth.value;
           // Note that toggling the parent history will force this to be changed
           output.disabled.value = parentOutput.disabled.value;
         });
