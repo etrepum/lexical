@@ -16,6 +16,7 @@ import {
   $getChildCaret,
   $getSelection,
   $getSlotHost,
+  $getState,
   $isElementNode,
   $isLeafNode,
   $isRangeSelection,
@@ -23,6 +24,7 @@ import {
   $isTextNode,
   $normalizeCaret,
   $setPointFromCaret,
+  $setState,
   type ElementNode,
   type LexicalNode,
   type ParagraphNode,
@@ -49,6 +51,7 @@ import {
   $isEmptiedHostRow,
   $isWrapperListItemNode,
   $removeHighestEmptyListParent,
+  listItemPlainState,
 } from './utils';
 
 function $isSelectingEmptyListItem(
@@ -417,6 +420,14 @@ export function updateChildrenListItemValue(list: ListNode): void {
       }
       if (isNotChecklist && child.getLatest().__checked != null) {
         child.setChecked(undefined);
+      }
+      // The mixed-task-list plain mark is likewise only meaningful in a
+      // check list. The ListItemNode $transform also clears it, but only
+      // for dirty items — setListType dirties the list, and a plain row
+      // (whose __checked is already undefined) would otherwise never be
+      // dirtied and carry the stale mark back into a future check list.
+      if (isNotChecklist && $getState(child, listItemPlainState)) {
+        $setState(child, listItemPlainState, false);
       }
       // Wrapper items only hold a nested list and don't render a marker of
       // their own; items with content (including those with a trailing

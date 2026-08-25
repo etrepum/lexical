@@ -48,11 +48,28 @@ import {
   type ListItemNode,
 } from './LexicalListItemNode';
 import {$isListNode} from './LexicalListNode';
+import {$isListSemanticNestingEnabled} from './semanticNesting';
 import {
   $isEmptiedHostRow,
   $isTaskListItem,
   $isWrapperListItemNode,
 } from './utils';
+
+/**
+ * Place the caret at the start of a check row. An emptied host row (its
+ * inline content deleted, only nested lists remain) anchors on the row
+ * itself — selectStart() would descend into the first nested row's text —
+ * so selection and checkbox focus agree. The single encoding of this rule,
+ * shared by the horizontal (ARROW_RIGHT) and vertical (ARROW_UP/DOWN)
+ * navigation handlers.
+ */
+function $selectCheckRowStart(listItemNode: ListItemNode): void {
+  if ($isEmptiedHostRow(listItemNode)) {
+    listItemNode.select(0, 0);
+  } else {
+    listItemNode.selectStart();
+  }
+}
 
 /**
  * The <li> whose native checkbox input (semantic nesting mode) is `target`,
@@ -306,6 +323,11 @@ export function registerCheckList(
         // is the focused element (semantic nesting mode), Right moves the
         // caret back into the row's text so focus is never stuck on the
         // checkbox. Any other state defers to the default caret movement.
+        // Native checkboxes only exist in the semantic nesting mode, so the
+        // per-keypress DOM reads below are skipped entirely outside it.
+        if (!$isListSemanticNestingEnabled(editor)) {
+          return false;
+        }
         const activeItem = getActiveCheckListItem(editor);
         if (activeItem === null) {
           return false;
@@ -330,13 +352,7 @@ export function registerCheckList(
         editor.update(() => {
           const listItemNode = $getNearestNodeFromDOMNode(activeItem);
           if ($isListItemNode(listItemNode)) {
-            if ($isEmptiedHostRow(listItemNode)) {
-              // Anchor on the row itself (as arrow Up/Down do): selectStart
-              // would descend into the first nested row's text.
-              listItemNode.select(0, 0);
-            } else {
-              listItemNode.selectStart();
-            }
+            $selectCheckRowStart(listItemNode);
           }
         });
         const rootElement = editor.getRootElement();
@@ -362,11 +378,19 @@ export function registerCheckList(
           return false;
         }
         const {anchor} = selection;
-        const anchorNode = anchor.getNode();
-        const parent = anchorNode.getParent();
+        // Cheap field guards first — this runs on every caret move — then
+        // the mode gate (native checkboxes only exist in the semantic
+        // nesting mode) before any node-map or DOM resolution.
         if (
           anchor.type !== 'text' ||
           anchor.offset !== 0 ||
+          !$isListSemanticNestingEnabled(editor)
+        ) {
+          return false;
+        }
+        const anchorNode = anchor.getNode();
+        const parent = anchorNode.getParent();
+        if (
           !$isListItemNode(parent) ||
           !$isTaskListItem(parent) ||
           parent.getFirstChild() !== anchorNode
@@ -601,16 +625,6 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
     : null;
 }
 
-/**
- * Whether the item renders a checkbox row of its own (the traversal skips
- * dedicated wrapper items separately). A plain row in a check list — the
- * mixed task-list case — is not a checkbox row, so arrow navigation skips
- * it just as it skips non-check rows.
- */
-function $isCheckRow(node: ListItemNode): boolean {
-  return $isTaskListItem(node);
-}
-
 /** The first ListItemNode of the item's first non-empty nested list. */
 function $firstNestedRow(item: ListItemNode): ListItemNode | null {
   for (
@@ -743,16 +757,29 @@ export function $findCheckListItemSibling(
   node: ListItemNode,
   backward: boolean,
 ): ListItemNode | null {
+  // Non-checkbox rows — plain rows of a mixed task list, and rows of other
+  // list types ($isTaskListItem is false for both) — are skipped in favor
+  // of the next checkbox row. When the direction holds no checkbox row at
+  // all, fall back to the nearest rendered row so navigation still exits
+  // checkbox-focus mode into that row's text (the pre-mixed-list behavior)
+  // instead of stranding focus on the checkbox.
+  let fallback: ListItemNode | null = null;
   for (
     let row = $adjacentListItem(node, backward);
     row !== null;
     row = $adjacentListItem(row, backward)
   ) {
-    if (!$isWrapperListItemNode(row) && $isCheckRow(row)) {
+    if ($isWrapperListItemNode(row)) {
+      continue;
+    }
+    if ($isTaskListItem(row)) {
       return row;
     }
+    if (fallback === null) {
+      fallback = row;
+    }
   }
-  return null;
+  return fallback;
 }
 
 function handleArrowUpOrDown(
@@ -773,14 +800,7 @@ function handleArrowUpOrDown(
       const nextListItem = $findCheckListItemSibling(listItem, backward);
 
       if (nextListItem != null) {
-        if ($isEmptiedHostRow(nextListItem)) {
-          // An emptied host row: selectStart() would descend into the
-          // first nested row's text; anchor the selection on the row
-          // itself so selection and checkbox focus agree.
-          nextListItem.select(0, 0);
-        } else {
-          nextListItem.selectStart();
-        }
+        $selectCheckRowStart(nextListItem);
         const dom = editor.getElementByKey(nextListItem.__key);
 
         if (dom != null) {

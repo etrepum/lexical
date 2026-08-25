@@ -446,20 +446,42 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       type === 'bullet' || type === 'check';
     const $mergeable = (sibling: ListNode): boolean =>
       sibling.getListType() === listType ||
-      (semantic && isUnordered(sibling.getListType()) && isUnordered(listType));
-    // Promote a merged list to a check list when a task row joined it, then
-    // mark its non-task rows plain. A no-op outside the semantic mode.
-    const $reconcileMixedList = (list: ListNode): void => {
+      (semantic &&
+        isUnordered(sibling.getListType()) &&
+        isUnordered(listType) &&
+        // GitHub starts a NEW list when the bullet character changes, so
+        // the bullet/check cross-type merge only applies when this line's
+        // marker matches the sibling list's ('- [ ]' continues a '-' list
+        // but not a '*' list). Same-type merging keeps its classic
+        // marker-blind rule.
+        listMarker !== undefined &&
+        $getState(sibling, listMarkerState) === listMarker);
+    // Mixed-list bookkeeping for the row that just landed in `list`. When a
+    // task line joins a non-check list, promote the list and mark the other
+    // rows plain — they were this import's non-task lines (their checked
+    // field is undefined), and the promotion happens at most once per list.
+    // When a non-task line joins a check list, mark only the new row: the
+    // existing rows already carry their own state, so a full-list pass
+    // would both be O(n^2) over the import and wrongly reclassify any
+    // never-toggled task row (checked undefined) as plain.
+    const $reconcileMixedList = (
+      list: ListNode,
+      newItem: ListItemNode,
+    ): void => {
       if (!semantic) {
         return;
       }
-      if (listType === 'check' && list.getListType() !== 'check') {
-        list.setListType('check');
+      if (listType === 'check') {
+        if (list.getListType() !== 'check') {
+          list.setListType('check');
+          $markPlainImportedCheckRows(
+            list.getChildren().filter($isListItemNode),
+            list,
+          );
+        }
+      } else if (list.getListType() === 'check') {
+        $markPlainImportedCheckRows([newItem], list);
       }
-      $markPlainImportedCheckRows(
-        list.getChildren().filter($isListItemNode),
-        list,
-      );
     };
     if ($isListNode(nextNode) && $mergeable(nextNode)) {
       if (listMarker) {
@@ -513,7 +535,7 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
     // nested list is the check list, exactly as GitHub renders it).
     const finalList = listItem.getParent();
     if ($isListNode(finalList)) {
-      $reconcileMixedList(finalList);
+      $reconcileMixedList(finalList, listItem);
     }
   };
 };

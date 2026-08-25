@@ -24,7 +24,6 @@ import {
   $setDirectionFromDOM,
   $setFormatFromDOM,
   $setState,
-  addClassNamesToElement,
   type BaseSelection,
   buildImportMap,
   type DOMConversionOutput,
@@ -42,7 +41,6 @@ import {
   normalizeClassNames,
   type ParagraphNode,
   type RangeSelection,
-  removeClassNamesFromElement,
   type SerializedElementNode,
   setDOMStyleFromCSS,
   setDOMUnmanaged,
@@ -224,9 +222,12 @@ export class ListItemNode extends ElementNode {
     // none. getChecked already folds in the parent being a check list, so
     // $isTaskListItem is false for wrappers only when they hold no state — the
     // explicit !isWrapper guard keeps a wrapper (getChecked === false) out.
+    // Classified once and passed down: getChecked chains a node-map lookup
+    // plus a NodeState read, and both helpers below need the same answers.
     const isTaskItem = !isWrapper && $isTaskListItem(this);
+    const checked = isTaskItem && this.getChecked() === true;
     const useNativeCheckbox = isTaskItem && $isListSemanticNestingEnabled();
-    $updateListItemChecked(dom, this, isWrapper, useNativeCheckbox);
+    $updateListItemChecked(dom, isTaskItem, checked, useNativeCheckbox);
 
     dom.value = this.__value;
     $setListItemThemeClassNames(
@@ -234,6 +235,8 @@ export class ListItemNode extends ElementNode {
       config.theme,
       this,
       isWrapper,
+      isTaskItem,
+      checked,
       useNativeCheckbox,
     );
     const prevStyle = prevNode ? prevNode.__style : '';
@@ -571,6 +574,15 @@ export class ListItemNode extends ElementNode {
   setChecked(checked?: boolean): this {
     const self = this.getWritable();
     self.__checked = checked;
+    // Explicitly setting a checkbox state makes the row a task row: clear
+    // the mixed-task-list plain mark so the change is visible (a hidden
+    // __checked under a plain mark would diverge from the serialized state,
+    // which round-trips through getChecked()). Clearing state (undefined)
+    // carries no such intent — the $transform clears checked and plain
+    // independently when a row leaves a check list.
+    if (checked !== undefined && $getState(self, listItemPlainState)) {
+      return $setState(self, listItemPlainState, false);
+    }
     return self;
   }
 
@@ -598,7 +610,16 @@ export class ListItemNode extends ElementNode {
    * clears the mark when the row moves to any other list type.
    */
   setListItemPlain(plain: boolean): this {
-    return $setState(this, listItemPlainState, plain);
+    // Updater form so re-marking an already-plain row does not dirty it
+    // (import reconciliation may visit a row more than once).
+    const self = $setState(this, listItemPlainState, () => plain);
+    // A plain row carries no checkbox state: clear any lingering __checked
+    // so the in-memory row cannot diverge from its JSON round-trip (which
+    // serializes through getChecked() and drops the hidden value).
+    if (plain && self.getLatest().__checked !== undefined) {
+      return self.setChecked(undefined);
+    }
+    return self;
   }
 
   getIndent(): number {
@@ -714,7 +735,10 @@ export class ListItemNode extends ElementNode {
  * theme object is stable for the editor's lifetime, so cache the split
  * arrays keyed by the owning theme sub-object and property name.
  */
-const themeClassNamesCache = new WeakMap<object, Map<string, string[]>>();
+const themeClassNamesCache = new WeakMap<
+  object,
+  Map<string, [source: string, classNames: string[]]>
+>();
 
 function getCachedThemeClassNames(
   themeObject: object,
@@ -729,11 +753,14 @@ function getCachedThemeClassNames(
     cache = new Map();
     themeClassNamesCache.set(themeObject, cache);
   }
-  let classNames = cache.get(key);
-  if (classNames === undefined) {
-    classNames = normalizeClassNames(value);
-    cache.set(key, classNames);
+  const entry = cache.get(key);
+  // Compare the source string so a theme whose class values are swapped in
+  // place (however unusual) recomputes instead of serving stale classes.
+  if (entry !== undefined && entry[0] === value) {
+    return entry[1];
   }
+  const classNames = normalizeClassNames(value);
+  cache.set(key, [value, classNames]);
   return classNames;
 }
 
@@ -742,6 +769,12 @@ function $setListItemThemeClassNames(
   editorThemeClasses: EditorThemeClasses,
   node: ListItemNode,
   isWrapper: boolean,
+  // Task-ness (not the parent list type) gates the checked/unchecked theme
+  // classes, so a plain row in a check list — the mixed task-list case —
+  // gets neither; a wrapper never renders a row. Classified once by the
+  // caller (updateListItemDOM) for both DOM and theme updates.
+  isTaskItem: boolean,
+  checked: boolean,
   useNativeCheckbox: boolean,
 ): void {
   const listTheme = editorThemeClasses.list;
@@ -786,11 +819,6 @@ function $setListItemThemeClassNames(
     'listitemUncheckedNative',
     listTheme.listitemUncheckedNative,
   );
-  // Task-ness (not the parent list type) gates the checked/unchecked theme
-  // classes, so a plain row in a check list — the mixed task-list case —
-  // gets neither. A wrapper never renders a row, so exclude it explicitly.
-  const isTaskItem = !isWrapper && $isTaskListItem(node);
-  const checked = node.getChecked();
   // Only the dedicated wrapper item (sole purpose is holding a nested list)
   // gets the nested theme class, which is typically styled to hide the list
   // marker. An item that renders its own row ahead of a trailing nested
@@ -828,7 +856,10 @@ function $setListItemThemeClassNames(
     classesToRemove.push(...hostListItemClassNames);
   }
   if (classesToRemove.length > 0) {
-    removeClassNamesFromElement(dom, ...classesToRemove);
+    // The cached arrays hold normalized single tokens, so classList is
+    // driven directly — removeClassNamesFromElement would re-tokenize
+    // every string on each reconcile.
+    dom.classList.remove(...classesToRemove);
   }
 
   const classesToAdd: string[] = [];
@@ -858,7 +889,7 @@ function $setListItemThemeClassNames(
     classesToAdd.push(...hostListItemClassNames);
   }
   if (classesToAdd.length > 0) {
-    addClassNamesToElement(dom, ...classesToAdd);
+    dom.classList.add(...classesToAdd);
   }
 
   // Style the native checkbox input itself (semantic nesting), if the
@@ -871,7 +902,7 @@ function $setListItemThemeClassNames(
   if (checkboxClassNames !== undefined) {
     const input = getListItemCheckboxDOM(dom);
     if (input !== null) {
-      addClassNamesToElement(input, ...checkboxClassNames);
+      input.classList.add(...checkboxClassNames);
     }
   }
 }
@@ -976,19 +1007,16 @@ export function decorateListItemDOM(
 /** Requires an active editor (runs in reconcile and exportDOM contexts). */
 function $updateListItemChecked(
   dom: HTMLElement,
-  listItemNode: ListItemNode,
-  isWrapper: boolean,
+  // Only list items that render content of their own are checkboxes, not
+  // dedicated wrapper items that just hold a nested list; the caller
+  // (updateListItemDOM) computes the classification once for both DOM and
+  // theme updates. The semantic nesting mode renders a real (unmanaged)
+  // input, which carries the role/checked/focus semantics natively.
+  isCheckbox: boolean,
+  checked: boolean,
   useNativeInput: boolean,
 ): void {
-  // Only list items that render content of their own are checkboxes, not
-  // dedicated wrapper items that just hold a nested list. useNativeInput
-  // already implies this; an emulated (ARIA) checkbox is any other check
-  // row. The semantic nesting mode renders a real (unmanaged) input, which
-  // carries the role/checked/focus semantics natively.
-  const isCheckbox =
-    useNativeInput || (!isWrapper && $isTaskListItem(listItemNode));
   const input = getListItemCheckboxDOM(dom);
-  const checked = listItemNode.getChecked() === true;
 
   if (useNativeInput) {
     const checkboxInput =

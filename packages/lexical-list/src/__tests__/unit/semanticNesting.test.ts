@@ -3758,3 +3758,136 @@ describe('review round 14 regression fixes', () => {
     });
   });
 });
+
+describe('review round 15 regression fixes', () => {
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  test('setListType round-trip through bullet clears stale plain marks', () => {
+    using editor = buildCheckEditor();
+    let list!: ListNode;
+    editor.update(() => $convertFromMarkdownString('- [ ] a\n- b', MD), {
+      discrete: true,
+    });
+    editor.update(
+      () => {
+        list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        list.setListType('bullet');
+      },
+      {discrete: true},
+    );
+    editor.update(() => list.getLatest().setListType('check'), {
+      discrete: true,
+    });
+    editor.read('force-commit', () => {
+      // Leaving the check list cleared b's plain mark (setListType dirties
+      // only the list, so the item transform alone would never see b), so
+      // returning to check renders BOTH rows as checkboxes.
+      for (const row of list.getLatest().getChildren()) {
+        const item = $assertNodeType(row, $isListItemNode);
+        expect(item.getListItemPlain()).toBe(false);
+        expect(item.getChecked()).toBe(false);
+      }
+    });
+  });
+
+  test('checked state and the plain mark are mutually exclusive (JSON round-trip safe)', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        const item = $createListItemNode(false).append($createTextNode('x'));
+        $clearAndAppend($createListNode('check').append(item));
+        item.setChecked(true);
+        item.setListItemPlain(true);
+      },
+      {discrete: true},
+    );
+    const json = JSON.stringify(editor.getEditorState().toJSON());
+    const $unplainFirstRow = () => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      $assertNodeType(list.getFirstChild(), $isListItemNode).setListItemPlain(
+        false,
+      );
+    };
+    const $readFirstRowChecked = () => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      return $assertNodeType(
+        list.getFirstChild(),
+        $isListItemNode,
+      ).getChecked();
+    };
+    editor.update($unplainFirstRow, {discrete: true});
+    const live = editor.read('force-commit', $readFirstRowChecked);
+    using editor2 = buildCheckEditor();
+    editor2.setEditorState(editor2.parseEditorState(json));
+    editor2.update($unplainFirstRow, {discrete: true});
+    const reloaded = editor2.read('force-commit', $readFirstRowChecked);
+    // setListItemPlain(true) cleared the lingering __checked, so the live
+    // session and a JSON round-trip agree after un-marking the row.
+    expect(live).toBe(false);
+    expect(reloaded).toBe(live);
+    // And the other direction: an explicit setChecked un-plains the row so
+    // the change is visible rather than hidden state.
+    editor.update(
+      () => {
+        const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
+        item.setListItemPlain(true);
+        item.toggleChecked();
+        expect(item.getListItemPlain()).toBe(false);
+        expect(item.getChecked()).toBe(true);
+      },
+      {discrete: true},
+    );
+  });
+
+  test('checkbox-focus arrows fall back to the nearest row when no check row remains', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        // Bullet list: plain row hosting a nested check list. ArrowUp from
+        // the check row has no check row above — it must return the host
+        // row (exiting focus mode into its text) instead of null (which
+        // would strand focus on the checkbox).
+        const checkRow = $createListItemNode(false).append(
+          $createTextNode('task'),
+        );
+        $clearAndAppend(
+          $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('plain a')),
+            $createListItemNode().append(
+              $createListNode('check').append(checkRow),
+            ),
+          ),
+        );
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const taskText = $getRoot()
+        .getAllTextNodes()
+        .find(text => text.getTextContent() === 'task');
+      invariant(taskText !== undefined, 'expected the task row');
+      const checkRow = $assertNodeType(taskText.getParent(), $isListItemNode);
+      const up = $findCheckListItemSibling(checkRow, true);
+      invariant(up !== null, 'expected a fallback row');
+      expect(up.getFirstChild()!.getTextContent()).toBe('plain a');
+    });
+  });
+
+  test('a changed bullet character starts a new list instead of cross-type merging', () => {
+    using editor = buildCheckEditor();
+    editor.update(() => $convertFromMarkdownString('* item\n- [ ] task', MD), {
+      discrete: true,
+    });
+    editor.read('force-commit', () => {
+      // GitHub renders these as two lists (the marker changed): the '*'
+      // bullet list must not merge into the '-' task list.
+      const lists = $getRoot().getChildren().filter($isListNode);
+      expect(lists.map(list => list.getListType())).toEqual([
+        'bullet',
+        'check',
+      ]);
+      expect($convertToMarkdownString(MD)).toBe('* item\n\n- [ ] task');
+    });
+  });
+});

@@ -144,22 +144,14 @@ export function $isListSemanticNestingEnabled(
 
 /**
  * Mark every nested ListNode child of the item with
- * {@link listSemanticNestingState}. Link-walk rather than getChildren():
- * this runs from the $normalizeSemanticListItem transform on every dirty
- * list item, so no array allocation on that path. The caller must have
- * established that the item is a row of its own (not a wrapper).
+ * {@link listSemanticNestingState}. Delegates to
+ * {@link $markNestedListsAsSemantic} over the item's child links
+ * ($firstToLastIterator is allocation-free), keeping one encoding of the
+ * marking loop. The caller must have established that the item is a row of
+ * its own (not a wrapper).
  */
 function $markNestedListsOfRow(listItemNode: ListItemNode): void {
-  for (
-    let child = listItemNode.getFirstChild();
-    child !== null;
-    child = child.getNextSibling()
-  ) {
-    if ($isListNode(child)) {
-      // Updater form so an already-marked list is not marked dirty again.
-      $setState(child, listSemanticNestingState, () => true);
-    }
-  }
+  $markNestedListsAsSemantic($firstToLastIterator(listItemNode));
 }
 
 /**

@@ -60,7 +60,12 @@ export const listSemanticNestingState = createState('listSemanticNesting', {
  * checklist navigation — follows from that.
  *
  * Only meaningful for an item whose parent is a `check` ListNode; the list
- * item `$transform` clears it when the row moves to any other list type.
+ * item `$transform` (and `setListType`) clears it when the row moves to any
+ * other list type. The mark and `__checked` are mutually exclusive:
+ * `setListItemPlain(true)` clears any lingering checked state, and
+ * `setChecked(boolean)` clears the mark — so a row never carries hidden
+ * checkbox state that would diverge from its JSON round-trip (which
+ * serializes through `getChecked()`).
  *
  * Deliberately NOT `resetOnCopyNode`: plain-ness is the row's kind, so a row
  * split off a plain row (Enter) is another plain row — matching GitHub,
@@ -353,11 +358,10 @@ export function isDomChecklistElement(
 
 /**
  * Whether any direct child of the list element holds a direct
- * `input[type=checkbox]` child — the shared checklist heuristic for
- * class-less task-list HTML, used identically by both import pipelines so
- * the same paste cannot classify differently between them.
+ * `input[type=checkbox]` child — the class-less task-list heuristic
+ * consumed by {@link isDomChecklistElement}.
  */
-export function hasCheckboxInputRowChild(listElement: Element): boolean {
+function hasCheckboxInputRowChild(listElement: Element): boolean {
   for (const child of listElement.children) {
     if (findCheckboxInputChild(child) !== null) {
       return true;

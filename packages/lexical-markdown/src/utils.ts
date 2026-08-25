@@ -18,7 +18,7 @@ import {$isCodeNode} from '@lexical/code-core';
 import {
   $isListItemNode,
   $isListNode,
-  $isWrapperListItemNode,
+  $listItemEmitsRow,
   type ListNode,
 } from '@lexical/list';
 import {$isHeadingNode, $isQuoteNode} from '@lexical/rich-text';
@@ -349,6 +349,10 @@ function listExport(
 // TODO: should be param
 const LIST_INDENT_SIZE = 4;
 
+// Placeholder for $listItemEmitsRow's isSelected parameter on paths with no
+// selection scope (hasSelection=false never consults it).
+const $noneSelected = () => false;
+
 function processNestedLists(
   listNode: ListNode,
   exportChildren: (node: ElementNode) => string,
@@ -362,8 +366,11 @@ function processNestedLists(
     if ($isListItemNode(listItemNode)) {
       // A dedicated wrapper item renders no row of its own; an item whose
       // lists carry the semantic nesting mark is a real row even without
-      // inline content.
-      if (!$isWrapperListItemNode(listItemNode)) {
+      // inline content. $listItemEmitsRow is the shared decision (also used
+      // by the transformer and mdast exporters), so the three export paths
+      // cannot disagree on which items emit rows; there is no selection
+      // scope on this path.
+      if ($listItemEmitsRow(listItemNode, false, $noneSelected)) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
         const prefix =
           listNode.getListType() === 'bullet'
