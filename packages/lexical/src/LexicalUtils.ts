@@ -727,6 +727,18 @@ export function getEditorStateTextContent(editorState: EditorState): string {
   return editorState.read(() => $getRoot().getTextContent());
 }
 
+/**
+ * Mark every node of the given types in the editor's current state as dirty,
+ * scheduling an update in which their transforms re-run and their DOM is
+ * reconciled. This is the mechanism `registerNodeTransform` uses so a newly
+ * registered transform sees pre-existing nodes; call it directly when a
+ * configuration change alters how a node type renders (e.g. an extension
+ * config signal toggling a rendering mode) and every existing node of that
+ * type must re-render.
+ *
+ * @param editor - The editor whose nodes should be marked dirty.
+ * @param types - The node types (as returned by `Klass.getType()`) to mark.
+ */
 export function markNodesWithTypesAsDirty(
   editor: LexicalEditor,
   types: string[],
@@ -1281,10 +1293,19 @@ export function $selectAll(selection?: RangeSelection | null): RangeSelection {
   }
 }
 
+/**
+ * The theme class string at `classNamesTheme[classNameThemeType]` split into
+ * an array of class tokens suitable for `classList.add(...)`/`remove(...)`,
+ * memoized on the theme object — reconcilers call this per dirty node, and
+ * re-tokenizing long class strings (e.g. utility-CSS themes) each time is
+ * measurable. Returns `undefined` when the theme does not define the key.
+ * The cache assumes theme values are stable for the editor's lifetime, as
+ * editor configuration is elsewhere.
+ */
 export function getCachedClassNameArray(
   classNamesTheme: EditorThemeClasses,
   classNameThemeType: string,
-): string[] {
+): string[] | undefined {
   if (classNamesTheme.__lexicalClassNameCache === undefined) {
     classNamesTheme.__lexicalClassNameCache = {};
   }

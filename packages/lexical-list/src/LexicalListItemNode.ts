@@ -32,13 +32,13 @@ import {
   type EditorThemeClasses,
   type ElementDOMSlot,
   ElementNode,
+  getCachedClassNameArray,
   getStyleObjectFromCSS,
   isHTMLElement,
   type LexicalEditor,
   type LexicalNode,
   type LexicalUpdateJSON,
   type NodeKey,
-  normalizeClassNames,
   type ParagraphNode,
   type RangeSelection,
   type SerializedElementNode,
@@ -728,42 +728,6 @@ export class ListItemNode extends ElementNode {
   }
 }
 
-/**
- * Per-theme-object cache of normalized class-name arrays: this runs on every
- * reconcile of a dirty list item, and normalizeClassNames re-splits the
- * theme's (potentially long, e.g. Tailwind) class strings each time. The
- * theme object is stable for the editor's lifetime, so cache the split
- * arrays keyed by the owning theme sub-object and property name.
- */
-const themeClassNamesCache = new WeakMap<
-  object,
-  Map<string, [source: string, classNames: string[]]>
->();
-
-function getCachedThemeClassNames(
-  themeObject: object,
-  key: string,
-  value: string | undefined,
-): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  let cache = themeClassNamesCache.get(themeObject);
-  if (cache === undefined) {
-    cache = new Map();
-    themeClassNamesCache.set(themeObject, cache);
-  }
-  const entry = cache.get(key);
-  // Compare the source string so a theme whose class values are swapped in
-  // place (however unusual) recomputes instead of serving stale classes.
-  if (entry !== undefined && entry[0] === value) {
-    return entry[1];
-  }
-  const classNames = normalizeClassNames(value);
-  cache.set(key, [value, classNames]);
-  return classNames;
-}
-
 function $setListItemThemeClassNames(
   dom: HTMLElement,
   editorThemeClasses: EditorThemeClasses,
@@ -782,42 +746,37 @@ function $setListItemThemeClassNames(
     return;
   }
 
-  const listItemClassNames = getCachedThemeClassNames(
-    listTheme,
-    'listitem',
-    listTheme.listitem,
-  );
+  // Core's per-theme-object memoization of the tokenized class strings —
+  // this runs on every reconcile of a dirty list item, and re-splitting
+  // long (e.g. Tailwind) theme strings each time is measurable.
+  const listItemClassNames = getCachedClassNameArray(listTheme, 'listitem');
   const nestedListItemClassNames = listTheme.nested
-    ? getCachedThemeClassNames(
-        listTheme.nested,
+    ? // The nested sub-object is a narrower type than EditorThemeClasses
+      // (no index signature), but the cache works on any theme sub-object.
+      getCachedClassNameArray(
+        listTheme.nested as EditorThemeClasses,
         'listitem',
-        listTheme.nested.listitem,
       )
     : undefined;
-  const hostListItemClassNames = getCachedThemeClassNames(
+  const hostListItemClassNames = getCachedClassNameArray(
     listTheme,
     'listitemHost',
-    listTheme.listitemHost,
   );
-  const checkedClassNames = getCachedThemeClassNames(
+  const checkedClassNames = getCachedClassNameArray(
     listTheme,
     'listitemChecked',
-    listTheme.listitemChecked,
   );
-  const uncheckedClassNames = getCachedThemeClassNames(
+  const uncheckedClassNames = getCachedClassNameArray(
     listTheme,
     'listitemUnchecked',
-    listTheme.listitemUnchecked,
   );
-  const checkedNativeClassNames = getCachedThemeClassNames(
+  const checkedNativeClassNames = getCachedClassNameArray(
     listTheme,
     'listitemCheckedNative',
-    listTheme.listitemCheckedNative,
   );
-  const uncheckedNativeClassNames = getCachedThemeClassNames(
+  const uncheckedNativeClassNames = getCachedClassNameArray(
     listTheme,
     'listitemUncheckedNative',
-    listTheme.listitemUncheckedNative,
   );
   // Only the dedicated wrapper item (sole purpose is holding a nested list)
   // gets the nested theme class, which is typically styled to hide the list
@@ -894,10 +853,9 @@ function $setListItemThemeClassNames(
 
   // Style the native checkbox input itself (semantic nesting), if the
   // theme provides a class for it. The input is the row's first child.
-  const checkboxClassNames = getCachedThemeClassNames(
+  const checkboxClassNames = getCachedClassNameArray(
     listTheme,
     'listitemCheckbox',
-    listTheme.listitemCheckbox,
   );
   if (checkboxClassNames !== undefined) {
     const input = getListItemCheckboxDOM(dom);

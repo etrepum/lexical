@@ -1361,6 +1361,14 @@ declare export function getActiveElementDeep(
   root: Document | ShadowRoot,
 ): Element | null;
 declare export function getComposedEventTarget(event: Event): EventTarget | null;
+declare export function getCachedClassNameArray(
+  classNamesTheme: EditorThemeClasses,
+  classNameThemeType: string,
+): Array<string> | void;
+declare export function markNodesWithTypesAsDirty(
+  editor: LexicalEditor,
+  types: Array<string>,
+): void;
 
 /**
  * LexicalNormalization

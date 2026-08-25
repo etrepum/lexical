@@ -109,6 +109,7 @@ import {
   $getAdjacentNode,
   $getDOMTextNode,
   $getNodeByKey,
+  $getNodeFromDOMNode,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $setSelection,
@@ -388,6 +389,29 @@ function onSelectionChange(
         // Badly interpreted range selection when collapsed - #1482
         if (domSelection.type === 'Range' && anchorDOM === focusDOM) {
           selection.dirty = true;
+        }
+
+        // A caret parked on an element boundary inside the slot's unmanaged
+        // prefix (before `ElementDOMSlot.withAfter` scaffolding, e.g. a
+        // check-list row's native checkbox input): the point resolves to the
+        // element's first managed child, but the browser keeps rendering the
+        // caret before the unmanaged DOM. Mark the selection dirty so the
+        // reconciler rewrites the visible caret at the resolved position;
+        // the rewrite lands on/inside a managed child, so the next
+        // selectionchange no longer matches this guard and it settles.
+        if (
+          anchor.type === 'text' &&
+          isHTMLElement(anchorDOM) &&
+          anchorOffset !== null
+        ) {
+          const anchorDOMNode = $getNodeFromDOMNode(anchorDOM);
+          if (
+            $isElementNode(anchorDOMNode) &&
+            anchorOffset <
+              anchorDOMNode.getDOMSlot(anchorDOM).getFirstChildOffset()
+          ) {
+            selection.dirty = true;
+          }
         }
 
         // If we have marked a collapsed selection format, and we're

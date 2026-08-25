@@ -16,6 +16,7 @@ import {
 import {
   configExtension,
   defineExtension,
+  markNodesWithTypesAsDirty,
   mergeRegister,
   safeCast,
 } from 'lexical';
@@ -134,11 +135,9 @@ export const ListExtension = defineExtension({
         // Registering the transform marks all list items dirty (converting
         // the document forward); disabling must re-render them too, or
         // check rows keep their stale native checkbox inputs while the
-        // ARIA emulation attributes are already gone. Registering a no-op
-        // transform and immediately unregistering it leaves exactly that
-        // side effect.
+        // ARIA emulation attributes are already gone.
         if (!isFirstRun) {
-          editor.registerNodeTransform(ListItemNode, () => {})();
+          markNodesWithTypesAsDirty(editor, [ListItemNode.getType()]);
         }
       }),
     );
