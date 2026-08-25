@@ -98,9 +98,9 @@ export const ListExtension = defineExtension({
     // checkbox inputs (a generated li id + aria-labelledby). $decorateDOM
     // runs only in the reconciler, so the generated ids never leak into
     // exported HTML.
-    /* @__PURE__ */ configExtension(DOMRenderExtension, {
+    configExtension(DOMRenderExtension, {
       overrides: [
-        /* @__PURE__ */ domOverride([ListItemNode], {
+        domOverride([ListItemNode], {
           $decorateDOM: decorateListItemDOM,
         }),
       ],

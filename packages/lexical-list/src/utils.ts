@@ -44,13 +44,10 @@ import {
  *
  * @experimental
  */
-export const listSemanticNestingState = /* @__PURE__ */ createState(
-  'listSemanticNesting',
-  {
-    parse: v => v === true,
-    resetOnCopyNode: true,
-  },
-);
+export const listSemanticNestingState = createState('listSemanticNesting', {
+  parse: v => v === true,
+  resetOnCopyNode: true,
+});
 
 /**
  * NodeState marking a ListItemNode that lives in a check list yet renders as a
@@ -78,7 +75,7 @@ export const listSemanticNestingState = /* @__PURE__ */ createState(
  *
  * @experimental
  */
-export const listItemPlainState = /* @__PURE__ */ createState('listItemPlain', {
+export const listItemPlainState = createState('listItemPlain', {
   parse: v => v === true,
 });
 

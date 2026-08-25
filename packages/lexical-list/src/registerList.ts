@@ -7,7 +7,6 @@
  */
 
 import {
-  $findMatchingParent,
   $getNodeByKey,
   $getSelection,
   $isRangeSelection,
