@@ -1300,12 +1300,14 @@ export function $selectAll(selection?: RangeSelection | null): RangeSelection {
  * re-tokenizing long class strings (e.g. utility-CSS themes) each time is
  * measurable. Returns `undefined` when the theme does not define the key.
  * The cache assumes theme values are stable for the editor's lifetime, as
- * editor configuration is elsewhere.
+ * editor configuration is elsewhere. The returned array IS the cache entry
+ * (readonly): mutating it would corrupt the classes applied by every later
+ * reconcile of the same theme key.
  */
 export function getCachedClassNameArray(
   classNamesTheme: EditorThemeClasses,
   classNameThemeType: string,
-): string[] | undefined {
+): readonly string[] | undefined {
   if (classNamesTheme.__lexicalClassNameCache === undefined) {
     classNamesTheme.__lexicalClassNameCache = {};
   }
