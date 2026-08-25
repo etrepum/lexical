@@ -410,7 +410,7 @@ export function $removeList(): void {
  * parent does not have a list type of 'check'.
  * @param list - The list whose children are updated.
  */
-export function updateChildrenListItemValue(list: ListNode): void {
+export function $updateChildrenListItemValue(list: ListNode): void {
   const isNotChecklist = list.getListType() !== 'check';
   let value = list.getStart();
   for (const child of list.getChildren()) {
@@ -438,6 +438,8 @@ export function updateChildrenListItemValue(list: ListNode): void {
     }
   }
 }
+/** @deprecated renamed to {@link $updateChildrenListItemValue} by @lexical/eslint-plugin rules-of-lexical */
+export const updateChildrenListItemValue = $updateChildrenListItemValue;
 
 /**
  * Merge the next sibling list if same type.

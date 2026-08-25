@@ -62,12 +62,11 @@ import {
   $copyListForSplit,
   $hasNestedListChild,
   $isCheckList,
-  $isTaskListItem,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   findCheckboxInputChild,
   isCheckboxInputElement,
   listItemPlainState,
-  listSemanticNestingState,
 } from './utils';
 
 export type SerializedListItemNode = Spread<
@@ -218,16 +217,17 @@ export class ListItemNode extends ElementNode {
     // theme keys and DOM wiring differ, so resolve it once here.
     const isWrapper = $isWrapperListItemNode(this);
     // Task-ness, not the list type, decides whether the row draws a checkbox:
-    // a plain row in a check list (the GitHub mixed task-list case) renders
-    // none. getChecked already folds in the parent being a check list, so
-    // $isTaskListItem is false for wrappers only when they hold no state — the
-    // explicit !isWrapper guard keeps a wrapper (getChecked === false) out.
-    // Classified once and passed down: getChecked chains a node-map lookup
-    // plus a NodeState read, and both helpers below need the same answers.
-    const isTaskItem = !isWrapper && $isTaskListItem(this);
-    const checked = isTaskItem && this.getChecked() === true;
+    // a plain row in a check list (the GitHub mixed task-list case) reports
+    // getChecked() === undefined and renders none, and getChecked already
+    // folds in the parent being a check list; the explicit isWrapper guard
+    // keeps a wrapper (whose getChecked would read false) out. Classified
+    // once and passed down: the getChecked chain is a node-map lookup plus a
+    // NodeState read, and both helpers below need the same answers.
+    const checkedState = isWrapper ? undefined : this.getChecked();
+    const isTaskItem = checkedState !== undefined;
+    const checked = checkedState === true;
     const useNativeCheckbox = isTaskItem && $isListSemanticNestingEnabled();
-    $updateListItemChecked(dom, isTaskItem, checked, useNativeCheckbox);
+    updateListItemChecked(dom, isTaskItem, checked, useNativeCheckbox);
 
     dom.value = this.__value;
     $setListItemThemeClassNames(
@@ -699,32 +699,19 @@ export class ListItemNode extends ElementNode {
   }
 
   isBlock(): boolean | null {
-    // Classify in a single child-link walk (this runs on caret/selection
-    // hot paths). An item with any inline (non-list) child — a plain
-    // content item, or a host row whose nested list trails its content —
-    // defers to the default first-child heuristic, which already resolves
-    // it correctly; the same goes for a childless item and any transient
-    // non-canonical layout. Only an item whose children are ALL nested
-    // lists needs an answer of its own: a dedicated wrapper (all unmarked)
-    // is a container, not a block; an emptied host row (at least one list
-    // carries the semantic mark) still renders a row and must behave as a
-    // block (selectable, convertible via $setBlocksType, splittable).
-    let sawChild = false;
-    let sawMarkedList = false;
-    for (
-      let child = this.getFirstChild();
-      child !== null;
-      child = child.getNextSibling()
-    ) {
-      if (!$isListNode(child)) {
-        return null;
-      }
-      sawChild = true;
-      if ($getState(child, listSemanticNestingState)) {
-        sawMarkedList = true;
-      }
-    }
-    return sawChild ? sawMarkedList : null;
+    // An item with any inline (non-list) child — or no children — defers to
+    // the default first-child heuristic (null), which already resolves it
+    // correctly. Only an item whose children are ALL nested lists needs an
+    // answer of its own, and the two shared predicates cover exactly that
+    // split: an emptied host row (a marked list) still renders a row and
+    // must behave as a block; a dedicated wrapper (all unmarked) is a
+    // container, not a block. Both early-exit on the first inline child,
+    // keeping this safe on caret/selection hot paths.
+    return $isEmptiedHostRow(this)
+      ? true
+      : $isWrapperListItemNode(this)
+        ? false
+        : null;
   }
 }
 
@@ -962,8 +949,7 @@ export function decorateListItemDOM(
   }
 }
 
-/** Requires an active editor (runs in reconcile and exportDOM contexts). */
-function $updateListItemChecked(
+function updateListItemChecked(
   dom: HTMLElement,
   // Only list items that render content of their own are checkboxes, not
   // dedicated wrapper items that just hold a nested list; the caller

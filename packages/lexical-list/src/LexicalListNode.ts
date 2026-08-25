@@ -36,16 +36,13 @@ import {
   updateChildrenListItemValue,
 } from './formatList';
 import {
+  $isDomChecklist,
   $isListSemanticNestingEnabled,
   $markPlainImportedCheckRows,
   $markSemanticNestedLists,
   $mergeWrapperListItemIntoPrevious,
 } from './semanticNesting';
-import {
-  $getListDepth,
-  $isWrapperListItemNode,
-  isDomChecklistElement,
-} from './utils';
+import {$getListDepth, $isWrapperListItemNode} from './utils';
 
 export type SerializedListNode = Spread<
   {
@@ -375,10 +372,6 @@ export function $normalizeSemanticChildren(
     $markSemanticNestedLists(listItemNode);
   }
   return normalizedListItems;
-}
-
-function $isDomChecklist(domNode: HTMLElement) {
-  return isDomChecklistElement(domNode, $isListSemanticNestingEnabled());
 }
 
 function isHTMLOListElement(node: unknown): node is HTMLOListElement {

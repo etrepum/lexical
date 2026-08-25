@@ -35,20 +35,12 @@ import {
   $normalizeSemanticChildren,
 } from './LexicalListNode';
 import {
+  $isDomChecklist,
   $isListSemanticNestingEnabled,
   $markNestedListsAsSemantic,
   $markPlainImportedCheckRows,
 } from './semanticNesting';
-import {
-  findCheckboxInputChild,
-  isCheckboxInputElement,
-  isDomChecklistElement,
-} from './utils';
-
-/** The shared checklist heuristic (same predicate as the legacy pipeline). */
-function $isDomChecklist(domNode: HTMLElement): boolean {
-  return isDomChecklistElement(domNode, $isListSemanticNestingEnabled());
-}
+import {findCheckboxInputChild, isCheckboxInputElement} from './utils';
 
 /**
  * Lift nested `ListNode`s out of `ListItemNode`s into sibling
@@ -198,7 +190,10 @@ const ListItemRule = defineImportRule({
     if (hasSemanticNesting) {
       const input = findCheckboxInputChild(el);
       if (input !== null) {
-        return $buildChecklistItem(ctx, el, input, hasSemanticNesting);
+        // markNestedLists is unconditionally true on this path: the
+        // enclosing guard established the semantic mode, and a checkbox
+        // input proves the li renders a row.
+        return $buildChecklistItem(ctx, el, input, true);
       }
     }
     const ariaChecked = el.getAttribute('aria-checked');

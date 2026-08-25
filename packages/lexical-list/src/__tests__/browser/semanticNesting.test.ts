@@ -726,6 +726,38 @@ describe('semantic nested list browser behavior', () => {
       });
     });
 
+    test('ArrowDown past the last checkbox row exits focus mode into a plain row', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      // Mixed task list: one task row followed by a plain row (no checkbox).
+      editor.update(
+        () => {
+          $getRoot()
+            .clear()
+            .append(
+              $createListNode('check').append(
+                $createListItemNode(false).append($createTextNode('task a')),
+                $createListItemNode(false)
+                  .append($createTextNode('plain b'))
+                  .setListItemPlain(true),
+              ),
+            );
+        },
+        {discrete: true},
+      );
+      placeCaret(editor, contentEditable, 'task a', 0);
+      const taskLi = findRowLi(contentEditable, 'task a');
+      await clickCheckbox(taskLi);
+
+      // No checkbox row below: the traversal falls back to the plain row,
+      // and the handler exits focus mode into its text (the plain row's li
+      // is unfocusable, so focusing it would strand focus on the checkbox).
+      await userEvent.keyboard('{ArrowDown}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(contentEditable);
+      });
+      expect(readLexicalCaret(editor)).toEqual(['plain b', 0]);
+    });
+
     test('a caret parked on the <li> before the checkbox normalizes onto the text', async () => {
       const {contentEditable, editor} = mountSemanticEditor();
       setUpFixture(editor, 'check');

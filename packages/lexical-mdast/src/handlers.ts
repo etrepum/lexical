@@ -279,8 +279,15 @@ export const $importList: MdastImportHandler<List> = (node, ctx) => {
   // field, so mark them plain — same normalization the DOM import applies — so
   // they render as bare rows rather than unchecked boxes. Filter rather than
   // cast: a custom handler may return a non-ListItemNode into the list (the
-  // markdown pipeline's equivalent call filters the same way).
-  $markPlainImportedCheckRows(list.getChildren().filter($isListItemNode), list);
+  // markdown pipeline's equivalent call filters the same way). The check-list
+  // guard is repeated here (the helper also self-gates) so the common
+  // bullet/number import path allocates no children arrays at all.
+  if (listType === 'check') {
+    $markPlainImportedCheckRows(
+      list.getChildren().filter($isListItemNode),
+      list,
+    );
+  }
   return list;
 };
 

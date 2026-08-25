@@ -107,6 +107,7 @@ import {
   $findMatchingParent,
   $flushMutations,
   $getAdjacentNode,
+  $getDOMSlot,
   $getDOMTextNode,
   $getNodeByKey,
   $getNodeFromDOMNode,
@@ -135,6 +136,7 @@ import {
   isDOMNode,
   isDOMShadowRoot,
   isDOMTextNode,
+  isDOMUnmanaged,
   isFirefoxClipboardEvents,
   isHTMLElement,
   isLexicalEditor,
@@ -399,18 +401,29 @@ function onSelectionChange(
         // reconciler rewrites the visible caret at the resolved position;
         // the rewrite lands on/inside a managed child, so the next
         // selectionchange no longer matches this guard and it settles.
+        // The unmanaged-first-child precheck keeps this O(1) for the vast
+        // majority of editors and events — only elements that actually
+        // lead with setDOMUnmanaged scaffolding resolve a slot. The slot is
+        // resolved through the editor's render config (overrides included),
+        // and consulted only when it measures the same element the browser
+        // reported, so a slot re-anchored via `withElement` (e.g. a table's
+        // scrollable wrapper) is never compared in the wrong offset space.
         if (
           anchor.type === 'text' &&
           isHTMLElement(anchorDOM) &&
-          anchorOffset !== null
+          anchorOffset !== null &&
+          anchorDOM.firstChild !== null &&
+          isDOMUnmanaged(anchorDOM.firstChild)
         ) {
           const anchorDOMNode = $getNodeFromDOMNode(anchorDOM);
-          if (
-            $isElementNode(anchorDOMNode) &&
-            anchorOffset <
-              anchorDOMNode.getDOMSlot(anchorDOM).getFirstChildOffset()
-          ) {
-            selection.dirty = true;
+          if ($isElementNode(anchorDOMNode)) {
+            const slot = $getDOMSlot(anchorDOMNode, anchorDOM, editor);
+            if (
+              slot.element === anchorDOM &&
+              anchorOffset < slot.getFirstChildOffset()
+            ) {
+              selection.dirty = true;
+            }
           }
         }
 

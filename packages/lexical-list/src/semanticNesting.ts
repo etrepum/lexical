@@ -23,7 +23,11 @@ import {
   type ListItemNode,
 } from './LexicalListItemNode';
 import {$isListNode, type ListNode} from './LexicalListNode';
-import {$isWrapperListItemNode, listSemanticNestingState} from './utils';
+import {
+  $isWrapperListItemNode,
+  isDomChecklistElement,
+  listSemanticNestingState,
+} from './utils';
 
 /**
  * Mark every ListNode among `children` with {@link listSemanticNestingState}
@@ -143,6 +147,40 @@ export function $isListSemanticNestingEnabled(
 }
 
 /**
+ * A per-editor reader for the `hasSemanticNesting` config, resolving the
+ * extension dependency once at registration time so per-event handlers
+ * (e.g. arrow-key commands) only pay a signal `.peek()` per invocation.
+ * Returns a constant `false` reader for editors built without the
+ * extension (the mode cannot be enabled after build).
+ *
+ * @internal
+ */
+export function makeListSemanticNestingReader(
+  editor: LexicalEditor,
+): () => boolean {
+  const dep = getPeerDependencyFromEditor<typeof ListExtension>(
+    editor,
+    '@lexical/list/List',
+  );
+  return dep === undefined
+    ? () => false
+    : () => dep.output.hasSemanticNesting.peek();
+}
+
+/**
+ * Whether the `<ul>`/`<ol>` element imports as a check list, folding the
+ * active editor's semantic-nesting mode into the shared
+ * {@link isDomChecklistElement} heuristic. The single composition used by
+ * both import pipelines, so neither can pair the predicate with a stale or
+ * differently-resolved mode flag.
+ *
+ * @internal
+ */
+export function $isDomChecklist(domNode: HTMLElement): boolean {
+  return isDomChecklistElement(domNode, $isListSemanticNestingEnabled());
+}
+
+/**
  * Mark every nested ListNode child of the item with
  * {@link listSemanticNestingState}. Delegates to
  * {@link $markNestedListsAsSemantic} over the item's child links
@@ -188,6 +226,21 @@ export function $mergeWrapperListItemIntoPrevious(
   previousItem: ListItemNode,
   wrapper: ListItemNode,
 ): void {
+  // Merge the boundary pair when the host's trailing list and the wrapper's
+  // first list share a type, exactly as $collapseWrapperPair does for
+  // wrapper chains: appending them as siblings would restart ordered
+  // numbering, and the ListNode merge transform only heals it when the
+  // trailing list happens to be dirtied.
+  const boundaryList1 = previousItem.getLastChild();
+  const boundaryList2 = wrapper.getFirstChild();
+  if (
+    $isListNode(boundaryList1) &&
+    $isListNode(boundaryList2) &&
+    boundaryList1.getListType() === boundaryList2.getListType()
+  ) {
+    boundaryList1.append(...boundaryList2.getChildren());
+    boundaryList2.remove();
+  }
   previousItem.append(...wrapper.getChildren());
   wrapper.remove();
   $markSemanticNestedLists(previousItem);

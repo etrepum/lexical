@@ -45,7 +45,7 @@ import {
   type ListItemNode,
 } from './LexicalListItemNode';
 import {$isListNode} from './LexicalListNode';
-import {$isListSemanticNestingEnabled} from './semanticNesting';
+import {makeListSemanticNestingReader} from './semanticNesting';
 import {
   $isEmptiedHostRow,
   $isTaskListItem,
@@ -101,6 +101,9 @@ export function registerCheckList(
 ) {
   const disableTakeFocusOnClick =
     (options && options.disableTakeFocusOnClick) || false;
+  // Resolved once: the extension set is fixed after build, so per-keypress
+  // handlers only pay a signal peek to read the current mode.
+  const peekHasSemanticNesting = makeListSemanticNestingReader(editor);
   const peekDisableTakeFocusOnClick =
     typeof disableTakeFocusOnClick === 'boolean'
       ? () => disableTakeFocusOnClick
@@ -322,7 +325,7 @@ export function registerCheckList(
         // checkbox. Any other state defers to the default caret movement.
         // Native checkboxes only exist in the semantic nesting mode, so the
         // per-keypress DOM reads below are skipped entirely outside it.
-        if (!$isListSemanticNestingEnabled(editor)) {
+        if (!peekHasSemanticNesting()) {
           return false;
         }
         const activeItem = getActiveCheckListItem(editor);
@@ -740,13 +743,26 @@ function handleArrowUpOrDown(
 
       if (nextListItem != null) {
         $selectCheckRowStart(nextListItem);
+        event.preventDefault();
+        if (!$isTaskListItem(nextListItem)) {
+          // The traversal's boundary fallback: no checkbox row remains in
+          // this direction, so exit focus mode into the row's text. Its
+          // <li> renders no checkbox and is unfocusable (no role/tabIndex),
+          // so focusing it would silently no-op and strand focus on the
+          // old checkbox — focus the root instead (as ARROW_RIGHT and
+          // Escape do) and let the reconciler place the caret.
+          const rootElement = editor.getRootElement();
+          if (rootElement !== null) {
+            rootElement.focus();
+          }
+          return;
+        }
         const dom = editor.getElementByKey(nextListItem.__key);
 
         if (dom != null) {
           // The row's native checkbox input carries focus mode when it
           // renders one (semantic nesting mode).
           const focusTarget = getListItemFocusTarget(dom);
-          event.preventDefault();
           setTimeout(() => {
             focusTarget.focus();
           }, 0);

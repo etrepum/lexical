@@ -548,6 +548,12 @@ const $listExport = (
 ): string => {
   const output = [];
   const children = listNode.getChildren();
+  // Loop-invariant: one isSelected closure per export call, not one per
+  // list item ($listItemEmitsRow only consults it when a selection exists).
+  const isSelected =
+    selection != null
+      ? (node: LexicalNode) => node.isSelected(selection)
+      : () => false;
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
@@ -561,7 +567,7 @@ const $listExport = (
       const emitsRow = $listItemEmitsRow(
         listItemNode,
         selection != null,
-        node => selection != null && node.isSelected(selection),
+        isSelected,
       );
       if (emitsRow) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);

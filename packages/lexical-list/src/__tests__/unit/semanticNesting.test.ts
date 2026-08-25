@@ -38,6 +38,7 @@ import {$findCheckListItemSibling} from '@lexical/list/src/checkList';
 import {$handleOutdent} from '@lexical/list/src/formatList';
 import {
   $isListSemanticNestingEnabled,
+  $mergeWrapperListItemIntoPrevious,
   $normalizeSemanticListItem,
 } from '@lexical/list/src/semanticNesting';
 import {
@@ -3888,6 +3889,54 @@ describe('review round 15 regression fixes', () => {
         'check',
       ]);
       expect($convertToMarkdownString(MD)).toBe('* item\n\n- [ ] task');
+    });
+  });
+});
+
+describe('review round 16 regression fixes', () => {
+  test('merging a wrapper into a host merges same-type boundary lists (numbering continues)', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        // Host with a marked trailing ol [a, b]; a dedicated wrapper holding
+        // another ol [c, d] sits right after it. The merge must splice the
+        // wrappers' boundary lists together (as $collapseWrapperPair does for
+        // wrapper chains) — appending them as siblings would restart ordered
+        // numbering, and the ListNode merge transform only heals it when the
+        // trailing list happens to be dirtied.
+        const host = $createListItemNode().append(
+          $createTextNode('A'),
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode('a')),
+            $createListItemNode().append($createTextNode('b')),
+          ),
+        );
+        const wrapper = $createListItemNode().append(
+          $createListNode('number').append(
+            $createListItemNode().append($createTextNode('c')),
+            $createListItemNode().append($createTextNode('d')),
+          ),
+        );
+        $clearAndAppend($createListNode('bullet').append(host, wrapper));
+        $normalizeSemanticListItem(host.getLatest());
+        $mergeWrapperListItemIntoPrevious(
+          host.getLatest(),
+          wrapper.getLatest(),
+        );
+      },
+      {discrete: true},
+    );
+    editor.read('force-commit', () => {
+      const host = $assertNodeType(
+        $rootList().getFirstChild(),
+        $isListItemNode,
+      );
+      const lists = host.getChildren().filter($isListNode);
+      expect(lists.length).toBe(1);
+      const values = lists[0]
+        .getChildren()
+        .map(row => $assertNodeType(row, $isListItemNode).getValue());
+      expect(values).toEqual([1, 2, 3, 4]);
     });
   });
 });
