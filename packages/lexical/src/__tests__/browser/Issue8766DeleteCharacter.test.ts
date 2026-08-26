@@ -247,6 +247,20 @@ describe('deleteCharacter never creates a non-collapsed DOM selection (#8766)', 
     ]);
   });
 
+  test('backspace retries a character move that only changes caret affinity (#9100)', () => {
+    // At a soft line-wrap boundary Firefox's first backward move can leave the
+    // DOM point unchanged while changing only the caret's visual affinity.
+    // Model that first no-op and let the retry delegate to the native method.
+    modifySpy.mockImplementationOnce(() => {});
+
+    const editor = mountEditor(() => $initWithText('hello', 5));
+    deleteCharacter(editor, true);
+
+    expect(textContent(editor)).toBe('hell');
+    expect(modifySpy).toHaveBeenCalledTimes(2);
+    expectOnlyCollapsedDOMSelections();
+  });
+
   test('forward delete removes one character with only collapsed DOM selections', () => {
     expectDeletionSequence(() => $initWithText('hello', 0), false, ['ello']);
   });

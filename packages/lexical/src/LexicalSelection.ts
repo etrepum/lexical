@@ -2437,11 +2437,36 @@ function $extendSelectionForDeletion(
   // Inside a DOM shadow root getRangeAt(0) is retargeted to the host; read the
   // composed StaticRange (real nodes) where available. After a 'move' the DOM
   // selection is collapsed, so start === end === the landed caret.
-  const landedRange =
+  let landedRange =
     getComposedStaticRange(domSelection, rootElement) ||
     domSelection.getRangeAt(0);
-  const landedContainer = landedRange.startContainer;
-  const landedOffset = landedRange.startOffset;
+  let landedContainer = landedRange.startContainer;
+  let landedOffset = landedRange.startOffset;
+  // Firefox can use the first character move at a soft line-wrap boundary to
+  // change the caret's visual affinity without changing its DOM point. A
+  // second move then crosses the character as expected. Retrying only a
+  // character move that did not change the point is harmless at the actual
+  // start/end of the editor and preserves native grapheme measurement.
+  if (
+    granularity === 'character' &&
+    landedContainer === focusDOM &&
+    landedOffset === focusOffset
+  ) {
+    moveNativeSelection(
+      domSelection,
+      'move',
+      isBackward ? 'backward' : 'forward',
+      granularity,
+    );
+    if (domSelection.rangeCount === 0) {
+      return;
+    }
+    landedRange =
+      getComposedStaticRange(domSelection, rootElement) ||
+      domSelection.getRangeAt(0);
+    landedContainer = landedRange.startContainer;
+    landedOffset = landedRange.startOffset;
+  }
   // Native 'move' cannot cross inline-grid/flex span boundaries (#7301).
   // When at the deletion-side edge of an unmergeable TextNode, extend into
   // the adjacent sibling directly instead of relying on the native result.
