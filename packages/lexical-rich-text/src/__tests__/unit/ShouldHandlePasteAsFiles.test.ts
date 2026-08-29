@@ -63,12 +63,12 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
     type: 'image/png',
   });
 
-  test('default: a file pasted alongside text/html (browser copy-image) does NOT dispatch DRAG_DROP_PASTE', () => {
+  test('default: a file pasted alongside text/html (browser copy-image) dispatches DRAG_DROP_PASTE', () => {
     // This is the exact repro from #8681: browsers put both `Files` and
     // `text/html` on the clipboard when copying an image via the context
-    // menu, and historically that text/html presence blocks the file path.
-    // This test locks in that this is still the *default*, so existing
-    // consumers (e.g. the playground) don't silently change behavior.
+    // menu. Since there is no text/plain representation, the file is the
+    // primary clipboard content and should take precedence over the HTML
+    // fallback.
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
       name: 'test-default',
@@ -81,7 +81,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
 
     const dispatchedFiles = dispatchPasteAndCaptureFiles(editor, dataTransfer);
 
-    expect(dispatchedFiles).toBeNull();
+    expect(dispatchedFiles).toEqual([fakeImage]);
   });
 
   test('override: treating only text/plain as content lets the file win over an incidental text/html entry', () => {

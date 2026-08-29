@@ -1191,23 +1191,26 @@ function $promoteNodeSelectionToBlockEdge(
  * @param files - The files present on the clipboard, if any
  * @param hasTextContent - Whether the clipboard also carries text/html or
  * text/plain content
+ * @param hasPlainText - Whether the clipboard carries text/plain content
  */
 export type ShouldHandlePasteAsFiles = (
   files: File[],
   hasTextContent: boolean,
+  hasPlainText?: boolean,
 ) => boolean;
 
 /**
- * The historical behavior: files are only handled when the clipboard carries
- * no text content at all. Note that browsers put a text/html fallback on the
- * clipboard alongside the file when an image is copied via the context menu,
- * so this default routes such images through the HTML importer.
+ * Files are handled when the clipboard carries no text content, or when the
+ * only text representation is HTML. Browsers put an HTML fallback alongside
+ * the file when an image is copied via the context menu, while applications
+ * such as Word also provide plain text when copying rich text.
  */
 export function defaultShouldHandlePasteAsFiles(
   files: File[],
   hasTextContent: boolean,
+  hasPlainText?: boolean,
 ): boolean {
-  return files.length > 0 && !hasTextContent;
+  return files.length > 0 && (!hasTextContent || !hasPlainText);
 }
 
 export function registerRichText(
@@ -1911,7 +1914,21 @@ export function registerRichText(
       PASTE_COMMAND,
       event => {
         const [, files, hasTextContent] = eventFiles(event);
-        if (shouldHandlePasteAsFiles.peek()(files, hasTextContent)) {
+        // When the clipboard contains both Files and text/html (e.g. a
+        // browser right-click Copy Image), prefer the actual File object
+        // over the text/html fallback. However, applications such as Word
+        // also place a rasterized image in the Files slot alongside
+        // text/plain and text/html when copying rich text. The presence of
+        // text/plain is the reliable signal that the primary intent is a
+        // text paste, not a file paste, so we only bypass hasTextContent
+        // when text/plain is absent from the clipboard.
+        const hasPlainText =
+          objectKlassEquals(event, ClipboardEvent) &&
+          event.clipboardData !== null &&
+          event.clipboardData.types.includes('text/plain');
+        if (
+          shouldHandlePasteAsFiles.peek()(files, hasTextContent, hasPlainText)
+        ) {
           editor.dispatchCommand(DRAG_DROP_PASTE, files);
           return true;
         }
