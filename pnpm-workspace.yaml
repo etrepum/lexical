@@ -4,7 +4,53 @@ packages:
   - '!examples/**/*'
   - '!scripts/__tests__/integration/fixtures/**/*'
 
+# Was `engineStrict: true` in package.json, where pnpm never read it, so the
+# `engines` fields it was meant to enforce went unchecked. pnpm looks here.
+engineStrict: true
+
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@lexical/*'
   - 'lexical'
+
+# The yjs override used to be written `yjs: $yjs`, i.e. "whatever the root
+# manifest asks for". pnpm 11 deprecated that syntax in favour of catalogs,
+# so the version lives here and the override points at it.
+catalog:
+  yjs: '^13.6.31'
+
+# Moved out of package.json#pnpm, which pnpm no longer reads.
+overrides:
+  react: '19.2.5'
+  react-dom: '19.2.5'
+  '@types/node': '25.9.1'
+  postcss: '8.5.15'
+  prettier: '3.8.1'
+  'yaml@^1': '^1.10.3'
+  uuid: '>=14.0.0'
+  webpack-dev-server: '>=5.2.4'
+  onnxruntime-node: 'link:./stubs/empty'
+  serialize-javascript: '>=7.0.5'
+  sharp: 'link:./stubs/empty'
+  tmp: '>=0.2.6'
+  yjs: 'catalog:'
+  qs: '>=6.15.2'
+
+peerDependencyRules:
+  allowedVersions:
+    eslint: '10'
+
+# Dependency build scripts stay disabled, which is what the repo has always
+# done: these were reported as ignored builds under pnpm 10 and never ran.
+# With pnpm 11 pinned that report becomes ERR_PNPM_IGNORED_BUILDS unless every
+# package is decided here, so each one is recorded as an explicit `false`
+# rather than approved.
+allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
+  core-js: false
+  esbuild: false
+  leveldown: false
+  protobufjs: false
+  spawn-sync: false
+  unrs-resolver: false
