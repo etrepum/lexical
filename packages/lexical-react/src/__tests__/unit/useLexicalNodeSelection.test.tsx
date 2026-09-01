@@ -27,6 +27,7 @@ import {
   $selectAll,
   type LexicalEditor,
   type NodeKey,
+  SKIP_SCROLL_INTO_VIEW_TAG,
 } from 'lexical';
 import * as React from 'react';
 import {act, createRef} from 'react';
@@ -158,6 +159,20 @@ describe('useLexicalNodeSelection', () => {
         return $isNodeSelection(selection) && selection.has(ruleKey);
       }),
     ).toBe(true);
+  });
+
+  it('does not scroll the previous DOM selection into view when selecting a node', async () => {
+    let updateTags: ReadonlySet<string> | null = null;
+    const unregister = editor.registerUpdateListener(({tags}) => {
+      updateTags = tags;
+    });
+
+    await act(async () => {
+      setSelected(true);
+    });
+    unregister();
+
+    expect(updateTags).toContain(SKIP_SCROLL_INTO_VIEW_TAG);
   });
 
   it('still removes the node from an existing node selection', async () => {
