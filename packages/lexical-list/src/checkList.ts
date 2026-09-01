@@ -21,6 +21,7 @@ import {
   getActiveElement,
   getNearestEditorFromDOMNode,
   getParentElement,
+  IS_FIREFOX,
   isHTMLElement,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
@@ -31,6 +32,7 @@ import {
   type LexicalCommand,
   type LexicalEditor,
   mergeRegister,
+  type NodeKey,
   registerEventListener,
   registerEventListeners,
   SKIP_DOM_SELECTION_TAG,
@@ -85,6 +87,26 @@ function getCheckboxInputRow(target: EventTarget | null): HTMLElement | null {
   return null;
 }
 
+// What a focused check list item's own key handlers use: Space toggles it,
+// the vertical arrows move to the sibling item and keep the checkbox focused,
+// Escape hands the focus back itself, and the left arrow is the one key that
+// means either thing -- it is what moves the focus onto the checkbox, and
+// pressing it again is what leaves the item -- so its handler decides rather
+// than the listener below. The modifiers are here because pressing one on its
+// own operates nothing at all.
+const CHECKBOX_KEYS = new Set([
+  ' ',
+  'Alt',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowUp',
+  'CapsLock',
+  'Control',
+  'Escape',
+  'Meta',
+  'Shift',
+]);
+
 export const INSERT_CHECK_LIST_COMMAND: LexicalCommand<void> = createCommand(
   'INSERT_CHECK_LIST_COMMAND',
 );
@@ -118,8 +140,11 @@ export function registerCheckList(
   // does fire on browsers where preventDefault doesn't suppress it.
   //
   // Dedup state is per-target: recorded as `__lexicalCheckListLastHandled`
-  // on the target element. A global window would
-  // block tapping a second checkbox within 500ms of toggling the first.
+  // on the target element, and written only by the touch pointerup path.
+  // A global window would block tapping a second checkbox within 500ms of
+  // toggling the first. The click path only reads the timestamp, so rapid
+  // mouse clicks on the same desktop checkbox are not throttled — only the
+  // synthesized click that follows a touch pointerup is absorbed.
   const DEDUP_WINDOW_MS = 500;
   const isWithinDedupWindow = (
     event: PointerEvent | MouseEvent | TouchEvent,
@@ -188,10 +213,26 @@ export function registerCheckList(
     recordHandled(event);
     handleClick(event, peekDisableTakeFocusOnClick());
   };
+  // What the last pointer press landed on, recorded in the capture-phase
+  // handler that runs before the browser moves focus and consumed once the
+  // gesture ends. A press on the item's content is the one that has to hand
+  // focus back; a press on the check mark is how the plugin focuses the item
+  // on purpose; and 'none' covers a click with no press behind it, which a
+  // screen reader synthesizes on the focused item and which must not move
+  // focus at all.
+  let lastPress: 'checkMark' | 'content' | 'none' = 'none';
   const configHandleSelectDefaults = (
     event: PointerEvent | MouseEvent | TouchEvent,
   ) => {
-    handleSelectDefaults(event, peekDisableTakeFocusOnClick());
+    lastPress = handleSelectDefaults(event, peekDisableTakeFocusOnClick())
+      ? 'checkMark'
+      : 'content';
+  };
+  const returnFocusAfterPress = () => {
+    if (lastPress === 'content') {
+      returnFocusToRoot(editor);
+    }
+    lastPress = 'none';
   };
   return mergeRegister(
     editor.registerCommand(
@@ -272,6 +313,23 @@ export function registerCheckList(
     editor.registerCommand(
       KEY_ARROW_LEFT_COMMAND,
       event => {
+        // The checkbox holds the focus already in the legacy li-focus mode,
+        // so this arrow is the caret moving rather than the checkbox being
+        // reached: back through the label, or out of the item altogether
+        // when the caret is at its start. Either way the editing host takes
+        // the focus back and the caret moves as it normally would. A row's
+        // native checkbox input (semantic nesting mode) instead KEEPS the
+        // focus: Left on the focused checkbox is a no-op — Right returns to
+        // the row's text and Escape exits focus mode — and the default does
+        // not move the document caret while the input holds the focus.
+        const activeCheckItem = getActiveCheckListItem(editor);
+        if (activeCheckItem !== null) {
+          if (getListItemCheckboxDOM(activeCheckItem) === null) {
+            returnFocusToRoot(editor);
+          }
+          return false;
+        }
+
         return editor.read('latest', () => {
           const selection = $getSelection();
 
@@ -367,8 +425,18 @@ export function registerCheckList(
       if (rootElement !== null) {
         return mergeRegister(
           registerEventListeners(rootElement, {
-            click: configHandleClick,
-            pointerup: configHandlePointerUp,
+            // Whichever of the two runs first consumes the press, before the
+            // toggle it wraps focuses the item again for a check mark press.
+            // pointerup also covers a gesture that never produces a click,
+            // such as a right click opening the context menu.
+            click: event => {
+              returnFocusAfterPress();
+              configHandleClick(event);
+            },
+            pointerup: event => {
+              returnFocusAfterPress();
+              configHandlePointerUp(event);
+            },
           }),
           // Use capture so we run before other listeners that might move focus.
           // Some browsers / integrations still generate mousedown events as well
@@ -376,6 +444,46 @@ export function registerCheckList(
           registerEventListeners(
             rootElement,
             {
+              // Entering text moves the caret, which Chrome and Safari also
+              // treat as handing focus back to the editing host. Capture so
+              // the focus is right before the editor handles the input.
+              beforeinput: () => returnFocusToRoot(editor),
+              // Correcting the focus as soon as the browser moves it, rather
+              // than waiting for the release, keeps the item from holding it
+              // for the length of the press. Only Firefox: Chrome and Safari
+              // hand the focus back themselves as part of placing the caret,
+              // and stepping in before they do puts the caret at the start of
+              // the item instead. A press on an item that already holds the
+              // focus moves no focus at all and so arrives at neither of
+              // these, which is what the release below is still there for.
+              focusin: () => {
+                if (IS_FIREFOX && lastPress === 'content') {
+                  returnFocusToRoot(editor);
+                }
+              },
+              // Every other key is the text being operated rather than the
+              // checkbox, the caret-moving arrows above all: the caret leaves
+              // the check mark behind, so the focus has to follow it. Text
+              // entry arrives here too, but not all of it comes from a key,
+              // which is why beforeinput covers that separately.
+              keydown: event => {
+                if (CHECKBOX_KEYS.has(event.key)) {
+                  return;
+                }
+                // ArrowRight from a row's native checkbox input (semantic
+                // nesting mode) is the KEY_ARROW_RIGHT_COMMAND handler's job:
+                // it must see the input still focused to place the caret on
+                // the focused row (the DOM selection can be stale while the
+                // input holds focus). Stealing the focus here first would
+                // leave the default caret move to run from the stale spot.
+                if (
+                  event.key === 'ArrowRight' &&
+                  getCheckboxInputRow(event.target) !== null
+                ) {
+                  return;
+                }
+                returnFocusToRoot(editor);
+              },
               mousedown: configHandleSelectDefaults,
               pointerdown: configHandleSelectDefaults,
             },
@@ -534,14 +642,49 @@ function handleClick(
 function handleSelectDefaults(
   event: PointerEvent | MouseEvent | TouchEvent,
   disableTakeFocusOnClick: boolean,
-) {
+): boolean {
+  let isCheckMarkPress = false;
+
   handleCheckItemEvent(event, () => {
+    isCheckMarkPress = true;
     // Prevents caret moving when clicking on check mark.
     event.preventDefault();
     if (disableTakeFocusOnClick) {
       event.stopPropagation();
     }
   });
+
+  return isCheckMarkPress;
+}
+
+// A check list item carries tabIndex="-1" so the plugin can hand it focus for
+// its checkbox role, which also makes it the nearest focusable ancestor of the
+// caret. Pressing the mouse in the item's text therefore focuses the item, and
+// a focused item is what the key handlers read as "the checkbox is what the
+// keyboard is operating", so Space toggled the item instead of typing a space
+// (#4680). Chrome and Safari hand focus back to the root once they are done
+// with the press; this does the same in every browser, at the end of the
+// gesture so the press has finished placing the caret first.
+function returnFocusToRoot(editor: LexicalEditor): void {
+  const rootElement = editor.getRootElement();
+
+  // getActiveCheckListItem also resolves the row's native checkbox input
+  // (semantic nesting mode) to its <li>, so focus mode exits the same way
+  // whether the li or its input holds the focus.
+  if (rootElement !== null && getActiveCheckListItem(editor) !== null) {
+    rootElement.focus({preventScroll: true});
+  }
+}
+
+function isCheckListItem(dom: HTMLElement): boolean {
+  const parentNode = dom.parentNode;
+
+  return (
+    dom.tagName === 'LI' &&
+    parentNode != null &&
+    // @ts-ignore internal field
+    parentNode.__lexicalListType === 'check'
+  );
 }
 
 function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
@@ -558,11 +701,7 @@ function getActiveCheckListItem(editor: LexicalEditor): HTMLElement | null {
     activeElement = inputRow;
   }
 
-  return isHTMLElement(activeElement) &&
-    activeElement.tagName === 'LI' &&
-    activeElement.parentNode != null &&
-    // @ts-ignore internal field
-    activeElement.parentNode.__lexicalListType === 'check'
+  return isHTMLElement(activeElement) && isCheckListItem(activeElement)
     ? activeElement
     : null;
 }
@@ -732,43 +871,61 @@ function handleArrowUpOrDown(
   const activeItem = getActiveCheckListItem(editor);
 
   if (activeItem != null) {
-    editor.update(() => {
-      const listItem = $getNearestNodeFromDOMNode(activeItem);
+    let nextItemKey: null | NodeKey = null;
+    let exitToRoot = false;
 
-      if (!$isListItemNode(listItem)) {
-        return;
-      }
+    editor.update(
+      () => {
+        const listItem = $getNearestNodeFromDOMNode(activeItem);
 
-      const nextListItem = $findCheckListItemSibling(listItem, backward);
-
-      if (nextListItem != null) {
-        $selectCheckRowStart(nextListItem);
-        event.preventDefault();
-        if (!$isTaskListItem(nextListItem)) {
-          // The traversal's boundary fallback: no checkbox row remains in
-          // this direction, so exit focus mode into the row's text. Its
-          // <li> renders no checkbox and is unfocusable (no role/tabIndex),
-          // so focusing it would silently no-op and strand focus on the
-          // old checkbox — focus the root instead (as ARROW_RIGHT and
-          // Escape do) and let the reconciler place the caret.
-          const rootElement = editor.getRootElement();
-          if (rootElement !== null) {
-            rootElement.focus();
-          }
+        if (!$isListItemNode(listItem)) {
           return;
         }
-        const dom = editor.getElementByKey(nextListItem.__key);
 
-        if (dom != null) {
-          // The row's native checkbox input carries focus mode when it
-          // renders one (semantic nesting mode).
-          const focusTarget = getListItemFocusTarget(dom);
-          setTimeout(() => {
-            focusTarget.focus();
-          }, 0);
+        const nextListItem = $findCheckListItemSibling(listItem, backward);
+
+        if (nextListItem != null) {
+          $selectCheckRowStart(nextListItem);
+          event.preventDefault();
+          if (!$isTaskListItem(nextListItem)) {
+            // The traversal's boundary fallback: no checkbox row remains in
+            // this direction, so exit focus mode into the row's text. Its
+            // <li> renders no checkbox and is unfocusable (no role/tabIndex),
+            // so focusing it would silently no-op and strand focus on the
+            // old checkbox — focus the root instead (as ARROW_RIGHT and
+            // Escape do) and let the reconciler place the caret.
+            exitToRoot = true;
+            return;
+          }
+          if (editor.getElementByKey(nextListItem.__key) != null) {
+            nextItemKey = nextListItem.__key;
+          }
         }
-      }
-    });
+      },
+      {
+        // The focus has to land after the reconciler has moved the selection
+        // onto the next item, which is what onUpdate is for. The element is
+        // resolved from the key here rather than captured above, so a
+        // reconciliation that replaced it is followed to the current one.
+        onUpdate: () => {
+          if (exitToRoot) {
+            const rootElement = editor.getRootElement();
+            if (rootElement !== null) {
+              rootElement.focus();
+            }
+            return;
+          }
+          const dom =
+            nextItemKey === null ? null : editor.getElementByKey(nextItemKey);
+
+          if (dom != null) {
+            // The row's native checkbox input carries focus mode when it
+            // renders one (semantic nesting mode).
+            getListItemFocusTarget(dom).focus();
+          }
+        },
+      },
+    );
   }
 
   return false;

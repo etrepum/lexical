@@ -82,6 +82,21 @@ function $isSelectingEmptyListItem(
 }
 
 /**
+ * Build the ListNode that replaces `list` when its type is changed. The
+ * replacement stands in for the same list, so it is a copy — carrying the
+ * direction, format, style, indent and start the original was given — rather
+ * than a default-constructed ListNode. Every other place a ListNode is
+ * replaced by an equivalent one ({@link $handleIndent},
+ * {@link $handleOutdent}, {@link ListItemNode.replace}, …) uses `$copyNode`
+ * for the same reason.
+ */
+function $newListFrom(list: ElementNode, listType: ListType): ListNode {
+  return $isListNode(list)
+    ? $copyNode(list).setListType(listType)
+    : $createListNode(listType);
+}
+
+/**
  * Inserts a new ListNode. If the selection's anchor node is an empty ListItemNode and is a child of
  * the root/shadow root, it will replace the ListItemNode with a ListNode and the old ListItemNode.
  * Otherwise it will replace its parent with a new ListNode and re-insert the ListItemNode and any previous children.
@@ -112,9 +127,8 @@ export function $insertList(listType: ListType): void {
       } else if (
         $isSelectingEmptyListItem(anchorNode, nodes, selection.isCollapsed())
       ) {
-        const list = $createListNode(listType);
-
         if ($isRootOrShadowRoot(anchorNodeParent)) {
+          const list = $createListNode(listType);
           anchorNode.replace(list);
           const listItem = $createListItemNode();
           if ($isElementNode(anchorNode)) {
@@ -129,6 +143,7 @@ export function $insertList(listType: ListType): void {
           // owns the slot, so converting it is a no-op rather than a
           // replace (which would throw).
           if ($getSlotHost(parent) === null) {
+            const list = $newListFrom(parent, listType);
             append(list, parent.getChildren());
             if ($isListNode(parent)) {
               $copySemanticNestingMark(parent, list);
@@ -173,7 +188,7 @@ export function $insertList(listType: ListType): void {
           // assignment is managed by the node or extension that owns the
           // slot.
           if (!handled.has(parentKey) && $getSlotHost(parent) === null) {
-            const newListNode = $createListNode(listType);
+            const newListNode = $newListFrom(parent, listType);
             append(newListNode, parent.getChildren());
             $copySemanticNestingMark(parent, newListNode);
             parent.replace(newListNode);
@@ -274,7 +289,10 @@ export function mergeLists(list1: ListNode, list2: ListNode): void {
 
   // Only dedicated wrapper items are collapsed into each other; an item
   // whose lists carry the semantic nesting mark renders a row of its own
-  // and must survive the merge as a regular sibling.
+  // and must survive the merge as a regular sibling. $collapseWrapperPair
+  // merges the boundary lists only when they are the same type — a nested
+  // <ul> must not swallow a nested <ol>, same rule as
+  // mergeNextSiblingListIfSameType applies at the top level.
   if ($isWrapperListItemNode(listItem1) && $isWrapperListItemNode(listItem2)) {
     $collapseWrapperPair(listItem1, listItem2);
   }
@@ -289,13 +307,13 @@ export function mergeLists(list1: ListNode, list2: ListNode): void {
 
 /**
  * Collapse two adjacent dedicated wrapper items into the first one. A
- * wrapper may hold several lists (of different types), so merge the
- * boundary pair — the LAST list of the first wrapper with the FIRST list
- * of the second — only when they are the same type, then move any
- * remaining lists across so none are lost. A boundary of differing types
- * stays as two adjacent lists (moved by the append below), exactly as
- * differing-type sibling lists already coexist in a wrapper; merging them
- * would silently retype one side's rows. Shared by {@link mergeLists} and
+ * wrapper may hold several lists, so merge the boundary pair — the LAST
+ * list of the first wrapper with the FIRST list of the second — and move
+ * any remaining lists across so none are lost. When the boundary lists are
+ * of differing types the two wrappers are left as separate siblings: a
+ * nested <ul> must not swallow a nested <ol> (merging them would silently
+ * retype one side's rows, and dissolving the wrapper boundary would render
+ * them as one run). Shared by {@link mergeLists} and
  * `ListItemNode.remove` so the collapse policy cannot diverge between
  * merging two lists and deleting the row that separated two wrappers.
  */
@@ -306,12 +324,15 @@ export function $collapseWrapperPair(
   const boundaryList1 = wrapper1.getLastChild();
   const boundaryList2 = wrapper2.getFirstChild();
   if (
-    $isListNode(boundaryList1) &&
-    $isListNode(boundaryList2) &&
-    boundaryList1.getListType() === boundaryList2.getListType()
+    !(
+      $isListNode(boundaryList1) &&
+      $isListNode(boundaryList2) &&
+      boundaryList1.getListType() === boundaryList2.getListType()
+    )
   ) {
-    mergeLists(boundaryList1, boundaryList2);
+    return;
   }
+  mergeLists(boundaryList1, boundaryList2);
   wrapper1.append(...wrapper2.getChildren());
   wrapper2.remove();
 }
@@ -373,6 +394,18 @@ export function $removeList(): void {
             listItemNode.insertBefore(child);
           }
         }
+
+        // The paragraph stands in for the list item, so it keeps the item's own
+        // element state. $createListOrMerge does the mirror image of this on the
+        // way in — it copies the block's format and indent onto the list item it
+        // creates — and the importers and ListItemNode.exportDOM round-trip the
+        // direction and style, so dropping them here loses state the user set.
+        paragraph
+          .setFormat(listItemNode.getFormatType())
+          .setIndent(listItemNode.getIndent())
+          .setDirection(listItemNode.getDirection())
+          .setStyle(listItemNode.getStyle());
+
         append(paragraph, listItemNode.getChildren());
 
         insertionPoint.insertAfter(paragraph);

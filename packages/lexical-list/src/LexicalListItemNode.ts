@@ -60,6 +60,7 @@ import {
 } from './semanticNesting';
 import {
   $copyListForSplit,
+  $getNewListStart,
   $hasNestedListChild,
   $isCheckList,
   $isEmptiedHostRow,
@@ -459,6 +460,17 @@ export class ListItemNode extends ElementNode {
       // $copyListForSplit carries the semantic nesting mark: both halves
       // of a marked nested list remain the same host row's content.
       const newListNode = $copyListForSplit(listNode);
+      // The copy carries the original list's start, which would restart the
+      // numbering at the split. The items moving into the new list keep the
+      // numbers they were already rendered with, so the new list has to start
+      // from the first of them (see issue #7032).
+      const firstSibling = siblings[0];
+      if (
+        newListNode.getListType() === 'number' &&
+        $isListItemNode(firstSibling)
+      ) {
+        newListNode.setStart($getNewListStart(listNode, firstSibling));
+      }
 
       siblings.forEach(sibling => newListNode.append(sibling));
 

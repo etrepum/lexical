@@ -33,6 +33,7 @@ import {
   $createListNode,
   $isListNode,
   $normalizeSemanticChildren,
+  type ListNode,
 } from './LexicalListNode';
 import {
   $isDomChecklist,
@@ -47,14 +48,23 @@ import {findCheckboxInputChild, isCheckboxInputElement} from './utils';
  * `ListItemNode`s (the legacy `$normalizeChildren` shape). Also wraps any
  * non-`ListItemNode` children in a new `ListItemNode`.
  *
+ * The wrapper items come from `listNode.createListItemNode()` — the same
+ * subclass hook the legacy `$normalizeChildren` uses — so a `ListNode`
+ * subclass gets its own item type here too.
+ *
  * When semantic nesting is enabled for the active editor (see the
  * `hasSemanticNesting` config of `ListExtension`), nested lists are
  * instead kept inside their `ListItemNode` and dedicated wrapper `<li>`s
  * are merged into the preceding item.
  */
-function $normalizeListChildren(children: LexicalNode[]): ListItemNode[] {
+function $normalizeListChildren(
+  children: LexicalNode[],
+  listNode: ListNode,
+): ListItemNode[] {
   if ($isListSemanticNestingEnabled()) {
-    return $normalizeSemanticChildren(children, $createListItemNode);
+    return $normalizeSemanticChildren(children, () =>
+      listNode.createListItemNode(),
+    );
   }
   const out: ListItemNode[] = [];
   for (const child of children) {
@@ -64,12 +74,12 @@ function $normalizeListChildren(children: LexicalNode[]): ListItemNode[] {
       if (innerChildren.length > 1) {
         for (const inner of innerChildren) {
           if ($isListNode(inner)) {
-            out.push($createListItemNode().append(inner));
+            out.push(listNode.createListItemNode().append(inner));
           }
         }
       }
     } else {
-      out.push($createListItemNode().append(child));
+      out.push(listNode.createListItemNode().append(child));
     }
   }
   return out;
@@ -86,7 +96,7 @@ const ListRule = defineImportRule({
       node = $createListNode('bullet');
     }
     $setDirectionFromDOM(node, el);
-    const items = $normalizeListChildren(ctx.$importChildren(el));
+    const items = $normalizeListChildren(ctx.$importChildren(el), node);
     // Mixed task lists: a plain `<li>` in a `contains-task-list` renders no
     // checkbox. Same normalization as the legacy pipeline's $normalizeChildren.
     $markPlainImportedCheckRows(items, node);
