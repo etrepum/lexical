@@ -12,6 +12,7 @@ import {
   $copyNode,
   $createParagraphNode,
   $getDocument,
+  $getEditor,
   $getSelection,
   $getSiblingCaret,
   $getState,
@@ -63,11 +64,11 @@ import {
   $getNewListStart,
   $hasNestedListChild,
   $isCheckList,
-  $isEmptiedHostRow,
   $isWrapperListItemNode,
   findCheckboxInputChild,
   isCheckboxInputElement,
   listItemPlainState,
+  listSemanticNestingState,
 } from './utils';
 
 export type SerializedListItemNode = Spread<
@@ -190,9 +191,9 @@ export class ListItemNode extends ElementNode {
     this.__checked = prevNode.__checked;
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
+  createDOM(config: EditorConfig, editor?: LexicalEditor): HTMLElement {
     const element = $getDocument().createElement('li');
-    this.updateListItemDOM(null, element, config);
+    this.updateListItemDOM(null, element, config, editor);
 
     return element;
   }
@@ -211,12 +212,19 @@ export class ListItemNode extends ElementNode {
     prevNode: ListItemNode | null,
     dom: HTMLLIElement,
     config: EditorConfig,
+    // The editor is taken from the caller (createDOM / exportDOM receive
+    // it) rather than always from $getEditor(), so exportDOM keeps working
+    // inside a bare editorState.read() the way it did before the semantic
+    // nesting mode was consulted here; updateDOM runs in the reconciler,
+    // where the active editor is always set.
+    editor: LexicalEditor = $getEditor(),
   ) {
     // Classified once per reconcile; both helpers below need it. A check
     // row renders a real <input type=checkbox> — rather than the ARIA /
     // ::before emulation — in the semantic nesting representation; the
     // theme keys and DOM wiring differ, so resolve it once here.
     const isWrapper = $isWrapperListItemNode(this);
+    const hasSemanticNesting = $isListSemanticNestingEnabled(editor);
     // Task-ness, not the list type, decides whether the row draws a checkbox:
     // a plain row in a check list (the GitHub mixed task-list case) reports
     // getChecked() === undefined and renders none, and getChecked already
@@ -227,17 +235,25 @@ export class ListItemNode extends ElementNode {
     const checkedState = isWrapper ? undefined : this.getChecked();
     const isTaskItem = checkedState !== undefined;
     const checked = checkedState === true;
-    const useNativeCheckbox = isTaskItem && $isListSemanticNestingEnabled();
+    const useNativeCheckbox = isTaskItem && hasSemanticNesting;
     updateListItemChecked(dom, isTaskItem, checked, useNativeCheckbox);
 
+    // Theme classes: in the default representation a wrapper inside a check
+    // list keeps the (emulated) checked/unchecked class it has always had —
+    // themes and the playground's e2e expectations rely on
+    // `listitemUnchecked nested` — even though it renders no checkbox
+    // attributes. Only the semantic mode, where the items own the checkbox
+    // styling, leaves its wrappers without one.
+    const themeCheckedState =
+      isWrapper && !hasSemanticNesting ? this.getChecked() : checkedState;
     dom.value = this.__value;
     $setListItemThemeClassNames(
       dom,
       config.theme,
       this,
       isWrapper,
-      isTaskItem,
-      checked,
+      themeCheckedState !== undefined,
+      themeCheckedState === true,
       useNativeCheckbox,
     );
     const prevStyle = prevNode ? prevNode.__style : '';
@@ -270,7 +286,7 @@ export class ListItemNode extends ElementNode {
   }
 
   exportDOM(editor: LexicalEditor): DOMExportOutput {
-    const element = this.createDOM(editor._config);
+    const element = this.createDOM(editor._config, editor);
 
     const formatType = this.getFormatType();
     if (formatType) {
@@ -691,10 +707,27 @@ export class ListItemNode extends ElementNode {
     const anchorNode = selection.anchor.getNode();
     const focusNode = selection.focus.getNode();
 
+    if (!(this.isParentOf(anchorNode) && this.isParentOf(focusNode))) {
+      return false;
+    }
+    if (this.getTextContent().length === selection.getTextContent().length) {
+      return true;
+    }
+    // Semantic representation: the row's own inline content precedes its
+    // nested lists, and getTextContent() folds the nested rows in, so the
+    // length test above can never match a host row. The row is covered
+    // when the selection starts at its own content's start and ends at (or
+    // past) its own content's end — including inside the nested rows —
+    // exactly the cases the wrapper representation extracts as a whole
+    // <li> (copying a row must keep it a list item).
+    if (!$hasNestedListChild(this)) {
+      return false;
+    }
+    const [start, end] = selection.isBackward()
+      ? [selection.focus, selection.anchor]
+      : [selection.anchor, selection.focus];
     return (
-      this.isParentOf(anchorNode) &&
-      this.isParentOf(focusNode) &&
-      this.getTextContent().length === selection.getTextContent().length
+      $isAtRowContentStart(this, start) && $isAtOrPastRowContentEnd(this, end)
     );
   }
 
@@ -719,12 +752,97 @@ export class ListItemNode extends ElementNode {
     // must behave as a block; a dedicated wrapper (all unmarked) is a
     // container, not a block. Both early-exit on the first inline child,
     // keeping this safe on caret/selection hot paths.
-    return $isEmptiedHostRow(this)
-      ? true
-      : $isWrapperListItemNode(this)
-        ? false
-        : null;
+    // A single child walk (this sits on caret/selection hot paths): stops
+    // at the first inline child, otherwise remembers whether any nested
+    // list carries the mark.
+    let marked = false;
+    let child = this.getFirstChild();
+    if (child === null) {
+      return null;
+    }
+    for (; child !== null; child = child.getNextSibling()) {
+      if (!$isListNode(child)) {
+        return null;
+      }
+      if (!marked && $getState(child, listSemanticNestingState)) {
+        marked = true;
+      }
+    }
+    return marked;
   }
+}
+
+/**
+ * Whether `point` sits at the start of the item's own inline content: the
+ * element point (item, 0), or offset 0 of its first inline descendant.
+ */
+function $isAtRowContentStart(
+  listItemNode: ListItemNode,
+  point: RangeSelection['anchor'],
+): boolean {
+  if (point.type === 'element') {
+    return point.key === listItemNode.getKey() && point.offset === 0;
+  }
+  if (point.offset !== 0) {
+    return false;
+  }
+  const firstChild = listItemNode.getFirstChild();
+  if (firstChild === null || $isListNode(firstChild)) {
+    return false;
+  }
+  const firstDescendant = $isElementNode(firstChild)
+    ? firstChild.getFirstDescendant()
+    : firstChild;
+  return firstDescendant !== null && point.getNode().is(firstDescendant);
+}
+
+/**
+ * Whether `point` is at the end of the item's own inline content or beyond
+ * it (inside one of the item's nested lists).
+ */
+function $isAtOrPastRowContentEnd(
+  listItemNode: ListItemNode,
+  point: RangeSelection['anchor'],
+): boolean {
+  // The last own (non-list) child and its index among the children.
+  let lastOwnChild: LexicalNode | null = null;
+  let lastOwnIndex = -1;
+  let index = 0;
+  for (
+    let child = listItemNode.getFirstChild();
+    child !== null;
+    child = child.getNextSibling(), index++
+  ) {
+    if (!$isListNode(child)) {
+      lastOwnChild = child;
+      lastOwnIndex = index;
+    }
+  }
+  if (point.type === 'element') {
+    return point.key === listItemNode.getKey() && point.offset > lastOwnIndex;
+  }
+  const node = point.getNode();
+  // Inside a nested list of this item: past the own content.
+  for (
+    let ancestor = node.getParent();
+    ancestor !== null && !ancestor.is(listItemNode);
+    ancestor = ancestor.getParent()
+  ) {
+    if ($isListNode(ancestor) && listItemNode.is(ancestor.getParent())) {
+      return true;
+    }
+  }
+  if (lastOwnChild === null) {
+    return false;
+  }
+  const lastDescendant = $isElementNode(lastOwnChild)
+    ? lastOwnChild.getLastDescendant()
+    : lastOwnChild;
+  return (
+    lastDescendant !== null &&
+    node.is(lastDescendant) &&
+    point.offset === lastDescendant.getTextContentSize()
+  );
 }
 
 function $setListItemThemeClassNames(

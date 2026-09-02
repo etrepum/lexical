@@ -726,6 +726,32 @@ describe('semantic nested list browser behavior', () => {
       });
     });
 
+    test('Home in an empty task row keeps the caret after the checkbox', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      placeCaret(editor, contentEditable, 'first item', 'first item'.length);
+      // Split off an empty task row, then Home inside it: the browser parks
+      // the caret at (li, 0) — before the unmanaged checkbox input — and
+      // the core caret guard must move it after the input.
+      await userEvent.keyboard('{Enter}');
+      await domSelectionSettled();
+      await userEvent.keyboard('{Home}');
+      await vi.waitFor(() => {
+        const domSelection = getDOMSelection(window);
+        invariant(
+          domSelection !== null && domSelection.anchorNode !== null,
+          'Expected a DOM selection',
+        );
+        const anchorNode = domSelection.anchorNode;
+        invariant(
+          anchorNode instanceof HTMLElement && anchorNode.tagName === 'LI',
+          'Expected the caret on the empty row li',
+        );
+        expect(anchorNode.firstElementChild).toBeInstanceOf(HTMLInputElement);
+        expect(domSelection.anchorOffset).toBe(1);
+      });
+    });
+
     test('ArrowDown past the last checkbox row exits focus mode into a plain row', async () => {
       const {contentEditable, editor} = mountSemanticEditor();
       // Mixed task list: one task row followed by a plain row (no checkbox).

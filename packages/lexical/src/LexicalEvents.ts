@@ -408,15 +408,22 @@ function onSelectionChange(
         // and consulted only when it measures the same element the browser
         // reported, so a slot re-anchored via `withElement` (e.g. a table's
         // scrollable wrapper) is never compared in the wrong offset space.
+        // Both point shapes are covered: a text anchor (the element's first
+        // managed child is text) and an element anchor on the element itself
+        // (an empty row resolves to (element, 0), e.g. `<li><input><br></li>`
+        // after Home), which the browser otherwise leaves rendered before
+        // the unmanaged prefix indefinitely.
         if (
-          anchor.type === 'text' &&
           isHTMLElement(anchorDOM) &&
           anchorOffset !== null &&
           anchorDOM.firstChild !== null &&
           isDOMUnmanaged(anchorDOM.firstChild)
         ) {
           const anchorDOMNode = $getNodeFromDOMNode(anchorDOM);
-          if ($isElementNode(anchorDOMNode)) {
+          if (
+            $isElementNode(anchorDOMNode) &&
+            (anchor.type === 'text' || anchor.key === anchorDOMNode.getKey())
+          ) {
             const slot = $getDOMSlot(anchorDOMNode, anchorDOM, editor);
             if (
               slot.element === anchorDOM &&

@@ -140,7 +140,7 @@ const markdownBlockQuote: MarkdownCriteria = {
 
 const markdownUnorderedListDash: MarkdownCriteria = {
   ...paragraphStartBase,
-  export: listExport,
+  export: $listExport,
   markdownFormatKind: 'paragraphUnorderedList',
   regEx: /^(\s{0,10})(?:- )/,
   regExForAutoFormatting: /^(\s{0,10})(?:- )/,
@@ -148,7 +148,7 @@ const markdownUnorderedListDash: MarkdownCriteria = {
 
 const markdownUnorderedListAsterisk: MarkdownCriteria = {
   ...paragraphStartBase,
-  export: listExport,
+  export: $listExport,
   markdownFormatKind: 'paragraphUnorderedList',
   regEx: /^(\s{0,10})(?:\* )/,
   regExForAutoFormatting: /^(\s{0,10})(?:\* )/,
@@ -164,7 +164,7 @@ const markdownCodeBlock: MarkdownCriteria = {
 
 const markdownOrderedList: MarkdownCriteria = {
   ...paragraphStartBase,
-  export: listExport,
+  export: $listExport,
   markdownFormatKind: 'paragraphOrderedList',
   regEx: /^(\s{0,10})(\d+)\.\s/,
   regExForAutoFormatting: /^(\s{0,10})(\d+)\.\s/,
@@ -339,11 +339,13 @@ function createHeadingExport(level: number): Block {
   };
 }
 
-function listExport(
+function $listExport(
   node: LexicalNode,
   exportChildren: (_node: ElementNode) => string,
 ) {
-  return $isListNode(node) ? processNestedLists(node, exportChildren, 0) : null;
+  return $isListNode(node)
+    ? $processNestedLists(node, exportChildren, 0)
+    : null;
 }
 
 // TODO: should be param
@@ -353,7 +355,7 @@ const LIST_INDENT_SIZE = 4;
 // selection scope (hasSelection=false never consults it).
 const $noneSelected = () => false;
 
-function processNestedLists(
+function $processNestedLists(
   listNode: ListNode,
   exportChildren: (node: ElementNode) => string,
   depth: number,
@@ -388,7 +390,7 @@ function processNestedLists(
         child = child.getNextSibling()
       ) {
         if ($isListNode(child)) {
-          output.push(processNestedLists(child, exportChildren, depth + 1));
+          output.push($processNestedLists(child, exportChildren, depth + 1));
         }
       }
     }

@@ -33,7 +33,7 @@ import {
 } from './formatList';
 import {$isListItemNode, ListItemNode} from './LexicalListItemNode';
 import {$isListNode, ListNode} from './LexicalListNode';
-import {$getListDepth, $isWrapperListItemNode} from './utils';
+import {$deepLastRow, $getListDepth, $isWrapperListItemNode} from './utils';
 
 export const UPDATE_LIST_START_COMMAND: LexicalCommand<{
   listNodeKey: NodeKey;
@@ -201,7 +201,7 @@ export function registerListStrictIndentTransform(
     while ($isListItemNode(probe)) {
       const previousSibling = probe.getPreviousSibling();
       if ($isListItemNode(previousSibling)) {
-        endListItemNode = $findChildrenEndListItemNode(previousSibling);
+        endListItemNode = $deepLastRow(previousSibling);
         break;
       }
       const probeList: ElementNode | null = probe.getParent();
@@ -223,7 +223,7 @@ export function registerListStrictIndentTransform(
       if ($isListNode(previousList)) {
         const lastItem = previousList.getLastChild();
         if ($isListItemNode(lastItem)) {
-          endListItemNode = $findChildrenEndListItemNode(lastItem);
+          endListItemNode = $deepLastRow(lastItem);
           break;
         }
       }
@@ -286,36 +286,4 @@ export function registerListStrictIndentTransform(
   };
 
   return editor.registerNodeTransform(ListNode, $processListWithStrictIndent);
-}
-
-function $findChildrenEndListItemNode(
-  listItemNode: ListItemNode,
-): ListItemNode {
-  let current = listItemNode;
-
-  // Descend through nested lists: the sole child of a wrapper item, or the
-  // last nested list trailing an item's content (semantic representation).
-  // Scan the child links backward from the end — the last nested list is at
-  // (or near) the tail in both representations.
-  while (true) {
-    let lastNestedList = null;
-    for (
-      let child = current.getLastChild();
-      child !== null;
-      child = child.getPreviousSibling()
-    ) {
-      if ($isListNode(child)) {
-        lastNestedList = child;
-        break;
-      }
-    }
-    const lastChild = lastNestedList ? lastNestedList.getLastChild() : null;
-    if ($isListItemNode(lastChild)) {
-      current = lastChild;
-    } else {
-      break;
-    }
-  }
-
-  return current;
 }

@@ -1458,6 +1458,14 @@ export function getCachedClassNameArray(
   classNameThemeType: string,
 ): readonly string[] | undefined {
   if (classNamesTheme.__lexicalClassNameCache === undefined) {
+    if (!Object.isExtensible(classNamesTheme)) {
+      // A frozen/sealed theme object cannot hold the cache; tokenize
+      // without memoizing rather than throwing from the reconciler.
+      const classNames = classNamesTheme[classNameThemeType];
+      return typeof classNames === 'string'
+        ? normalizeClassNames(classNames)
+        : undefined;
+    }
     classNamesTheme.__lexicalClassNameCache = {};
   }
   const classNamesCache = classNamesTheme.__lexicalClassNameCache;

@@ -436,6 +436,29 @@ export function $isLastItemInList(listItem: ListItemNode): boolean {
  * @returns An array containing all nodes of type ListItemNode found.
  */
 // This should probably be $getAllChildrenOfType
+/**
+ * The item's last descendant row in document order: itself, or — when it
+ * holds nested lists — the deep-last item of its last non-empty nested list
+ * (nested lists trail the row's own content in both representations).
+ * Shared by the strict-indent transform and check-list arrow navigation so
+ * they cannot disagree on which row renders last inside an item.
+ */
+export function $deepLastRow(item: ListItemNode): ListItemNode {
+  for (
+    let child = item.getLastChild();
+    child !== null;
+    child = child.getPreviousSibling()
+  ) {
+    if ($isListNode(child)) {
+      const last = child.getLastChild();
+      if ($isListItemNode(last)) {
+        return $deepLastRow(last);
+      }
+    }
+  }
+  return item;
+}
+
 export function $getAllListItems(node: ListNode): ListItemNode[] {
   // Single-pass link walk into a shared accumulator: this runs on keystroke
   // paths (checklist arrow navigation) as well as one-shot commands.

@@ -49,6 +49,7 @@ import {
 import {$isListNode} from './LexicalListNode';
 import {makeListSemanticNestingReader} from './semanticNesting';
 import {
+  $deepLastRow,
   $isEmptiedHostRow,
   $isTaskListItem,
   $isWrapperListItemNode,
@@ -721,27 +722,6 @@ function $firstNestedRow(item: ListItemNode): ListItemNode | null {
     }
   }
   return null;
-}
-
-/**
- * The item's last descendant row in document order: itself, or — when it
- * holds nested lists — the deep-last item of its last non-empty nested list
- * (nested lists trail the row's own content in both representations).
- */
-function $deepLastRow(item: ListItemNode): ListItemNode {
-  for (
-    let child = item.getLastChild();
-    child !== null;
-    child = child.getPreviousSibling()
-  ) {
-    if ($isListNode(child)) {
-      const last = child.getLastChild();
-      if ($isListItemNode(last)) {
-        return $deepLastRow(last);
-      }
-    }
-  }
-  return item;
 }
 
 /**

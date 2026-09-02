@@ -554,6 +554,9 @@ export const $exportLink: MdastExportHandler = (node, ctx) => {
   return link;
 };
 
+/** The whole-document default for a context built without `isSelected`. */
+const everySelected = (): boolean => true;
+
 function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
   const listType = node.getListType();
   const list: List = {
@@ -592,7 +595,13 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
     // $listItemEmitsRow is the shared decision (also used by the markdown
     // exporter), matching the default (wrapper) representation. In both
     // cases the nested lists attach to the previous item's children.
-    if (!$listItemEmitsRow(child, ctx.hasSelection, ctx.isSelected)) {
+    if (
+      !$listItemEmitsRow(
+        child,
+        ctx.hasSelection === true,
+        ctx.isSelected !== undefined ? ctx.isSelected : everySelected,
+      )
+    ) {
       // Collect the nested lists in one link-walk (no children snapshot),
       // dropping any that exported empty (all their rows filtered out by a
       // selection) so no stray empty `list` node reaches the output —

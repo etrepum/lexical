@@ -385,15 +385,14 @@ export function $removeList(): void {
           .setTextFormat(selection.format);
 
         // Nested ListNode children (semantic representation) hold items that
-        // are processed later in this loop; relocate them next to the item
-        // (rather than removing them with it) so they — and any selection
-        // inside them — stay attached until their own turn. They remove
-        // themselves once their last item is gone (canBeEmpty is false).
-        for (const child of listItemNode.getChildren()) {
-          if ($isListNode(child)) {
-            listItemNode.insertBefore(child);
-          }
-        }
+        // are processed later in this loop; park them in a dedicated wrapper
+        // after the item (the default representation's shape) rather than
+        // removing them with it, so they — and any selection inside them —
+        // stay attached until their own turn and their rows still see a
+        // ListItemNode grandparent (getIndent counts those, so the paragraph
+        // that stands in for a nested row keeps its indent). The wrapper
+        // goes away with the list below.
+        $parkNestedListsInWrapper(listItemNode);
 
         // The paragraph stands in for the list item, so it keeps the item's own
         // element state. $createListOrMerge does the mirror image of this on the
@@ -689,8 +688,11 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
       const trailingLists = parentList.getNextSiblings().filter($isListNode);
       grandparentListItem.insertAfter(listItemNode);
       if (nextSiblings.length > 0 || trailingLists.length > 0) {
-        // A fresh dedicated wrapper (mirrors $parkNestedListsInWrapper).
-        const nextWrapper = $createListItemNode();
+        // A copy of the wrapper being split (not a fresh base-class item):
+        // it stands in for that wrapper, so it keeps its class and element
+        // state — a ListNode subclass's own item type, or a text-align the
+        // wrapper carried — the way every other list split copies.
+        const nextWrapper = $copyNode<ListItemNode>(grandparentListItem);
         if (nextSiblings.length > 0) {
           nextWrapper.append($buildOutdentCarryList(parentList, nextSiblings));
         }

@@ -17,6 +17,7 @@ import {
   type LexicalNode,
 } from 'lexical';
 
+import {mergeLists} from './formatList';
 import {
   $createListItemNode,
   $isListItemNode,
@@ -238,8 +239,9 @@ export function $mergeWrapperListItemIntoPrevious(
     $isListNode(boundaryList2) &&
     boundaryList1.getListType() === boundaryList2.getListType()
   ) {
-    boundaryList1.append(...boundaryList2.getChildren());
-    boundaryList2.remove();
+    // The same merge $collapseWrapperPair uses, so the seam between the two
+    // lists (a wrapper chain straddling it) collapses identically here.
+    mergeLists(boundaryList1, boundaryList2);
   }
   previousItem.append(...wrapper.getChildren());
   wrapper.remove();

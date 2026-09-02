@@ -52,6 +52,7 @@ import {$createQuoteNode, RichTextExtension} from '@lexical/rich-text';
 import {$setBlocksType} from '@lexical/selection';
 import {
   $createParagraphNode,
+  $createRangeSelection,
   $createTextNode,
   $getEditor,
   $getNodeByKey,
@@ -62,6 +63,7 @@ import {
   $isElementNode,
   $isParagraphNode,
   $isRangeSelection,
+  $isTextNode,
   $setState,
   defineExtension,
   INSERT_PARAGRAPH_COMMAND,
@@ -3938,5 +3940,184 @@ describe('review round 16 regression fixes', () => {
         .map(row => $assertNodeType(row, $isListItemNode).getValue());
       expect(values).toEqual([1, 2, 3, 4]);
     });
+  });
+});
+
+describe('review round 17 regression fixes', () => {
+  test('default mode: a wrapper li in a check list keeps the unchecked theme class', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(ListExtension, {hasSemanticNesting: false}),
+        ],
+        name: 'default-list-host',
+        theme: {
+          list: {
+            listitemChecked: 'checked',
+            listitemUnchecked: 'unchecked',
+            nested: {listitem: 'nested'},
+          },
+        },
+      }),
+    );
+    const root = document.createElement('div');
+    editor.setRootElement(root);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append($createTextNode('Hello')),
+              $createListItemNode().append(
+                $createListNode('check').append(
+                  $createListItemNode(false).append($createTextNode('nested')),
+                ),
+              ),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const [, wrapper] = Array.from(root.querySelectorAll('li'));
+    // The legacy shape: theme class present, no checkbox attributes.
+    expect(wrapper.className).toBe('unchecked nested');
+    expect(wrapper.hasAttribute('role')).toBe(false);
+    expect(wrapper.hasAttribute('aria-checked')).toBe(false);
+  });
+
+  test('$removeList keeps the indent of semantic nested rows', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const nested = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('b')),
+        );
+        $setState(nested, listSemanticNestingState, true);
+        const a = $createListItemNode().append($createTextNode('a'), nested);
+        $getRoot().clear().append($createListNode('bullet').append(a));
+        const aText = $assertNodeType(a.getFirstChild(), $isTextNode);
+        const bText = $assertNodeType(
+          nested.getFirstChild(),
+          $isListItemNode,
+        ).getFirstChild();
+        invariant(bText !== null, 'expected b text');
+        const selection = aText.select(0, 0);
+        selection.focus.set(bText.getKey(), 1, 'text');
+        $removeList();
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const paragraphs = $getRoot()
+        .getChildren()
+        .map(node => $assertNodeType(node, $isParagraphNode));
+      expect(paragraphs.map(p => [p.getTextContent(), p.getIndent()])).toEqual([
+        ['a', 0],
+        ['b', 1],
+      ]);
+    });
+  });
+
+  test('exportDOM of a task row works in a bare editorState.read()', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append($createTextNode('task')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const outerHTML = editor.getEditorState().read(() => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
+      const {element} = item.exportDOM(editor);
+      invariant(element instanceof HTMLElement, 'expected an element');
+      return element.outerHTML;
+    });
+    expect(outerHTML).toContain('<li');
+  });
+
+  test('outdent middle split copies the wrapper for the trailing rows', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        const x = $createListItemNode().append($createTextNode('x'));
+        const wrapper = $createListItemNode()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('a')),
+              x,
+              $createListItemNode().append($createTextNode('b')),
+            ),
+          )
+          .setFormat('center');
+        $getRoot().clear().append($createListNode('bullet').append(wrapper));
+        $handleOutdent(x);
+        const top = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        const rows = top
+          .getChildren()
+          .map(child => $assertNodeType(child, $isListItemNode));
+        expect(rows.map(row => row.getTextContent())).toEqual(['a', 'x', 'b']);
+        // The trailing wrapper stands in for the split one: same format.
+        expect(rows[2].getFormatType()).toBe('center');
+        expect($isWrapperListItemNode(rows[2])).toBe(true);
+      },
+      {discrete: true},
+    );
+  });
+
+  test('copying a host row exports it as a list item', () => {
+    using editor = buildEditor();
+    const htmlFor = (endInNested: boolean) =>
+      editor.read(() => {
+        const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        const host = $assertNodeType(list.getFirstChild(), $isListItemNode);
+        const alpha = host.getFirstChild();
+        invariant(alpha !== null, 'expected alpha');
+        const selection = $createRangeSelection();
+        selection.anchor.set(alpha.getKey(), 0, 'text');
+        if (endInNested) {
+          const nested = $assertNodeType(host.getLastChild(), $isListNode);
+          const beta = $assertNodeType(
+            nested.getFirstChild(),
+            $isListItemNode,
+          ).getFirstChild();
+          invariant(beta !== null, 'expected beta');
+          selection.focus.set(beta.getKey(), 4, 'text');
+        } else {
+          selection.focus.set(alpha.getKey(), 5, 'text');
+        }
+        return $generateHtmlFromNodes(editor, selection);
+      });
+    editor.update(
+      () => {
+        const nested = $createListNode('bullet').append(
+          $createListItemNode().append($createTextNode('beta')),
+        );
+        $setState(nested, listSemanticNestingState, true);
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('alpha'), nested),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    // Own text only: the host li (without its nested rows).
+    expect(htmlFor(false)).toMatch(
+      /^<ul[^>]*><li[^>]*><span[^>]*>alpha<\/span><\/li><\/ul>$/,
+    );
+    // Own text through a nested row: the host li with the nested list inside.
+    expect(htmlFor(true)).toMatch(
+      /^<ul[^>]*><li[^>]*><span[^>]*>alpha<\/span><ul[^>]*><li[^>]*><span[^>]*>beta<\/span><\/li><\/ul><\/li><\/ul>$/,
+    );
   });
 });

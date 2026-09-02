@@ -155,17 +155,20 @@ export interface MdastExportContext {
    * selected. Handlers use this — as opposed to {@link isIncluded} — to
    * decide whether a container should emit its own content (e.g. a list
    * item whose inline text is selected) versus only pass through selected
-   * descendants.
+   * descendants. Optional for compatibility with contexts built before it
+   * existed: absent means "treat every node as selected".
    */
-  isSelected(node: LexicalNode): boolean;
+  isSelected?(node: LexicalNode): boolean;
   /**
    * Whether this export is scoped to a selection (`true`) or covers the
    * whole document (`false`). Handlers that emit a container only for
    * selected content — while a whole-document export emits it
    * unconditionally — branch on this, since {@link isSelected} reports
-   * `true` for every node in a whole-document export.
+   * `true` for every node in a whole-document export. Optional for
+   * compatibility with contexts built before it existed: absent means a
+   * whole-document export.
    */
-  hasSelection: boolean;
+  hasSelection?: boolean;
 }
 
 /**
