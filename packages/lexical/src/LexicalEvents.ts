@@ -107,8 +107,10 @@ import {
   $findMatchingParent,
   $flushMutations,
   $getAdjacentNode,
+  $getDOMSlot,
   $getDOMTextNode,
   $getNodeByKey,
+  $getNodeFromDOMNode,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $setSelection,
@@ -134,6 +136,7 @@ import {
   isDOMNode,
   isDOMShadowRoot,
   isDOMTextNode,
+  isDOMUnmanaged,
   isFirefoxClipboardEvents,
   isHTMLElement,
   isLexicalEditor,
@@ -388,6 +391,47 @@ function onSelectionChange(
         // Badly interpreted range selection when collapsed - #1482
         if (domSelection.type === 'Range' && anchorDOM === focusDOM) {
           selection.dirty = true;
+        }
+
+        // A caret parked on an element boundary inside the slot's unmanaged
+        // prefix (before `ElementDOMSlot.withAfter` scaffolding, e.g. a
+        // check-list row's native checkbox input): the point resolves to the
+        // element's first managed child, but the browser keeps rendering the
+        // caret before the unmanaged DOM. Mark the selection dirty so the
+        // reconciler rewrites the visible caret at the resolved position;
+        // the rewrite lands on/inside a managed child, so the next
+        // selectionchange no longer matches this guard and it settles.
+        // The unmanaged-first-child precheck keeps this O(1) for the vast
+        // majority of editors and events — only elements that actually
+        // lead with setDOMUnmanaged scaffolding resolve a slot. The slot is
+        // resolved through the editor's render config (overrides included),
+        // and consulted only when it measures the same element the browser
+        // reported, so a slot re-anchored via `withElement` (e.g. a table's
+        // scrollable wrapper) is never compared in the wrong offset space.
+        // Both point shapes are covered: a text anchor (the element's first
+        // managed child is text) and an element anchor on the element itself
+        // (an empty row resolves to (element, 0), e.g. `<li><input><br></li>`
+        // after Home), which the browser otherwise leaves rendered before
+        // the unmanaged prefix indefinitely.
+        if (
+          isHTMLElement(anchorDOM) &&
+          anchorOffset !== null &&
+          anchorDOM.firstChild !== null &&
+          isDOMUnmanaged(anchorDOM.firstChild)
+        ) {
+          const anchorDOMNode = $getNodeFromDOMNode(anchorDOM);
+          if (
+            $isElementNode(anchorDOMNode) &&
+            (anchor.type === 'text' || anchor.key === anchorDOMNode.getKey())
+          ) {
+            const slot = $getDOMSlot(anchorDOMNode, anchorDOM, editor);
+            if (
+              slot.element === anchorDOM &&
+              anchorOffset < slot.getFirstChildOffset()
+            ) {
+              selection.dirty = true;
+            }
+          }
         }
 
         // If we have marked a collapsed selection format, and we're

@@ -104,11 +104,12 @@ function $buildWordListTree(
       stack.pop();
     }
     if (item.level > stack[stack.length - 1].level) {
-      // Lexical's nested-list convention (see `$isNestedListNode`): a
-      // sublist lives inside its OWN ListItemNode wrapper that is a
-      // sibling of the items above it, not inside the previous content
-      // item. The wrapper has no own content, just the sublist as its
-      // first child.
+      // Lexical's default nested-list convention (see
+      // `$isWrapperListItemNode`): a sublist lives inside its OWN
+      // ListItemNode wrapper that is a sibling of the items above it, not
+      // inside the previous content item. The wrapper has no own content,
+      // just the sublist as its first child. (The semantic nesting
+      // normalization merges the wrapper into its host row when enabled.)
       const sub = $createListNode(classifyWordListType(item.marker));
       stack[stack.length - 1].list.append($createListItemNode().append(sub));
       stack.push({level: item.level, list: sub});

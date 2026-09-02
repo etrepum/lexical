@@ -16,6 +16,7 @@ import {
   $getChildCaret,
   $getSelection,
   $getSlotHost,
+  $getState,
   $isElementNode,
   $isLeafNode,
   $isRangeSelection,
@@ -23,9 +24,9 @@ import {
   $isTextNode,
   $normalizeCaret,
   $setPointFromCaret,
+  $setState,
   type ElementNode,
   type LexicalNode,
-  type NodeKey,
   type ParagraphNode,
 } from 'lexical';
 
@@ -38,24 +39,46 @@ import {
   type ListNode,
 } from './';
 import {
+  $clearSemanticNestingMark,
+  $parkNestedListsInWrapper,
+} from './semanticNesting';
+import {
+  $copyListForSplit,
+  $copySemanticNestingMark,
   $getAllListItems,
   $getNewListStart,
   $getTopListNode,
-  $isNestedListNode,
+  $isEmptiedHostRow,
+  $isWrapperListItemNode,
   $removeHighestEmptyListParent,
+  listItemPlainState,
 } from './utils';
 
 function $isSelectingEmptyListItem(
   anchorNode: ListItemNode | LexicalNode,
   nodes: LexicalNode[],
+  isCollapsed: boolean,
 ): boolean {
-  return (
-    $isListItemNode(anchorNode) &&
-    (nodes.length === 0 ||
-      (nodes.length === 1 &&
-        anchorNode.is(nodes[0]) &&
-        anchorNode.getChildrenSize() === 0))
-  );
+  if (!$isListItemNode(anchorNode)) {
+    return false;
+  }
+  if (nodes.length === 0) {
+    return true;
+  }
+  if (nodes.length !== 1) {
+    return false;
+  }
+  if (anchorNode.is(nodes[0])) {
+    return anchorNode.getChildrenSize() === 0;
+  }
+  // An emptied host row (semantic representation): a collapsed caret is an
+  // element point on the li, but getNodes() resolves into its nested list.
+  // The row is visually empty, so list commands target its own list level —
+  // the same behavior the default representation's empty item gets. Only
+  // for a collapsed selection: a RANGE anchored on the li reaching into the
+  // nested rows produces the same getNodes() shape, and must keep targeting
+  // the nested list that actually holds the selected text.
+  return isCollapsed && $isEmptiedHostRow(anchorNode);
 }
 
 /**
@@ -101,7 +124,9 @@ export function $insertList(listType: ListType): void {
           anchorNode.append(paragraph);
           nodes = paragraph.select().getNodes();
         }
-      } else if ($isSelectingEmptyListItem(anchorNode, nodes)) {
+      } else if (
+        $isSelectingEmptyListItem(anchorNode, nodes, selection.isCollapsed())
+      ) {
         if ($isRootOrShadowRoot(anchorNodeParent)) {
           const list = $createListNode(listType);
           anchorNode.replace(list);
@@ -120,6 +145,9 @@ export function $insertList(listType: ListType): void {
           if ($getSlotHost(parent) === null) {
             const list = $newListFrom(parent, listType);
             append(list, parent.getChildren());
+            if ($isListNode(parent)) {
+              $copySemanticNestingMark(parent, list);
+            }
             parent.replace(list);
           }
         }
@@ -162,6 +190,7 @@ export function $insertList(listType: ListType): void {
           if (!handled.has(parentKey) && $getSlotHost(parent) === null) {
             const newListNode = $newListFrom(parent, listType);
             append(newListNode, parent.getChildren());
+            $copySemanticNestingMark(parent, newListNode);
             parent.replace(newListNode);
             handled.add(parentKey);
           }
@@ -251,22 +280,21 @@ function $createListOrMerge(node: ElementNode, listType: ListType): ListNode {
  * @param list1 - The first list to be merged.
  * @param list2 - The second list to be merged.
  */
+// mergeLists is a legacy-named editor-context export; the $-named helper it
+// calls shares that context.
+// eslint-disable-next-line @lexical/rules-of-lexical
 export function mergeLists(list1: ListNode, list2: ListNode): void {
   const listItem1 = list1.getLastChild();
   const listItem2 = list2.getFirstChild();
 
-  if (
-    listItem1 &&
-    listItem2 &&
-    $isNestedListNode(listItem1) &&
-    $isNestedListNode(listItem2) &&
-    // A nested <ul> must not swallow a nested <ol>, same rule as
-    // mergeNextSiblingListIfSameType applies at the top level.
-    listItem1.getFirstChild().getListType() ===
-      listItem2.getFirstChild().getListType()
-  ) {
-    mergeLists(listItem1.getFirstChild(), listItem2.getFirstChild());
-    listItem2.remove();
+  // Only dedicated wrapper items are collapsed into each other; an item
+  // whose lists carry the semantic nesting mark renders a row of its own
+  // and must survive the merge as a regular sibling. $collapseWrapperPair
+  // merges the boundary lists only when they are the same type — a nested
+  // <ul> must not swallow a nested <ol>, same rule as
+  // mergeNextSiblingListIfSameType applies at the top level.
+  if ($isWrapperListItemNode(listItem1) && $isWrapperListItemNode(listItem2)) {
+    $collapseWrapperPair(listItem1, listItem2);
   }
 
   const toMerge = list2.getChildren();
@@ -275,6 +303,38 @@ export function mergeLists(list1: ListNode, list2: ListNode): void {
   }
 
   list2.remove();
+}
+
+/**
+ * Collapse two adjacent dedicated wrapper items into the first one. A
+ * wrapper may hold several lists, so merge the boundary pair — the LAST
+ * list of the first wrapper with the FIRST list of the second — and move
+ * any remaining lists across so none are lost. When the boundary lists are
+ * of differing types the two wrappers are left as separate siblings: a
+ * nested <ul> must not swallow a nested <ol> (merging them would silently
+ * retype one side's rows, and dissolving the wrapper boundary would render
+ * them as one run). Shared by {@link mergeLists} and
+ * `ListItemNode.remove` so the collapse policy cannot diverge between
+ * merging two lists and deleting the row that separated two wrappers.
+ */
+export function $collapseWrapperPair(
+  wrapper1: ListItemNode,
+  wrapper2: ListItemNode,
+): void {
+  const boundaryList1 = wrapper1.getLastChild();
+  const boundaryList2 = wrapper2.getFirstChild();
+  if (
+    !(
+      $isListNode(boundaryList1) &&
+      $isListNode(boundaryList2) &&
+      boundaryList1.getListType() === boundaryList2.getListType()
+    )
+  ) {
+    return;
+  }
+  mergeLists(boundaryList1, boundaryList2);
+  wrapper1.append(...wrapper2.getChildren());
+  wrapper2.remove();
 }
 
 /**
@@ -291,7 +351,7 @@ export function $removeList(): void {
     const nodes = selection.getNodes();
     const anchorNode = selection.anchor.getNode();
 
-    if ($isSelectingEmptyListItem(anchorNode, nodes)) {
+    if ($isSelectingEmptyListItem(anchorNode, nodes, selection.isCollapsed())) {
       listNodes.add($getTopListNode(anchorNode));
     } else {
       for (let i = 0; i < nodes.length; i++) {
@@ -323,6 +383,16 @@ export function $removeList(): void {
         const paragraph = $createParagraphNode()
           .setTextStyle(selection.style)
           .setTextFormat(selection.format);
+
+        // Nested ListNode children (semantic representation) hold items that
+        // are processed later in this loop; park them in a dedicated wrapper
+        // after the item (the default representation's shape) rather than
+        // removing them with it, so they — and any selection inside them —
+        // stay attached until their own turn and their rows still see a
+        // ListItemNode grandparent (getIndent counts those, so the paragraph
+        // that stands in for a nested row keeps its indent). The wrapper
+        // goes away with the list below.
+        $parkNestedListsInWrapper(listItemNode);
 
         // The paragraph stands in for the list item, so it keeps the item's own
         // element state. $createListOrMerge does the mirror image of this on the
@@ -372,7 +442,7 @@ export function $removeList(): void {
  * parent does not have a list type of 'check'.
  * @param list - The list whose children are updated.
  */
-export function updateChildrenListItemValue(list: ListNode): void {
+export function $updateChildrenListItemValue(list: ListNode): void {
   const isNotChecklist = list.getListType() !== 'check';
   let value = list.getStart();
   for (const child of list.getChildren()) {
@@ -383,12 +453,25 @@ export function updateChildrenListItemValue(list: ListNode): void {
       if (isNotChecklist && child.getLatest().__checked != null) {
         child.setChecked(undefined);
       }
-      if (!$isListNode(child.getFirstChild())) {
+      // The mixed-task-list plain mark is likewise only meaningful in a
+      // check list. The ListItemNode $transform also clears it, but only
+      // for dirty items — setListType dirties the list, and a plain row
+      // (whose __checked is already undefined) would otherwise never be
+      // dirtied and carry the stale mark back into a future check list.
+      if (isNotChecklist && $getState(child, listItemPlainState)) {
+        $setState(child, listItemPlainState, false);
+      }
+      // Wrapper items only hold a nested list and don't render a marker of
+      // their own; items with content (including those with a trailing
+      // nested list in the semantic representation) consume a value.
+      if (!$isWrapperListItemNode(child)) {
         value++;
       }
     }
   }
 }
+/** @deprecated renamed to {@link $updateChildrenListItemValue} by @lexical/eslint-plugin rules-of-lexical */
+export const updateChildrenListItemValue = $updateChildrenListItemValue;
 
 /**
  * Merge the next sibling list if same type.
@@ -412,10 +495,9 @@ export function mergeNextSiblingListIfSameType(list: ListNode): void {
  * @param listItemNode - The ListItemNode to be indented.
  */
 export function $handleIndent(listItemNode: ListItemNode): void {
-  // go through each node and decide where to move it.
-  const removed = new Set<NodeKey>();
-
-  if ($isNestedListNode(listItemNode) || removed.has(listItemNode.getKey())) {
+  // Dedicated wrapper items cannot be indented; items whose lists carry the
+  // semantic nesting mark are real rows and can.
+  if ($isWrapperListItemNode(listItemNode)) {
     return;
   }
 
@@ -423,23 +505,27 @@ export function $handleIndent(listItemNode: ListItemNode): void {
 
   const nextSibling = listItemNode.getNextSibling();
   const previousSibling = listItemNode.getPreviousSibling();
-  // if there are nested lists on either side, merge them all together.
+  // If there are dedicated wrapper items on either side, merge them all
+  // together. An adjacent item whose lists are semantically marked is a row
+  // of its own, not this item's continuation, so it is never merged into;
+  // the fallback branch (plus the semantic normalization transform, when
+  // enabled) handles nesting next to such rows.
 
-  if ($isNestedListNode(nextSibling) && $isNestedListNode(previousSibling)) {
-    const innerList = previousSibling.getFirstChild();
+  if (
+    $isWrapperListItemNode(nextSibling) &&
+    $isWrapperListItemNode(previousSibling)
+  ) {
+    // Append into the previous wrapper's LAST list (adjacent to the next
+    // wrapper), then collapse the pair — which merges the boundary lists
+    // and carries every remaining list, so multi-list wrappers lose
+    // nothing.
+    const innerList = previousSibling.getLastChild();
 
     if ($isListNode(innerList)) {
       innerList.append(listItemNode);
-      const nextInnerList = nextSibling.getFirstChild();
-
-      if ($isListNode(nextInnerList)) {
-        const children = nextInnerList.getChildren();
-        append(innerList, children);
-        nextSibling.remove();
-        removed.add(nextSibling.getKey());
-      }
+      $collapseWrapperPair(previousSibling, nextSibling);
     }
-  } else if ($isNestedListNode(nextSibling)) {
+  } else if ($isWrapperListItemNode(nextSibling)) {
     // if the ListItemNode is next to a nested ListNode, merge them
     const innerList = nextSibling.getFirstChild();
 
@@ -450,16 +536,36 @@ export function $handleIndent(listItemNode: ListItemNode): void {
         firstChild.insertBefore(listItemNode);
       }
     }
-  } else if ($isNestedListNode(previousSibling)) {
-    const innerList = previousSibling.getFirstChild();
+  } else if ($isWrapperListItemNode(previousSibling)) {
+    // Append into the wrapper's LAST list: a multi-list wrapper's later
+    // lists are later rows in document order, so joining the first list
+    // would insert this row above them (reordering the document).
+    const innerList = previousSibling.getLastChild();
 
     if ($isListNode(innerList)) {
       innerList.append(listItemNode);
     }
   } else {
-    // otherwise, we need to create a new nested ListNode
+    const previousTrailingList = $isListItemNode(previousSibling)
+      ? previousSibling.getLastChild()
+      : null;
 
-    if ($isListNode(parent)) {
+    if (
+      $isListNode(previousTrailingList) &&
+      $isListNode(parent) &&
+      previousTrailingList.getListType() === parent.getListType()
+    ) {
+      // The previous sibling is a host row with a trailing nested list of
+      // the SAME type (semantic representation): continue that list rather
+      // than starting a separate wrapper alongside it, which would restart
+      // ordered numbering. A move preserves the list's semantic nesting
+      // mark. A trailing list of a different type is left alone — joining
+      // it would silently retype this row (e.g. a check row losing its
+      // checkbox) — so the fallback below nests the row in a new list of
+      // its own type instead.
+      previousTrailingList.append(listItemNode);
+    } else if ($isListNode(parent)) {
+      // otherwise, we need to create a new nested ListNode
       const newListItem = $copyNode(listItemNode);
       const newList = $copyNode(parent);
       newListItem.append(newList);
@@ -482,10 +588,28 @@ export function $handleIndent(listItemNode: ListItemNode): void {
  * within as a child.
  * @param listItemNode - The ListItemNode to remove the indent (outdent).
  */
+/**
+ * The list carrying the rows that render below an outdented item: a
+ * mark-preserving copy of its parent list holding its next siblings.
+ * Shared by {@link $handleOutdent}'s semantic-host and multi-list-wrapper
+ * split branches so the two cannot diverge on how below-the-item content
+ * moves on outdent.
+ */
+function $buildOutdentCarryList(
+  parentList: ListNode,
+  nextSiblings: LexicalNode[],
+): ListNode {
+  const carryList = $copyListForSplit(parentList);
+  append(carryList, nextSiblings);
+  return carryList;
+}
+
 export function $handleOutdent(listItemNode: ListItemNode): void {
   // go through each node and decide where to move it.
 
-  if ($isNestedListNode(listItemNode)) {
+  // Dedicated wrapper items cannot be outdented; items whose lists carry
+  // the semantic nesting mark are real rows and can.
+  if ($isWrapperListItemNode(listItemNode)) {
     return;
   }
   const parentList = listItemNode.getParent();
@@ -500,42 +624,84 @@ export function $handleOutdent(listItemNode: ListItemNode): void {
     $isListItemNode(grandparentListItem) &&
     $isListNode(parentList)
   ) {
-    // if it's the first child in it's parent list, insert it into the
-    // great grandparent list before the grandparent
-    const firstChild = parentList ? parentList.getFirstChild() : undefined;
-    const lastChild = parentList ? parentList.getLastChild() : undefined;
-
-    if (listItemNode.is(firstChild)) {
-      grandparentListItem.insertBefore(listItemNode);
-
-      if (parentList.isEmpty()) {
-        grandparentListItem.remove();
-      }
-      // if it's the last child in it's parent list, insert it into the
-      // great grandparent list after the grandparent.
-    } else if (listItemNode.is(lastChild)) {
+    if (!$isWrapperListItemNode(grandparentListItem)) {
+      // The parent list is nested semantically: it lives inside a list item
+      // that renders a row of its own, so the outdented item lands *after*
+      // that item. Anything that renders below the outdented item — its
+      // next siblings, and any further nested lists of the grandparent
+      // that follow the parent list — stays one level deeper and becomes
+      // the outdented item's own nested lists to preserve document order.
+      const isFirstChild = listItemNode.getPreviousSibling() === null;
+      const nextSiblings = listItemNode.getNextSiblings();
+      const trailingLists = parentList.getNextSiblings().filter($isListNode);
       grandparentListItem.insertAfter(listItemNode);
+      if (nextSiblings.length > 0) {
+        if (isFirstChild) {
+          // The remaining list is exactly the next siblings; adopt it
+          // whole (a move, so its semantic nesting mark is preserved).
+          listItemNode.append(parentList);
+        } else {
+          // The carry list keeps the original list's mark so the
+          // outdented item still reads as a row even if its own inline
+          // content is empty.
+          listItemNode.append($buildOutdentCarryList(parentList, nextSiblings));
+        }
+      } else if (isFirstChild) {
+        parentList.remove();
+      }
+      for (const trailingList of trailingLists) {
+        listItemNode.append(trailingList);
+      }
+      return;
+    }
+    // The item lands beside the wrapper in the great grandparent list.
+    // "First"/"last" must hold for the whole wrapper — a wrapper may hold
+    // several lists — otherwise the outdented item would be reordered
+    // across the wrapper's other lists' rows.
+    const isFirstRow =
+      listItemNode.getPreviousSibling() === null &&
+      parentList.getPreviousSibling() === null;
+    const isLastRow =
+      listItemNode.getNextSibling() === null &&
+      parentList.getNextSibling() === null;
 
+    if (isFirstRow || isLastRow) {
+      if (isFirstRow) {
+        grandparentListItem.insertBefore(listItemNode);
+      } else {
+        grandparentListItem.insertAfter(listItemNode);
+      }
+      // Remove only the emptied list, and the wrapper itself only once no
+      // list remains.
       if (parentList.isEmpty()) {
-        grandparentListItem.remove();
+        parentList.remove();
+        if (grandparentListItem.isEmpty()) {
+          grandparentListItem.remove();
+        }
       }
     } else {
-      // otherwise, we need to split the siblings into two new nested lists
-      const previousSiblingsListItem = $copyNode(listItemNode);
-      const previousSiblingsList = $copyNode(parentList);
-      previousSiblingsListItem.append(previousSiblingsList);
-      listItemNode
-        .getPreviousSiblings()
-        .forEach(sibling => previousSiblingsList.append(sibling));
-      const nextSiblingsListItem = $copyNode(listItemNode);
-      const nextSiblingsList = $copyNode(parentList);
-      nextSiblingsListItem.append(nextSiblingsList);
-      append(nextSiblingsList, listItemNode.getNextSiblings());
-      // put the sibling nested lists on either side of the grandparent list item in the great grandparent.
-      grandparentListItem.insertBefore(previousSiblingsListItem);
-      grandparentListItem.insertAfter(nextSiblingsListItem);
-      // replace the grandparent list item (now between the siblings) with the outdented list item.
-      grandparentListItem.replace(listItemNode);
+      // Split the wrapper: everything that renders below the outdented
+      // item — its next siblings and the wrapper's later lists — moves to
+      // a new wrapper inserted after it, preserving document order. The
+      // original wrapper keeps everything that renders above.
+      const nextSiblings = listItemNode.getNextSiblings();
+      const trailingLists = parentList.getNextSiblings().filter($isListNode);
+      grandparentListItem.insertAfter(listItemNode);
+      if (nextSiblings.length > 0 || trailingLists.length > 0) {
+        // A copy of the wrapper being split (not a fresh base-class item):
+        // it stands in for that wrapper, so it keeps its class and element
+        // state — a ListNode subclass's own item type, or a text-align the
+        // wrapper carried — the way every other list split copies.
+        const nextWrapper = $copyNode<ListItemNode>(grandparentListItem);
+        if (nextSiblings.length > 0) {
+          nextWrapper.append($buildOutdentCarryList(parentList, nextSiblings));
+        }
+        append(nextWrapper, trailingLists);
+        listItemNode.insertAfter(nextWrapper);
+      }
+      if (parentList.isEmpty()) {
+        parentList.remove();
+      }
     }
   }
 }
@@ -562,17 +728,29 @@ export function $handleListInsertParagraph(
 
   let listItem: ListItemNode | null = null;
 
-  if ($isListItemNode(anchor) && anchor.getChildrenSize() === 0) {
-    // Truly empty list item (element selection)
+  if (
+    $isListItemNode(anchor) &&
+    (anchor.getChildrenSize() === 0 ||
+      // An emptied host row (semantic representation): only marked nested
+      // lists remain, the row itself is visually empty.
+      $isEmptiedHostRow(anchor))
+  ) {
+    // Empty list item (element selection)
     listItem = anchor;
   } else if ($isTextNode(anchor)) {
     // Check if the entire list item contains only whitespace text nodes
+    // (nested ListNode children — the semantic representation — do not
+    // make the row non-empty; they are handled by the parking below).
     const parentListItem = anchor.getParent();
     if (
       $isListItemNode(parentListItem) &&
       parentListItem
         .getChildren()
-        .every(node => $isTextNode(node) && node.getTextContent().trim() === '')
+        .every(
+          node =>
+            $isListNode(node) ||
+            ($isTextNode(node) && node.getTextContent().trim() === ''),
+        )
     ) {
       listItem = parentListItem;
     }
@@ -601,6 +779,8 @@ export function $handleListInsertParagraph(
     replacementNode = $copyNode(grandparent);
     grandparent.insertAfter(replacementNode);
   } else {
+    // Unhandled container: decline WITHOUT having mutated anything (the
+    // parking below must not run before this classification).
     return false;
   }
   replacementNode
@@ -608,20 +788,47 @@ export function $handleListInsertParagraph(
     .setTextFormat(selection.format)
     .select();
 
-  const nextSiblings = listItem.getNextSiblings();
+  // An emptied (or whitespace-only) host row's nested lists are the
+  // following rows' content; park them in a dedicated wrapper (like the
+  // default representation's shape) so the split below carries them and
+  // the row's removal cannot take them along.
+  $parkNestedListsInWrapper(listItem);
 
-  if (nextSiblings.length > 0) {
+  const nextSiblings = listItem.getNextSiblings();
+  // A semantic host may hold further nested lists after the split one; they
+  // render below the split point and must move with it to preserve document
+  // order. They land in a dedicated wrapper, so their semantic nesting marks
+  // are cleared (typing into the new row adopts and re-marks them).
+  const trailingLists = $isListItemNode(replacementNode)
+    ? parent.getNextSiblings().filter($isListNode)
+    : [];
+
+  const $createContinuationList = (): ListNode => {
     const newStart = restoreNumbering ? $getNewListStart(parent, listItem) : 1;
     const newList = $copyNode(parent).setStart(newStart);
-
-    if ($isListItemNode(replacementNode)) {
-      const newListItem = $copyNode(replacementNode);
-      newListItem.append(newList);
-      replacementNode.insertAfter(newListItem);
-    } else {
-      replacementNode.insertAfter(newList);
-    }
     newList.append(...nextSiblings);
+    return newList;
+  };
+
+  if ($isListItemNode(replacementNode)) {
+    if (nextSiblings.length > 0 || trailingLists.length > 0) {
+      const carriedLists: ListNode[] = [];
+      if (nextSiblings.length > 0) {
+        carriedLists.push($createContinuationList());
+      }
+      for (const trailingList of trailingLists) {
+        // Moving into a dedicated wrapper clears the mark.
+        $clearSemanticNestingMark(trailingList);
+        carriedLists.push(trailingList);
+      }
+      const newListItem = $copyNode(replacementNode);
+      newListItem.append(...carriedLists);
+      replacementNode.insertAfter(newListItem);
+    }
+  } else if (nextSiblings.length > 0) {
+    // Top-level split: the rows after the removed item continue in a new
+    // list following the paragraph (trailingLists is always empty here).
+    replacementNode.insertAfter($createContinuationList());
   }
 
   // Don't leave hanging nested empty lists
