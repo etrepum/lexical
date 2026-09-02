@@ -8,6 +8,7 @@
 
 import {$insertNodeToNearestRoot} from '@lexical/utils';
 import {
+  $addUpdateTag,
   $create,
   $createNodeSelection,
   $getDocument,
@@ -34,6 +35,7 @@ import {
   type NodeSelection,
   removeClassNamesFromElement,
   type SerializedLexicalNode,
+  SKIP_SCROLL_INTO_VIEW_TAG,
 } from 'lexical';
 
 import {EditorStateExtension} from './EditorStateExtension';
@@ -134,6 +136,7 @@ function $toggleNodeSelection(
   if (wasSelected) {
     nodeSelection.delete(key);
   } else {
+    $addUpdateTag(SKIP_SCROLL_INTO_VIEW_TAG);
     nodeSelection.add(key);
   }
 }

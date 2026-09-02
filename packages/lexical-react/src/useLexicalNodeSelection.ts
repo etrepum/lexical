@@ -8,6 +8,7 @@
 
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
 import {
+  $addUpdateTag,
   $createNodeSelection,
   $getNodeByKey,
   $getSelection,
@@ -15,6 +16,7 @@ import {
   $setSelection,
   type LexicalEditor,
   type NodeKey,
+  SKIP_SCROLL_INTO_VIEW_TAG,
 } from 'lexical';
 import {useCallback, useEffect, useState} from 'react';
 
@@ -106,6 +108,11 @@ export function useLexicalNodeSelection(
 
         if ($isNodeSelection(selection)) {
           if (selected) {
+            // A NodeSelection has no DOM range of its own. Scrolling here
+            // would use the previous DOM selection and can move the selected
+            // node out of the viewport, particularly when a decorator is
+            // tapped on iOS.
+            $addUpdateTag(SKIP_SCROLL_INTO_VIEW_TAG);
             selection.add(key);
           } else {
             selection.delete(key);
