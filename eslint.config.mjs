@@ -81,6 +81,7 @@ export default [
       // fail outright on generated code.
       '**/.next/',
       '**/.output/',
+      'scripts/bundle-size/.out/',
       'playwright-report/',
       'test-results/',
       'examples/*svelte*/',
