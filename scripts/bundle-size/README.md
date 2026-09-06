@@ -234,10 +234,6 @@ which needs cost center 1 to pay off.
 
 ### Considered and not proposed
 
-- **Replacing `@preact/signals-core` (4,717 bytes).** `@lexical/extension`
-  re-exports `signal`/`computed`/`effect`/`batch`/`untracked` as public API, and
-  applications pair it with `@preact/signals-react`. A private reimplementation
-  would be smaller but would stop those graphs from interoperating.
 - **Splitting `RangeSelection`'s methods.** `deleteCharacter`, `insertNodes`,
   `insertText` and `modify` are 8 kB, but they are class methods on a class the
   editor always instantiates, so no bundler can drop them, and moving them off
@@ -245,3 +241,93 @@ which needs cost center 1 to pay off.
 - **Making the keyboard shortcut table opt-in** (`buildKeyDownShortcuts` plus
   `LexicalKeyboardShortcuts.ts`, 2,423 bytes). Every editor needs most of it,
   and the ones an individual app does not need are individually tiny.
+
+## Considered: an in-house signals implementation
+
+`@preact/signals-core` is 4,717 bytes of the bundle, and `@lexical/extension`
+uses five of its ten exports (`signal`, `computed`, `effect`, `batch`,
+`untracked`) plus `Signal.peek` / `.subscribe` and the `watched` / `unwatched`
+options. That looks like an easy win. It mostly is not, and the reasons are
+worth writing down.
+
+**Unused API is not the cost.** `action`, `createModel`, and the `Signal` /
+`Computed` / `Effect` class exports are already tree-shaken. Compiling
+signals-core's own TypeScript source and deleting the batch-snapshot machinery,
+`Symbol.dispose`, and the captured-effect bookkeeping it uses for `createModel`
+saves 333 bytes. Everything left is the reactive graph itself.
+
+**The published bundle is better than what our pipeline produces.** Building
+signals-core from its own source through vite + terser yields 6,238 bytes —
+32% *larger* than the 4,717 preact publishes, because the library is
+hand-written for small output (ES5-style prototypes, `/*@__INLINE__*/` hints,
+its own minifier settings). Anything in-house is compiled by our pipeline, so it
+starts from that handicap and has to win the size back on algorithm alone.
+
+**A minimal implementation is still meaningfully smaller.** The prototype in
+`experiments/signals-mini/signals.ts` covers exactly the surface listed above,
+with a Map/Set dependency graph instead of signals-core's recycled linked-list
+nodes:
+
+| | minified | gzip |
+| --- | ---: | ---: |
+| `@preact/signals-core` 1.14.1 | 4,717 | — |
+| in-house prototype | 2,465 | — |
+| `rich-text-dom-import` with signals-core | 245,707 | 76,442 |
+| `rich-text-dom-import` with the prototype | 243,422 | 75,521 |
+
+So 2,252 bytes off the module (−48%), 2,285 off the application bundle
+(−0.9%), 921 gzipped.
+
+**It is behaviourally equivalent on everything measured.**
+`experiments/signals-mini/__tests__/unit/signals.test.ts` runs 30 assertions
+against both implementations — glitch-free diamonds, effect cleanup ordering,
+re-tracked dependencies, `watched`/`unwatched` on first/last subscriber,
+computed error caching and recovery, cycle detection, nested effect disposal,
+batching and nesting — and both pass. Lexical's own 6,029 unit tests also pass
+with `@lexical/extension/src/signals.ts` pointed at the prototype.
+
+**It is 2–4x slower on write-heavy graphs, which does not matter here.**
+`experiments/signals-mini/bench.mjs`, 20,000 writes per case:
+
+| | signals-core | prototype |
+| --- | ---: | ---: |
+| 1 signal, 50 effects | 35 ms | 166 ms |
+| effect with 10 deps | 9 ms | 15 ms |
+| computed chain depth 10 | 18 ms | 49 ms |
+| create + dispose 20k effects | 2 ms | 9 ms |
+| batch of 10 writes | 20 ms | 20 ms |
+
+The gap is `Map`/`Set` churn against pointer updates, and closing it means
+reintroducing the linked-list design that makes signals-core the size it is.
+It is also irrelevant at Lexical's scale: instrumenting the prototype and
+building a `RichTextExtension` + `ClipboardDOMImportExtension` editor shows
+**3 signal writes and 12 effect runs for the whole editor construction, and
+zero of either across 200 subsequent `editor.update()` calls**. Signals are
+configuration and lifecycle plumbing here, not a per-keystroke path; the
+absolute cost is microseconds, once.
+
+### Why it is not proposed
+
+The blocker is interoperability, not size or correctness. `@lexical/extension`
+re-exports `signal`, `computed`, `effect`, `batch`, `untracked`, `Signal`,
+`ReadonlySignal` and `SignalOptions` as public API. Applications that pair
+Lexical with `@preact/signals-react` (or any other consumer of
+`@preact/signals-core`) today get one reactive graph; swapping the
+implementation gives them two graphs that cannot observe each other, and
+`Symbol.for("preact-signals")`-branded values from one would no longer be
+recognised by the other. That is a breaking change for those applications
+dressed up as an internal refactor, in exchange for 0.9% of the bundle — less
+than the legacy HTML import path or the `RichTextExtension` add-ons above, both
+of which are additive.
+
+If it is taken up anyway, the shape that keeps faith with the compatibility
+rules is: keep `@preact/signals-core` as the default, expose the in-house graph
+under a separate entry point, and let an application choose. That doubles the
+code unless the dependency is eventually dropped, so it only pays off as the
+first step of a deprecation, not as a size fix on its own.
+
+The prototype, its differential test and the benchmark are checked in under
+`experiments/signals-mini/` so the decision can be revisited without redoing
+the work. Nothing imports them; the test runs in the `scripts-unit` project on
+every CI run, so a divergence from signals-core's behaviour is caught rather
+than discovered later.
