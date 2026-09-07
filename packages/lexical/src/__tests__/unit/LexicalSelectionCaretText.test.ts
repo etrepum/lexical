@@ -10,6 +10,7 @@ import {
   $createRangeSelection,
   $createTextNode,
   $getRoot,
+  $setSlot,
   createEditor,
 } from 'lexical';
 import {expect, test} from 'vitest';
@@ -72,6 +73,36 @@ test.each([false, true])(
         end.set(paragraph.getKey(), 1, 'element');
         expect(selection.getTextContent()).toBe('');
         expect(paragraph.getTextContent()).toBe('abcdefgh');
+      },
+      {discrete: true},
+    );
+  },
+);
+
+test.each([0, 1])(
+  'collapsed element point beside a slot host contains no text (offset=%s)',
+  offset => {
+    const editor = createEditor({
+      onError: error => {
+        throw error;
+      },
+    });
+    editor.update(
+      () => {
+        const root = $getRoot();
+        const host = $createParagraphNode();
+        root.append(host);
+        $setSlot(
+          host,
+          'title',
+          $createParagraphNode().append($createTextNode('Title')),
+        );
+        const selection = $createRangeSelection();
+        selection.anchor.set(root.getKey(), offset, 'element');
+        selection.focus.set(root.getKey(), offset, 'element');
+        expect(selection.getNodes()).toEqual([host]);
+        expect(selection.getTextContent()).toBe('');
+        expect(host.getTextContent()).toBe('Title');
       },
       {discrete: true},
     );

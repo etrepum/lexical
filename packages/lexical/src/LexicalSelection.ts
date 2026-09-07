@@ -761,7 +761,6 @@ export class RangeSelection implements BaseSelection {
     if (nodes.length === 0 || this.isCollapsed()) {
       return '';
     }
-    const lastNode = nodes[nodes.length - 1];
     const slices = $caretRangeFromSelection(this).getTextSlices();
     let textContent = '';
     let prevWasElement = true;
@@ -797,10 +796,7 @@ export class RangeSelection implements BaseSelection {
             candidate => candidate !== null && candidate.caret.origin.is(node),
           );
           textContent += slice ? slice.getTextContent() : node.getTextContent();
-        } else if (
-          ($isDecoratorNode(node) || $isLineBreakNode(node)) &&
-          (node !== lastNode || !this.isCollapsed())
-        ) {
+        } else if ($isDecoratorNode(node) || $isLineBreakNode(node)) {
           textContent += node.getTextContent();
         }
       }
@@ -2117,19 +2113,28 @@ function $splitSelectedTextNode(
   slice: TextPointCaretSlice,
 ): TextNode | null {
   const {origin} = slice.caret;
-  const [start, end] = slice.getSliceIndices();
-  if (start === end || (start === 0 && end === origin.getTextContentSize())) {
-    return start === end ? null : origin;
-  }
-  const points = [selection.anchor, selection.focus].map(point =>
-    point.type === 'text' && point.key === origin.__key
-      ? ([point, point.offset - start] as const)
-      : null,
-  );
+  const [start] = slice.getSliceIndices();
+  const size = origin.getTextContentSize();
+  // Capture text offsets and equivalent element starts before splitText
+  // mutates the active selection; detached selections need the same update.
+  const points = [selection.anchor, selection.focus].map(point => {
+    const offset =
+      point.type === 'text' && point.key === origin.__key
+        ? point.offset - start
+        : point.type === 'element' &&
+            point.key === origin.getLatest().__parent &&
+            point.offset === origin.getIndexWithinParent()
+          ? 0
+          : null;
+    return offset === null ? null : ([point, offset] as const);
+  });
   const node = $splitTextPointCaretSlice(slice);
-  // splitText updates the active selection. Also update a detached selection,
-  // using offsets captured before splitting so they are not adjusted twice.
-  if (node !== null) {
+  // A prefix split can reuse origin, so identity alone does not detect it.
+  // Let the slice helper decide whether to split, then re-pin only on a split.
+  if (
+    node !== null &&
+    (node !== origin || node.getTextContentSize() !== size)
+  ) {
     for (const pair of points) {
       if (pair !== null) {
         pair[0].set(node.__key, pair[1], 'text');
@@ -2191,7 +2196,9 @@ function $updateTextFormat(
         : node;
     if (replacement !== null) {
       replacement.setFormat(nextFormat);
-      firstFormat ??= nextFormat;
+      if (firstFormat === undefined) {
+        firstFormat = nextFormat;
+      }
       lastFormat = nextFormat;
     }
   }

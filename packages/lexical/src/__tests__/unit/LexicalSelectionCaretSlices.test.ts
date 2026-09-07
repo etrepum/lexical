@@ -155,4 +155,65 @@ describe('selection text slices', () => {
       {discrete: true},
     );
   });
+
+  test.each(
+    [false, true].flatMap(backward =>
+      [false, true].flatMap(active =>
+        [false, true].flatMap(preceding =>
+          [1, 3].map(endOffset => ({active, backward, endOffset, preceding})),
+        ),
+      ),
+    ),
+  )(
+    'formatting retains an element start (backward=$backward, active=$active, preceding=$preceding, end=$endOffset)',
+    ({backward, active, preceding, endOffset}) => {
+      const editor = createEditor({
+        onError: error => {
+          throw error;
+        },
+      });
+      editor.update(
+        () => {
+          const text = $createTextNode('abc');
+          const paragraph = $createParagraphNode();
+          if (preceding)
+            paragraph.append($createTextNode('before').setFormat('italic'));
+          paragraph.append(text, $createTextNode('def'));
+          const other = $createTextNode('other');
+          $getRoot().append(paragraph, $createParagraphNode().append(other));
+          const unrelated = other.select(2, 2);
+          const selection = $createRangeSelection();
+          const [start, end] = backward
+            ? [selection.focus, selection.anchor]
+            : [selection.anchor, selection.focus];
+          start.set(paragraph.getKey(), preceding ? 1 : 0, 'element');
+          end.set(text.getKey(), endOffset, 'text');
+          if (active) $setSelection(selection);
+          for (const expectedFormat of [IS_BOLD, 0]) {
+            selection.formatText('bold');
+            const formatted = paragraph.getChildAtIndex(preceding ? 1 : 0);
+            expect($isTextNode(formatted) && formatted.getFormat()).toBe(
+              expectedFormat,
+            );
+            expect(formatted?.getTextContent()).toBe('abc'.slice(0, endOffset));
+            expect(selection.getTextContent()).toBe('abc'.slice(0, endOffset));
+            expect(start.key).toBe(
+              endOffset === 3 ? paragraph.getKey() : formatted?.getKey(),
+            );
+            expect(start.type).toBe(endOffset === 3 ? 'element' : 'text');
+            expect(start.offset).toBe(endOffset === 3 && preceding ? 1 : 0);
+            expect(end.key).toBe(formatted?.getKey());
+            expect(end.offset).toBe(endOffset);
+            expect(selection.isBackward()).toBe(backward);
+            if (!active) {
+              expect($getSelection()).toBe(unrelated);
+              expect(unrelated.anchor.key).toBe(other.getKey());
+              expect(unrelated.anchor.offset).toBe(2);
+            }
+          }
+        },
+        {discrete: true},
+      );
+    },
+  );
 });
