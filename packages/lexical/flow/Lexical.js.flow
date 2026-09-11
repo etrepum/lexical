@@ -1570,6 +1570,9 @@ declare export function $caretFromPoint<D extends CaretDirection>(
 declare export function $caretRangeFromSelection(
   selection: RangeSelection,
 ): CaretRange<CaretDirection>;
+declare export function $splitTextPointCaretSlice(
+  slice: TextPointCaretSlice<>,
+): TextNode | null;
 declare export function $getAdjacentSiblingOrParentSiblingCaret<
   D extends CaretDirection,
 >(

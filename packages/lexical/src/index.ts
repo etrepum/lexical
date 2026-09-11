@@ -65,6 +65,7 @@ export {
   $setPointFromCaret,
   $setSelectionFromCaretRange,
   $splitAtPointCaretNext,
+  $splitTextPointCaretSlice,
   $updateRangeSelectionFromCaretRange,
   type SplitAtPointCaretNextOptions,
 } from './caret/LexicalCaretUtils';

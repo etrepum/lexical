@@ -1300,7 +1300,6 @@ export class LexicalNode {
     return $hasAncestor(targetNode, this);
   }
 
-  // TO-DO: this function can be simplified a lot
   /**
    * Returns a list of nodes that are between this node and
    * the target node in the EditorState.
@@ -1308,69 +1307,30 @@ export class LexicalNode {
    * @param targetNode - the node that marks the other end of the range of nodes to be returned.
    */
   getNodesBetween(targetNode: LexicalNode): LexicalNode[] {
-    const isBefore = this.isBefore(targetNode);
-    const nodes = [];
-    const visited = new Set();
-    let node: LexicalNode | this | null = this;
-    while (true) {
-      if (node === null) {
-        break;
-      }
-      const key = node.__key;
-      if (!visited.has(key)) {
-        visited.add(key);
-        nodes.push(node);
-      }
-      if (node === targetNode) {
-        break;
-      }
-      const child: LexicalNode | null = $isElementNode(node)
-        ? isBefore
-          ? node.getFirstChild()
-          : node.getLastChild()
-        : null;
-      if (child !== null) {
-        node = child;
-        continue;
-      }
-      const nextSibling: LexicalNode | null = isBefore
-        ? node.getNextSibling()
-        : node.getPreviousSibling();
-      if (nextSibling !== null) {
-        node = nextSibling;
-        continue;
-      }
-      const parent: LexicalNode | null = node.getParentOrThrow();
-      if (!visited.has(parent.__key)) {
-        nodes.push(parent);
-      }
-      if (parent === targetNode) {
-        break;
-      }
-      let parentSibling = null;
-      let ancestor: LexicalNode | null = parent;
-      do {
-        if (ancestor === null) {
-          invariant(false, 'getNodesBetween: ancestor is null');
-        }
-        parentSibling = isBefore
-          ? ancestor.getNextSibling()
-          : ancestor.getPreviousSibling();
-        ancestor = ancestor.getParent();
-        if (ancestor !== null) {
-          if (parentSibling === null && !visited.has(ancestor.__key)) {
-            nodes.push(ancestor);
-          }
-        } else {
-          break;
-        }
-      } while (parentSibling === null);
-      node = parentSibling;
+    const forward = this.isBefore(targetNode);
+    const nodes: LexicalNode[] = [];
+    let node: LexicalNode | null = this;
+    let entering = true;
+    let openElements = 0;
+    while (node !== null) {
+      // Only ancestors above the starting point lack an enter event. Count
+      // open elements to recognize their first visit without a visited Set.
+      if (entering || openElements === 0) nodes.push(node);
+      if (node.is(targetNode)) break;
+      if (!entering && openElements > 0) openElements--;
+      const child: LexicalNode | null =
+        entering && $isElementNode(node)
+          ? forward
+            ? node.getFirstChild()
+            : node.getLastChild()
+          : null;
+      if (child !== null) openElements++;
+      const adjacent: LexicalNode | null =
+        child || (forward ? node.getNextSibling() : node.getPreviousSibling());
+      entering = adjacent !== null;
+      node = adjacent || node.getParent();
     }
-    if (!isBefore) {
-      nodes.reverse();
-    }
-    return nodes;
+    return forward ? nodes : nodes.reverse();
   }
 
   /**
