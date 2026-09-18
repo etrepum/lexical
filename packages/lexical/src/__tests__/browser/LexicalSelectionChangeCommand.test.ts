@@ -24,6 +24,47 @@ import {userEvent} from 'vitest/browser';
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 75));
 
+test('native events still notify a dirty but unchanged selection', async () => {
+  const root = document.createElement('div');
+  root.contentEditable = 'true';
+  document.body.appendChild(root);
+  const editor = buildEditorFromExtensions();
+  editor.setRootElement(root);
+  onTestFinished(() => {
+    editor.dispose();
+    root.remove();
+  });
+  editor.update(
+    () => {
+      const text = $createTextNode('Hello world');
+      $getRoot().clear().append($createParagraphNode().append(text));
+      text.select(2, 2);
+    },
+    {discrete: true},
+  );
+  await settle();
+  const listener = vi.fn(() => false);
+  onTestFinished(
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      listener,
+      COMMAND_PRIORITY_LOW,
+    ),
+  );
+  editor.update(
+    () => {
+      const selection = $getSelection();
+      assert($isRangeSelection(selection));
+      selection.dirty = true;
+      document.dispatchEvent(new Event('selectionchange'));
+    },
+    {discrete: true},
+  );
+  expect(listener).toHaveBeenCalledTimes(1);
+  await settle();
+  expect(listener).toHaveBeenCalledTimes(1);
+});
+
 test.each(['typing', 'backspace', 'format', 'style', 'clear'])(
   'notifies a %s selection change',
   async operation => {

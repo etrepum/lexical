@@ -7,22 +7,184 @@
  */
 
 import {buildEditorFromExtensions} from '@lexical/extension';
+import {HistoryExtension} from '@lexical/history';
 import {
   $createNodeSelection,
   $createParagraphNode,
   $createTextNode,
+  $getPreviousSelection,
   $getRoot,
   $getSelection,
   $isRangeSelection,
+  $onUpdate,
   $setSelection,
   COMMAND_PRIORITY_LOW,
+  configExtension,
+  type LexicalEditor,
   SELECTION_CHANGE_COMMAND,
   SKIP_DOM_SELECTION_TAG,
   TextNode,
+  UNDO_COMMAND,
 } from 'lexical';
 import {assert, describe, expect, onTestFinished, test, vi} from 'vitest';
 
+function mountEditor(editor: LexicalEditor): void {
+  const root = document.createElement('div');
+  root.contentEditable = 'true';
+  document.body.appendChild(root);
+  onTestFinished(() => root.remove());
+  editor.setRootElement(root);
+}
+
 describe('SELECTION_CHANGE_COMMAND', () => {
+  test.each(['onUpdate', '$onUpdate', 'none'])(
+    'preserves typing undo merging with %s callbacks',
+    async callback => {
+      using editor = buildEditorFromExtensions(
+        configExtension(HistoryExtension, {delay: 1000, now: () => 0}),
+      );
+      mountEditor(editor);
+      editor.update(
+        () => {
+          const paragraph = $createParagraphNode();
+          $getRoot().clear().append(paragraph);
+          paragraph.selectEnd();
+        },
+        {discrete: true},
+      );
+      await Promise.resolve();
+      const onUpdate = vi.fn();
+      const updates = vi.fn();
+      const unregister = editor.registerUpdateListener(updates);
+      for (const character of 'abcd') {
+        editor.update(
+          () => {
+            const selection = $getSelection();
+            assert($isRangeSelection(selection));
+            selection.insertText(character);
+            if (callback === '$onUpdate') {
+              $onUpdate(onUpdate);
+            }
+          },
+          {
+            discrete: true,
+            onUpdate: callback === 'onUpdate' ? onUpdate : undefined,
+          },
+        );
+        await Promise.resolve();
+      }
+      expect(editor.read(() => $getRoot().getTextContent())).toBe('abcd');
+      unregister();
+      editor.dispatchCommand(UNDO_COMMAND, undefined);
+      expect(editor.read(() => $getRoot().getTextContent())).toBe('');
+      expect(updates).toHaveBeenCalledTimes(4);
+      expect(onUpdate).toHaveBeenCalledTimes(callback === 'none' ? 0 : 4);
+    },
+  );
+
+  test('focus produces one tagged commit and one callback', async () => {
+    using editor = buildEditorFromExtensions();
+    mountEditor(editor);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append($createParagraphNode().append($createTextNode('Hello')));
+        $setSelection(null);
+      },
+      {discrete: true},
+    );
+    await Promise.resolve();
+    const tags: string[][] = [];
+    const states = new Set();
+    editor.registerUpdateListener(({editorState, tags: updateTags}) => {
+      tags.push([...updateTags]);
+      states.add(editorState);
+    });
+    const onFocus = vi.fn();
+    editor.focus(onFocus);
+    editor.read(() => {});
+    await Promise.resolve();
+    expect(tags).toEqual([['focus']]);
+    expect(states.size).toBe(1);
+    expect(onFocus).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['rootless', 'detached'])(
+    'preserves existing notification behavior for a %s editor',
+    rootKind => {
+      using editor = buildEditorFromExtensions();
+      if (rootKind === 'detached') {
+        const root = document.createElement('div');
+        root.contentEditable = 'true';
+        editor.setRootElement(root);
+        expect(root.isConnected).toBe(false);
+      }
+      const listener = vi.fn(() => false);
+      editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        listener,
+        COMMAND_PRIORITY_LOW,
+      );
+      editor.update(
+        () => {
+          const text = $createTextNode('Hello world');
+          $getRoot().clear().append($createParagraphNode().append(text));
+          text.select(2, 5);
+        },
+        {discrete: true},
+      );
+      editor.update(() => $setSelection(null), {discrete: true});
+      expect(listener).not.toHaveBeenCalled();
+
+      // Non-range selection notifications already work without a connected root.
+      editor.update(
+        () => {
+          const selection = $createNodeSelection();
+          selection.add($getRoot().getFirstChildOrThrow().getKey());
+          $setSelection(selection);
+        },
+        {discrete: true},
+      );
+      expect(listener).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test('tracks non-range notifications while the root is detached', () => {
+    using editor = buildEditorFromExtensions();
+    mountEditor(editor);
+    const root = editor.getRootElement()!;
+    editor.update(
+      () => {
+        const text = $createTextNode('Hello world');
+        $getRoot().clear().append($createParagraphNode().append(text));
+        text.select(2, 5);
+      },
+      {discrete: true},
+    );
+    const listener = vi.fn(() => false);
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      listener,
+      COMMAND_PRIORITY_LOW,
+    );
+    root.remove();
+    editor.update(
+      () => {
+        const selection = $createNodeSelection();
+        selection.add($getRoot().getFirstChildOrThrow().getKey());
+        $setSelection(selection);
+      },
+      {discrete: true},
+    );
+    expect(listener).toHaveBeenCalledTimes(1);
+    document.body.appendChild(root);
+    editor.update(() => $getRoot().getAllTextNodes()[0].select(2, 5), {
+      discrete: true,
+    });
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
   test.each(
     [false, true].flatMap(discrete =>
       ['move', 'clear', 'replace', 'content only'].map(change => ({
@@ -121,6 +283,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
 
   test('reports committed selection changes without requiring DOM events', () => {
     using editor = buildEditorFromExtensions();
+    mountEditor(editor);
     editor.update(
       () => {
         const text = $createTextNode('Hello world');
@@ -208,6 +371,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
 
   test('reports selection changes from setEditorState', () => {
     using editor = buildEditorFromExtensions();
+    mountEditor(editor);
     editor.update(
       () => {
         const text = $createTextNode('Hello world');
@@ -250,6 +414,9 @@ describe('SELECTION_CHANGE_COMMAND', () => {
       const selection = $getSelection();
       assert($isRangeSelection(selection));
       expect([selection.anchor.offset, selection.focus.offset]).toEqual([3, 7]);
+      const previous = $getPreviousSelection();
+      assert($isRangeSelection(previous));
+      expect([previous.anchor.offset, previous.focus.offset]).toEqual([1, 1]);
       return false;
     });
     const unregister = editor.registerCommand(
@@ -262,12 +429,12 @@ describe('SELECTION_CHANGE_COMMAND', () => {
       tag: SKIP_DOM_SELECTION_TAG,
     });
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
-    // Disposal clears the selection, which is a separate notification.
     unregister();
   });
 
   test('notifies a selection change made by a command listener', () => {
     using editor = buildEditorFromExtensions();
+    mountEditor(editor);
     editor.update(
       () => {
         const text = $createTextNode('Hello world');
@@ -276,13 +443,15 @@ describe('SELECTION_CHANGE_COMMAND', () => {
       },
       {discrete: true},
     );
-    const offsets: number[] = [];
+    const offsets: number[][] = [];
     editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
         const selection = $getSelection();
         assert($isRangeSelection(selection));
-        offsets.push(selection.anchor.offset);
+        const previous = $getPreviousSelection();
+        assert($isRangeSelection(previous));
+        offsets.push([previous.anchor.offset, selection.anchor.offset]);
         if (selection.anchor.offset === 3) {
           $getRoot().getAllTextNodes()[0].select(4, 4);
         }
@@ -294,11 +463,18 @@ describe('SELECTION_CHANGE_COMMAND', () => {
       discrete: true,
     });
     editor.read(() => {});
-    expect(offsets).toEqual([3, 4]);
+    expect(offsets).toEqual([
+      [1, 3],
+      [3, 4],
+    ]);
+    editor.read(() =>
+      expect($getSelection()?.is($getPreviousSelection())).toBe(true),
+    );
   });
 
   test('notifies once for batched changes and skips a batch with no net change', () => {
     using editor = buildEditorFromExtensions();
+    mountEditor(editor);
     editor.update(
       () => {
         const text = $createTextNode('Hello world');

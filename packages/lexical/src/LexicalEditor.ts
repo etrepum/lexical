@@ -1210,6 +1210,8 @@ export class LexicalEditor {
   _inputState: InputState;
   /** @internal */
   _lastNotifiedSelection: null | BaseSelection;
+  /** @internal Only set while delivering a commit-time selection command. */
+  _selectionChangePreviousSelection?: null | BaseSelection;
   /** @internal */
   _createEditorArgs?: undefined | CreateEditorArgs;
 

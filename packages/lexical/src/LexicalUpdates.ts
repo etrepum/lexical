@@ -789,18 +789,6 @@ function $commitPendingUpdatesImpl(
       currentEditorState,
     );
   }
-  // Notify from the committed state for programmatic changes as well.
-  // A DOM selectionchange may be suppressed or arrive after the new selection
-  // has already committed, so it cannot reliably detect every change.
-  // Mutation listeners may have started another update or committed it
-  // synchronously. Let that update notify its selection: dispatching for this
-  // older commit would overwrite the newer selection in the listener update.
-  if (
-    editor._pendingEditorState === null &&
-    editor._editorState === pendingEditorState
-  ) {
-    dispatchSelectionChangeCommand(editor, pendingSelection);
-  }
   /**
    * Capture pendingDecorators after garbage collecting detached decorators
    */
@@ -836,6 +824,41 @@ function $commitPendingUpdatesImpl(
   if (!previouslyUpdating) {
     const deferred = editor._deferred;
     triggerDeferredUpdateCallbacks(editor, deferred);
+  }
+  // Notify after draining this commit's callbacks: otherwise the notification
+  // update sees them as pending work and schedules an empty commit, breaking
+  // history merging. Listeners may also have started or committed a newer
+  // update; let that update notify instead of restoring an obsolete selection.
+  if (
+    editor._pendingEditorState === null &&
+    editor._editorState === pendingEditorState
+  ) {
+    const currentRootElement = editor._rootElement;
+    if (
+      !editor._headless &&
+      currentRootElement !== null &&
+      currentRootElement.isConnected
+    ) {
+      // DOM events can be suppressed or arrive after the selection commits.
+      dispatchSelectionChangeCommand(
+        editor,
+        pendingSelection,
+        false,
+        // Preserve the native previous-selection contract for the new range
+        // and null notifications, and the existing non-range contract.
+        $isRangeSelection(pendingSelection) || pendingSelection === null
+          ? currentSelection
+          : undefined,
+      );
+    } else if (
+      !$isRangeSelection(pendingSelection) &&
+      pendingSelection !== null &&
+      (currentSelection === null || !currentSelection.is(pendingSelection))
+    ) {
+      // Non-range selections already notified in unmounted/headless editors.
+      editor._lastNotifiedSelection = pendingSelection.clone();
+      editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+    }
   }
   $triggerEnqueuedUpdates(editor);
 }
@@ -917,12 +940,15 @@ export function triggerListeners<T extends keyof MapListeners>(
 export function dispatchSelectionChangeCommand(
   editor: LexicalEditor,
   selection: null | BaseSelection,
+  force = false,
+  previousSelection?: null | BaseSelection,
 ): void {
-  const previousSelection = editor._lastNotifiedSelection;
+  const lastNotifiedSelection = editor._lastNotifiedSelection;
   if (
-    selection === null
-      ? previousSelection === null
-      : selection.is(previousSelection)
+    !force &&
+    (selection === null
+      ? lastNotifiedSelection === null
+      : selection.is(lastNotifiedSelection))
   ) {
     return;
   }
@@ -930,15 +956,24 @@ export function dispatchSelectionChangeCommand(
   // Native changes are notified inside their update, while other changes are
   // caught at commit. Comparing snapshots avoids notifying twice for either.
   editor._lastNotifiedSelection = selection === null ? null : selection.clone();
+  const dispatch = () => {
+    const previous = editor._selectionChangePreviousSelection;
+    editor._selectionChangePreviousSelection = previousSelection;
+    try {
+      editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+    } finally {
+      editor._selectionChangePreviousSelection = previous;
+    }
+  };
   if (activeEditor === editor && !isReadOnlyMode) {
-    editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+    dispatch();
   } else {
     updateEditorSync(editor, () => {
       // A notification about a committed selection must not re-read it from
       // the DOM, where equivalent boundary points can normalize differently.
       getActiveEditorState()._selection =
         selection === null ? null : selection.clone();
-      editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+      dispatch();
     });
   }
 }

@@ -491,7 +491,11 @@ function onSelectionChange(
       }
     }
 
-    dispatchSelectionChangeCommand(editor, selection);
+    dispatchSelectionChangeCommand(
+      editor,
+      selection,
+      selection !== null && (selection.dirty || !$isRangeSelection(selection)),
+    );
   });
 }
 

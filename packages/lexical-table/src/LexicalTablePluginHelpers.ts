@@ -351,10 +351,7 @@ export function registerTableSelectionObserver(
     editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
-        return (
-          editor.getRootElement() !== null &&
-          $handleTableSelectionChangeCommand(tableObservers, editor)
-        );
+        return $handleTableSelectionChangeCommand(tableObservers, editor);
       },
       COMMAND_PRIORITY_HIGH,
     ),
