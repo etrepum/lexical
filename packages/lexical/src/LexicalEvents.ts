@@ -324,6 +324,9 @@ function onSelectionChange(
     inputState.isSelectionChangeFromDOMUpdate = false;
     const appliedPoints = inputState.selectionChangeFromDOMUpdatePoints;
     inputState.selectionChangeFromDOMUpdatePoints = null;
+    const changedSelection =
+      inputState.selectionChangeFromDOMUpdateChangedSelection;
+    inputState.selectionChangeFromDOMUpdateChangedSelection = false;
 
     // If native DOM selection is on a DOM element, then
     // we should continue as usual, as Lexical's selection
@@ -349,6 +352,16 @@ function onSelectionChange(
           appliedPoints.focusNode === focusDOM &&
           appliedPoints.focusOffset === focusOffset))
     ) {
+      // Re-deriving the Lexical selection from the DOM is redundant here —
+      // this event only reports the selection the reconciler just applied.
+      // The change itself is not redundant: when the reconciler moved the
+      // selection to somewhere other than where the previous editor state
+      // had it (deleting a range inside one text node, an undo, a
+      // transform), this is the only selectionchange event it produces, so
+      // swallowing it would swallow SELECTION_CHANGE_COMMAND too (#9179).
+      if (isActive && changedSelection) {
+        dispatchCommand(editor, SELECTION_CHANGE_COMMAND);
+      }
       return;
     }
   }
@@ -2200,6 +2213,7 @@ function cleanActiveNestedEditorsMap(editor: LexicalEditor) {
 /** @internal */
 export function markSelectionChangeFromDOMUpdate(
   editor: LexicalEditor,
+  changedSelection: boolean,
   anchorNode?: Node,
   anchorOffset?: number,
   focusNode?: Node,
@@ -2207,6 +2221,7 @@ export function markSelectionChangeFromDOMUpdate(
 ): void {
   const inputState = editor._inputState;
   inputState.isSelectionChangeFromDOMUpdate = true;
+  inputState.selectionChangeFromDOMUpdateChangedSelection = changedSelection;
   inputState.selectionChangeFromDOMUpdatePoints =
     anchorNode !== undefined &&
     anchorOffset !== undefined &&

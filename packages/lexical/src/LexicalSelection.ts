@@ -4360,6 +4360,14 @@ export function $updateDOMSelection(
 
   markSelectionChangeFromDOMUpdate(
     editor,
+    // A selection Lexical moved itself (deleting a range, an undo, a
+    // transform) produces exactly one selectionchange event, and the
+    // handler skips that event wholesale when both applied points sit
+    // inside a DOM text node. Record whether the applied selection is a
+    // real change so the skip path can still dispatch
+    // SELECTION_CHANGE_COMMAND for it (#9179), without announcing a
+    // selection that only the DOM had drifted away from.
+    prevSelection === null || !prevSelection.is(nextSelection),
     nextAnchorNode,
     nextAnchorOffset,
     nextFocusNode,

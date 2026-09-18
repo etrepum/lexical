@@ -293,6 +293,15 @@ export interface InputState {
     focusNode: Node;
     focusOffset: number;
   };
+  /**
+   * Whether the selection the reconciler applied when it set
+   * isSelectionChangeFromDOMUpdate differs from the selection of the editor
+   * state committed before it. The selectionchange event that update produces
+   * is skipped wholesale when both applied points sit inside a DOM text node,
+   * and that event is the only one the change produces, so the handler has to
+   * announce the change from the skip path instead of re-deriving it.
+   */
+  selectionChangeFromDOMUpdateChangedSelection: boolean;
   isSelectionChangeFromMouseDown: boolean;
   isInsertLineBreak: boolean;
 
@@ -322,6 +331,7 @@ export function createInputState(): InputState {
     lastKeyCode: null,
     lastKeyDownTimeStamp: 0,
     postDeleteSelectionToRestore: null,
+    selectionChangeFromDOMUpdateChangedSelection: false,
     selectionChangeFromDOMUpdatePoints: null,
     unprocessedBeforeInputData: null,
   };
