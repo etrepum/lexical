@@ -57,6 +57,7 @@ import {
   $isRangeSelection,
   $updateDOMSelection,
   applySelectionTransforms,
+  type BaseSelection,
 } from './LexicalSelection';
 import {$isSlotHost, $setSlot} from './LexicalSlot';
 import {
@@ -788,13 +789,10 @@ function $commitPendingUpdatesImpl(
       currentEditorState,
     );
   }
-  if (
-    !$isRangeSelection(pendingSelection) &&
-    pendingSelection !== null &&
-    (currentSelection === null || !currentSelection.is(pendingSelection))
-  ) {
-    editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
-  }
+  // Notify from the committed state for programmatic changes as well.
+  // A DOM selectionchange may be suppressed or arrive after the new selection
+  // has already committed, so it cannot reliably detect every change.
+  dispatchSelectionChangeCommand(editor, pendingSelection);
   /**
    * Capture pendingDecorators after garbage collecting detached decorators
    */
@@ -904,6 +902,36 @@ export function triggerListeners<T extends keyof MapListeners>(
     }
   } finally {
     editor._updating = previouslyUpdating;
+  }
+}
+
+/** @internal */
+export function dispatchSelectionChangeCommand(
+  editor: LexicalEditor,
+  selection: null | BaseSelection,
+): void {
+  const previousSelection = editor._lastNotifiedSelection;
+  if (
+    selection === null
+      ? previousSelection === null
+      : selection.is(previousSelection)
+  ) {
+    return;
+  }
+  // Snapshot before notifying: command listeners can mutate the selection.
+  // Native changes are notified inside their update, while other changes are
+  // caught at commit. Comparing snapshots avoids notifying twice for either.
+  editor._lastNotifiedSelection = selection === null ? null : selection.clone();
+  if (activeEditor === editor && !isReadOnlyMode) {
+    editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+  } else {
+    updateEditorSync(editor, () => {
+      // A notification about a committed selection must not re-read it from
+      // the DOM, where equivalent boundary points can normalize differently.
+      getActiveEditorState()._selection =
+        selection === null ? null : selection.clone();
+      editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+    });
   }
 }
 
