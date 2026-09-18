@@ -37,6 +37,89 @@ function mountEditor(editor: LexicalEditor): void {
 }
 
 describe('SELECTION_CHANGE_COMMAND', () => {
+  test('bounds selection changes caused by listeners and recovers for later updates', () => {
+    using editor = buildEditorFromExtensions();
+    mountEditor(editor);
+    editor.update(
+      () => {
+        const text = $createTextNode('Hello');
+        $getRoot().clear().append($createParagraphNode().append(text));
+        text.select(1, 1);
+      },
+      {discrete: true},
+    );
+    const unregister = editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        const selection = $getSelection();
+        assert($isRangeSelection(selection));
+        const offset = selection.anchor.offset === 1 ? 2 : 1;
+        $getRoot().getAllTextNodes()[0].select(offset, offset);
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+    expect(() =>
+      editor.update(() => $getRoot().getAllTextNodes()[0].select(2, 2), {
+        discrete: true,
+      }),
+    ).toThrow(
+      'Selection change listeners are endlessly changing the selection.',
+    );
+    unregister();
+    editor.update(() => $getRoot().getAllTextNodes()[0].select(3, 3), {
+      discrete: true,
+    });
+    editor.read(() => {
+      const selection = $getSelection();
+      assert($isRangeSelection(selection));
+      expect(selection.anchor.offset).toBe(3);
+    });
+  });
+
+  test('listener edits and transforms are reconciled in the original commit', () => {
+    using editor = buildEditorFromExtensions();
+    mountEditor(editor);
+    editor.update(
+      () => {
+        const text = $createTextNode('Hello');
+        $getRoot().clear().append($createParagraphNode().append(text));
+        text.select(1, 1);
+      },
+      {discrete: true},
+    );
+    const updates = vi.fn();
+    editor.registerUpdateListener(updates);
+    editor.registerNodeTransform(TextNode, node => {
+      if (node.getTextContent() === 'Changed') {
+        node.setTextContent('Transformed');
+      }
+    });
+    editor.read(() => {});
+    updates.mockClear();
+    const previousState = editor.getEditorState();
+    const unregister = editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        expect(editor.getEditorState()).toBe(previousState);
+        expect(editor.getRootElement()!.textContent).toBe('Hello');
+        const selection = $getSelection();
+        assert($isRangeSelection(selection));
+        expect($getPreviousSelection()).toBe(previousState._selection);
+        $getRoot().getAllTextNodes()[0].setTextContent('Changed');
+        return false;
+      },
+      COMMAND_PRIORITY_LOW,
+    );
+    editor.update(() => $getRoot().getAllTextNodes()[0].select(2, 2), {
+      discrete: true,
+    });
+    unregister();
+    expect(editor.read(() => $getRoot().getTextContent())).toBe('Transformed');
+    expect(editor.getRootElement()!.textContent).toBe('Transformed');
+    expect(updates).toHaveBeenCalledTimes(1);
+  });
+
   test.each(['onUpdate', '$onUpdate', 'none'])(
     'preserves typing undo merging with %s callbacks',
     async callback => {
@@ -270,11 +353,13 @@ describe('SELECTION_CHANGE_COMMAND', () => {
               ? 'Hello world!?'
               : 'Hello world!',
         );
-        expect(selections).toHaveLength(1);
+        // Mutation listeners run after the first selection has committed.
+        // Their changes belong to a second update and notify before its commit.
+        expect(selections).toHaveLength(change === 'content only' ? 1 : 2);
         expect(
           selection === null
-            ? selections[0] === null
-            : selection.is(selections[0]),
+            ? selections.at(-1) === null
+            : selection.is(selections.at(-1)!),
         ).toBe(true);
       });
       unregisterCommand();
@@ -465,7 +550,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
     editor.read(() => {});
     expect(offsets).toEqual([
       [1, 3],
-      [3, 4],
+      [1, 4],
     ]);
     editor.read(() =>
       expect($getSelection()?.is($getPreviousSelection())).toBe(true),

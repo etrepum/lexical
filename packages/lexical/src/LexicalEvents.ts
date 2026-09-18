@@ -101,7 +101,7 @@ import {
   type RangeSelection,
 } from './LexicalSelection';
 import {
-  dispatchSelectionChangeCommand,
+  $dispatchSelectionChangeCommand,
   getActiveEditor,
   updateEditorSync,
 } from './LexicalUpdates';
@@ -491,7 +491,7 @@ function onSelectionChange(
       }
     }
 
-    dispatchSelectionChangeCommand(
+    $dispatchSelectionChangeCommand(
       editor,
       selection,
       selection !== null && (selection.dirty || !$isRangeSelection(selection)),

@@ -3833,10 +3833,7 @@ export function $getSelection(): null | BaseSelection {
 /** Returns the selection from the previous editor state, or null if none existed. */
 export function $getPreviousSelection(): null | BaseSelection {
   const editor = getActiveEditor();
-  const previousSelection = editor._selectionChangePreviousSelection;
-  return previousSelection === undefined
-    ? editor._editorState._selection
-    : previousSelection;
+  return editor._editorState._selection;
 }
 
 /**
