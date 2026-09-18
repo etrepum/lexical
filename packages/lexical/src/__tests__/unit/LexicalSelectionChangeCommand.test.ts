@@ -18,10 +18,107 @@ import {
   COMMAND_PRIORITY_LOW,
   SELECTION_CHANGE_COMMAND,
   SKIP_DOM_SELECTION_TAG,
+  TextNode,
 } from 'lexical';
 import {assert, describe, expect, onTestFinished, test, vi} from 'vitest';
 
 describe('SELECTION_CHANGE_COMMAND', () => {
+  test.each(
+    [false, true].flatMap(discrete =>
+      ['move', 'clear', 'replace', 'content only'].map(change => ({
+        change,
+        discrete,
+      })),
+    ),
+  )(
+    'preserves mutation-listener updates: $change (discrete: $discrete)',
+    ({change, discrete}) => {
+      const root = document.createElement('div');
+      root.contentEditable = 'true';
+      document.body.appendChild(root);
+      onTestFinished(() => root.remove());
+      using editor = buildEditorFromExtensions();
+      editor.setRootElement(root);
+      editor.update(
+        () => {
+          const text = $createTextNode('Hello world');
+          $getRoot().clear().append($createParagraphNode().append(text));
+          text.select(1, 1);
+        },
+        {discrete: true},
+      );
+
+      const selections: ReturnType<typeof $getSelection>[] = [];
+      const unregisterCommand = editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        () => {
+          selections.push($getSelection()?.clone() ?? null);
+          return false;
+        },
+        COMMAND_PRIORITY_LOW,
+      );
+      const unregisterMutation = editor.registerMutationListener(
+        TextNode,
+        () => {
+          unregisterMutation();
+          editor.update(
+            () => {
+              if (change === 'clear') {
+                $setSelection(null);
+              } else if (change === 'replace') {
+                const text = $createTextNode('Replacement');
+                $getRoot().clear().append($createParagraphNode().append(text));
+                text.select(7, 7);
+              } else if (change === 'move') {
+                $getRoot().getAllTextNodes()[0].select(7, 7);
+              } else {
+                $getRoot().getAllTextNodes()[0].setTextContent('Hello world!?');
+              }
+            },
+            discrete ? {discrete: true} : undefined,
+          );
+        },
+        {skipInitialization: true},
+      );
+
+      editor.update(
+        () => {
+          const text = $getRoot().getAllTextNodes()[0];
+          text.setTextContent('Hello world!');
+          text.select(2, 2);
+        },
+        {discrete: true},
+      );
+      editor.read(() => {
+        const selection = $getSelection();
+        if (change === 'clear') {
+          expect(selection).toBe(null);
+        } else {
+          assert($isRangeSelection(selection));
+          const offset = change === 'content only' ? 2 : 7;
+          expect([selection.anchor.offset, selection.focus.offset]).toEqual([
+            offset,
+            offset,
+          ]);
+        }
+        expect($getRoot().getTextContent()).toBe(
+          change === 'replace'
+            ? 'Replacement'
+            : change === 'content only'
+              ? 'Hello world!?'
+              : 'Hello world!',
+        );
+        expect(selections).toHaveLength(1);
+        expect(
+          selection === null
+            ? selections[0] === null
+            : selection.is(selections[0]),
+        ).toBe(true);
+      });
+      unregisterCommand();
+    },
+  );
+
   test('reports committed selection changes without requiring DOM events', () => {
     using editor = buildEditorFromExtensions();
     editor.update(

@@ -792,7 +792,15 @@ function $commitPendingUpdatesImpl(
   // Notify from the committed state for programmatic changes as well.
   // A DOM selectionchange may be suppressed or arrive after the new selection
   // has already committed, so it cannot reliably detect every change.
-  dispatchSelectionChangeCommand(editor, pendingSelection);
+  // Mutation listeners may have started another update or committed it
+  // synchronously. Let that update notify its selection: dispatching for this
+  // older commit would overwrite the newer selection in the listener update.
+  if (
+    editor._pendingEditorState === null &&
+    editor._editorState === pendingEditorState
+  ) {
+    dispatchSelectionChangeCommand(editor, pendingSelection);
+  }
   /**
    * Capture pendingDecorators after garbage collecting detached decorators
    */
