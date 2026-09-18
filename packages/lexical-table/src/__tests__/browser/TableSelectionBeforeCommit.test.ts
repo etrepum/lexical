@@ -156,3 +156,63 @@ test('includes newly inserted cells when synchronizing selection DOM', () => {
   expect(root.querySelectorAll('.selected-cell')).toHaveLength(2);
   expect(updates).toHaveBeenCalledTimes(1);
 });
+
+test('only an unchanged table selection follows a native drag outside the table', () => {
+  const {editor, root} = mount();
+  editor.update(
+    () => {
+      const table = $createTableNodeWithDimensions(1, 2);
+      const row = table.getFirstChildOrThrow();
+      assert($isTableRowNode(row));
+      const first = row.getFirstChildOrThrow();
+      assert($isTableCellNode(first));
+      first
+        .clear()
+        .append($createParagraphNode().append($createTextNode('inside')));
+      $getRoot()
+        .clear()
+        .append(
+          table,
+          $createParagraphNode().append($createTextNode('outside')),
+        );
+      first.selectStart();
+    },
+    {discrete: true},
+  );
+  const domSelection = window.getSelection()!;
+  const inside = root.querySelector('td p span, th p span')!.firstChild!;
+  const outside = root.lastElementChild!.firstChild!.firstChild!;
+  const selectOutside = () =>
+    domSelection.setBaseAndExtent(inside, 0, outside, 3);
+  selectOutside();
+  editor.update(
+    () => {
+      const table = $getRoot().getFirstChildOrThrow();
+      assert($isTableNode(table));
+      const row = table.getFirstChildOrThrow();
+      assert($isTableRowNode(row));
+      const first = row.getFirstChildOrThrow();
+      const last = row.getLastChildOrThrow();
+      assert($isTableCellNode(first) && $isTableCellNode(last));
+      $setSelection($createTableSelectionFrom(table, first, last));
+    },
+    {discrete: true},
+  );
+  // The old DOM range must not override a newly installed model selection.
+  editor.read('latest', () =>
+    expect($isTableSelection($getSelection())).toBe(true),
+  );
+  selectOutside();
+  editor.update(
+    () => {
+      // A native gesture can leave the model TableSelection unchanged. Its
+      // forced notification must still convert the escaped DOM range.
+      editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+      const selection = $getSelection();
+      assert($isRangeSelection(selection));
+      expect(selection.focus.getNode().getTextContent()).toBe('outside');
+      expect(selection.focus.offset).toBe(3);
+    },
+    {discrete: true},
+  );
+});

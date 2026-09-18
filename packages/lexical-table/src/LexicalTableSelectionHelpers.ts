@@ -1444,6 +1444,9 @@ function $fixTableSelectionForSelectedTable(
 ) {
   const editorWindow = getEditorWindow(editor);
   const prevSelection = $getPreviousSelection();
+  // A changed model selection is authoritative; the DOM may still describe
+  // the previous selection. Only an unchanged TableSelection can represent a
+  // native drag that has escaped the table without changing the model yet.
   if (!selection.is(prevSelection)) {
     return;
   }

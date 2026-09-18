@@ -602,8 +602,13 @@ export function $commitPendingUpdates(
   const previouslyCommitting = isCommittingPendingUpdates;
   isCommittingPendingUpdates = true;
   try {
-    $notifyPendingSelectionChange(editor);
+    const notificationError = $notifyPendingSelectionChange(editor);
     $commitPendingUpdatesImpl(editor, recoveryEditorState);
+    if (notificationError !== undefined) {
+      // Report only after preserving the pending edit. Update error recovery
+      // would otherwise roll it back, even with a non-throwing error handler.
+      editor._onWarn(notificationError);
+    }
   } finally {
     isCommittingPendingUpdates = previouslyCommitting;
   }
@@ -827,21 +832,6 @@ function $commitPendingUpdatesImpl(
     const deferred = editor._deferred;
     triggerDeferredUpdateCallbacks(editor, deferred);
   }
-  // Preserve existing non-range notifications for unmounted/headless editors.
-  const currentRootElement = editor._rootElement;
-  if (
-    (editor._headless ||
-      currentRootElement === null ||
-      !currentRootElement.isConnected) &&
-    editor._pendingEditorState === null &&
-    editor._editorState === pendingEditorState &&
-    !$isRangeSelection(pendingSelection) &&
-    pendingSelection !== null &&
-    (currentSelection === null || !currentSelection.is(pendingSelection))
-  ) {
-    editor._lastNotifiedSelection = pendingSelection.clone();
-    editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
-  }
   $triggerEnqueuedUpdates(editor);
 }
 
@@ -940,7 +930,9 @@ export function $dispatchSelectionChangeCommand(
   editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
 }
 
-function $notifyPendingSelectionChange(editor: LexicalEditor): void {
+function $notifyPendingSelectionChange(
+  editor: LexicalEditor,
+): Error | undefined {
   if (editorsWithPendingSelectionChange.has(editor)) {
     return;
   }
@@ -952,12 +944,22 @@ function $notifyPendingSelectionChange(editor: LexicalEditor): void {
       const root = editor._rootElement;
       if (
         pending === null ||
-        editor._headless ||
-        root === null ||
-        !root.isConnected ||
+        ((editor._headless || root === null || !root.isConnected) &&
+          (pending._selection === null ||
+            $isRangeSelection(pending._selection))) ||
         !hasSelectionChanged(editor, pending._selection)
       ) {
         return;
+      }
+      if (count++ >= 100) {
+        // Bound non-converging listeners without losing the user's edit or
+        // scheduling another notification for the final selection.
+        const selection = pending._selection;
+        editor._lastNotifiedSelection =
+          selection === null ? null : selection.clone();
+        return new Error(
+          'Selection change listeners are endlessly changing the selection.',
+        );
       }
       // Recovery can supply a frozen state. Preserve its selection instead of
       // initializing one from the DOM, which still represents the previous state.
@@ -970,10 +972,6 @@ function $notifyPendingSelectionChange(editor: LexicalEditor): void {
       $beginUpdate(
         editor,
         () => {
-          invariant(
-            count++ < 100,
-            'Selection change listeners are endlessly changing the selection.',
-          );
           $dispatchSelectionChangeCommand(
             editor,
             getActiveEditorState()._selection,

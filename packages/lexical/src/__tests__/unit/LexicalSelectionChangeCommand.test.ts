@@ -37,45 +37,117 @@ function mountEditor(editor: LexicalEditor): void {
 }
 
 describe('SELECTION_CHANGE_COMMAND', () => {
-  test('bounds selection changes caused by listeners and recovers for later updates', () => {
-    using editor = buildEditorFromExtensions();
-    mountEditor(editor);
-    editor.update(
-      () => {
-        const text = $createTextNode('Hello');
-        $getRoot().clear().append($createParagraphNode().append(text));
-        text.select(1, 1);
-      },
-      {discrete: true},
-    );
-    const unregister = editor.registerCommand(
-      SELECTION_CHANGE_COMMAND,
-      () => {
+  test.each([false, true])(
+    'caps notifications without discarding edits (throwing warning: %s)',
+    throws => {
+      using editor = buildEditorFromExtensions();
+      mountEditor(editor);
+      editor.update(
+        () => {
+          const text = $createTextNode('original');
+          $getRoot().clear().append($createParagraphNode().append(text));
+          text.select(1, 1);
+        },
+        {discrete: true},
+      );
+      const onError = vi.spyOn(editor, '_onError').mockImplementation(() => {});
+      const onWarn = vi.spyOn(editor, '_onWarn').mockImplementation(error => {
+        if (throws) throw error;
+      });
+      const updates = vi.fn();
+      editor.registerUpdateListener(updates);
+      const onUpdate = vi.fn();
+      const listener = vi.fn(() => {
         const selection = $getSelection();
         assert($isRangeSelection(selection));
         const offset = selection.anchor.offset === 1 ? 2 : 1;
         $getRoot().getAllTextNodes()[0].select(offset, offset);
         return false;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-    expect(() =>
-      editor.update(() => $getRoot().getAllTextNodes()[0].select(2, 2), {
+      });
+      const unregister = editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        listener,
+        COMMAND_PRIORITY_LOW,
+      );
+      const update = () =>
+        editor.update(
+          () => {
+            const text = $getRoot().getAllTextNodes()[0];
+            text.setTextContent('TYPED original');
+            text.select(2, 2);
+          },
+          {discrete: true, onUpdate},
+        );
+      if (throws) {
+        expect(update).toThrow(
+          'Selection change listeners are endlessly changing the selection.',
+        );
+      } else {
+        update();
+      }
+      expect(listener).toHaveBeenCalledTimes(100);
+      expect(onWarn).toHaveBeenCalledTimes(1);
+      expect(onError).not.toHaveBeenCalled();
+      expect(editor.read(() => $getRoot().getTextContent())).toBe(
+        'TYPED original',
+      );
+      expect(editor.getRootElement()!.textContent).toBe('TYPED original');
+      expect(updates).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      unregister();
+      editor.update(() => $getRoot().getAllTextNodes()[0].select(3, 3), {
         discrete: true,
-      }),
-    ).toThrow(
-      'Selection change listeners are endlessly changing the selection.',
-    );
-    unregister();
-    editor.update(() => $getRoot().getAllTextNodes()[0].select(3, 3), {
-      discrete: true,
-    });
-    editor.read(() => {
-      const selection = $getSelection();
-      assert($isRangeSelection(selection));
-      expect(selection.anchor.offset).toBe(3);
-    });
-  });
+      });
+      editor.read(() => {
+        const selection = $getSelection();
+        assert($isRangeSelection(selection));
+        expect(selection.anchor.offset).toBe(3);
+      });
+    },
+  );
+
+  test.each(['mounted', 'rootless', 'detached'])(
+    'node selections notify before commit in a %s editor',
+    kind => {
+      using editor = buildEditorFromExtensions();
+      if (kind === 'mounted') mountEditor(editor);
+      else if (kind === 'detached')
+        editor.setRootElement(document.createElement('div'));
+      editor.update(
+        () => {
+          $getRoot()
+            .clear()
+            .append($createParagraphNode().append($createTextNode('original')));
+        },
+        {discrete: true},
+      );
+      const previous = editor.getEditorState();
+      const listener = vi.fn(() => {
+        expect(editor.getEditorState()).toBe(previous);
+        expect($getPreviousSelection()).toBe(previous._selection);
+        expect($getRoot().getTextContent()).toBe('CHANGED');
+        if (kind === 'mounted')
+          expect(editor.getRootElement()!.textContent).toBe('original');
+        return false;
+      });
+      editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        listener,
+        COMMAND_PRIORITY_LOW,
+      );
+      editor.update(
+        () => {
+          const text = $getRoot().getAllTextNodes()[0];
+          text.setTextContent('CHANGED');
+          const selection = $createNodeSelection();
+          selection.add(text.getKey());
+          $setSelection(selection);
+        },
+        {discrete: true},
+      );
+      expect(listener).toHaveBeenCalledTimes(1);
+    },
+  );
 
   test('listener edits and transforms are reconciled in the original commit', () => {
     using editor = buildEditorFromExtensions();
