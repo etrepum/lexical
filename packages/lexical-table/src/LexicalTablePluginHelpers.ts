@@ -350,20 +350,23 @@ export function registerTableSelectionObserver(
 
   return mergeRegister(
     registerTableWindowHandlers(editor, tableObservers),
-    editor.registerCommand(
-      SELECTION_CHANGE_COMMAND,
-      () => {
-        if (editor.getRootElement() !== null) {
+    editor.registerRootListener(rootElement => {
+      if (rootElement === null) {
+        return;
+      }
+      return editor.registerCommand(
+        SELECTION_CHANGE_COMMAND,
+        () => {
           $onUpdate(() => {
             editor.read('latest', () => {
               $syncTableSelectionObservers(tableObservers, editor);
             });
           });
-        }
-        return $handleTableSelectionChangeCommand(tableObservers, editor);
-      },
-      COMMAND_PRIORITY_HIGH,
-    ),
+          return $handleTableSelectionChangeCommand(tableObservers, editor);
+        },
+        COMMAND_PRIORITY_HIGH,
+      );
+    }),
     editor.registerMutationListener(
       TableNode,
       nodeMutations => {
