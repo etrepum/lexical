@@ -103,6 +103,7 @@ export default defineConfig({
         // dispatcher ("Cannot read properties of null (reading 'useMemo')").
         optimizeDeps: {
           include: [
+            '@floating-ui/react',
             'react',
             'react/jsx-dev-runtime',
             'react-dom',
