@@ -2221,7 +2221,12 @@ export function markSelectionChangeFromDOMUpdate(
 ): void {
   const inputState = editor._inputState;
   inputState.isSelectionChangeFromDOMUpdate = true;
-  inputState.selectionChangeFromDOMUpdateChangedSelection = changedSelection;
+  // Accumulate rather than overwrite: several commits can apply a DOM
+  // selection before the browser delivers the one coalesced selectionchange
+  // for them, and a later commit that re-applies an unchanged selection must
+  // not erase the pending change from the commit that moved the caret.
+  inputState.selectionChangeFromDOMUpdateChangedSelection =
+    inputState.selectionChangeFromDOMUpdateChangedSelection || changedSelection;
   inputState.selectionChangeFromDOMUpdatePoints =
     anchorNode !== undefined &&
     anchorOffset !== undefined &&
