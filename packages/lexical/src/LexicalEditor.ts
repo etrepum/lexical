@@ -14,6 +14,7 @@ import type {ElementNode} from './nodes/LexicalElementNode';
 import devInvariant from '@lexical/internal/devInvariant';
 import invariant from '@lexical/internal/invariant';
 import {LEXICAL_VERSION} from '@lexical/internal/version';
+import warnOnlyOnce from '@lexical/internal/warnOnlyOnce';
 
 import {
   $createParagraphNode,
@@ -368,7 +369,7 @@ export type HTMLConfig = {
    * the legacy `$generateNodesFromDOM` then throws.
    *
    * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`.
-   * Migrated editors can configure it with `{legacyImport: false}`.
+   * Migrated editors can configure it with `{disableLegacyImport: true}`.
    */
   import?: DOMConversionMap | false;
 };
@@ -859,10 +860,15 @@ export function resetEditor(
   }
 }
 
+const legacyImportDeprecation = warnOnlyOnce(
+  'Legacy DOM import (static importDOM and html.import) is deprecated. Migrate to DOMImportExtension rules from @lexical/html, including direct imports and clipboard imports, then configure DOMImportExtension with {disableLegacyImport: true}. See https://lexical.dev/docs/serialization/dom-import for migration guidance.',
+);
+
 function initializeConversionCache(
   nodes: RegisteredNodes,
   additionalConversions?: DOMConversionMap,
 ): DOMConversionCache {
+  legacyImportDeprecation();
   const conversionCache = new Map();
   const handledConversions = new Set();
   const addConversionsToCache = (map: DOMConversionMap) => {

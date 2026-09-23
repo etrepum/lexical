@@ -42,17 +42,17 @@ import {selBase} from './sel';
  */
 export interface DOMImportConfig {
   /**
-   * Keep the legacy `importDOM` / `html.import` pipeline available alongside
-   * the extension pipeline. Defaults to `true` for compatibility.
+   * Disable the legacy `importDOM` / `html.import` pipeline. Defaults to
+   * `false` for compatibility.
    *
-   * Set to `false` after migrating custom conversions, direct imports, and
+   * Set to `true` after migrating custom conversions, direct imports, and
    * clipboard imports (using `ClipboardDOMImportExtension`). This skips
    * legacy converter initialization and makes the legacy
    * `$generateNodesFromDOM` throw. Nonempty `html.import` overrides must be
    * migrated first; they are rejected rather than silently discarded.
    * This does not change which pipeline any caller uses.
    */
-  readonly legacyImport?: boolean;
+  readonly disableLegacyImport?: boolean;
   /**
    * The ordered list of rules compiled into the import dispatcher.
    * Entries can be raw {@link DOMImportRule}s or a
@@ -242,12 +242,12 @@ export const DOMImportExtension = defineExtension<
   },
   config: {
     contextDefaults: [],
-    legacyImport: true,
+    disableLegacyImport: false,
     preprocess: [$inlineStylesFromStyleSheets],
     rules: [DefaultHoistRule],
   },
   init(editorConfig, config) {
-    if (config.legacyImport === false) {
+    if (config.disableLegacyImport) {
       const {html} = editorConfig;
       invariant(
         !html || !html.import || Object.keys(html.import).length === 0,

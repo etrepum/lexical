@@ -62,6 +62,24 @@ function parse(html: string): Document {
 describe('legacy DOM import migration', () => {
   beforeEach(() => initializeImport.mockClear());
 
+  test('warns when initializing legacy import with the default configuration', () => {
+    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    createEditor();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Migrate to DOMImportExtension'),
+    );
+  });
+
+  test('does not warn after disabling legacy import', () => {
+    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    using _editor = buildEditorFromExtensions(
+      CoreImportExtension,
+      configExtension(DOMImportExtension, {disableLegacyImport: true}),
+    );
+    createEditor({html: {import: false}});
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   test('keeps legacy converters and html.import overrides enabled by default', () => {
     using editor = buildEditorFromExtensions(
       CoreImportExtension,
@@ -98,7 +116,7 @@ describe('legacy DOM import migration', () => {
     using editor = buildEditorFromExtensions(
       CoreImportExtension,
       LegacyNodeExtension,
-      configExtension(DOMImportExtension, {legacyImport: false}),
+      configExtension(DOMImportExtension, {disableLegacyImport: true}),
     );
     expect(initializeImport).not.toHaveBeenCalled();
     editor.update(
@@ -139,7 +157,7 @@ describe('legacy DOM import migration', () => {
       using editor = buildEditorFromExtensions(
         LegacyNodeExtension,
         viaDOMImportExtension
-          ? configExtension(DOMImportExtension, {legacyImport: false})
+          ? configExtension(DOMImportExtension, {disableLegacyImport: true})
           : defineExtension({
               html: {import: false},
               name: 'test/DisableLegacy',
@@ -169,7 +187,7 @@ describe('legacy DOM import migration', () => {
       RichTextExtension,
       ClipboardDOMImportExtension,
       LegacyNodeExtension,
-      configExtension(DOMImportExtension, {legacyImport: false}),
+      configExtension(DOMImportExtension, {disableLegacyImport: true}),
     );
     expect(initializeImport).not.toHaveBeenCalled();
     const dataTransfer = new DataTransfer();
@@ -211,7 +229,7 @@ describe('legacy DOM import migration', () => {
     expect(() =>
       buildEditorFromExtensions(
         CoreImportExtension,
-        configExtension(DOMImportExtension, {legacyImport: false}),
+        configExtension(DOMImportExtension, {disableLegacyImport: true}),
         defineExtension({html: {import: legacyImport}, name: 'test/LegacyMap'}),
       ),
     ).toThrow('html.import conversions');
@@ -221,7 +239,7 @@ describe('legacy DOM import migration', () => {
     using editor = buildEditorFromExtensions(
       CoreImportExtension,
       LegacyNodeExtension,
-      configExtension(DOMImportExtension, {legacyImport: false}),
+      configExtension(DOMImportExtension, {disableLegacyImport: true}),
       defineExtension({html: {import: {}}, name: 'test/EmptyMap'}),
     );
     expect(initializeImport).not.toHaveBeenCalled();

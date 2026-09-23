@@ -1114,7 +1114,7 @@ behavior. `html.export` is not deprecated by this migration.
    HTML, whitespace, nested blocks, and custom-node attributes. The two
    pipelines have different recursion and schema models; migration is not
    an automatic conversion of a `DOMConversionMap`.
-5. Set `legacyImport: false` once all import paths have migrated:
+5. Set `disableLegacyImport: true` once all import paths have migrated:
 
 ```ts
 import {ClipboardDOMImportExtension} from '@lexical/clipboard';
@@ -1126,11 +1126,11 @@ import {configExtension} from 'lexical';
 const editor = buildEditorFromExtensions(
   RichTextExtension,
   ClipboardDOMImportExtension,
-  configExtension(DOMImportExtension, {legacyImport: false}),
+  configExtension(DOMImportExtension, {disableLegacyImport: true}),
 );
 ```
 
-`legacyImport` defaults to `true`. Setting it to `false` skips calls to
+`disableLegacyImport` defaults to `false`. Setting it to `true` skips calls to
 registered nodes' static `importDOM` factories and allocation of the
 legacy conversion cache. Calling the old `$generateNodesFromDOM` then
 throws with migration guidance, including for an empty document.
@@ -1148,9 +1148,10 @@ remove legacy methods from node classes, avoid evaluating their `$config`
 methods, or promise to eliminate their code from application bundles.
 Removing those methods and changing the default require a later
 compatibility decision, after the extension API stabilizes and consumers
-have had time to migrate. There is no automatic runtime warning for every
-registered legacy node: built-in and third-party nodes can intentionally
-support both pipelines during the transition.
+have had time to migrate. Initializing the legacy import pipeline emits a
+one-time development warning with migration guidance. Disabling legacy import
+suppresses the warning. Built-in and third-party nodes can still support both
+pipelines during the transition.
 
 ### Translate custom conversions
 
