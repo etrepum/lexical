@@ -54,9 +54,11 @@ If the element property is null in the return value of exportDOM, that Node will
 
 :::tip
 
-For new code, consider [`DOMImportExtension`](./dom-import.md)
-instead of (or in addition to) `static importDOM()` on each node
-class. It replaces the `DOMConversionMap` machinery with typed
+`static importDOM()`, `$config().importDOM`, `html.import` conversions,
+and `$generateNodesFromDOM` are deprecated but remain available by
+default. Use [`DOMImportExtension`](./dom-import.md) for new code and
+follow the [staged migration guide](./dom-import.md#migrating-from-importdom)
+for existing editors. It replaces the `DOMConversionMap` machinery with typed
 selectors (`sel.tag(...)`, `sel.css(...)`), middleware-style rules
 (`$next()` instead of numeric priority), structural schemas
 (`BlockSchema` / `InlineSchema` / `ListSchema` / `TableSchema`),
@@ -65,7 +67,7 @@ configurable text whitespace handling
 stylesheet inlining), and a typed context system for cross-rule
 communication. Per-package bundles ship for rich-text, list, link,
 table, code, and horizontal-rule. Pair with
-[`ClipboardImportExtension`](./dom-import.md#clipboardimportextension)
+[`ClipboardDOMImportExtension`](./dom-import.md#routing-pastes-through-domimportextension)
 to route pastes through the new pipeline.
 
 :::
@@ -122,7 +124,9 @@ Remember that state updates are asynchronous, so executing `editor.getEditorStat
 :::
 
 #### `LexicalNode.importDOM()`
-You can control how an `HTMLElement` is represented in `Lexical` by adding an `importDOM()` method to your `LexicalNode`.
+This deprecated API controls how an `HTMLElement` is represented in
+Lexical's legacy importer. The following examples document existing
+converters; new converters should use [extension import rules](./dom-import.md#migrating-from-importdom).
 
 ```js
 static importDOM(): DOMConversionMap | null;
@@ -186,7 +190,9 @@ Much like `exportDOM`, `importDOM` exposes APIs to allow for post-processing of 
 
 The `html` property in `CreateEditorArgs` provides an alternate way to configure HTML import and export behavior in Lexical without subclassing or node replacement. It includes two properties:
 
-- `import` - Similar to `importDOM`, it controls how HTML elements are transformed into `LexicalNodes`. However, instead of defining conversions directly on each `LexicalNode`, `html.import` provides a configuration that can be overridden easily in the editor setup.
+- `import` (deprecated) - Legacy conversion overrides, similar to `importDOM`.
+  Migrate these to `DOMImportExtension` rules. Setting this to `false` disables
+  legacy import entirely; see the [migration guide](./dom-import.md#migrating-from-importdom).
   
 - `export` - Similar to `exportDOM`, this property customizes how `LexicalNodes` are serialized into HTML. With `html.export`, users can specify transformations for various nodes collectively, offering a flexible override mechanism that can adapt without needing to extend or replace specific `LexicalNodes`.
 
@@ -202,7 +208,7 @@ While `importDOM` and `exportDOM` allow for highly customized, node-specific con
 ```typescript
 type HTMLConfig = {
   export?: DOMExportOutputMap;  // Optional map defining how nodes are exported to HTML.
-  import?: DOMConversionMap;     // Optional record defining how HTML is converted into nodes.
+  import?: DOMConversionMap | false; // Deprecated conversions, or false to disable legacy import.
 };
 ```
 

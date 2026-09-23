@@ -15,6 +15,7 @@ import type {
 } from './types';
 
 import {$getExtensionOutput} from '@lexical/extension';
+import invariant from '@lexical/internal/invariant';
 import {defineExtension, type LexicalNode, shallowMergeConfig} from 'lexical';
 
 import {DOMImportContextSymbol, DOMImportExtensionName} from '../constants';
@@ -40,6 +41,18 @@ import {selBase} from './sel';
  * @experimental
  */
 export interface DOMImportConfig {
+  /**
+   * Keep the legacy `importDOM` / `html.import` pipeline available alongside
+   * the extension pipeline. Defaults to `true` for compatibility.
+   *
+   * Set to `false` after migrating custom conversions, direct imports, and
+   * clipboard imports (using `ClipboardDOMImportExtension`). This skips
+   * legacy converter initialization and makes the legacy
+   * `$generateNodesFromDOM` throw. Nonempty `html.import` overrides must be
+   * migrated first; they are rejected rather than silently discarded.
+   * This does not change which pipeline any caller uses.
+   */
+  readonly legacyImport?: boolean;
   /**
    * The ordered list of rules compiled into the import dispatcher.
    * Entries can be raw {@link DOMImportRule}s or a
@@ -229,8 +242,19 @@ export const DOMImportExtension = defineExtension<
   },
   config: {
     contextDefaults: [],
+    legacyImport: true,
     preprocess: [$inlineStylesFromStyleSheets],
     rules: [DefaultHoistRule],
+  },
+  init(editorConfig, config) {
+    if (config.legacyImport === false) {
+      const {html} = editorConfig;
+      invariant(
+        !html || !html.import || Object.keys(html.import).length === 0,
+        'DOMImportExtension: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',
+      );
+      editorConfig.html = {...html, import: false};
+    }
   },
   // `contextDefaults` and `preprocess` append (last wins / runs first,
   // since the preprocess stack is run from the end) while `rules`
@@ -260,10 +284,10 @@ export const DOMImportExtension = defineExtension<
 
 /**
  * Look up the editor's {@link DOMImportExtension} and run its
- * `$generateNodesFromDOM`. Designed as a drop-in replacement for the
- * legacy `$generateNodesFromDOM(editor, dom)` signature so it can be
- * supplied to `ClipboardImportExtension.$generateNodesFromDOM` (or any
- * other consumer that wants to route through the extension pipeline).
+ * `$generateNodesFromDOM`. Unlike the legacy
+ * `$generateNodesFromDOM(editor, dom)`, this uses the active editor:
+ * call it as `$generateNodesFromDOMViaExtension(dom)` inside an update.
+ * Use `ClipboardDOMImportExtension` to route HTML pastes through it.
  *
  * Throws if the editor was not built with {@link DOMImportExtension} as a
  * dependency.

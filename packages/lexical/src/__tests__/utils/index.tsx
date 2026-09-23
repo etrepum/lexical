@@ -696,7 +696,7 @@ export function $runDOMConversion(
   element: HTMLElement,
 ): DOMConversionOutput | null {
   let match: DOMConversion | null = null;
-  const conversions = editor._htmlConversions.get(
+  const conversions = editor._htmlConversions?.get(
     element.tagName.toLowerCase(),
   );
   if (conversions !== undefined) {

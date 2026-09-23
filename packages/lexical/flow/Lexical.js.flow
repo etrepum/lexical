@@ -245,7 +245,7 @@ declare export class LexicalEditor {
   _parentEditor: null | LexicalEditor;
   _rootElement: null | HTMLElement;
   _editorState: EditorState;
-  _htmlConversions: DOMConversionCache;
+  _htmlConversions: DOMConversionCache | null;
   _pendingEditorState: null | EditorState;
   _compositionKey: null | NodeKey;
   _deferred: (() => void)[];
@@ -431,7 +431,10 @@ export type HTMLConfig = {
     Class<LexicalNode>,
     (editor: LexicalEditor, target: LexicalNode) => DOMExportOutput,
   >,
-  import?: DOMConversionMap,
+  /**
+   * @deprecated Use DOMImportExtension rules. Set false to disable legacy import.
+   */
+  import?: DOMConversionMap | false,
 };
 
 declare export function createEditor(editorConfig?: {
@@ -506,6 +509,7 @@ declare export class LexicalNode {
   __prev: null | NodeKey;
   static getType(): string;
   static clone(data: $FlowFixMe): LexicalNode;
+  /** @deprecated Contribute rules to DOMImportExtension from @lexical/html. */
   static importDOM(): DOMConversionMap | null;
   static importJSON(serializedNode: $FlowFixMe): LexicalNode;
   constructor(key?: NodeKey): void;
@@ -2281,6 +2285,7 @@ export interface StaticNodeConfigValue<
   readonly type?: Type;
   readonly $transform?: (node: T) => void;
   readonly $importJSON?: (serializedNode: SerializedLexicalNode) => T;
+  /** @deprecated Contribute rules to DOMImportExtension from @lexical/html. */
   readonly importDOM?: DOMConversionMap;
   readonly json?: AnySerializationSchema;
   readonly generated?: GeneratedJSONFactory;

@@ -362,7 +362,15 @@ export type LexicalNodeReplacement = {
 
 export type HTMLConfig = {
   export?: DOMExportOutputMap;
-  import?: DOMConversionMap;
+  /**
+   * Legacy DOM conversion overrides. Set to `false` to skip initializing
+   * all legacy conversions, including node `importDOM` methods. Calling
+   * the legacy `$generateNodesFromDOM` then throws.
+   *
+   * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`.
+   * Migrated editors can configure it with `{legacyImport: false}`.
+   */
+  import?: DOMConversionMap | false;
 };
 
 /**
@@ -973,6 +981,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     ...(config.nodes || []),
   ];
   const {onError, onWarn, html} = config;
+  const htmlImport = html ? html.import : undefined;
   const isEditable = config.editable !== undefined ? config.editable : true;
   let registeredNodes: RegisteredNodes;
 
@@ -1082,7 +1091,9 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     },
     onError ? onError : console.error,
     onWarn ? onWarn : defaultOnWarn,
-    initializeConversionCache(registeredNodes, html ? html.import : undefined),
+    htmlImport === false
+      ? null
+      : initializeConversionCache(registeredNodes, htmlImport),
     isEditable,
     editorConfig,
   );
@@ -1188,7 +1199,7 @@ export class LexicalEditor {
   /** @internal */
   _onWarn: ErrorHandler;
   /** @internal */
-  _htmlConversions: DOMConversionCache;
+  _htmlConversions: DOMConversionCache | null;
   /** @internal */
   _window: null | Window;
   /** @internal */
@@ -1221,7 +1232,7 @@ export class LexicalEditor {
     config: EditorConfig,
     onError: ErrorHandler,
     onWarn: ErrorHandler,
-    htmlConversions: DOMConversionCache,
+    htmlConversions: DOMConversionCache | null,
     editable: boolean,
     createEditorArgs?: CreateEditorArgs,
   ) {

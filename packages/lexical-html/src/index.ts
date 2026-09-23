@@ -144,11 +144,19 @@ const IGNORE_TAGS = new Set(['STYLE', 'SCRIPT']);
  * How you parse your html string to get a document is left up to you. In the browser you can use the native
  * DOMParser API to generate a document (see clipboard.ts), but to use in a headless environment you can use JSDom
  * or an equivalent library and pass in the document here.
+ *
+ * @deprecated Build the editor with `DOMImportExtension` and call
+ * `$generateNodesFromDOMViaExtension(dom)` inside an editor update instead.
+ * Use `ClipboardDOMImportExtension` for HTML clipboard imports.
  */
 export function $generateNodesFromDOM(
   editor: LexicalEditor,
   dom: Document | ParentNode,
 ): LexicalNode[] {
+  invariant(
+    editor._htmlConversions !== null,
+    'Legacy DOM import is disabled. Use $generateNodesFromDOMViaExtension(dom) inside an editor update, and ClipboardDOMImportExtension for HTML clipboard imports.',
+  );
   $inlineStylesFromStyleSheetsDOM(dom);
 
   const elements = isDOMDocumentNode(dom)
@@ -461,7 +469,10 @@ function getConversionFunction(
 ): DOMConversionFn | null {
   const {nodeName} = domNode;
 
-  const cachedConversions = editor._htmlConversions.get(nodeName.toLowerCase());
+  const conversions = editor._htmlConversions;
+  const cachedConversions = conversions
+    ? conversions.get(nodeName.toLowerCase())
+    : undefined;
 
   let currentConversion: DOMConversion | null = null;
 
