@@ -56,6 +56,7 @@ describe('@lexical/mdast extensions', () => {
           }),
           MdastImportExtension,
         ],
+        disableLegacyImport: true,
         name: '[root]',
       }),
     );

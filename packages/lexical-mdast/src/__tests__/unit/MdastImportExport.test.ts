@@ -95,14 +95,21 @@ function importExport(markdown: string, withTable = false): string {
 describe('@lexical/mdast import/export', () => {
   it('omits a node and its children when its import handler returns null', () => {
     using editor = buildEditorFromExtensions(
-      configExtension(MdastExtension, {
-        importRules: [
-          {$import: () => null, type: 'strong'},
-          {
-            $import: (_node, context) => context.createText('lower-priority'),
-            type: 'strong',
-          },
+      defineExtension({
+        dependencies: [
+          configExtension(MdastExtension, {
+            importRules: [
+              {$import: () => null, type: 'strong'},
+              {
+                $import: (_node, context) =>
+                  context.createText('lower-priority'),
+                type: 'strong',
+              },
+            ],
+          }),
         ],
+        disableLegacyImport: true,
+        name: '[root]',
       }),
     );
     editor.update(() => $convertFromMarkdownString('a **b** c'), {
