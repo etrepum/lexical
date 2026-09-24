@@ -34,6 +34,7 @@ import {LayoutExtension} from '../../src/plugins/LayoutExtension/LayoutExtension
 const LayoutTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [LayoutExtension],
+  disableLegacyImport: false,
   name: '[test-layout]',
 });
 

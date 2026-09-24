@@ -177,6 +177,7 @@ class ChildEditorNode extends DecoratorNode<null> {
     }
     const editor = buildEditorFromExtensions({
       dependencies: [SharedHistoryExtension, NestedEditorExtension],
+      disableLegacyImport: false,
       name: 'ChildEditorNode',
     });
     $setState(this, EditorKey, editor);
@@ -546,6 +547,7 @@ describe('HistoryExtension canUndo/canRedo signals', () => {
   function buildEditor() {
     return buildEditorFromExtensions({
       dependencies: [configExtension(HistoryExtension, {delay: 0})],
+      disableLegacyImport: false,
       name: 'test',
     });
   }
@@ -558,6 +560,7 @@ describe('HistoryExtension canUndo/canRedo signals', () => {
           delay: 0,
         }),
       ],
+      disableLegacyImport: false,
       name: 'test',
     });
   }
@@ -681,6 +684,7 @@ describe('HistoryExtension maxDepth', () => {
   function buildEditorWithMaxDepth(maxDepth: number | null) {
     return buildEditorFromExtensions({
       dependencies: [configExtension(HistoryExtension, {delay: 0, maxDepth})],
+      disableLegacyImport: false,
       name: 'test',
     });
   }
@@ -796,6 +800,7 @@ describe('SharedHistoryExtension', () => {
         configExtension(HistoryExtension, {delay: 0, now: artificialNow}),
         ChildEditorExtension,
       ],
+      disableLegacyImport: false,
       name: 'parent',
     });
     const dom = document.createElement('div');

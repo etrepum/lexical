@@ -56,6 +56,7 @@ function mountEditor() {
   document.body.appendChild(container);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
   });
   editor.setRootElement(container);

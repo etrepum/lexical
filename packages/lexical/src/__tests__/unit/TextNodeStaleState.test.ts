@@ -34,7 +34,10 @@ function seedStaleTextNode(editor: LexicalEditor): TextNode {
 
 describe('TextNode stale state readers', () => {
   test('setTextContent can restore the original text through a stale reference', () => {
-    using editor = buildEditorFromExtensions({name: 'textnode-stale-state'});
+    using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'textnode-stale-state',
+    });
     const text = seedStaleTextNode(editor);
 
     editor.update(
@@ -51,7 +54,10 @@ describe('TextNode stale state readers', () => {
   });
 
   test('setMode can restore the original mode through a stale reference', () => {
-    using editor = buildEditorFromExtensions({name: 'textnode-stale-state'});
+    using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'textnode-stale-state',
+    });
     const text = seedStaleTextNode(editor);
 
     editor.update(
@@ -66,7 +72,10 @@ describe('TextNode stale state readers', () => {
   });
 
   test('isSimpleText reflects the latest mode', () => {
-    using editor = buildEditorFromExtensions({name: 'textnode-stale-state'});
+    using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'textnode-stale-state',
+    });
     const text = seedStaleTextNode(editor);
 
     editor.update(() => text.setMode('token'), {discrete: true});

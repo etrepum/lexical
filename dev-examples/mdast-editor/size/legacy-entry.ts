@@ -26,6 +26,7 @@ import {createEditor, type LexicalEditor} from 'lexical';
 
 export function createMarkdownEditor(): LexicalEditor {
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: 'size-probe',
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, CodeNode, LinkNode],
     onError: (error: Error) => {

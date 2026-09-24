@@ -253,6 +253,7 @@ export interface EditorThemeClasses {
 }
 
 export interface EditorConfig {
+  disableLegacyImport?: boolean | null;
   dom?: EditorDOMRenderConfig;
   disableEvents?: boolean;
   namespace: string;
@@ -477,6 +478,15 @@ export interface EditorDOMRenderConfig {
 }
 
 export interface CreateEditorArgs {
+  /**
+   * Controls the deprecated static `importDOM` / `html.import` pipeline.
+   * `null` (the default) enables it with a one-time development warning.
+   * `false` explicitly keeps it enabled without warning. `true` skips legacy
+   * converter initialization; migrate all import paths to DOMImportExtension
+   * before enabling it. Implicit nested editors created with `createEditor()`
+   * inherit the active editor's choice.
+   */
+  disableLegacyImport?: boolean | null;
   disableEvents?: boolean;
   editorState?: EditorState;
   namespace?: string;
@@ -861,14 +871,13 @@ export function resetEditor(
 }
 
 const legacyImportDeprecation = warnOnlyOnce(
-  'Legacy DOM import (static importDOM and html.import) is deprecated. Migrate to DOMImportExtension rules from @lexical/html, including direct imports and clipboard imports, then configure DOMImportExtension with {disableLegacyImport: true}. See https://lexical.dev/docs/serialization/dom-import for migration guidance.',
+  'Legacy DOM import (static importDOM and html.import) is deprecated. Migrate to DOMImportExtension rules from @lexical/html, including direct imports and clipboard imports, then configure DOMImportExtension with {disableLegacyImport: true}. Set disableLegacyImport to false to explicitly retain legacy import without this warning. See https://lexical.dev/docs/serialization/dom-import for migration guidance.',
 );
 
 function initializeConversionCache(
   nodes: RegisteredNodes,
   additionalConversions?: DOMConversionMap,
 ): DOMConversionCache {
-  legacyImportDeprecation();
   const conversionCache = new Map();
   const handledConversions = new Set();
   const addConversionsToCache = (map: DOMConversionMap) => {
@@ -988,6 +997,19 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
   ];
   const {onError, onWarn, html} = config;
   const htmlImport = html ? html.import : undefined;
+  const disableLegacyImport =
+    config.disableLegacyImport ??
+    (editorConfig === undefined && activeEditor !== null
+      ? activeEditor._config.disableLegacyImport
+      : null) ??
+    null;
+  invariant(
+    !disableLegacyImport || !htmlImport || Object.keys(htmlImport).length === 0,
+    'createEditor: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',
+  );
+  if (disableLegacyImport === null && htmlImport !== false) {
+    legacyImportDeprecation();
+  }
   const isEditable = config.editable !== undefined ? config.editable : true;
   let registeredNodes: RegisteredNodes;
 
@@ -1088,6 +1110,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     registeredNodes,
     {
       disableEvents,
+      disableLegacyImport,
       dom: {
         ...DEFAULT_EDITOR_DOM_CONFIG,
         ...(editorConfig && editorConfig.dom),
@@ -1097,7 +1120,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     },
     onError ? onError : console.error,
     onWarn ? onWarn : defaultOnWarn,
-    htmlImport === false
+    disableLegacyImport === true || htmlImport === false
       ? null
       : initializeConversionCache(registeredNodes, htmlImport),
     isEditable,

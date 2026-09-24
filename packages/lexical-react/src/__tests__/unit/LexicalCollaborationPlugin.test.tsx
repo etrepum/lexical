@@ -111,6 +111,7 @@ function $appendInitialContent(): void {
  */
 function serializedInitialContent(): string {
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: 'serializer',
     onError(error: Error) {
       throw error;
@@ -159,6 +160,7 @@ describe(`LexicalCollaborationPlugin`, () => {
     // NOTE: This is critical for collaboration plugin to set editor state to null. It
     // would indicate that the editor should not try to set any default state
     // (not even empty one), and let collaboration plugin do it instead
+    disableLegacyImport: false,
     editorState: null,
     namespace: 'Test editor',
     nodes: [],

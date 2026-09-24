@@ -43,7 +43,8 @@ import {selBase} from './sel';
 export interface DOMImportConfig {
   /**
    * Disable the legacy `importDOM` / `html.import` pipeline. Defaults to
-   * `false` for compatibility.
+   * `null`, which keeps it enabled with a one-time development warning.
+   * Set to `false` to explicitly keep legacy import enabled without warning.
    *
    * Set to `true` after migrating custom conversions, direct imports, and
    * clipboard imports (using `ClipboardDOMImportExtension`). This skips
@@ -52,7 +53,7 @@ export interface DOMImportConfig {
    * migrated first; they are rejected rather than silently discarded.
    * This does not change which pipeline any caller uses.
    */
-  readonly disableLegacyImport?: boolean;
+  readonly disableLegacyImport?: boolean | null;
   /**
    * The ordered list of rules compiled into the import dispatcher.
    * Entries can be raw {@link DOMImportRule}s or a
@@ -242,11 +243,17 @@ export const DOMImportExtension = defineExtension<
   },
   config: {
     contextDefaults: [],
-    disableLegacyImport: false,
+    disableLegacyImport: null,
     preprocess: [$inlineStylesFromStyleSheets],
     rules: [DefaultHoistRule],
   },
   init(editorConfig, config) {
+    if (
+      config.disableLegacyImport !== null &&
+      config.disableLegacyImport !== undefined
+    ) {
+      editorConfig.disableLegacyImport = config.disableLegacyImport;
+    }
     if (config.disableLegacyImport) {
       const {html} = editorConfig;
       invariant(

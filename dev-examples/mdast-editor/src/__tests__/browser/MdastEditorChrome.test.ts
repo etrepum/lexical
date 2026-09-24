@@ -78,6 +78,7 @@ function mountEditor(markdown: string): {
         MdastKbdExtension,
         RichTextExtension,
       ],
+      disableLegacyImport: true,
       name: '[mdast-editor-example-chrome-test]',
     }),
   );

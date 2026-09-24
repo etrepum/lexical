@@ -41,7 +41,7 @@ describe('ElementDOMSlot class', () => {
   ): T {
     let result: T | undefined;
     using editor = buildEditorFromExtensions(
-      defineExtension({name: '[ElementDOMSlot]'}),
+      defineExtension({disableLegacyImport: false, name: '[ElementDOMSlot]'}),
     );
     editor.update(
       () => {
@@ -314,6 +314,7 @@ describe('ElementDOMSlot integration: leading decoration (slot.after)', () => {
     document.body.appendChild(container);
     editor = buildEditorFromExtensions(
       defineExtension({
+        disableLegacyImport: false,
         name: '[leading-decor]',
         nodes: [LeadingDecorElementNode],
       }),
@@ -521,6 +522,7 @@ describe('ElementDOMSlot integration: trailing decoration (slot.before)', () => 
     document.body.appendChild(container);
     editor = buildEditorFromExtensions(
       defineExtension({
+        disableLegacyImport: false,
         name: '[trailing-decor]',
         nodes: [TrailingDecorElementNode],
       }),
@@ -712,6 +714,7 @@ describe('ElementDOMSlot block cursor handling', () => {
   function createFocusedEditor() {
     const editor = buildEditorFromExtensions(
       defineExtension({
+        disableLegacyImport: false,
         name: '[block-cursor]',
         nodes: [InnerWrapElementNode, TestDecoratorNode],
       }),

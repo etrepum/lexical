@@ -99,6 +99,7 @@ describe('useDecorators root remount', () => {
       return (
         <LexicalComposer
           initialConfig={{
+            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               const decorator = $createReactDecoratorNode('hello');
@@ -199,6 +200,7 @@ describe('useReactDecorators root remount', () => {
         $getRoot().append($createParagraphNode(), decorator);
       },
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: '[test-useReactDecorators-root-remount]',
       nodes: [ReactDecoratorNode],
     });

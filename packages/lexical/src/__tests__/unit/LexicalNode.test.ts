@@ -196,6 +196,7 @@ describe('LexicalNode tests', () => {
           }
         }
         const editor = createEditor({
+          disableLegacyImport: false,
           nodes: [VersionedTextNode],
           onError(err) {
             throw err;
@@ -1556,6 +1557,7 @@ describe('LexicalNode tests', () => {
             }
           }
           const editor = createEditor({
+            disableLegacyImport: false,
             nodes: [CustomTextNode],
             onError(err) {
               throw err;
@@ -1591,6 +1593,7 @@ describe('LexicalNode tests', () => {
             }
           }
           const editor = createEditor({
+            disableLegacyImport: false,
             nodes: [SNCVersionedTextNode],
             onError(err) {
               throw err;
@@ -1672,6 +1675,7 @@ describe('LexicalNode tests', () => {
             }
           }
           const editor = createEditor({
+            disableLegacyImport: false,
             nodes: [ConfigTagNode],
             onError(err) {
               throw err;
@@ -1709,6 +1713,7 @@ describe('LexicalNode tests', () => {
             }
           }
           const editor = createEditor({
+            disableLegacyImport: false,
             nodes: [ConfigVersionNode],
             onError(err) {
               throw err;
@@ -1773,6 +1778,7 @@ describe('LexicalNode tests', () => {
             }
           }
           const editor = createEditor({
+            disableLegacyImport: false,
             nodes: [InnerTagNode, OuterNode],
             onError(err) {
               throw err;
@@ -3268,6 +3274,7 @@ describe('LexicalNode.$config() without registration', () => {
     );
 
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [ConcreteChildNode],
       onError(err) {
         throw err;
@@ -3303,6 +3310,7 @@ describe('LexicalNode.$config() without registration', () => {
     };
 
     const editor = createEditor({
+      disableLegacyImport: false,
       onError(err) {
         throw err;
       },
@@ -3378,6 +3386,7 @@ describe('LexicalNode.$config() without registration', () => {
     };
 
     const editor = createEditor({
+      disableLegacyImport: false,
       onError(err) {
         throw err;
       },

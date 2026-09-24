@@ -62,12 +62,83 @@ function parse(html: string): Document {
 describe('legacy DOM import migration', () => {
   beforeEach(() => initializeImport.mockClear());
 
-  test('warns when initializing legacy import with the default configuration', () => {
-    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    createEditor();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('Migrate to DOMImportExtension'),
-    );
+  test.each([undefined, null, false, true])(
+    'explicit legacy import configuration controls warnings and factories (%s)',
+    disableLegacyImport => {
+      using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      for (const mode of ['core', 'extension', 'dom-import']) {
+        initializeImport.mockClear();
+        warn.mockClear();
+        const editor =
+          mode === 'core'
+            ? createEditor({disableLegacyImport, nodes: [LegacyParagraphNode]})
+            : buildEditorFromExtensions(
+                LegacyNodeExtension,
+                CoreImportExtension,
+                mode === 'extension'
+                  ? defineExtension({
+                      disableLegacyImport,
+                      name: 'test/LegacyImportConfig',
+                    })
+                  : configExtension(DOMImportExtension, {disableLegacyImport}),
+              );
+        try {
+          expect(initializeImport).toHaveBeenCalledTimes(
+            disableLegacyImport === true ? 0 : 1,
+          );
+          if (disableLegacyImport == null) {
+            expect(warn).toHaveBeenCalledExactlyOnceWith(
+              expect.stringContaining('Migrate to DOMImportExtension'),
+            );
+          } else {
+            expect(warn).not.toHaveBeenCalled();
+          }
+        } finally {
+          if ('dispose' in editor && typeof editor.dispose === 'function') {
+            editor.dispose();
+          }
+        }
+      }
+    },
+  );
+
+  test.each([false, true])(
+    'implicit nested editors inherit the explicit legacy import choice (%s)',
+    disableLegacyImport => {
+      using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const editor = createEditor({
+        disableLegacyImport,
+        nodes: [LegacyParagraphNode],
+        onError: error => {
+          throw error;
+        },
+      });
+      editor.update(
+        () => {
+          const nested = createEditor();
+          expect(nested._nodes).toBe(editor._nodes);
+          expect(nested._htmlConversions === null).toBe(disableLegacyImport);
+          nested.update(
+            () => {
+              const deeplyNested = createEditor();
+              expect(deeplyNested._nodes).toBe(editor._nodes);
+              expect(deeplyNested._htmlConversions === null).toBe(
+                disableLegacyImport,
+              );
+            },
+            {discrete: true},
+          );
+        },
+        {discrete: true},
+      );
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
+
+  test('the core opt-out rejects unmigrated overrides', () => {
+    expect(() =>
+      createEditor({disableLegacyImport: true, html: {import: legacyImport}}),
+    ).toThrow('html.import conversions');
   });
 
   test('does not warn after disabling legacy import', () => {
@@ -80,11 +151,12 @@ describe('legacy DOM import migration', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  test('keeps legacy converters and html.import overrides enabled by default', () => {
+  test('explicitly retaining legacy import preserves converters and html.import overrides', () => {
     using editor = buildEditorFromExtensions(
       CoreImportExtension,
       LegacyNodeExtension,
       defineExtension({
+        disableLegacyImport: false,
         html: {
           import: {
             'custom-block': () => ({

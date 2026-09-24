@@ -64,6 +64,7 @@ const editorExtension = defineExtension({
     // not just on the "Import HTML" dialog.
     ClipboardDOMImportExtension,
   ],
+  disableLegacyImport: true,
   name: '@lexical/examples/dom-import',
   namespace: 'DOM Import Demo',
   theme: ExampleTheme,

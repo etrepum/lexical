@@ -28,6 +28,7 @@ const richInputTheme = {
 
 const richInputExtension = defineExtension({
   dependencies: [RichTextExtension, HistoryExtension, HashtagExtension],
+  disableLegacyImport: false,
   name: '@lexical/website/rich-input-editor',
   namespace: '@lexical/website/rich-input-editor',
   theme: richInputTheme,

@@ -84,6 +84,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
       }),
     );
@@ -189,6 +190,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
       }),
     );
@@ -245,6 +247,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
       }),
     );
@@ -324,6 +327,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
         nodes: [TextNodeA],
       }),
@@ -372,6 +376,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
       }),
     );
@@ -434,6 +439,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'root',
         nodes: [TextNodeA],
       }),
@@ -494,6 +500,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'visible-linebreak-example',
       }),
     );
@@ -525,6 +532,7 @@ describe('DOMRenderExtension', () => {
           );
         },
         dependencies: [],
+        disableLegacyImport: false,
         name: 'default-leaf-slot',
       }),
     );
@@ -553,6 +561,7 @@ describe('DOMRenderExtension', () => {
           );
         },
         dependencies: [],
+        disableLegacyImport: false,
         name: 'element-slot-helper',
       }),
     );
@@ -610,6 +619,7 @@ describe('DOMRenderExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'textnode-slot-reroute',
       }),
     );

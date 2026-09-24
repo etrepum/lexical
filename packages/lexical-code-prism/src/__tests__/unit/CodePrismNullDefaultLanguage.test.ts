@@ -22,6 +22,7 @@ function createEditor() {
           tokenizer: {...PrismTokenizer, defaultLanguage: null},
         }),
       ],
+      disableLegacyImport: false,
       name: 'prism-default-null',
     }),
   );

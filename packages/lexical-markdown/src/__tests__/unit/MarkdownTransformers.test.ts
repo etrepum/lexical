@@ -55,7 +55,10 @@ function typeMarkdown(editor: LexicalEditor, text: string) {
 
 describe('LINK', () => {
   test('text before a markdown link is preserved', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, 'Start [test](url)');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -70,7 +73,10 @@ describe('LINK', () => {
   });
 
   test('formatted text before a markdown link is preserved', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '**Bold** [Link](url)');
 
     editor.read(() => {
@@ -93,7 +99,10 @@ describe('LINK', () => {
 
   test('LINK is not too greedy if there is a preceding match that was not processed', () => {
     // https://github.com/facebook/lexical/issues/8129
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     // Set up initial condition, since we are not typing a character at a time
     // it's not handled by markdown shortcuts in this update
     editor.update(
@@ -125,7 +134,10 @@ describe('LINK', () => {
   });
 
   test('a destination between angle brackets keeps the whitespace in the URL', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '[test](<https://example.com/a b>)');
 
     editor.read(() => {
@@ -143,7 +155,10 @@ describe('LINK', () => {
   });
 
   test('markdown link should not be created inside another link.', async () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     editor.update(
       () => {
         $getRoot()
@@ -181,7 +196,10 @@ describe('LINK', () => {
 
 describe('CODE_SPAN_PRECEDENCE', () => {
   test('__bold__ inside backticks is not formatted as bold', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '`__bold__`');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -197,7 +215,10 @@ describe('CODE_SPAN_PRECEDENCE', () => {
   });
 
   test('**bold** inside backticks is not formatted as bold', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '`**bold**`');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -213,7 +234,10 @@ describe('CODE_SPAN_PRECEDENCE', () => {
   });
 
   test('*italic* inside backticks is not formatted as italic', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '`*italic*`');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -229,7 +253,10 @@ describe('CODE_SPAN_PRECEDENCE', () => {
   });
 
   test('__bold__ without backticks still formats as bold', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '__bold__');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -244,7 +271,10 @@ describe('CODE_SPAN_PRECEDENCE', () => {
   });
 
   test('__bold__ after a completed code span still formats as bold', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, '`code` __bold__');
     editor.read(() => {
       const paragraph = $getRoot().getFirstChildOrThrow();
@@ -265,7 +295,10 @@ describe('CODE_SPAN_PRECEDENCE', () => {
 describe('WRAPPING_PRESERVES_FORMAT', () => {
   test('**...** around already-bold text preserves bold', () => {
     // https://github.com/facebook/lexical/issues/8727
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     editor.update(
       () => {
         const textNode = $createTextNode('**bold*').toggleFormat('bold');
@@ -291,7 +324,10 @@ describe('WRAPPING_PRESERVES_FORMAT', () => {
 
   test('**...** around mixed-format text formats every wrapped node bold', () => {
     // https://github.com/facebook/lexical/issues/8727
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     editor.update(
       () => {
         const plainNode = $createTextNode('**foo');
@@ -321,7 +357,10 @@ describe('WRAPPING_PRESERVES_FORMAT', () => {
 
 describe('HISTORY', () => {
   test('undo after markdown format transform preserves typed markdown text', () => {
-    using editor = buildEditorFromExtensions([MarkdownShortcutTestExtension]);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      [MarkdownShortcutTestExtension],
+    );
     typeMarkdown(editor, 'lorem *ipsum*');
 
     editor.update(

@@ -25,6 +25,7 @@ function setUpEditor($initialEditorState?: () => void) {
     defineExtension({
       $initialEditorState,
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: 'issue-7729-repro',
     }),
   );

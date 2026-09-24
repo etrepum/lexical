@@ -80,6 +80,7 @@ describe('HTML', () => {
   for (const {name, html, initializeEditorState} of HTML_SERIALIZE) {
     test(`[Lexical -> HTML]: ${name}`, () => {
       const editor = createHeadlessEditor({
+        disableLegacyImport: false,
         nodes: [
           HeadingNode,
           ListNode,
@@ -102,6 +103,7 @@ describe('HTML', () => {
 
   test(`[Lexical -> HTML]: Use provided selection`, () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       nodes: [
         HeadingNode,
         ListNode,
@@ -149,6 +151,7 @@ describe('HTML', () => {
 
   test(`[Lexical -> HTML]: Default selection (undefined) should serialize entire editor state`, () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       nodes: [
         HeadingNode,
         ListNode,
@@ -193,7 +196,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, don't overwrite from parent empty format`, () => {
-    const editor = createHeadlessEditor();
+    const editor = createHeadlessEditor({disableLegacyImport: false});
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div><p style="text-align: center;">Hello world!</p></div>';
@@ -223,7 +226,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, it should take precedence over its parent block alignment`, () => {
-    const editor = createHeadlessEditor();
+    const editor = createHeadlessEditor({disableLegacyImport: false});
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div style="text-align: right;"><p style="text-align: center;">Hello world!</p></div>';
@@ -254,6 +257,7 @@ describe('HTML', () => {
 
   test('It should output correctly nodes whose export is DocumentFragment', () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       html: {
         export: new Map([
           [
@@ -304,7 +308,10 @@ describe('HTML', () => {
 
   describe('$generateNodesFromDOM: CSS class style inlining', () => {
     test('HTML with <style> tags inlines styles by class', () => {
-      const editor = buildEditorFromExtensions();
+      const editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: 'test/LegacyImportConfig',
+      });
       // workaround for https://github.com/jsdom/jsdom/issues/3179 - DOMParser does not work correctly
       const dom = new JSDOM(
         `<html><head><style>.highlight { font-weight: bold; }</style></head>` +
@@ -329,7 +336,7 @@ describe('HTML', () => {
     });
 
     test('existing inline styles are preserved after inlining pass', () => {
-      const editor = createHeadlessEditor();
+      const editor = createHeadlessEditor({disableLegacyImport: false});
       const parser = new DOMParser();
 
       editor.update(
@@ -351,7 +358,7 @@ describe('HTML', () => {
     });
 
     test('HTML without <style> tags works as before', () => {
-      const editor = createHeadlessEditor();
+      const editor = createHeadlessEditor({disableLegacyImport: false});
       const parser = new DOMParser();
 
       editor.update(
@@ -377,6 +384,7 @@ describe('HTML', () => {
   describe('importDOM preserves dir attribute', () => {
     function importAndGetDirection(html: string): string | null {
       const editor = createHeadlessEditor({
+        disableLegacyImport: false,
         nodes: [HeadingNode, ListNode, ListItemNode, QuoteNode],
       });
       editor.update(
@@ -430,6 +438,7 @@ describe('HTML', () => {
 
   test('[Lexical -> HTML]: slots are not auto-serialized to HTML', () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       namespace: 'slot',
       nodes: [TestShadowRootNode],
     });

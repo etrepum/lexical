@@ -69,6 +69,7 @@ describe('syncCursorPositions awareness refresh', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[cursor-awareness-browser]',
       }),
     );

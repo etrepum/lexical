@@ -52,6 +52,7 @@ function createBoundaryEditor() {
       $getRoot().clear().append(decorator1, paragraph, decorator2);
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [TestDecoratorNode],
   });

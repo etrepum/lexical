@@ -77,6 +77,7 @@ describe('named-slots collab-v1: lexical <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[slot-sync-v1]',
         nodes: [TestShadowRootNode, TestDecoratorNode],
       }),
@@ -104,6 +105,7 @@ describe('named-slots collab-v1: lexical <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[slot-sync-v1]',
         nodes: [TestShadowRootNode],
       }),
@@ -988,6 +990,7 @@ describe('named-slots collab-v1: decorator host <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[slot-sync-v1]',
         nodes: [TestShadowRootNode, TestDecoratorNode],
       }),
@@ -1009,6 +1012,7 @@ describe('named-slots collab-v1: decorator host <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[slot-sync-v1]',
         nodes: [TestShadowRootNode, TestDecoratorNode],
       }),
@@ -1440,6 +1444,7 @@ describe('named-slots collab-v1: two-client relay', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[slot-sync-v1]',
         nodes: [TestShadowRootNode, TestDecoratorNode, DeclaredCollabHostNode],
       }),

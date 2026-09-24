@@ -227,6 +227,7 @@ export type EditorDOMRenderConfig = {
 }
 
 export type CreateEditorArgs = {
+  disableLegacyImport?: boolean | null;
   /** @internal @experimental */
   dom?: Partial<EditorDOMRenderConfig>;
   disableEvents?: boolean;
@@ -402,6 +403,7 @@ export type EditorThemeClasses = {
   [string]: EditorThemeClassName | {[string]: EditorThemeClassName},
 };
 export type EditorConfig = {
+  disableLegacyImport?: boolean | null,
   dom?: EditorDOMRenderConfig,
   theme: EditorThemeClasses,
   namespace: string,
@@ -2497,6 +2499,7 @@ export interface ExtensionRegisterState<Init, Output>
 export interface InitialEditorConfig {
   dom?: CreateEditorArgs['dom'];
   disableEvents?: CreateEditorArgs['disableEvents'];
+  disableLegacyImport?: CreateEditorArgs['disableLegacyImport'];
   parentEditor?: CreateEditorArgs['parentEditor'];
   namespace?: CreateEditorArgs['namespace'];
   nodes?: CreateEditorArgs['nodes'];

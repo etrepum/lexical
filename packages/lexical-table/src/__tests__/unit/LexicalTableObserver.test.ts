@@ -56,6 +56,7 @@ describe('TableObserver tracking MutationObserver teardown (#9073)', () => {
     editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [TableExtension],
+        disableLegacyImport: false,
         name: 'table-observer-test',
         theme: {tableScrollableWrapper: 'table-scrollable-wrapper'},
       }),

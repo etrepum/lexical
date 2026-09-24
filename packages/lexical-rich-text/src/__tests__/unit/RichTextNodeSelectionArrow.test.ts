@@ -42,6 +42,7 @@ function createEditor() {
         );
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [TestDecoratorNode],
   });

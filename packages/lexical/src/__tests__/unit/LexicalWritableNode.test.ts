@@ -21,6 +21,7 @@ import {
 
 function createHeadlessEditor() {
   return createEditor({
+    disableLegacyImport: false,
     onError: error => {
       throw error;
     },

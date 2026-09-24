@@ -103,11 +103,13 @@ describe('ReactPluginHostExtension', () => {
           editor.setRootElement(rootDom);
           return registerFn();
         },
+
         dependencies: [
           RichTextExtension,
           HistoryExtension,
           ReactPluginHostExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
         namespace: 'Vanilla JS Extension Demo',
       });

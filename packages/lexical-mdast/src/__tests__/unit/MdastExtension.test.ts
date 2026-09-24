@@ -40,6 +40,7 @@ describe('@lexical/mdast extensions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastExportExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -60,6 +61,7 @@ describe('@lexical/mdast extensions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastExportExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -82,6 +84,7 @@ describe('@lexical/mdast extensions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -100,6 +103,7 @@ describe('@lexical/mdast extensions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastHeadingExtension, MdastShortcutsExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -133,6 +137,7 @@ describe('@lexical/mdast extensions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastListExtension, MdastShortcutsExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

@@ -31,6 +31,7 @@ import {EquationsExtension} from '../../src/plugins/EquationsExtension';
 const EquationHTMLTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [PlaygroundImportExtension, EquationsExtension],
+  disableLegacyImport: false,
   name: '[test-equation-html]',
 });
 

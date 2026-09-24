@@ -39,6 +39,7 @@ function createTestEditor(
     defineExtension({
       $initialEditorState,
       dependencies: [MarkdownExtension, ToolbarStateExtension],
+      disableLegacyImport: false,
       name: 'toolbar-state-test',
       namespace: 'toolbar-state-test',
     }),

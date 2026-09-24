@@ -36,6 +36,7 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root]',
     });
 
@@ -62,6 +63,7 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root-escape]',
     });
 
@@ -106,6 +108,7 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root-one-blank]',
     });
 
@@ -144,6 +147,7 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[tab-format]',
     });
     using editor = buildEditorFromExtensions(ext);
@@ -177,6 +181,7 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root-middle]',
     });
 

@@ -61,6 +61,7 @@ describe('DecoratorTextExtension FORMAT_TEXT_COMMAND', () => {
         }
       },
       dependencies: [DecoratorTextExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: 'test',
     });
 
@@ -96,6 +97,7 @@ describe('DecoratorTextExtension FORMAT_TEXT_COMMAND', () => {
         $selectAll();
       },
       dependencies: [DecoratorTextExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: 'test',
     });
 
@@ -135,6 +137,7 @@ describe('DecoratorTextExtension FORMAT_TEXT_COMMAND', () => {
         }
       },
       dependencies: [DecoratorTextExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: 'test',
     });
 

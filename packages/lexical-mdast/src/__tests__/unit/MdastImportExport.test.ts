@@ -74,6 +74,7 @@ function createEditor(withTable = false): LexicalEditorWithDispose {
         MdastExportExtension,
         ...(withTable ? [MdastTableExtension] : []),
       ],
+      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -345,6 +346,7 @@ describe('@lexical/mdast import/export', () => {
           MdastAutolinkLiteralExtension,
           MdastExportExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -451,6 +453,7 @@ describe('@lexical/mdast import/export', () => {
             toMarkdownExtensions: [{bullet: '+'}],
           }),
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -697,6 +700,7 @@ describe('@lexical/mdast import/export', () => {
               ],
             }),
           ],
+          disableLegacyImport: false,
           name: '[selection-option]',
         }),
       );
@@ -759,6 +763,7 @@ describe('@lexical/mdast import/export', () => {
               ],
             }),
           ],
+          disableLegacyImport: false,
           name: '[import-context]',
         }),
       );
@@ -789,6 +794,7 @@ describe('@lexical/mdast import/export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastHeadingExtension, MdastExportExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -813,6 +819,7 @@ describe('@lexical/mdast import/export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastAutolinkLiteralExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -926,6 +933,7 @@ describe('@lexical/mdast import/export', () => {
             MdastExportExtension,
             MdastShadowRootQuoteExtension,
           ],
+          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -1033,6 +1041,7 @@ describe('@lexical/mdast import/export', () => {
             mdastExtensions: undefined,
           }),
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

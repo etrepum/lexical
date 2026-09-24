@@ -40,6 +40,7 @@ describe('EditorModeAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [EditorModeAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -60,6 +61,7 @@ describe('EditorModeAnnounceExtension', () => {
           }),
           RichTextExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -74,6 +76,7 @@ describe('EditorModeAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [EditorModeAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -94,6 +97,7 @@ describe('EditorModeAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [EditorModeAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

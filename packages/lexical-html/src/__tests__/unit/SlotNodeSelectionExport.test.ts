@@ -51,6 +51,7 @@ function buildEditorWithSlottedParagraph() {
   const editor = buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: null,
+      disableLegacyImport: false,
       name: '[slot-node-selection-html]',
       nodes: [PlainShadowRootNode],
     }),

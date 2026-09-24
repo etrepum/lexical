@@ -102,6 +102,7 @@ describe('named-slots: selection containment (slot isolation)', () => {
           keys.body = body.getKey();
           keys.bodyText = bodyText.getKey();
         },
+        disableLegacyImport: false,
         name: '[slot-selection-poc]',
         nodes: [TestShadowRootNode],
       }),
@@ -422,6 +423,7 @@ describe('named-slots: Point.set rejects decorator key targets', () => {
           keys.body = body.getKey();
           keys.bodyText = bodyText.getKey();
         },
+        disableLegacyImport: false,
         name: '[slot-selection-decorator-key-reject]',
         nodes: [TestShadowRootNode, TestDecoratorNode],
       }),

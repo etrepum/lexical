@@ -25,6 +25,7 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: 'quote-shadow-root-host',
     }),
   );

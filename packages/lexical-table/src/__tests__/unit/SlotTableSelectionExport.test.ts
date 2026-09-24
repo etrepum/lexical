@@ -54,6 +54,7 @@ function buildEditorWithSlottedTable() {
     defineExtension({
       $initialEditorState: null,
       dependencies: [TableExtension],
+      disableLegacyImport: false,
       name: '[slot-table-selection-export]',
       nodes: [PlainShadowRootNode],
       theme: {tableScrollableWrapper: ''},

@@ -78,6 +78,7 @@ beforeEach(() => {
   editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
+      disableLegacyImport: false,
       name: 'LexicalTableUtils-test',
       theme: {tableScrollableWrapper: ''},
     }),

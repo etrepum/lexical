@@ -13,7 +13,10 @@ import {describe, expect, test, vi} from 'vitest';
 describe('LexicalEditor listeners', () => {
   describe('registerRootListener', () => {
     test('can return a function that is called when unregistered', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const rootListenerCallback = vi.fn();
       const rootListener = vi
         .fn()
@@ -31,7 +34,10 @@ describe('LexicalEditor listeners', () => {
       expect(editor._listeners.root.has(rootListener)).toBe(false);
     });
     test('updates the function on each call', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const rootListenerCallback = vi.fn();
       const rootListener = vi
         .fn()
@@ -47,7 +53,10 @@ describe('LexicalEditor listeners', () => {
       expect(rootListenerCallback).toHaveBeenCalledTimes(1);
     });
     test('works when the root element changes too', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const rootListenerCallback = vi.fn();
       const rootListener = vi
         .fn()
@@ -81,7 +90,10 @@ describe('LexicalEditor listeners', () => {
 
   describe('registerEditableListener', () => {
     test('can return a function that is called when unregistered', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const editableListenerCallback = vi.fn();
       const editableListener = vi
         .fn()
@@ -102,7 +114,10 @@ describe('LexicalEditor listeners', () => {
       expect(editor._listeners.editable.has(editableListener)).toBe(false);
     });
     test('updates the function on each call', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const editableListenerCallback = vi.fn();
       const editableListener = vi
         .fn()
@@ -125,7 +140,10 @@ describe('LexicalEditor listeners', () => {
       expect(editableListenerCallback).toHaveBeenCalledTimes(1);
     });
     test('works when editable state changes', () => {
-      using editor = buildEditorFromExtensions({name: '@test'});
+      using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
+        name: '@test',
+      });
       const editableListenerCallback = vi.fn();
       const editableListener = vi
         .fn()
@@ -163,6 +181,7 @@ describe('LexicalEditor listeners', () => {
     function buildRichTextEditor() {
       return buildEditorFromExtensions({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '@test-void-listeners',
       });
     }

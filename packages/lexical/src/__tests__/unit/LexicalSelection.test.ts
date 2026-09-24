@@ -76,6 +76,7 @@ import {
 
 const selectionTestExtension = defineExtension({
   dependencies: [LinkExtension, ListExtension],
+  disableLegacyImport: false,
   name: '@test/selection',
   nodes: [TestDecoratorNode, TestInlineElementNode, TestShadowRootNode],
 });
@@ -962,7 +963,11 @@ describe('Regression tests for #6701', () => {
       }
     }
     using editor = buildEditorFromExtensions(
-      defineExtension({name: '@test/6701', nodes: [InlineElementNode]}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: '@test/6701',
+        nodes: [InlineElementNode],
+      }),
     );
     expect(() =>
       editor.update(
@@ -1316,6 +1321,7 @@ describe('Regression tests for #9095', () => {
   // mid-paragraph case (where it holds the text after the caret) intact.
   const insertBlockTestExtension = defineExtension({
     dependencies: [selectionTestExtension],
+    disableLegacyImport: false,
     name: '@test/selection-insert-block',
     nodes: [QuoteNode],
   });

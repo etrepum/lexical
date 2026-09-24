@@ -47,6 +47,7 @@ function createEditor(): LexicalEditorWithDispose {
         MdastGfmExtension,
         MdastShortcutsExtension,
       ],
+      disableLegacyImport: false,
       name: '[root]',
     }),
   );

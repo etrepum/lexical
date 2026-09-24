@@ -25,6 +25,7 @@ function $prepopulate(): void {
 const extension = defineExtension({
   $initialEditorState: $prepopulate,
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[root]',
 });
 

@@ -36,6 +36,8 @@ function buildEditor() {
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
       dependencies: [CodeExtension],
+
+      disableLegacyImport: false,
       name: 'code-host',
     }),
   );
@@ -168,6 +170,8 @@ describe('CodeImportExtension', () => {
         // merge in dependency order, so CodeExtension's class-restricted
         // <table> rule out-prioritizes TableExtension's generic one.
         dependencies: [TableExtension, CodeExtension],
+
+        disableLegacyImport: false,
         name: 'table-code-host',
         theme: {tableScrollableWrapper: ''},
       }),
@@ -206,6 +210,7 @@ describe('CodeImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [CodeImportExtension],
+        disableLegacyImport: false,
         name: 'code-alias-host',
       }),
     );

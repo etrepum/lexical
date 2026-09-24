@@ -53,6 +53,7 @@ describe('NodeContextMenuPlugin', () => {
       reactRoot.render(
         <LexicalComposer
           initialConfig={{
+            disableLegacyImport: false,
             namespace: 'context-menu',
             onError: (error: Error) => {
               throw error;

@@ -163,6 +163,7 @@ function PlainTextEditor({
   placeholder?: string;
 }) {
   const initialConfig = {
+    disableLegacyImport: false,
     namespace: 'Commenting',
     nodes: [],
     onError: (error: Error) => {

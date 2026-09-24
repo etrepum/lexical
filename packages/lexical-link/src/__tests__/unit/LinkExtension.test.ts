@@ -44,6 +44,7 @@ describe('Link', () => {
       $getRoot().append(p);
     },
     dependencies: [LinkExtension, RichTextExtension],
+    disableLegacyImport: false,
     name: '[root]',
   });
   it('can convert a text node to a link with $toggleLink', () => {
@@ -150,6 +151,7 @@ describe('Link', () => {
           $getRoot().append(p);
         },
         dependencies: [LinkExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root-autolink]',
         nodes: () => [AutoLinkNode],
       });
@@ -375,6 +377,7 @@ describe('Link', () => {
           RichTextExtension,
           CodeExtension,
         ],
+        disableLegacyImport: false,
         name: '[root-code]',
       });
       using editor = buildEditorFromExtensions(codeExtension);
@@ -405,6 +408,7 @@ describe('Link', () => {
           configExtension(LinkExtension, {validateUrl: () => true}),
           RichTextExtension,
         ],
+        disableLegacyImport: false,
         name: '[root-paste]',
       });
       using editor = buildEditorFromExtensions(pasteExtension);
@@ -445,6 +449,7 @@ describe('Link', () => {
         }),
         RichTextExtension,
       ],
+      disableLegacyImport: false,
       name: '[root-attributes]',
     });
 

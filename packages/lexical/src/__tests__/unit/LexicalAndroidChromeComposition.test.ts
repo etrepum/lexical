@@ -49,6 +49,7 @@ function mountEditor($initialEditorState: () => void) {
   const editor = buildEditorFromExtensions({
     $initialEditorState,
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
   });
   editor.setRootElement(container);

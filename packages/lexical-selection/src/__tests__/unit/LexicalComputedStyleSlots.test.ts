@@ -34,6 +34,7 @@ function runInEditor($build: () => void, $check: () => void): void {
       editor_.setRootElement(rootElement);
       return () => rootElement.remove();
     },
+    disableLegacyImport: false,
     name: '@computed-style-slots-test',
     nodes: [TestShadowRootNode],
   });

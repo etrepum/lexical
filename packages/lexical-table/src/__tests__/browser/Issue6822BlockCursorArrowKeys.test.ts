@@ -104,6 +104,8 @@ function setUpEditor($initialEditorState: () => void): LexicalEditor {
       // hasHorizontalScroll defaults on, which is what arms the Firefox
       // scroll workaround under test.
       dependencies: [RichTextExtension, TableExtension],
+
+      disableLegacyImport: false,
       name: '[6822-browser]',
       theme: THEME,
     }),

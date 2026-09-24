@@ -40,6 +40,7 @@ describe('HistoryAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HistoryAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -60,6 +61,7 @@ describe('HistoryAnnounceExtension', () => {
           }),
           RichTextExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -74,6 +76,7 @@ describe('HistoryAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HistoryAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -94,6 +97,7 @@ describe('HistoryAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HistoryAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -116,6 +120,7 @@ describe('HistoryAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HistoryAnnounceExtension, RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

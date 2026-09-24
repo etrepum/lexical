@@ -65,6 +65,7 @@ describe('RichTextExtension escapeFormatTriggers', () => {
           },
         }),
       ],
+      disableLegacyImport: false,
       name: 'test',
     });
   }
@@ -326,6 +327,7 @@ describe('RichTextExtension default capitalization reset', () => {
             );
           },
           dependencies: [RichTextExtension],
+          disableLegacyImport: false,
           name: 'test',
         });
       }
@@ -373,6 +375,7 @@ describe('RichTextExtension escapeFormatTriggers mergeConfig', () => {
           escapeFormatTriggers,
         }),
       ],
+      disableLegacyImport: false,
       name: 'test',
     });
   }

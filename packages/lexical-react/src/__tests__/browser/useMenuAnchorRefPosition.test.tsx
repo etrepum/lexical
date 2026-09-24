@@ -20,6 +20,7 @@ import {type MenuResolution, useMenuAnchorRef} from '../../shared/LexicalMenu';
 // this has to run against a real layout engine.
 const extension = defineExtension({
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[root]',
 });
 

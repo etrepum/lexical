@@ -20,6 +20,7 @@ function Placeholder() {
 }
 
 const editorConfig = {
+  disableLegacyImport: false,
   namespace: 'React.js Demo',
   nodes: [],
   // Handling of errors during update

@@ -581,6 +581,7 @@ export class LexicalEditorElement extends HTMLElement {
           );
         },
         dependencies: [RichTextExtension, HistoryExtension],
+        disableLegacyImport: false,
         name: `lexical-editor/${this.getAttribute('name') || 'anonymous'}`,
         namespace: 'lexical-editor-element',
         theme: {

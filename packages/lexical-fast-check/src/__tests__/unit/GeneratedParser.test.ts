@@ -20,6 +20,7 @@ describe('the generated TextNode parser', () => {
     // and each property independently present or absent — and the generated
     // parser and the walk have to land on the same node for all of them.
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       onError: err => {
         throw err;

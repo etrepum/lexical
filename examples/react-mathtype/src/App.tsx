@@ -41,6 +41,7 @@ const appExtension = defineExtension({
     AutoFocusExtension,
     MathTypeExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/react-mathtype-example/App',
   namespace: '@lexical/react-mathtype-example',
   theme,

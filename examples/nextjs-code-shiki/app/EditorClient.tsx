@@ -25,6 +25,7 @@ const editorExtension = defineExtension({
     AutoFocusExtension,
     CodeShikiDemoExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/nextjs-code-shiki-example/Editor',
   namespace: '@lexical/nextjs-code-shiki-example',
   theme: ExampleTheme,

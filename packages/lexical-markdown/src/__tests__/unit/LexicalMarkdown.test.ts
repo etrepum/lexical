@@ -89,6 +89,7 @@ function createTestEditor(
   config: CreateEditorArgs | undefined = {},
 ): LexicalEditor {
   return createHeadlessEditor({
+    disableLegacyImport: false,
     nodes: [HeadingNode, ListNode, ListItemNode, QuoteNode, CodeNode, LinkNode],
     ...config,
     onError(error) {

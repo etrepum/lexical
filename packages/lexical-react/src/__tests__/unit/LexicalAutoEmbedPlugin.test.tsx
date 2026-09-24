@@ -121,6 +121,7 @@ describe('LexicalAutoEmbedPlugin', () => {
       return (
         <LexicalComposer
           initialConfig={{
+            disableLegacyImport: false,
             namespace: 'test-auto-embed',
             nodes: [LinkNode, AutoLinkNode],
             onError,

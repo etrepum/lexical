@@ -43,6 +43,7 @@ function createEditor(opts?: {
         $getRoot().append($createParagraphNode());
       }),
     dependencies,
+    disableLegacyImport: false,
     name: 'test',
   });
   const root = document.createElement('div');

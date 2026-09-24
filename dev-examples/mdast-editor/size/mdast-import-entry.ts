@@ -32,6 +32,7 @@ export function createMarkdownEditor(): LexicalEditor {
         MdastTaskListExtension,
         MdastShortcutsExtension,
       ],
+      disableLegacyImport: true,
       name: '[root]',
     }),
   );

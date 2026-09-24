@@ -64,6 +64,7 @@ class TestInlineDecoratorNode extends DecoratorNode<null> {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[webkit-linebreak-img]',
   nodes: [TestInlineDecoratorNode],
 });

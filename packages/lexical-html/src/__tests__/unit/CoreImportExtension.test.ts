@@ -42,6 +42,7 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [CoreImportExtension],
+      disableLegacyImport: false,
       name: 'core-host',
     }),
   );
@@ -246,6 +247,7 @@ describe('CoreImportExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -281,6 +283,7 @@ describe('CoreImportExtension', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -329,6 +332,7 @@ describe('CoreImportExtension', () => {
             rules: [CollectedStylesRule, StyleAwareRule],
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -360,6 +364,7 @@ describe('CoreImportExtension', () => {
             rules: [StyleCaptureRule],
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );

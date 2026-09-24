@@ -86,6 +86,7 @@ describe('collab-v2 element selection points', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[v2-element-point]',
         nodes: [TestDecoratorNode],
       }),

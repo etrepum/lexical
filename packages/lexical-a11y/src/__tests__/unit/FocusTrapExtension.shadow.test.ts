@@ -58,6 +58,7 @@ function buildTrapEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [FocusTrapExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root]',
     }),
   );

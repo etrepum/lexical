@@ -67,6 +67,7 @@ function $withEditor(fn: () => void): void {
   using editor = buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: null,
+      disableLegacyImport: false,
       name: '[table-field-accessors]',
       nodes: [TableNode, CappedTableNode, TableCellNode, AlignCellNode],
     }),

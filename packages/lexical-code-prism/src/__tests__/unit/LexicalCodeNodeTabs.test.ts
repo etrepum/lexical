@@ -260,6 +260,7 @@ describe('LexicalCodeNode tests', () => {
             CodePrismExtension,
             configExtension(CodeIndentExtension, {tabSize}),
           ],
+          disableLegacyImport: false,
           name: 'prism-outdent',
         });
         const {text, cursor} = $runOutdentScenario(

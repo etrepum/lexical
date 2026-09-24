@@ -63,7 +63,10 @@ function toggleLink(
   payload: string | {url: string},
   validateUrl?: (url: string) => boolean,
 ): {handled: boolean; linked: boolean} {
-  using editor = buildEditorFromExtensions(makeExtension(validateUrl));
+  using editor = buildEditorFromExtensions(
+    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+    makeExtension(validateUrl),
+  );
   let handled = false;
   editor.update(
     () => {

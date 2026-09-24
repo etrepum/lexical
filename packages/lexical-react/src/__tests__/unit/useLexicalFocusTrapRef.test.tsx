@@ -14,6 +14,12 @@ import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 
+const TestExtension = {
+  dependencies: [FocusTrapExtension],
+  disableLegacyImport: false,
+  name: 'test/FocusTrapExtension',
+};
+
 function Trap({
   isActive,
   buttons = 3,
@@ -39,7 +45,7 @@ function Trap({
 
 function WithExtension({children}: {children: React.ReactNode}) {
   return (
-    <LexicalExtensionComposer extension={FocusTrapExtension}>
+    <LexicalExtensionComposer extension={TestExtension}>
       {children}
     </LexicalExtensionComposer>
   );

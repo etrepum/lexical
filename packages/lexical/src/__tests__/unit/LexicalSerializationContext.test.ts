@@ -51,6 +51,7 @@ describe('compact export', () => {
 
   beforeEach(() => {
     editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       onError: err => {
         throw err;
@@ -198,6 +199,7 @@ describe('compact export: slot hosts', () => {
           $getRoot().clear().append(host);
           $setSlot(host, 'body', slot);
         },
+        disableLegacyImport: false,
         name: '[serialization-slots]',
         nodes: [TestDecoratorNode, TestShadowRootNode],
       }),
@@ -224,6 +226,7 @@ describe('editorState.toJSON states its form at the call site', () => {
             .clear()
             .append($createParagraphNode().append($createTextNode('hi')));
         },
+        disableLegacyImport: false,
         name: '[serialization-tojson]',
       }),
     );
@@ -303,6 +306,7 @@ describe('$isCompactExport reports the walk, not a single node', () => {
             .clear()
             .append($createParagraphNode().append($createTextNode('hi')));
         },
+        disableLegacyImport: false,
         name: '[serialization-iscompact]',
       }),
     );
@@ -361,6 +365,7 @@ describe('$isCompactExport reports the walk, not a single node', () => {
               ),
             );
         },
+        disableLegacyImport: false,
         name: '[serialization-probe]',
         nodes: [ProbeNode],
       }),

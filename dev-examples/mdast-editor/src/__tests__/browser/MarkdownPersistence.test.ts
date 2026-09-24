@@ -64,6 +64,7 @@ test('a malformed #doc= link logs and falls back instead of rejecting unhandled'
           storageKey: '',
         }),
       ],
+      disableLegacyImport: true,
       name: '[mdast-editor-example-persistence-test]',
     }),
   );

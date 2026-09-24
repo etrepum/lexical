@@ -54,6 +54,7 @@ import {
 const PullQuoteTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [PullQuoteExtension],
+  disableLegacyImport: false,
   name: '[test-pullquote]',
   nodes: [PullQuoteNode, SlotContainerNode],
 });

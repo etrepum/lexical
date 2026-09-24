@@ -459,6 +459,7 @@ export function TestComposer({
   return (
     <LexicalComposer
       initialConfig={{
+        disableLegacyImport: false,
         onError: e => {
           throw e;
         },
@@ -487,6 +488,7 @@ export function createTestEditor(
 ): LexicalEditor {
   const customNodes = config.nodes || [];
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: config.namespace,
     onError: e => {
       throw e;
@@ -501,6 +503,7 @@ export function createTestHeadlessEditor(
   editorState?: EditorState,
 ): LexicalEditor {
   return createHeadlessEditor({
+    disableLegacyImport: false,
     editorState,
     onError: error => {
       throw error;

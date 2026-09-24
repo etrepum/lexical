@@ -33,6 +33,7 @@ import {$assertNodeType} from '../utils';
 
 const ext = defineExtension({
   dependencies: [RichTextExtension, ListExtension],
+  disableLegacyImport: false,
   name: '@test/armed-format',
 });
 

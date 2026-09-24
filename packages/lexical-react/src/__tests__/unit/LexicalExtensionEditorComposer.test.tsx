@@ -118,6 +118,7 @@ describe('LexicalExtensionEditorComposer', () => {
             ReactProviderExtension,
             ReactExtension,
           ],
+          disableLegacyImport: false,
           name: 'nested',
         });
         nestedEditor.update(() =>
@@ -141,6 +142,7 @@ describe('LexicalExtensionEditorComposer', () => {
           );
       },
       dependencies: [RichTextPlugin],
+      disableLegacyImport: false,
       name: 'parent',
       namespace: 'parent',
       nodes: [ReactDecoratorNode],
@@ -202,6 +204,7 @@ describe('LexicalExtensionEditorComposer', () => {
   test('does not dispose the editor on unmount', async () => {
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, RichTextPlugin],
+      disableLegacyImport: false,
       name: '[root]',
     });
     const TestCommand: LexicalCommand<number> = createCommand('TestCommand');
@@ -238,6 +241,7 @@ describe('LexicalExtensionEditorComposer', () => {
   test('can remount with the same editor after unmount', async () => {
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, RichTextPlugin],
+      disableLegacyImport: false,
       name: '[root]',
     });
     editor.update(

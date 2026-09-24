@@ -14,6 +14,7 @@ import {describe, expect, test} from 'vitest';
 describe('$generateHtmlFromNodes backward compatibility', () => {
   test('works inside legacy editor.getEditorState().read(cb) scope (no active editor)', () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       nodes: [],
     });
 
@@ -39,6 +40,7 @@ describe('$generateHtmlFromNodes backward compatibility', () => {
 
   test('still works inside editor.read() scope (active editor present)', () => {
     const editor = createHeadlessEditor({
+      disableLegacyImport: false,
       nodes: [],
     });
 

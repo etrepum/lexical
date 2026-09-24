@@ -35,6 +35,7 @@ class TestShadowRootNode extends ElementNode {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[8745-browser]',
   nodes: [TestShadowRootNode],
 });

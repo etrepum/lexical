@@ -58,6 +58,7 @@ describe('RubyNode', () => {
     document.body.appendChild(container);
     editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-node-test',
       onError: e => {
         throw e;
@@ -151,6 +152,7 @@ describe('RubyNode', () => {
 
       const editor2 = buildEditorFromExtensions({
         dependencies: [RubyExtension],
+        disableLegacyImport: false,
         name: 'ruby-parse-test',
         onError: e => {
           throw e;
@@ -535,6 +537,7 @@ describe('RubyExtension Shift+arrow skip', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-shift-arrow-test',
       onError: e => {
         throw e;
@@ -666,6 +669,7 @@ describe('RubyExtension Shift+arrow — consecutive rubies', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-consecutive-test',
       onError: e => {
         throw e;
@@ -804,6 +808,7 @@ describe('RubyExtension Shift+arrow — focus on RubyNode (Safari)', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-safari-test',
       onError: e => {
         throw e;
@@ -938,6 +943,7 @@ describe('RubyExtension arrow — line boundary', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-boundary-test',
       onError: e => {
         throw e;
@@ -1138,6 +1144,7 @@ describe('RubyExtension backspace', () => {
     document.body.appendChild(container);
     editor = buildEditorFromExtensions({
       dependencies: [RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-backspace-test',
       onError: e => {
         throw e;
@@ -1328,6 +1335,7 @@ describe('RubyExtension arrow — guard conditions', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-guard-test',
       onError: e => {
         throw e;
@@ -1426,6 +1434,7 @@ describe('RubyExtension arrow — element points', () => {
     document.body.appendChild(container);
     extEditor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-element-point-test',
       onError: e => {
         throw e;
@@ -1581,6 +1590,7 @@ describe('RubyImportRule — HTML <ruby> import', () => {
   function importAndRead(html: string) {
     const editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-import-test',
       onError: (e: Error) => {
         throw e;

@@ -26,6 +26,7 @@ import {$createTestDecoratorNode, TestDecoratorNode} from '../utils';
 
 const ext = defineExtension({
   dependencies: [RichTextExtension, ListExtension],
+  disableLegacyImport: false,
   name: '[8722]',
   nodes: [TestDecoratorNode],
 });

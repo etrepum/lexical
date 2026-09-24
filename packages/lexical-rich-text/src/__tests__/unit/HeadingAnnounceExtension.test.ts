@@ -84,6 +84,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -100,6 +101,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -116,6 +118,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -141,6 +144,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -176,6 +180,7 @@ describe('HeadingAnnounceExtension', () => {
           }),
           RichTextExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -192,6 +197,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -211,6 +217,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -239,6 +246,7 @@ describe('HeadingAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, PlainTextExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

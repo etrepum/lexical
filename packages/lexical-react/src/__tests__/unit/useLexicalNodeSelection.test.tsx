@@ -77,6 +77,7 @@ describe('useLexicalNodeSelection', () => {
     return (
       <LexicalComposer
         initialConfig={{
+          disableLegacyImport: false,
           namespace: 'node-selection',
           nodes: [HorizontalRuleNode],
           onError: (error: Error) => {

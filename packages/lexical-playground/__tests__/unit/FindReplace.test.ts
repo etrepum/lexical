@@ -94,6 +94,7 @@ function $createSlotDecoratorNode(): SlotDecoratorNode {
 
 const TestExtension = defineExtension({
   dependencies: [RichTextExtension, ListExtension, LinkExtension],
+  disableLegacyImport: false,
   name: '[test-find-replace]',
   nodes: [TestDecoratorNode, SlotDecoratorNode],
 });
@@ -913,7 +914,10 @@ describe('$replaceAllMatches', () => {
 
 describe('FindReplaceExtension — command dispatch integration', () => {
   test('TOGGLE_FIND_REPLACE_COMMAND toggles isOpen signal', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     expect(dep.output.isOpen.peek()).toBe(false);
     editor.dispatchCommand(TOGGLE_FIND_REPLACE_COMMAND);
@@ -923,7 +927,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('CLOSE_FIND_REPLACE_COMMAND sets isOpen to false', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.dispatchCommand(TOGGLE_FIND_REPLACE_COMMAND);
     expect(dep.output.isOpen.peek()).toBe(true);
@@ -932,7 +939,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('matches computed signal updates when searchTerm and text change', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -954,7 +964,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('FIND_NEXT_COMMAND / FIND_PREV_COMMAND cycle currentIndex', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -985,7 +998,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('FIND_NEXT_COMMAND with zero matches is a no-op', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.dispatchCommand(TOGGLE_FIND_REPLACE_COMMAND);
     dep.output.searchTerm.value = 'nonexistent';
@@ -997,7 +1013,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('matches returns empty when isOpen is false', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -1015,7 +1034,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('effectiveIndex clamps when match count decreases', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -1037,7 +1059,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('regexError computed returns true for invalid regex', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.dispatchCommand(TOGGLE_FIND_REPLACE_COMMAND);
     dep.output.isRegex.value = true;
@@ -1048,7 +1073,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('SET_SEARCH_TERM_COMMAND resets currentIndex to 0', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -1069,7 +1097,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('TOGGLE_CASE_SENSITIVE / TOGGLE_REGEX reset currentIndex to 0', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -1095,7 +1126,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('REPLACE_CURRENT_COMMAND replaces the current match', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {
@@ -1118,7 +1152,10 @@ describe('FindReplaceExtension — command dispatch integration', () => {
   });
 
   test('REPLACE_ALL_COMMAND replaces all matches', () => {
-    using editor = buildEditorFromExtensions(FindReplaceExtension);
+    using editor = buildEditorFromExtensions(
+      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+      FindReplaceExtension,
+    );
     const dep = getExtensionDependencyFromEditor(editor, FindReplaceExtension);
     editor.update(
       () => {

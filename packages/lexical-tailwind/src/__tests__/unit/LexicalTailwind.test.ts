@@ -28,6 +28,7 @@ describe('TailwindExtension', () => {
         return () => editor.setRootElement(null);
       },
       dependencies: [TailwindExtension],
+      disableLegacyImport: false,
       name: '@lexical/tailwind/test',
     });
     expectHtmlToBeEqual(

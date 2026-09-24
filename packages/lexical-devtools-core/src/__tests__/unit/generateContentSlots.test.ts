@@ -36,6 +36,7 @@ describe('generateContent named slots', () => {
           $getRoot().append(host);
           $setSlot(host, 'media', media);
         },
+        disableLegacyImport: false,
         name: '[generate-content-slots]',
         nodes: [TestDecoratorNode, TestShadowRootNode],
       }),

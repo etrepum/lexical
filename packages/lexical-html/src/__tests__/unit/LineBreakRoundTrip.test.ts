@@ -35,6 +35,7 @@ import {describe, expect, test} from 'vitest';
 const extension = defineExtension({
   $initialEditorState: null,
   dependencies: [RichTextExtension, LinkExtension],
+  disableLegacyImport: false,
   name: '[linebreak-round-trip]',
 });
 

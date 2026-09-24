@@ -234,6 +234,7 @@ function buildTestEditor(
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(KeyboardShortcutsExtension, {shortcuts})],
+      disableLegacyImport: false,
       name: 'keyboard-shortcuts-test',
       register: editor =>
         mergeRegister(
@@ -262,6 +263,7 @@ function buildLayeredEditor(
       dependencies: layers.map(layer =>
         configExtension(KeyboardShortcutsExtension, layer),
       ),
+      disableLegacyImport: false,
       name: 'layered-test',
       register: editor =>
         mergeRegister(
@@ -844,6 +846,7 @@ describe('KeyboardShortcutsExtension nested editors', () => {
             shortcuts,
           }),
         ],
+        disableLegacyImport: false,
         name: 'parent',
         register: registerRecorder('parent'),
       }),
@@ -852,6 +855,7 @@ describe('KeyboardShortcutsExtension nested editors', () => {
       buildEditorFromExtensions(
         defineExtension({
           dependencies: [NestedEditorExtension],
+          disableLegacyImport: false,
           name: 'child',
           register: registerRecorder('child'),
         }),

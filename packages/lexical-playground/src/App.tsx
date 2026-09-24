@@ -341,6 +341,7 @@ function buildExtensionFromSettings(settings: DynamicSettings) {
       /* @__PURE__ */ configExtension(HistoryExtension, {disabled: isCollab}),
       isRichText ? PlaygroundRichTextExtension : PlainTextExtension,
     ],
+    disableLegacyImport: false,
     name: '@lexical/playground/dynamic-config',
     // Apply INITIAL_SETTINGS to the extension config signals synchronously as
     // the editor is built (and wire the editable→clickable-link signal),

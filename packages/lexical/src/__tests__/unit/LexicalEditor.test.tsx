@@ -2613,26 +2613,30 @@ describe('LexicalEditor tests', () => {
     }
     expect(() =>
       // @ts-expect-error
-      createEditor({nodes: [FakeLexicalNode]}),
+      createEditor({disableLegacyImport: false, nodes: [FakeLexicalNode]}),
     ).toThrow(
       /nodes\[0\] FakeLexicalNode \(type fake-node\) is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('rejects creating an editor with invalid LexicalNode parent class (no getType)', async () => {
     class FakeLexicalNode {}
-    // @ts-expect-error
-    expect(() => createEditor({nodes: [FakeLexicalNode]})).toThrow(
+    expect(() =>
+      // @ts-expect-error
+      createEditor({disableLegacyImport: false, nodes: [FakeLexicalNode]}),
+    ).toThrow(
       /nodes\[0\] FakeLexicalNode is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('rejects creating an editor with invalid LexicalNode parent class (undefined)', async () => {
-    // @ts-expect-error
-    expect(() => createEditor({nodes: [undefined]})).toThrow(
+    expect(() =>
+      // @ts-expect-error
+      createEditor({disableLegacyImport: false, nodes: [undefined]}),
+    ).toThrow(
       /nodes\[0\] undefined is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('mutation listener on newly initialized editor', async () => {
-    editor = createEditor();
+    editor = createEditor({disableLegacyImport: false});
     const textNodeMutations = vi.fn();
     editor.registerMutationListener(TextNode, textNodeMutations, {
       skipInitialization: false,

@@ -69,7 +69,11 @@ function $pasteHtml(editor: LexicalEditorWithDispose, html: string) {
 describe('ClipboardImportExtension', () => {
   test('default importer handles a basic <p> paste (no extension configured)', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({$initialEditorState, name: 'host'}),
+      defineExtension({
+        $initialEditorState,
+        disableLegacyImport: false,
+        name: 'host',
+      }),
     );
     $pasteHtml(editor, '<p>hello</p>');
     editor.read(() => {
@@ -100,6 +104,7 @@ describe('ClipboardImportExtension', () => {
             },
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -129,6 +134,7 @@ describe('ClipboardImportExtension', () => {
             },
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -166,6 +172,7 @@ describe('ClipboardImportExtension', () => {
             priority: {'application/vnd.myapp+json': 5},
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -218,6 +225,7 @@ describe('ClipboardImportExtension', () => {
             priority: {'application/vnd.myapp+json': 1},
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -262,6 +270,7 @@ describe('ClipboardImportExtension', () => {
             },
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -291,6 +300,7 @@ describe('$insertDataTransferForRichText selection argument (#6278)', () => {
             );
           second.select();
         },
+        disableLegacyImport: false,
         name: 'host',
       }),
     );

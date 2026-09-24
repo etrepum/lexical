@@ -1130,15 +1130,19 @@ const editor = buildEditorFromExtensions(
 );
 ```
 
-`disableLegacyImport` defaults to `false`. Setting it to `true` skips calls to
+`disableLegacyImport` defaults to `null`: legacy import stays enabled and
+emits a one-time development warning. Set it to `false` to explicitly retain
+legacy import without warning while migrating. Setting it to `true` skips calls to
 registered nodes' static `importDOM` factories and allocation of the
 legacy conversion cache. Calling the old `$generateNodesFromDOM` then
 throws with migration guidance, including for an empty document.
 Nonempty `html.import` configurations are rejected during editor
 construction so overrides cannot silently disappear.
 
-The lower-level equivalent is `html: {import: false}` in `createEditor`
-or an extension. It disables legacy import without installing any
+The same `disableLegacyImport` setting is available in `createEditor`,
+`LexicalComposer` initial configuration, and extension definitions. The
+lower-level `html: {import: false}` equivalent is also supported in
+`createEditor` or an extension. It disables legacy import without installing any
 replacement. Combining that setting with an extension's legacy
 conversion map is an error regardless of extension order. HTML export
 configuration is preserved.
@@ -1149,7 +1153,7 @@ methods, or promise to eliminate their code from application bundles.
 Removing those methods and changing the default require a later
 compatibility decision, after the extension API stabilizes and consumers
 have had time to migrate. Initializing the legacy import pipeline emits a
-one-time development warning with migration guidance. Disabling legacy import
+one-time development warning with migration guidance. Explicitly setting `disableLegacyImport` to either `true` or `false`
 suppresses the warning. Built-in and third-party nodes can still support both
 pipelines during the transition.
 

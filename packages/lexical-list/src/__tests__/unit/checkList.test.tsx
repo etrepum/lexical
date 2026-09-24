@@ -56,6 +56,7 @@ describe('CheckListExtension mobile tap toggle', () => {
       $getRoot().append(list);
     },
     dependencies: [CheckListExtension, RichTextExtension],
+    disableLegacyImport: false,
     name: '[checklist-test]',
   });
 

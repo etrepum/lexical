@@ -444,6 +444,9 @@ export class LexicalBuilder {
       if (extension.onWarn !== undefined) {
         config.onWarn = extension.onWarn;
       }
+      if (extension.disableLegacyImport !== undefined) {
+        config.disableLegacyImport = extension.disableLegacyImport;
+      }
       if (extension.disableEvents !== undefined) {
         config.disableEvents = extension.disableEvents;
       }

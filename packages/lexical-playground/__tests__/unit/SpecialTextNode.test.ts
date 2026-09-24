@@ -27,6 +27,7 @@ function buildEditor() {
       editor.setRootElement(document.createElement('div'));
       return () => editor.setRootElement(null);
     },
+    disableLegacyImport: false,
     name: 'test',
     nodes: [SpecialTextNode],
     theme: {specialText: 'PlaygroundSpecialText'},
