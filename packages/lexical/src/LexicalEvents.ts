@@ -1135,9 +1135,13 @@ function $handleBeforeInput(event: InputEvent): boolean {
 
       // Safari does not provide the type "insertLineBreak".
       // So instead, we need to infer it from the keyboard event.
-      // We do not apply this logic to iOS to allow newline auto-capitalization
-      // work without creating linebreaks when pressing Enter
-      if (inputState.isInsertLineBreak && !IS_IOS) {
+      // On iOS the on-screen keyboard's auto-capitalization also sets
+      // shiftKey on Enter, so there we only honor it when the Shift key
+      // itself was seen being pressed (e.g. on a hardware keyboard).
+      if (
+        inputState.isInsertLineBreak &&
+        (!IS_IOS || inputState.isShiftKeyPressed)
+      ) {
         inputState.isInsertLineBreak = false;
         dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
       } else {
@@ -1605,6 +1609,11 @@ function onKeyDown(event: KeyboardEvent, editor: LexicalEditor): void {
   const inputState = editor._inputState;
   inputState.lastKeyDownTimeStamp = event.timeStamp;
   inputState.lastKeyCode = event.key;
+  if (event.key === 'Shift') {
+    inputState.isShiftKeyPressed = true;
+  } else if (!event.shiftKey) {
+    inputState.isShiftKeyPressed = false;
+  }
   if (event.key !== 'Backspace') {
     clearHandledSelectionCommandInsertText(inputState);
   }

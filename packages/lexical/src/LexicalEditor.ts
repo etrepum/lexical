@@ -297,6 +297,14 @@ export interface InputState {
   };
   isSelectionChangeFromMouseDown: boolean;
   isInsertLineBreak: boolean;
+  /**
+   * True while the Shift key that is held down was seen being pressed, i.e.
+   * a keydown with key 'Shift' has fired since the last keydown without
+   * shiftKey. iOS sets shiftKey on the Enter keydown when the on-screen
+   * keyboard's auto-capitalization is active, but only a real Shift press
+   * (e.g. on a hardware keyboard) fires a keydown for Shift itself.
+   */
+  isShiftKeyPressed: boolean;
 
   isInsertTextAfterHandledSelectionCommand: boolean;
   handledSelectionCommandTimeoutId: ReturnType<typeof setTimeout> | null;
@@ -320,6 +328,7 @@ export function createInputState(): InputState {
     isInsertTextAfterHandledSelectionCommand: false,
     isSelectionChangeFromDOMUpdate: false,
     isSelectionChangeFromMouseDown: false,
+    isShiftKeyPressed: false,
     lastBeforeInputInsertTextTimeStamp: 0,
     lastKeyCode: null,
     lastKeyDownTimeStamp: 0,
