@@ -49,11 +49,13 @@ function $readSelectionState(): ToolbarSelectionState {
     return DEFAULT_SELECTION_STATE;
   }
   const anchorNode = selection.anchor.getNode();
-  const topLevelElement =
-    $findMatchingParent(anchorNode, e => {
-      const parent = e.getParent();
-      return parent !== null && $isRootOrShadowRoot(parent);
-    }) ?? anchorNode.getTopLevelElementOrThrow();
+  // The anchor can be the root itself (e.g. after select all + delete
+  // empties the document), which has no top level element; treat that
+  // like a paragraph rather than calling getTopLevelElementOrThrow.
+  const topLevelElement = $findMatchingParent(anchorNode, e => {
+    const parent = e.getParent();
+    return parent !== null && $isRootOrShadowRoot(parent);
+  });
   let blockType: BlockType = 'paragraph';
   if ($isHeadingNode(topLevelElement)) {
     const tag = topLevelElement.getTag();
