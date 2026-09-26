@@ -12,8 +12,11 @@
  * iOS only reports insertParagraph from beforeinput, so Lexical infers a line
  * break from the Enter keydown's shiftKey. The on-screen keyboard also sets
  * shiftKey on Enter while auto-capitalization is active, which must still
- * insert a paragraph. Only a real Shift press (e.g. on a hardware keyboard)
- * fires a keydown for Shift itself, so that is what distinguishes the two.
+ * insert a paragraph. Only a real Shift press fires a keydown for Shift
+ * itself, so that is what distinguishes the two: Enter inserts a line break
+ * when Shift is held down (hardware keyboard) or was the key tapped right
+ * before it (on-screen keyboard, where the tap may instead have turned off a
+ * Shift that auto-capitalization had turned on).
  */
 
 import {buildEditorFromExtensions} from '@lexical/extension';
@@ -78,19 +81,42 @@ function createEditor(): LexicalEditorWithDispose {
   });
 }
 
-function keydown(
+function keyEvent(
+  type: 'keydown' | 'keyup',
   editor: LexicalEditor,
   key: string,
-  init: KeyboardEventInit = {},
+  init: KeyboardEventInit,
 ): void {
   editor.getRootElement()!.dispatchEvent(
-    new KeyboardEvent('keydown', {
+    new KeyboardEvent(type, {
       bubbles: true,
       cancelable: true,
       key,
       ...init,
     }),
   );
+}
+
+function keydown(
+  editor: LexicalEditor,
+  key: string,
+  init: KeyboardEventInit = {},
+): void {
+  keyEvent('keydown', editor, key, init);
+}
+
+function keyup(
+  editor: LexicalEditor,
+  key: string,
+  init: KeyboardEventInit = {},
+): void {
+  keyEvent('keyup', editor, key, init);
+}
+
+/** A tap of the on-screen keyboard's Shift key. */
+function tapShift(editor: LexicalEditor, shiftKey: boolean): void {
+  keydown(editor, 'Shift', {shiftKey});
+  keyup(editor, 'Shift', {shiftKey});
 }
 
 function insertParagraph(editor: LexicalEditor): void {
@@ -111,7 +137,7 @@ function readShape(editor: LexicalEditor): [number, boolean] {
 }
 
 describe('iOS Shift+Enter', () => {
-  test('inserts a line break when Shift was pressed (hardware keyboard)', () => {
+  test('inserts a line break while Shift is held (hardware keyboard)', () => {
     using editor = createEditor();
 
     keydown(editor, 'Shift', {shiftKey: true});
@@ -128,8 +154,61 @@ describe('iOS Shift+Enter', () => {
     keydown(editor, 'A', {shiftKey: true});
     keydown(editor, 'Enter', {shiftKey: true});
     insertParagraph(editor);
+    keydown(editor, 'Enter', {shiftKey: true});
+    insertParagraph(editor);
 
     expect(readShape(editor)).toEqual([1, true]);
+    editor.read('latest', () => {
+      expect($getRoot().getTextContent()).toBe('Hello\n\n');
+    });
+  });
+
+  test('inserts a paragraph once a held Shift is released', () => {
+    using editor = createEditor();
+
+    keydown(editor, 'Shift', {shiftKey: true});
+    keydown(editor, 'A', {shiftKey: true});
+    keyup(editor, 'Shift');
+    keydown(editor, 'Enter');
+    insertParagraph(editor);
+
+    expect(readShape(editor)).toEqual([2, false]);
+  });
+
+  test('inserts a line break when Shift is tapped on (on-screen keyboard)', () => {
+    using editor = createEditor();
+
+    tapShift(editor, true);
+    keydown(editor, 'Enter', {shiftKey: true});
+    insertParagraph(editor);
+
+    expect(readShape(editor)).toEqual([1, true]);
+  });
+
+  test('inserts a line break when the tap turns off auto-capitalization', () => {
+    // Auto-capitalization had Shift on, so tapping it turns it off and the
+    // Enter keydown no longer reports shiftKey.
+    using editor = createEditor();
+
+    tapShift(editor, false);
+    keydown(editor, 'Enter');
+    insertParagraph(editor);
+
+    expect(readShape(editor)).toEqual([1, true]);
+  });
+
+  test('does not stick after a tapped Shift+Enter', () => {
+    // Auto-capitalization turns Shift back on for the next line, but only
+    // the Enter right after the tap is a line break.
+    using editor = createEditor();
+
+    tapShift(editor, true);
+    keydown(editor, 'Enter', {shiftKey: true});
+    insertParagraph(editor);
+    keydown(editor, 'Enter', {shiftKey: true});
+    insertParagraph(editor);
+
+    expect(readShape(editor)).toEqual([2, true]);
   });
 
   test('inserts a paragraph when shiftKey comes from auto-capitalization', () => {
