@@ -96,6 +96,7 @@ describe('registerLexicalTextEntity (#5466)', () => {
   for (const [first, second, expected, description] of cases) {
     test(description, async () => {
       using editor = buildEditorFromExtensions({
+        disableLegacyImport: false,
         name: 'test',
         nodes: [TestEntityNode],
         register: editor_ =>

@@ -28,6 +28,7 @@ import ToolbarPlugin from './plugins/ToolbarPlugin';
 import TreeViewPlugin from './plugins/TreeViewPlugin';
 
 const editorConfig = {
+  disableLegacyImport: false,
   namespace: 'React.js Demo',
   nodes: [TableNode, TableCellNode, TableRowNode],
   // Handling of errors during update

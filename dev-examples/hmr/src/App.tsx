@@ -23,6 +23,7 @@ const extension = defineExtension({
     AutoFocusExtension,
     configExtension(HMRExtension, {hot: import.meta.hot ?? null}),
   ],
+  disableLegacyImport: false,
   name: '@lexical/examples/hmr',
   namespace: 'HMR Demo',
 });

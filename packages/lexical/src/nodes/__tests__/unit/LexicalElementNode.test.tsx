@@ -187,7 +187,7 @@ describe('LexicalElementNode tests', () => {
           );
       }
       await update($initialState);
-      const headless = createEditor();
+      const headless = createEditor({disableLegacyImport: false});
       headless.update($initialState, {discrete: true});
       expect(headless.toJSON()).toEqual(editor.toJSON());
     });
@@ -772,6 +772,7 @@ describe('getDOMSlot tests', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     editor = createEditor({
+      disableLegacyImport: false,
       nodes: [WrapperElementNode],
       onError: error => {
         throw error;

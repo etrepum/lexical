@@ -38,6 +38,8 @@ function buildEditor() {
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
       dependencies: [TableExtension],
+
+      disableLegacyImport: false,
       name: 'table-host',
       theme: {tableScrollableWrapper: ''},
     }),
@@ -131,6 +133,7 @@ describe('TableImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [TableImportExtension],
+        disableLegacyImport: false,
         name: 'table-alias-host',
         theme: {tableScrollableWrapper: ''},
       }),

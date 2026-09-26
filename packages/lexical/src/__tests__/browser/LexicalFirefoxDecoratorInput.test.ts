@@ -44,6 +44,7 @@ function createEditor(): LexicalEditor {
       );
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [InputDecoratorNode],
   });

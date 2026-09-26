@@ -69,6 +69,7 @@ class TestBlockDecoratorNode extends DecoratorNode<null> {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[8922-browser]',
   nodes: [TestBlockDecoratorNode],
 });

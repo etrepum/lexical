@@ -200,6 +200,7 @@ function buildTestEditor(extraRules: AnyDOMImportRule[]) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(DOMImportExtension, {rules: extraRules})],
+      disableLegacyImport: true,
       name: 'test-host',
       nodes: [LinkNode],
     }),
@@ -404,6 +405,7 @@ describe('DOMImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [mid],
+        disableLegacyImport: true,
         name: 'test-root',
         nodes: [LinkNode],
       }),
@@ -444,6 +446,7 @@ describe('DOMImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [makeExtension('first'), makeExtension('second')],
+        disableLegacyImport: true,
         name: 'test-sibling-root',
         nodes: [LinkNode],
       }),

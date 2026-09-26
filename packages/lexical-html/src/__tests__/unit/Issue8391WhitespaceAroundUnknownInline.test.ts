@@ -115,6 +115,7 @@ describe('issue #8391 — whitespace around unknown inline elements', () => {
           CoreImportExtension,
           configExtension(DOMImportExtension, {rules: [TooltipRule]}),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -152,6 +153,7 @@ describe('issue #8391 — whitespace around unknown inline elements', () => {
             rules: [TooltipRule],
           }),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -174,6 +176,7 @@ describe('issue #8391 — whitespace around unknown inline elements', () => {
           CoreImportExtension,
           configExtension(DOMImportExtension, {rules: [TooltipRule]}),
         ],
+        disableLegacyImport: false,
         name: 'host',
       }),
     );

@@ -146,6 +146,7 @@ function createApp(
     return (
       <LexicalComposer
         initialConfig={{
+          disableLegacyImport: false,
           namespace: 'test-typeahead',
           nodes,
           onError: err => {

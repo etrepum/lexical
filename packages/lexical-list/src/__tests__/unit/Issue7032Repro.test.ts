@@ -28,6 +28,7 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
+      disableLegacyImport: false,
       name: 'issue-7032-host',
     }),
   );

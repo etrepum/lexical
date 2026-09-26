@@ -93,6 +93,7 @@ buildEditorFromExtensions({
     HorizontalRuleExtension,
     LazyExtension,
   ],
+  disableLegacyImport: false,
   name: '[root]',
   namespace: '@lexical/extension-vanilla-tailwind-example',
 });

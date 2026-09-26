@@ -29,6 +29,7 @@ import {
 const EmojiThemeTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[test-emoji-theme]',
   nodes: [EmojiNode],
   theme: {text: {bold: 'theme-bold', underline: 'theme-underline'}},

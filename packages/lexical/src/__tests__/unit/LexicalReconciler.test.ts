@@ -455,6 +455,7 @@ describe('LexicalReconciler', () => {
             para.setIndent(3);
             $getRoot().clear().append(para);
           },
+          disableLegacyImport: false,
           name: 'set-element-indent-var',
         }),
       );
@@ -488,6 +489,7 @@ describe('LexicalReconciler', () => {
             para.setIndent(2);
             $getRoot().clear().append(para);
           },
+          disableLegacyImport: false,
           name: 'set-element-indent-clear',
         }),
       );
@@ -519,7 +521,10 @@ describe('LexicalReconciler', () => {
     function createReconcilerEditor() {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
-        defineExtension({name: 'reconciler-suffix-test'}),
+        defineExtension({
+          disableLegacyImport: false,
+          name: 'reconciler-suffix-test',
+        }),
       );
       editor.setRootElement(document.createElement('div'));
       return editor;
@@ -1206,7 +1211,10 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         LinkExtension,
-        defineExtension({name: 'reconciler-suffix-test-with-link'}),
+        defineExtension({
+          disableLegacyImport: false,
+          name: 'reconciler-suffix-test-with-link',
+        }),
       );
       editor.setRootElement(document.createElement('div'));
       return editor;
@@ -1559,6 +1567,7 @@ describe('LexicalReconciler', () => {
         RichTextExtension,
         LinkExtension,
         defineExtension({
+          disableLegacyImport: false,
           name: 'wrapper-audit',
           nodes: [WrapperElementNode],
         }),
@@ -1646,6 +1655,7 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
+          disableLegacyImport: false,
           name: 'block-wrapper-audit',
           nodes: [BlockWrapperElementNode],
         }),
@@ -1760,6 +1770,7 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
+          disableLegacyImport: false,
           name: 'block-wrapper-audit-b',
           nodes: [BlockWrapperElementNode, RerenderParagraphNode],
         }),
@@ -1883,6 +1894,7 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
+          disableLegacyImport: false,
           name: 'same-size-rerender-audit',
           nodes: [RerenderParagraphNode],
         }),
@@ -1970,7 +1982,10 @@ describe('LexicalReconciler', () => {
     // wouldn't fail. The output sentinel still catches a broken splice
     // (e.g. wrong `oldSuffixLength`, off-by-one boundary).
     test('AUDIT-7: K=3 contiguous suffix with sizeDelta=+1 — output sentinel after helper bail', () => {
-      const editor = buildEditorFromExtensions(RichTextExtension);
+      const editor = buildEditorFromExtensions(
+        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+        RichTextExtension,
+      );
       editor.setRootElement(document.createElement('div'));
 
       try {

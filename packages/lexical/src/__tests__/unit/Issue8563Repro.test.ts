@@ -28,6 +28,7 @@ describe('Issue #8563: full reconcile with same-size child key swap', () => {
     const errors: Error[] = [];
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: 'issue-8563-repro',
       onError: e => {
         errors.push(e);

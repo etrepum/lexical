@@ -61,7 +61,10 @@ describe('Issue #5366: hashtags block the heading shortcut', () => {
   ])(
     'transforms with the "%s" shortcut typed before existing text',
     (shortcut, tag) => {
-      using editor = buildEditorFromExtensions([Issue5366TestExtension]);
+      using editor = buildEditorFromExtensions(
+        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+        [Issue5366TestExtension],
+      );
 
       editor.update(
         () => {

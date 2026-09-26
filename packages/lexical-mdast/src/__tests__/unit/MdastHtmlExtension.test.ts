@@ -297,6 +297,7 @@ function createEditor(withAsideExport = false): LexicalEditorWithDispose {
             ]
           : []),
       ],
+      disableLegacyImport: false,
       name: '[root]',
       nodes: [CalloutNode, KeyNode, RedactedNode],
     }),
@@ -880,6 +881,7 @@ describe('MdastHtmlExtension', () => {
               ],
             }),
           ],
+          disableLegacyImport: false,
           name: '[bridge-probe]',
         }),
       );

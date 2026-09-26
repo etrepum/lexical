@@ -46,6 +46,7 @@ const appExtension = defineExtension({
     TreeViewExtension,
     TableExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/examples/extension-react-table',
   namespace: '@lexical/examples/extension-react-table',
   theme: ExampleTheme,

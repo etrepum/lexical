@@ -168,6 +168,9 @@ export interface StaticNodeConfigValue<
   $importJSON?(serializedNode: SerializedPartial<SerializedLexicalNode>): T;
   /**
    * An alternative to the static importDOM() method
+   *
+   * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`
+   * in the extension that registers this node instead.
    */
   readonly importDOM?: DOMConversionMap;
   /**
@@ -1158,6 +1161,10 @@ export class LexicalNode {
     }
   }
 
+  /**
+   * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`
+   * in the extension that registers this node instead.
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static importDOM?: () => DOMConversionMap<any> | null;
 

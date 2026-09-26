@@ -31,6 +31,7 @@ describe('ListExtension', () => {
       );
     },
     dependencies: [ListExtension, RichTextExtension],
+    disableLegacyImport: false,
     name: '[root]',
   });
   it('Creates the list', () => {
@@ -55,6 +56,7 @@ describe('CheckListExtension', () => {
       );
     },
     dependencies: [CheckListExtension, RichTextExtension],
+    disableLegacyImport: false,
     name: '[root]',
   });
 
@@ -77,6 +79,7 @@ describe('CheckListExtension', () => {
         $getRoot().append(list);
       },
       dependencies: [ConfiguredListExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root-configured]',
     });
 

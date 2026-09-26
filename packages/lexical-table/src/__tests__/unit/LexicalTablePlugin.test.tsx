@@ -28,6 +28,7 @@ describe('LexicalTablePlugin', () => {
 
   beforeEach(async () => {
     const testConfig = {
+      disableLegacyImport: false,
       namespace: 'test',
       nodes: [TableNode, TableCellNode, TableRowNode],
       onError: (error: Error) => {

@@ -444,6 +444,7 @@ function StyleValueEditor(props: StyleValueEditorProps) {
   return (
     <LexicalComposer
       initialConfig={{
+        disableLegacyImport: false,
         editable: true,
         editorState: () => {
           $patchParsedTextAtRoot(parseRawText(props.value));

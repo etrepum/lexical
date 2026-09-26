@@ -32,6 +32,7 @@ const ToolbarTestExtension = defineExtension({
       .append($createParagraphNode().append($createTextNode('hello')));
   },
   dependencies: [RichTextExtension, RovingTabIndexExtension],
+  disableLegacyImport: false,
   name: '[test-floating-toolbar]',
 });
 

@@ -33,6 +33,7 @@ const theme = {
 
 const landingHeroExtension = defineExtension({
   dependencies: [RichTextExtension, HistoryExtension, TabIndentationExtension],
+  disableLegacyImport: false,
   name: '@lexical/website/landing-hero-editor',
   namespace: '@lexical/website/landing-hero-editor',
   theme,

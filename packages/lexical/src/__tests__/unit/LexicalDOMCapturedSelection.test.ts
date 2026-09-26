@@ -33,6 +33,7 @@ function createEditor(): LexicalEditorWithDispose {
         .append($createParagraphNode().append($createTextNode('hello')));
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [TestDecoratorNode],
   });

@@ -46,6 +46,7 @@ describe('collab-v1 node state: unknown keys', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[node-state-unknown]',
       }),
     );

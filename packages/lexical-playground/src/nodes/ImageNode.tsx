@@ -67,6 +67,7 @@ const CaptionEditorExtension = defineExtension({
   // non-collab mode RichText's normalization adds a paragraph as soon
   // as the editor mounts.
   $initialEditorState: null,
+
   dependencies: [
     // FIXME - The current playground has tests that assume that image captions don't have shared history
     // SharedHistoryExtension,
@@ -89,6 +90,7 @@ const CaptionEditorExtension = defineExtension({
       decorators: [<MentionsPlugin key="mentions" />],
     }),
   ],
+  disableLegacyImport: false,
   name: '@lexical/playground/ImageNodeCaption',
   namespace: 'Playground/ImageNodeCaption',
   nodes: [EmojiNode],

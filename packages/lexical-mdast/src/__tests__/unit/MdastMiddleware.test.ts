@@ -62,6 +62,7 @@ function createEditor(config: Partial<MdastConfig>) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(MdastExtension, config)],
+      disableLegacyImport: true,
       name: '[middleware]',
       nodes: [DerivedTextNode, LiteralNode],
     }),
@@ -222,6 +223,7 @@ describe('mdast middleware', () => {
             ],
           }),
         ],
+        disableLegacyImport: true,
         name: '[replacement-middleware]',
         nodes: [
           DerivedTextNode,

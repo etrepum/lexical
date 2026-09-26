@@ -61,6 +61,7 @@ describe('TableExtension', () => {
     editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [TableExtension],
+        disableLegacyImport: false,
         name: 'table-test',
         theme: {tableScrollableWrapper: 'table-scrollable-wrapper'},
       }),

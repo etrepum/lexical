@@ -30,7 +30,7 @@ describe('selectionchange listener reference counting', () => {
     const root = document.createElement('div');
     root.contentEditable = 'true';
     document.body.appendChild(root);
-    const editor = createEditor();
+    const editor = createEditor({disableLegacyImport: false});
     editor.setRootElement(root);
     return {
       detach() {

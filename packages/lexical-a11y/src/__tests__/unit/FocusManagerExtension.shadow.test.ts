@@ -50,6 +50,7 @@ function buildFocusManagerEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [FocusManagerExtension, RichTextExtension],
+      disableLegacyImport: false,
       name: '[root]',
     }),
   );

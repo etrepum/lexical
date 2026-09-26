@@ -21,35 +21,45 @@ import {describe, expect, test, vi} from 'vitest';
 
 describe('NestedEditorExtension', () => {
   test('it sets _parentEditor implicitly', () => {
-    using editor = buildEditorFromExtensions({name: 'parent'});
+    using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'parent',
+    });
     const childEditor = editor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         name: 'child',
       }),
     );
     expect(childEditor._parentEditor).toBe(editor);
   });
   test('$getParentEditor can be overridden', () => {
-    using editor = buildEditorFromExtensions({name: 'parent'});
+    using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'parent',
+    });
     const childEditor = buildEditorFromExtensions({
       dependencies: [
         configExtension(NestedEditorExtension, {
           $getParentEditor: () => editor,
         }),
       ],
+      disableLegacyImport: false,
       name: 'child',
     });
     expect(childEditor._parentEditor).toBe(editor);
   });
   test('The theme is inherited by default', () => {
     const editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
       name: 'parent',
       theme: {text: {bold: 'bold'}},
     });
     const childEditor = editor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         name: 'child',
       }),
     );
@@ -57,12 +67,14 @@ describe('NestedEditorExtension', () => {
   });
   test('If the child has a theme it is not inherited', () => {
     using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
       name: 'parent',
       theme: {text: {bold: 'bold', italic: 'italic'}},
     });
     const childEditor = editor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         name: 'child',
         theme: {text: {italic: 'child-italic'}},
       }),
@@ -72,11 +84,13 @@ describe('NestedEditorExtension', () => {
   });
   test('inheritEditableFromParent defaults false but can be enabled later', () => {
     using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
       name: 'parent',
     });
     const childEditor = editor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         editable: false,
         name: 'child',
       }),
@@ -94,6 +108,7 @@ describe('NestedEditorExtension', () => {
   });
   test('inheritEditableFromParent works when configured true', () => {
     using editor = buildEditorFromExtensions({
+      disableLegacyImport: false,
       editable: false,
       name: 'parent',
     });
@@ -104,6 +119,7 @@ describe('NestedEditorExtension', () => {
             inheritEditableFromParent: true,
           }),
         ],
+        disableLegacyImport: false,
         editable: false,
         name: 'child',
       }),
@@ -117,10 +133,14 @@ describe('NestedEditorExtension', () => {
 
   test('Commands delegate to parent synchronously when parent is not updating', () => {
     const TEST_COMMAND = createCommand<string>('TEST_COMMAND');
-    using parentEditor = buildEditorFromExtensions({name: 'parent'});
+    using parentEditor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'parent',
+    });
     using childEditor = parentEditor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         name: 'child',
       }),
     );
@@ -168,10 +188,14 @@ describe('NestedEditorExtension', () => {
 
   test('Commands delegate to parent asynchronously when parent is updating', async () => {
     const TEST_COMMAND = createCommand<string>('TEST_COMMAND');
-    using parentEditor = buildEditorFromExtensions({name: 'parent'});
+    using parentEditor = buildEditorFromExtensions({
+      disableLegacyImport: false,
+      name: 'parent',
+    });
     using childEditor = parentEditor.read(() =>
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
+        disableLegacyImport: false,
         name: 'child',
       }),
     );

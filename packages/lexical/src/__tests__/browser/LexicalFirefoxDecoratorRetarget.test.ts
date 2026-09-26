@@ -45,6 +45,7 @@ function createEditor(): LexicalEditor {
         .append($createParagraphNode().append($create(InputDecoratorNode)));
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [InputDecoratorNode],
   });

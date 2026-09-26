@@ -23,7 +23,10 @@ const TWO = 'foo\\\\';
 const THREE = 'foo\\\\\\';
 
 function importText(markdown: string): string {
-  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+  using editor = buildEditorFromExtensions(
+    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+    [MarkdownTestExtension],
+  );
   let text = '';
   editor.update(
     () => {

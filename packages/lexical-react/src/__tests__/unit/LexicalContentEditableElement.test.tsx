@@ -24,6 +24,7 @@ describe('ContentEditableElement tests', () => {
     reactRoot = createRoot(container);
 
     editor = createEditor({
+      disableLegacyImport: false,
       namespace: 'ContentEditableElement',
       onError: error => {
         throw error;

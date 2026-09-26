@@ -157,6 +157,7 @@ const mdastEditorExtension = defineExtension({
     // config carries the tree-view-output/debug-* class names).
     TreeViewExtension,
   ],
+  disableLegacyImport: true,
   name: '@lexical/dev-mdast-editor-example/Editor',
   namespace: '@lexical/dev-mdast-editor-example',
   theme,

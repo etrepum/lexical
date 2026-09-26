@@ -30,6 +30,7 @@ const editorExtension = defineExtension({
     StyleStateExtension,
     ToolbarExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/examples/node-state-style',
   namespace: 'NodeState Demo',
   theme: ExampleTheme,

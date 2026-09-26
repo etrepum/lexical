@@ -126,6 +126,7 @@ function createClient(): TestClient {
     on: () => {},
   } as unknown as Provider;
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: 'collab-out-of-range',
     onError: error => {
       throw error;

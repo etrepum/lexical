@@ -136,6 +136,7 @@ const constructImportMap = (): DOMConversionMap => {
 };
 
 const editorConfig = {
+  disableLegacyImport: false,
   html: {
     export: exportMap,
     import: constructImportMap(),

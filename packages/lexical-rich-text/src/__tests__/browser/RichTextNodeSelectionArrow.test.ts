@@ -77,6 +77,7 @@ function mountEditor({
         );
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: 'test',
     nodes: [TestBlockDecoratorNode],
   });

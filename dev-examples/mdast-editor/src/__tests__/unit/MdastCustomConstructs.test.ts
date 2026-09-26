@@ -87,6 +87,7 @@ function createEditor(): LexicalEditorWithDispose {
         RichTextExtension,
         ListExtension,
       ],
+      disableLegacyImport: true,
       name: '[mdast-editor-example-test]',
     }),
   );

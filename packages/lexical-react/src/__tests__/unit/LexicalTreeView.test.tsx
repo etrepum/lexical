@@ -21,6 +21,7 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 function makeEditor(text: string): LexicalEditor {
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: 'tree-view',
     onError: error => {
       throw error;

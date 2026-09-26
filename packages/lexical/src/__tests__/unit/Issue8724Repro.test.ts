@@ -41,12 +41,14 @@ import {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
+  disableLegacyImport: false,
   name: '[8724]',
   nodes: [TestDecoratorNode, TestElementNode, TestShadowRootNode],
 });
 
 const listExt = defineExtension({
   dependencies: [RichTextExtension, ListExtension],
+  disableLegacyImport: false,
   name: '[8724-list]',
   nodes: [TestDecoratorNode],
 });

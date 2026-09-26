@@ -88,6 +88,7 @@ function mountEditor($initialEditorState: () => void): LexicalEditor {
     defineExtension({
       $initialEditorState,
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: '[8766-browser]',
       nodes: [TestInlineDecoratorNode],
     }),

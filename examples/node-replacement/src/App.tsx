@@ -28,6 +28,7 @@ import TreeViewPlugin from './plugins/TreeViewPlugin';
 const placeholder = 'Enter some rich text...';
 
 const editorConfig: InitialConfigType = {
+  disableLegacyImport: false,
   namespace: 'Node Replacement Demo',
   nodes: [
     ParagraphNode,

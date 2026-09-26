@@ -16,6 +16,7 @@ describe('EquationNode serialization', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[equation-serialization]',
         nodes: [EquationNode],
       }),

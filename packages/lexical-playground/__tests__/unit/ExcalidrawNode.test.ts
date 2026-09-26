@@ -23,6 +23,7 @@ import {
 
 const ExcalidrawTestExtension = defineExtension({
   $initialEditorState: null,
+  disableLegacyImport: false,
   name: '[test-excalidraw]',
   nodes: [ExcalidrawNode],
 });

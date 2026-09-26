@@ -96,6 +96,7 @@ describe('RubyNode composition at boundary (Safari IME)', () => {
     document.body.appendChild(container);
     editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, RubyExtension],
+      disableLegacyImport: false,
       name: 'ruby-composition-test',
       onError: e => {
         throw e;

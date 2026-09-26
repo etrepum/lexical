@@ -270,6 +270,7 @@ describe('generated code is inherited where it still applies', () => {
       }
     }
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [PlainSub],
       onError: err => {
@@ -305,6 +306,7 @@ describe('generated code is inherited where it still applies', () => {
       }
     }
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [InheritsEverything],
       onError: err => {
@@ -336,6 +338,7 @@ describe('generated code is inherited where it still applies', () => {
       }
     }
     createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [ExtraField],
       onError: err => {
@@ -394,6 +397,7 @@ describe('generated code is inherited where it still applies', () => {
       }
     }
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [GatedBase, GatedSub],
       onError: err => {
@@ -433,6 +437,7 @@ describe('generated code is inherited where it still applies', () => {
     }
     expect(() =>
       createEditor({
+        disableLegacyImport: false,
         namespace: '',
         nodes: [PassesParentGenerated],
         onError: err => {
@@ -513,6 +518,7 @@ describe('the compact form is generated too', () => {
       }
     }
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [Boxed],
       onError: err => {
@@ -588,6 +594,7 @@ describe('the synthesized importJSON', () => {
 
   test('NodeState in the JSON is applied', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [StatefulText],
       onError: err => {
@@ -618,6 +625,7 @@ describe('the synthesized importJSON', () => {
     // $applyNodeReplacement hands back a ReplacedText where TextNode was asked
     // for, and the walk resolves what to run from the node it is given.
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [
         ReplacedText,
@@ -675,6 +683,7 @@ describe('the synthesized importJSON', () => {
 
   test('follows the node the generated parser returns', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [ReplacingText],
       onError: err => {
@@ -725,6 +734,7 @@ describe('the synthesized importJSON', () => {
 
   test('state a constructor set is reset from JSON that carries none', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [ConstructedStateText],
       onError: err => {
@@ -780,6 +790,7 @@ describe('the synthesized importJSON', () => {
     // around the generated literal: here the walk applies the flat state and
     // then hands the node to the parser for the fields.
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: '',
       nodes: [FlatStateText],
       onError: err => {
@@ -828,7 +839,10 @@ describe('generated updateFromJSON', () => {
     // $applyJSONSetters does, and hands back what it ended on.
     const updateParagraph = getGeneratedJSON(ParagraphNode)?.updateFromJSON;
     invariant(updateParagraph !== undefined, 'expected a generated parser');
-    const editor = createEditor({onError: e => Promise.reject(e)});
+    const editor = createEditor({
+      disableLegacyImport: false,
+      onError: e => Promise.reject(e),
+    });
     editor.update(
       () => {
         const paragraph = $createParagraphNode();

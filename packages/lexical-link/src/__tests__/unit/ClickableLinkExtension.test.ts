@@ -30,6 +30,7 @@ const extension = defineExtension({
     $getRoot().append(paragraph.append(link));
   },
   dependencies: [ClickableLinkExtension, RichTextExtension],
+  disableLegacyImport: false,
   name: '[root]',
 });
 

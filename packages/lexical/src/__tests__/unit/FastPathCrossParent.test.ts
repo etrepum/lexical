@@ -25,6 +25,7 @@ import {$createTestDecoratorNode, TestDecoratorNode} from '../utils';
 function makeEditor(): LexicalEditor {
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension, LinkExtension],
+    disableLegacyImport: false,
     name: 'fast-path-cross-parent',
     nodes: [TestDecoratorNode],
     onError: e => {

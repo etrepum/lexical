@@ -43,6 +43,7 @@ describe('useLexicalIsTextContentEmpty', () => {
     const editor = React.useMemo(
       () =>
         createEditor({
+          disableLegacyImport: false,
           namespace: '',
           nodes: [ParagraphNode],
           onError: err => {

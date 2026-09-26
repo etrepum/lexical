@@ -35,6 +35,7 @@ import {
 const ReviewImportTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [ReviewExtension],
+  disableLegacyImport: false,
   name: '[test-review-import]',
   nodes: [ReviewNode],
 });

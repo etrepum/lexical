@@ -32,6 +32,7 @@ import {MentionsExtension} from '../../src/plugins/MentionsExtension';
 const MentionTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [MentionsExtension, PlaygroundImportExtension],
+  disableLegacyImport: false,
   name: '[test-mention-text]',
 });
 

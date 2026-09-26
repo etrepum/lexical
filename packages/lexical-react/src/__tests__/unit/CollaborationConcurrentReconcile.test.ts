@@ -101,6 +101,7 @@ function makePeer(name: string, clientID: number): Peer {
   const doc = new Y.Doc({gc: false});
   doc.clientID = clientID;
   const editor = createEditor({
+    disableLegacyImport: false,
     namespace: name,
     onError: (e: Error) => {
       throw e;
@@ -266,7 +267,11 @@ async function runProgram(cids: number[], ops: Op[]): Promise<string[]> {
   return peers.map(p => {
     const doc2 = new Y.Doc({gc: false});
     Y.applyUpdate(doc2, Y.encodeStateAsUpdate(p.doc));
-    const ed = createEditor({namespace: 'reload', onError: () => {}});
+    const ed = createEditor({
+      disableLegacyImport: false,
+      namespace: 'reload',
+      onError: () => {},
+    });
     const b = createBinding(
       ed,
       makeProvider(new Awareness(doc2.clientID, 'r')),

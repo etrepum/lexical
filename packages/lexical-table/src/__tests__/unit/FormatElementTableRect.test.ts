@@ -40,6 +40,7 @@ function buildTestEditor($initialEditorState?: InitialEditorStateType) {
         return () => document.body.removeChild(container);
       },
       dependencies: [TableExtension],
+      disableLegacyImport: false,
       name: 'format-element-rect-host',
       theme: {tableScrollableWrapper: 'table-scrollable-wrapper'},
     }),

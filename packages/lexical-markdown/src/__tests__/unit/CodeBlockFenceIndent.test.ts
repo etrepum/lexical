@@ -15,7 +15,10 @@ import {describe, expect, it} from 'vitest';
 import {MarkdownTestExtension} from '../utils';
 
 function importCodeText(markdown: string): string | null {
-  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+  using editor = buildEditorFromExtensions(
+    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+    [MarkdownTestExtension],
+  );
   let text: string | null = null;
   editor.update(
     () => {

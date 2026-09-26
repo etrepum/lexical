@@ -60,6 +60,7 @@ import {
 const CardTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [CardExtension],
+  disableLegacyImport: false,
   name: '[test-card]',
   nodes: [CardNode],
 });

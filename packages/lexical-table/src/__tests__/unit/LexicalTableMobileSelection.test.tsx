@@ -344,6 +344,7 @@ describe('LexicalTableMobileSelection touch gestures (#8538)', () => {
     editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [TableExtension],
+        disableLegacyImport: false,
         name: '@lexical/table/MobileSelectionTest',
         theme: {tableScrollableWrapper: ''},
       }),

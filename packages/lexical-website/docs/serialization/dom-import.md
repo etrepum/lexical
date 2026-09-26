@@ -11,9 +11,11 @@ will be called out in release notes. Apps that depend on this
 pipeline should pin their Lexical version and treat upgrades as
 intentional.
 
-The legacy static `importDOM` machinery and `$generateNodesFromDOM`
-entry are unchanged and remain the supported default for production
-apps that don't want to track an experimental API.
+The legacy static `importDOM` machinery, `$config().importDOM`,
+`html.import`, and `$generateNodesFromDOM` entry are deprecated but
+remain available by default. Existing applications can keep using them
+while migrating; deprecation does not change their behavior or remove
+them in this release.
 
 The DOMImportExtension API was introduced in Lexical v0.45.0
 
@@ -1086,13 +1088,81 @@ genuinely lives in a companion slot.
 
 ## Migrating from `importDOM`
 
-The legacy `static importDOM(): DOMConversionMap` declaration on each
-node class still works; the new pipeline is opt-in. When you're
-ready to move a custom node, the translation is mechanical:
+The legacy `static importDOM(): DOMConversionMap` declaration,
+`$config().importDOM`, editor/extension `html.import` conversions, and
+`$generateNodesFromDOM(editor, dom)` are deprecated. They still work by
+default, including their existing numeric priority and tie-breaking
+behavior. `html.export` is not deprecated by this migration.
+
+### Migrate an editor in stages
+
+1. Register the extensions that provide your nodes and their import rules.
+   Registering a node class alone does not install its extension rules.
+   Use `CoreImportExtension` for the paragraph/text/inline-format baseline;
+   extensions such as `RichTextExtension` already depend on it.
+2. Translate custom `importDOM`, `$config().importDOM`, and `html.import`
+   conversions into rules contributed with
+   `configExtension(DOMImportExtension, {rules: [...]})`.
+   The extension pipeline does **not** fall back to legacy converters.
+   Keep legacy converters in reusable node packages while consumers still
+   need them; an editor can opt out without removing those methods.
+3. Replace direct `$generateNodesFromDOM(editor, dom)` calls with
+   `$generateNodesFromDOMViaExtension(dom)` inside that editor's update.
+   Add `ClipboardDOMImportExtension` for HTML paste/drop handling. Merely
+   depending on `DOMImportExtension` does not switch existing callers.
+4. Verify representative HTML and clipboard fixtures, including malformed
+   HTML, whitespace, nested blocks, and custom-node attributes. The two
+   pipelines have different recursion and schema models; migration is not
+   an automatic conversion of a `DOMConversionMap`.
+5. Set `disableLegacyImport: true` once all import paths have migrated:
+
+```ts
+import {ClipboardDOMImportExtension} from '@lexical/clipboard';
+import {buildEditorFromExtensions} from '@lexical/extension';
+import {DOMImportExtension} from '@lexical/html';
+import {RichTextExtension} from '@lexical/rich-text';
+import {configExtension} from 'lexical';
+
+const editor = buildEditorFromExtensions(
+  RichTextExtension,
+  ClipboardDOMImportExtension,
+  configExtension(DOMImportExtension, {disableLegacyImport: true}),
+);
+```
+
+`disableLegacyImport` defaults to `null`: legacy import stays enabled and
+emits a one-time development warning. Set it to `false` to explicitly retain
+legacy import without warning while migrating. Setting it to `true` skips calls to
+registered nodes' static `importDOM` factories and allocation of the
+legacy conversion cache. Calling the old `$generateNodesFromDOM` then
+throws with migration guidance, including for an empty document.
+Nonempty `html.import` configurations are rejected during editor
+construction so overrides cannot silently disappear.
+
+The same `disableLegacyImport` setting is available in `createEditor`,
+`LexicalComposer` initial configuration, and extension definitions. The
+lower-level `html: {import: false}` equivalent is also supported in
+`createEditor` or an extension. It disables legacy import without installing any
+replacement. Combining that setting with an extension's legacy
+conversion map is an error regardless of extension order. HTML export
+configuration is preserved.
+
+This opt-out removes legacy converter initialization work. It does not
+remove legacy methods from node classes, avoid evaluating their `$config`
+methods, or promise to eliminate their code from application bundles.
+Removing those methods and changing the default require a later
+compatibility decision, after the extension API stabilizes and consumers
+have had time to migrate. Initializing the legacy import pipeline emits a
+one-time development warning with migration guidance. Explicitly setting `disableLegacyImport` to either `true` or `false`
+suppresses the warning. Built-in and third-party nodes can still support both
+pipelines during the transition.
+
+### Translate custom conversions
 
 | Legacy concept | New equivalent |
 | --- | --- |
 | `static importDOM(): DOMConversionMap` returning `{tag: () => ({conversion, priority})}` | One or more `defineImportRule({match, $import})` entries |
+| `$config().importDOM` | Rules contributed by the extension registering the node |
 | Numeric `priority` (0–4) | Position in the compiled `rules` list (earlier entry runs first; an extension's rules come ahead of its dependencies') plus `$next()` for deferring — see [Dispatch order](#dispatch-order) |
 | `forChild(node, parent)` | `ctx.$importChildren(el, {context: [...], $onChild})` |
 | `after(children)` | `ctx.$importChildren(el, {$after})` |
@@ -1100,7 +1170,7 @@ ready to move a custom node, the translation is mechanical:
 | `ArtificialNode__DO_NOT_USE` (nested block) | `ctx.$importChildren(el, {schema: NestedBlockSchema})` |
 | Cross-tag setup via shared state | `createImportState` + `ctx.get` (scoped) or `ctx.session.get/set` (flat) |
 | Mutating the DOM before walking | `DOMPreprocessFn` in `DOMImportConfig.preprocess` |
-| `html: {import: ...}` field on a node-providing extension | `configExtension(DOMImportExtension, {rules: […]})` |
+| `html: {import: ...}` on the editor or an extension | `configExtension(DOMImportExtension, {rules: […]})` |
 
 A migrated rule typically replaces a forChild chain with explicit
 context propagation (clearer + survives across rule boundaries), and
@@ -1151,12 +1221,13 @@ The migrated rule:
 
 ```ts
 import {
-  BlockSchema,
   defineImportRule,
+  DOMImportExtension,
   InlineSchema,
   sel,
 } from '@lexical/html';
 import {$createQuoteNode} from '@lexical/rich-text';
+import {configExtension} from 'lexical';
 
 const QuoteRule = defineImportRule({
   $import: (ctx, el) => {

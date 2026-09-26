@@ -1140,6 +1140,7 @@ describe('$applyNodeReplacement', () => {
   }
   test('validates replace node configuration', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         {
           replace: TextNode,
@@ -1166,6 +1167,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('validates replace node type withKlass', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         {
           replace: TextNode,
@@ -1195,6 +1197,7 @@ describe('$applyNodeReplacement', () => {
       .spyOn(console, 'warn')
       .mockImplementationOnce(() => {});
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         {
           replace: TextNode,
@@ -1224,6 +1227,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('validates replace node key change', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         {
           replace: TextNode,
@@ -1251,6 +1255,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('validates replace node configuration withKlass', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         {
           replace: TextNode,
@@ -1277,6 +1282,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('validates nested replace node configuration', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         ExtendedTextNode,
         {
@@ -1307,6 +1313,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('validates nested replace node configuration withKlass', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         ExtendedTextNode,
         {
@@ -1340,6 +1347,7 @@ describe('$applyNodeReplacement', () => {
   });
   test('nested replace node configuration works', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [
         ExtendedTextNode,
         ExtendedExtendedTextNode,
@@ -1402,6 +1410,7 @@ describe('$copyNode', () => {
   }
   test('does not mark the original as dirty', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [ExtendedParagraphNode, TextNode, ParagraphNode],
       onError(err) {
         throw err;
@@ -1430,6 +1439,7 @@ describe('$copyNode', () => {
   });
   test('returns a shallow copy', () => {
     const editor = createEditor({
+      disableLegacyImport: false,
       nodes: [ExtendedParagraphNode, TextNode, ParagraphNode],
       onError(err) {
         throw err;
@@ -1528,6 +1538,7 @@ describe('$updateTextNodeFromDOMContent', () => {
 
   function createEditorWithTextNode(initialText: string) {
     const editor = createEditor({
+      disableLegacyImport: false,
       namespace: 'test',
       nodes: [ParagraphNode, TextNode],
       onError(error) {

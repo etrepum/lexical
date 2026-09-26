@@ -32,6 +32,7 @@ describe('LexicalReconciler — last-child decorator removal', () => {
         $getRoot().append(paragraph);
         decoratorKey = decorator.getKey();
       },
+      disableLegacyImport: false,
       name: 'lexical-reconciler-stale-decorator',
       nodes: [TestDecoratorNode],
       onError: error => {

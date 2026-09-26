@@ -19,7 +19,10 @@ import {describe, expect, it} from 'vitest';
 import {MarkdownTestExtension} from '../utils';
 
 function importCodeText(markdown: string): string | null {
-  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+  using editor = buildEditorFromExtensions(
+    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+    [MarkdownTestExtension],
+  );
   let text: string | null = null;
   editor.update(
     () => {
@@ -33,7 +36,10 @@ function importCodeText(markdown: string): string | null {
 }
 
 function roundTrip(markdown: string): string {
-  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+  using editor = buildEditorFromExtensions(
+    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
+    [MarkdownTestExtension],
+  );
   editor.update(
     () => {
       $convertFromMarkdownString(markdown, TRANSFORMERS);

@@ -182,6 +182,7 @@ declare export function $withRenderContext(
 
 // Existing exports
 
+/** @deprecated Use $generateNodesFromDOMViaExtension with DOMImportExtension. */
 declare export function $generateNodesFromDOM(
   editor: LexicalEditor,
   dom: Document,

@@ -31,6 +31,7 @@ const stateRef = document.getElementById(
 ) as HTMLTextAreaElement;
 
 const initialConfig = {
+  disableLegacyImport: false,
   namespace: 'Vanilla JS Demo',
   // Register nodes specific for @lexical/rich-text
   nodes: [HeadingNode, QuoteNode],

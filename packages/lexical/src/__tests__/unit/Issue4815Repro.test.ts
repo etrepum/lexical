@@ -38,6 +38,7 @@ class TestHeadingNode extends ElementNode {
 
 function createTestEditor(): LexicalEditor {
   return createEditor({
+    disableLegacyImport: false,
     namespace: 'test',
     nodes: [TestHeadingNode, TestInlineElementNode],
     onError: error => {

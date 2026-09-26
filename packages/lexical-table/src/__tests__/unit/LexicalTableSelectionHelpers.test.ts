@@ -143,6 +143,7 @@ describe('LexicalTableSelectionHelpers', () => {
       editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [TableExtension],
+          disableLegacyImport: false,
           name: 'regression-8670-test',
           theme: {tableScrollableWrapper: ''},
         }),
@@ -227,6 +228,7 @@ describe('LexicalTableSelectionHelpers', () => {
       editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [TableExtension],
+          disableLegacyImport: false,
           name: 'regression-8832-test',
           theme: {tableScrollableWrapper: ''},
         }),
@@ -405,6 +407,7 @@ describe('LexicalTableSelectionHelpers', () => {
       editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [TableExtension],
+          disableLegacyImport: false,
           name: 'delete-line-test',
           theme: {tableScrollableWrapper: ''},
         }),

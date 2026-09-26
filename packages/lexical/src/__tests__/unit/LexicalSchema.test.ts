@@ -1037,6 +1037,7 @@ describe('withField compiles to direct field access', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[with-field]',
         nodes: [FieldNode],
       }),
@@ -1057,6 +1058,7 @@ describe('withField compiles to direct field access', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[with-field-default]',
         nodes: [FieldNode],
       }),
@@ -1079,6 +1081,7 @@ describe('withField compiles to direct field access', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[with-field-latest]',
         nodes: [FieldNode, PlainCountingNode],
       }),
@@ -1143,6 +1146,7 @@ describe('a field stands in for its accessor only while nobody overrides it', ()
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[field-override]',
         nodes: [LoudTextNode, QuietTextNode],
       }),
@@ -1241,6 +1245,7 @@ describe('a field stands in for its accessor only while nobody overrides it', ()
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[wrapped-textformat]',
         nodes: [WrappedElementNode],
       }),
@@ -1311,6 +1316,7 @@ describe('reference-typed defaults compact by content', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[array-compaction]',
         nodes: [TagsNode],
       }),
@@ -1406,6 +1412,7 @@ describe('a clone carries the fields the schema declares', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[callout-clone]',
         nodes: [CalloutNode],
       }),
@@ -1450,6 +1457,7 @@ describe('a clone carries the fields the schema declares', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[carry-chain]',
         nodes: [BaseNode, DerivedNode],
       }),
@@ -1497,6 +1505,7 @@ describe('a clone carries the fields the schema declares', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[carry-accessor]',
         nodes: [AccessorNode],
       }),
@@ -1537,6 +1546,7 @@ describe('a clone carries the fields the schema declares', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[assign-once]',
         nodes: [StoreNode, RestateNode],
       }),
@@ -1600,6 +1610,7 @@ describe('a clone carries the fields the schema declares', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[order-independence]',
         // The subclass first, so the base is only ever reached through it.
         nodes: [ReDerivedNode, ReBaseNode],
@@ -2470,7 +2481,11 @@ describe('a misconfigured accessor fails at registration', () => {
   test('and keeps failing, rather than registering in silence', () => {
     const build = () =>
       buildEditorFromExtensions(
-        defineExtension({name: '[missing-setter]', nodes: [MissingSetterNode]}),
+        defineExtension({
+          disableLegacyImport: false,
+          name: '[missing-setter]',
+          nodes: [MissingSetterNode],
+        }),
       );
     // Registration is where the error names the class that is misconfigured;
     // later it would surface from whichever autosave or copy handler happened
@@ -2503,7 +2518,11 @@ describe('a misconfigured accessor fails at registration', () => {
     }
     const build = () =>
       buildEditorFromExtensions(
-        defineExtension({name: '[unencodable-default]', nodes: [CodeNode]}),
+        defineExtension({
+          disableLegacyImport: false,
+          name: '[unencodable-default]',
+          nodes: [CodeNode],
+        }),
       );
     for (let i = 0; i < 2; i++) {
       expect(build).toThrow('has no setterTable entry for ""');
@@ -2540,6 +2559,7 @@ describe('a misspelled field name is caught in both directions', () => {
     buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[import-only-field]',
         nodes: [ImportOnlyFieldNode],
       }),
@@ -2598,6 +2618,7 @@ describe('a misspelled field name is caught in both directions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[optional-field]',
         nodes: [OptionalFieldNode],
       }),
@@ -2639,6 +2660,7 @@ describe('a misspelled field name is caught in both directions', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: '[optional-typo]',
         nodes: [TypoNode],
       }),
@@ -3655,6 +3677,7 @@ describe('a schema does not take back an override the node already had', () => {
     // A field read that ignored them would export the stored 0/'' instead.
     const editor = buildEditorFromExtensions(
       defineExtension({
+        disableLegacyImport: false,
         name: '[root]',
         nodes: [PlainBlock, StyledBlock],
       }),
@@ -3686,7 +3709,11 @@ describe('a schema does not take back an override the node already had', () => {
     // an older payload there would otherwise be silently skipped on import
     // while still running everywhere else.
     const editor = buildEditorFromExtensions(
-      defineExtension({name: '[root]', nodes: [MigratingText]}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: '[root]',
+        nodes: [MigratingText],
+      }),
     );
     editor.update(
       () => {

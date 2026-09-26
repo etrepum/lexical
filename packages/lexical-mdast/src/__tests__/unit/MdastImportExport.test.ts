@@ -75,6 +75,7 @@ function createEditor(withTable = false): LexicalEditorWithDispose {
         MdastExportExtension,
         ...(withTable ? [MdastTableExtension] : []),
       ],
+      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -94,14 +95,21 @@ function importExport(markdown: string, withTable = false): string {
 describe('@lexical/mdast import/export', () => {
   it('omits a node and its children when its import handler returns null', () => {
     using editor = buildEditorFromExtensions(
-      configExtension(MdastExtension, {
-        importRules: [
-          {$import: () => null, type: 'strong'},
-          {
-            $import: (_node, context) => context.createText('lower-priority'),
-            type: 'strong',
-          },
+      defineExtension({
+        dependencies: [
+          configExtension(MdastExtension, {
+            importRules: [
+              {$import: () => null, type: 'strong'},
+              {
+                $import: (_node, context) =>
+                  context.createText('lower-priority'),
+                type: 'strong',
+              },
+            ],
+          }),
         ],
+        disableLegacyImport: true,
+        name: '[root]',
       }),
     );
     editor.update(() => $convertFromMarkdownString('a **b** c'), {
@@ -364,6 +372,7 @@ describe('@lexical/mdast import/export', () => {
           MdastAutolinkLiteralExtension,
           MdastExportExtension,
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -470,6 +479,7 @@ describe('@lexical/mdast import/export', () => {
             toMarkdownExtensions: [{bullet: '+'}],
           }),
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -716,6 +726,7 @@ describe('@lexical/mdast import/export', () => {
               ],
             }),
           ],
+          disableLegacyImport: false,
           name: '[selection-option]',
         }),
       );
@@ -778,6 +789,7 @@ describe('@lexical/mdast import/export', () => {
               ],
             }),
           ],
+          disableLegacyImport: false,
           name: '[import-context]',
         }),
       );
@@ -808,6 +820,7 @@ describe('@lexical/mdast import/export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastHeadingExtension, MdastExportExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -832,6 +845,7 @@ describe('@lexical/mdast import/export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastAutolinkLiteralExtension],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -945,6 +959,7 @@ describe('@lexical/mdast import/export', () => {
             MdastExportExtension,
             MdastShadowRootQuoteExtension,
           ],
+          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -1061,6 +1076,7 @@ describe('@lexical/mdast import/export', () => {
             mdastExtensions: undefined,
           }),
         ],
+        disableLegacyImport: false,
         name: '[root]',
       }),
     );

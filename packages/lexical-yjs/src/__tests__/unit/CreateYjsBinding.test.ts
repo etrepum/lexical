@@ -128,7 +128,7 @@ function restore(editor: LexicalEditor, binding: Binding): void {
 describe('createYjsBinding', () => {
   test('uses default rootName "root"', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createTestDoc();
 
@@ -140,7 +140,7 @@ describe('createYjsBinding', () => {
 
   test('uses custom rootName', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createTestDoc();
 
@@ -159,10 +159,10 @@ describe('createYjsBinding', () => {
 
   test('different rootNames create independent shared types', () => {
     using editor1 = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test-a'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test-a'}),
     );
     using editor2 = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test-b'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test-b'}),
     );
     const {doc, docMap} = createTestDoc();
 
@@ -193,7 +193,7 @@ describe('createYjsBinding', () => {
 describe('createYjsBinding with getXmlText', () => {
   test('uses an XmlText that is not a top-level shared type', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createNotesDoc();
 
@@ -211,7 +211,7 @@ describe('createYjsBinding with getXmlText', () => {
 
   test('takes precedence over rootName', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createNotesDoc();
 
@@ -230,7 +230,7 @@ describe('createYjsBinding with getXmlText', () => {
 
   test('rejects a root that is not integrated into the doc', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createNotesDoc();
 
@@ -247,7 +247,7 @@ describe('createYjsBinding with getXmlText', () => {
 
   test('rejects a root that could not be resolved', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-test'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-test'}),
     );
     const {doc, docMap} = createNotesDoc();
 
@@ -265,10 +265,18 @@ describe('createYjsBinding with getXmlText', () => {
 
   test('a nested root round-trips to another client', () => {
     using localEditor = buildEditorFromExtensions(
-      defineExtension({$initialEditorState: null, name: 'yjs-binding-local'}),
+      defineExtension({
+        $initialEditorState: null,
+        disableLegacyImport: false,
+        name: 'yjs-binding-local',
+      }),
     );
     using remoteEditor = buildEditorFromExtensions(
-      defineExtension({$initialEditorState: null, name: 'yjs-binding-remote'}),
+      defineExtension({
+        $initialEditorState: null,
+        disableLegacyImport: false,
+        name: 'yjs-binding-remote',
+      }),
     );
     const {doc: localDoc, docMap: localDocMap} = createNotesDoc();
     const localBinding = createYjsBinding({
@@ -318,7 +326,10 @@ describe('createYjsBinding with getXmlText', () => {
 describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
   test('uses an XmlElement that is not a top-level shared type', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-v2-test'}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: 'yjs-binding-v2-test',
+      }),
     );
     const {doc, docMap} = createNotesDocV2();
 
@@ -332,7 +343,10 @@ describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
 
   test('takes precedence over rootName', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-v2-test'}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: 'yjs-binding-v2-test',
+      }),
     );
     const {doc, docMap} = createNotesDocV2();
 
@@ -347,7 +361,10 @@ describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
 
   test('rejects a root that is not integrated into the doc', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-v2-test'}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: 'yjs-binding-v2-test',
+      }),
     );
     const {doc, docMap} = createNotesDocV2();
 
@@ -360,7 +377,10 @@ describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
 
   test('rejects a root created with a nodeName', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-v2-test'}),
+      defineExtension({
+        disableLegacyImport: false,
+        name: 'yjs-binding-v2-test',
+      }),
     );
     const {doc, docMap} = createNotesDocV2();
     const named = new XmlElement('note');
@@ -377,12 +397,14 @@ describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
     using localEditor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: 'yjs-binding-v2-local',
       }),
     );
     using remoteEditor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
+        disableLegacyImport: false,
         name: 'yjs-binding-v2-remote',
       }),
     );
@@ -452,7 +474,7 @@ describe('createBindingV2__EXPERIMENTAL with getXmlElement', () => {
 describe('createBinding (legacy wrapper)', () => {
   test('delegates to createYjsBinding with default rootName', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-legacy'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-legacy'}),
     );
     const {doc, docMap} = createTestDoc();
 
@@ -470,7 +492,7 @@ describe('createBinding (legacy wrapper)', () => {
 
   test('throws invariant when doc is null', () => {
     using editor = buildEditorFromExtensions(
-      defineExtension({name: 'yjs-binding-legacy'}),
+      defineExtension({disableLegacyImport: false, name: 'yjs-binding-legacy'}),
     );
     const docMap = new Map<string, Doc>();
 

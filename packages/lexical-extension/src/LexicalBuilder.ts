@@ -432,7 +432,8 @@ export class LexicalBuilder {
       ExtensionRep<AnyLexicalExtension>
     >();
     const htmlExport: NonNullable<HTMLConfig['export']> = new Map();
-    const htmlImport: NonNullable<HTMLConfig['import']> = {};
+    const htmlImport: Exclude<HTMLConfig['import'], false | undefined> = {};
+    let disableLegacyImport = false;
     const theme: EditorThemeClasses = {};
     const extensionReps = this.sortedExtensionReps();
     for (const extensionRep of extensionReps) {
@@ -442,6 +443,9 @@ export class LexicalBuilder {
       }
       if (extension.onWarn !== undefined) {
         config.onWarn = extension.onWarn;
+      }
+      if (extension.disableLegacyImport !== undefined) {
+        config.disableLegacyImport = extension.disableLegacyImport;
       }
       if (extension.disableEvents !== undefined) {
         config.disableEvents = extension.disableEvents;
@@ -484,6 +488,8 @@ export class LexicalBuilder {
         }
         if (extension.html.import) {
           Object.assign(htmlImport, extension.html.import);
+        } else if (extension.html.import === false) {
+          disableLegacyImport = true;
         }
       }
       if (extension.theme) {
@@ -504,9 +510,15 @@ export class LexicalBuilder {
     }
     const hasImport = Object.keys(htmlImport).length > 0;
     const hasExport = htmlExport.size > 0;
-    if (hasImport || hasExport) {
+    invariant(
+      !disableLegacyImport || !hasImport,
+      'LexicalBuilder: Cannot disable legacy DOM import while extensions provide html.import conversions. Migrate them to DOMImportExtension rules first.',
+    );
+    if (hasImport || hasExport || disableLegacyImport) {
       config.html = {};
-      if (hasImport) {
+      if (disableLegacyImport) {
+        config.html.import = false;
+      } else if (hasImport) {
         config.html.import = htmlImport;
       }
       if (hasExport) {

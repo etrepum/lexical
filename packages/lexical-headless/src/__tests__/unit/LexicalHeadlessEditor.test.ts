@@ -56,6 +56,7 @@ describe('LexicalHeadlessEditor', () => {
 
   beforeEach(() => {
     editor = createHeadlessEditor({
+      disableLegacyImport: false,
       namespace: '',
       onError: error => {
         throw error;

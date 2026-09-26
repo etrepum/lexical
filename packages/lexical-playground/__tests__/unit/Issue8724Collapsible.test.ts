@@ -39,6 +39,7 @@ import {
 const ext = defineExtension({
   $initialEditorState: null,
   dependencies: [CollapsibleExtension, HorizontalRuleExtension],
+  disableLegacyImport: false,
   name: '[8724-collapsible]',
 });
 

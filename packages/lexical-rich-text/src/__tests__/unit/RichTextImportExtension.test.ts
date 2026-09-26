@@ -37,6 +37,8 @@ function buildEditor() {
       // shared CoreImportExtension baseline) — no dedicated import
       // extension required.
       dependencies: [RichTextExtension],
+
+      disableLegacyImport: false,
       name: 'rich-text-host',
     }),
   );
@@ -108,6 +110,7 @@ describe('RichTextImportExtension', () => {
           // priority over the default blockquote rule.
           configExtension(DOMImportExtension, {rules: [ShadowRootQuoteRule]}),
         ],
+        disableLegacyImport: false,
         name: 'rich-text-shadow-root-quote-host',
       }),
     );
@@ -130,6 +133,7 @@ describe('RichTextImportExtension', () => {
           RichTextExtension,
           configExtension(DOMImportExtension, {rules: [ShadowRootQuoteRule]}),
         ],
+        disableLegacyImport: false,
         name: 'rich-text-shadow-root-quote-host',
       }),
     );
@@ -160,6 +164,7 @@ describe('RichTextImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextImportExtension],
+        disableLegacyImport: false,
         name: 'rich-text-alias-host',
       }),
     );

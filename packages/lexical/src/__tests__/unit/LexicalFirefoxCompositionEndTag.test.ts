@@ -50,6 +50,7 @@ describe('Firefox composition-end tag forwarding', () => {
         paragraph.selectEnd();
       },
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: 'test',
     });
     editor.setRootElement(container);

@@ -44,6 +44,7 @@ function mountEditor() {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: '[8885-selection-change-browser]',
     }),
   );

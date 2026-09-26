@@ -187,6 +187,8 @@ function createSlotEditor(): LexicalEditorWithDispose {
       $initialEditorState: () => {
         $getRoot().clear();
       },
+
+      disableLegacyImport: false,
       name: '[slot-core]',
       nodes: [
         TestShadowRootNode,
@@ -756,6 +758,7 @@ describe('named-slots: core foundation', () => {
         $initialEditorState: () => {
           $getRoot().clear();
         },
+        disableLegacyImport: false,
         name: '[slot-poc-headless]',
       }),
     );
@@ -1275,6 +1278,7 @@ describe('named-slots: core foundation', () => {
             ],
           }),
         ],
+        disableLegacyImport: false,
         name: '[inplace-slot-host]',
         nodes: [InPlaceHostNode, TestShadowRootNode],
       }),
@@ -2413,6 +2417,7 @@ describe('named-slots: slot name with selector metacharacters', () => {
         $initialEditorState: () => {
           $getRoot().clear();
         },
+        disableLegacyImport: false,
         name: '[slot-meta]',
         nodes: [TestShadowRootNode],
       }),
@@ -2614,6 +2619,7 @@ describe('named-slots: cross-host slot move DOM reuse', () => {
         $initialEditorState: () => {
           $getRoot().clear();
         },
+        disableLegacyImport: false,
         name: '[h-1b]',
         nodes: [TestShadowRootNode, TestUpdateDOMTrueHostNode],
       }),

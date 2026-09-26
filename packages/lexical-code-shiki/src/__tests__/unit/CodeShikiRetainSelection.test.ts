@@ -30,6 +30,7 @@ function createEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, CodeShikiExtension],
+      disableLegacyImport: false,
       name: 'code-shiki-retain-selection-test',
     }),
   );

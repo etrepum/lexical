@@ -70,6 +70,7 @@ describe('children fast path: cross-parent move and sibling text cache', () => {
     const errors: Error[] = [];
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, LinkExtension],
+      disableLegacyImport: false,
       name: 'cross-parent-text-cache',
       onError: e => {
         errors.push(e);
@@ -161,6 +162,7 @@ describe('children fast path: cross-parent move and sibling text cache', () => {
     const errors: Error[] = [];
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
+      disableLegacyImport: false,
       name: 'suffix-sibling-isinline',
       nodes: [FlipInlineNode],
       onError: e => {

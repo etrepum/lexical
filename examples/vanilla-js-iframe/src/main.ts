@@ -24,6 +24,7 @@ const stateRef =
   iframeDoc.querySelector<HTMLTextAreaElement>('#lexical-state')!;
 
 const initialConfig = {
+  disableLegacyImport: false,
   namespace: 'Vanilla JS Demo',
   // Register nodes specific for @lexical/rich-text
   nodes: [HeadingNode, QuoteNode],
