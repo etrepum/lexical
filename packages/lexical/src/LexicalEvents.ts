@@ -176,6 +176,12 @@ function getRootElementEvents(): RootElementEvents {
     ['blur', PASS_THROUGH_COMMAND],
     ['drop', PASS_THROUGH_COMMAND],
   ];
+  if (IS_IOS) {
+    events.push([
+      'keyup',
+      (event, editor) => onKeyUp(event as KeyboardEvent, editor),
+    ]);
+  }
   if (CAN_USE_BEFORE_INPUT) {
     events.push([
       'beforeinput',
@@ -1129,9 +1135,11 @@ function $handleBeforeInput(event: InputEvent): boolean {
 
       // Safari does not provide the type "insertLineBreak".
       // So instead, we need to infer it from the keyboard event.
-      // We do not apply this logic to iOS to allow newline auto-capitalization
-      // work without creating linebreaks when pressing Enter
-      if (inputState.isInsertLineBreak && !IS_IOS) {
+      // On iOS the on-screen keyboard's auto-capitalization also sets
+      // shiftKey on Enter, so there we rely on the Shift key itself having
+      // been pressed instead (see onKeyDown).
+      if (IS_IOS ? inputState.isShiftEnter : inputState.isInsertLineBreak) {
+        inputState.isShiftEnter = false;
         inputState.isInsertLineBreak = false;
         dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
       } else {
@@ -1595,9 +1603,27 @@ function onCompositionEnd(
   }
 }
 
+function onKeyUp(event: KeyboardEvent, editor: LexicalEditor): void {
+  if (event.key === 'Shift') {
+    editor._inputState.isShiftKeyPressed = false;
+  }
+}
+
 function onKeyDown(event: KeyboardEvent, editor: LexicalEditor): void {
   const inputState = editor._inputState;
   inputState.lastKeyDownTimeStamp = event.timeStamp;
+  if (IS_IOS) {
+    if (event.key === 'Enter') {
+      inputState.isShiftEnter =
+        event.shiftKey &&
+        (inputState.isShiftKeyPressed || inputState.lastKeyCode === 'Shift');
+    }
+    if (event.key === 'Shift') {
+      inputState.isShiftKeyPressed = true;
+    } else if (!event.shiftKey) {
+      inputState.isShiftKeyPressed = false;
+    }
+  }
   inputState.lastKeyCode = event.key;
   if (event.key !== 'Backspace') {
     clearHandledSelectionCommandInsertText(inputState);

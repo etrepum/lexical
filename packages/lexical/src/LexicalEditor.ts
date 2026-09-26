@@ -297,6 +297,19 @@ export interface InputState {
   };
   isSelectionChangeFromMouseDown: boolean;
   isInsertLineBreak: boolean;
+  /**
+   * iOS only: true while a Shift key seen being pressed is held down. The
+   * on-screen keyboard's auto-capitalization sets shiftKey on key events
+   * without ever firing a keydown for Shift itself.
+   */
+  isShiftKeyPressed: boolean;
+  /**
+   * iOS only: whether the last Enter keydown should insert a line break,
+   * i.e. it reported shiftKey and Shift was either held down (hardware
+   * keyboard) or the key tapped immediately before Enter (on-screen
+   * keyboard).
+   */
+  isShiftEnter: boolean;
 
   isInsertTextAfterHandledSelectionCommand: boolean;
   handledSelectionCommandTimeoutId: ReturnType<typeof setTimeout> | null;
@@ -320,6 +333,8 @@ export function createInputState(): InputState {
     isInsertTextAfterHandledSelectionCommand: false,
     isSelectionChangeFromDOMUpdate: false,
     isSelectionChangeFromMouseDown: false,
+    isShiftEnter: false,
+    isShiftKeyPressed: false,
     lastBeforeInputInsertTextTimeStamp: 0,
     lastKeyCode: null,
     lastKeyDownTimeStamp: 0,
