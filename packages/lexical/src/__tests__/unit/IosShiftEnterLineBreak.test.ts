@@ -13,10 +13,9 @@
  * break from the Enter keydown's shiftKey. The on-screen keyboard also sets
  * shiftKey on Enter while auto-capitalization is active, which must still
  * insert a paragraph. Only a real Shift press fires a keydown for Shift
- * itself, so that is what distinguishes the two: Enter inserts a line break
- * when Shift is held down (hardware keyboard) or was the key tapped right
- * before it (on-screen keyboard, where the tap may instead have turned off a
- * Shift that auto-capitalization had turned on).
+ * itself, so that is what distinguishes the two: Enter with shiftKey inserts
+ * a line break when Shift is held down (hardware keyboard) or was the key
+ * tapped right before it (on-screen keyboard).
  */
 
 import {buildEditorFromExtensions} from '@lexical/extension';
@@ -185,16 +184,16 @@ describe('iOS Shift+Enter', () => {
     expect(readShape(editor)).toEqual([1, true]);
   });
 
-  test('inserts a line break when the tap turns off auto-capitalization', () => {
+  test('inserts a paragraph when the tap turns Shift off', () => {
     // Auto-capitalization had Shift on, so tapping it turns it off and the
-    // Enter keydown no longer reports shiftKey.
+    // keyboard shows Shift off, so Return must not insert a line break.
     using editor = createEditor();
 
     tapShift(editor, false);
     keydown(editor, 'Enter');
     insertParagraph(editor);
 
-    expect(readShape(editor)).toEqual([1, true]);
+    expect(readShape(editor)).toEqual([2, false]);
   });
 
   test('does not stick after a tapped Shift+Enter', () => {

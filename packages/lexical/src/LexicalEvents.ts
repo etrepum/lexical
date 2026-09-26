@@ -1621,8 +1621,8 @@ function onKeyDown(event: KeyboardEvent, editor: LexicalEditor): void {
   if (IS_IOS) {
     if (event.key === 'Enter') {
       inputState.isShiftEnter =
-        (event.shiftKey && inputState.isShiftKeyPressed) ||
-        inputState.lastKeyCode === 'Shift';
+        event.shiftKey &&
+        (inputState.isShiftKeyPressed || inputState.lastKeyCode === 'Shift');
     }
     if (event.key === 'Shift') {
       inputState.isShiftKeyPressed = true;

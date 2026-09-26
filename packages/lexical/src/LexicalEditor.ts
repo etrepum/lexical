@@ -305,9 +305,9 @@ export interface InputState {
   isShiftKeyPressed: boolean;
   /**
    * iOS only: whether the last Enter keydown should insert a line break,
-   * i.e. Shift was held down (hardware keyboard) or was the key tapped
-   * immediately before Enter (on-screen keyboard, where the tap may have
-   * turned off a Shift that auto-capitalization had turned on).
+   * i.e. it reported shiftKey and Shift was either held down (hardware
+   * keyboard) or the key tapped immediately before Enter (on-screen
+   * keyboard).
    */
   isShiftEnter: boolean;
 
