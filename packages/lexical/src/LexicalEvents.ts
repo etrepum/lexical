@@ -73,6 +73,7 @@ import {
   IS_ANDROID_CHROME,
   IS_APPLE,
   IS_APPLE_WEBKIT,
+  IS_CHROME,
   IS_FIREFOX,
   IS_IOS,
   IS_SAFARI,
@@ -755,6 +756,13 @@ function clearHandledSelectionCommandInsertText(inputState: InputState): void {
 
 function markHandledSelectionCommandInsertText(inputState: InputState): void {
   clearHandledSelectionCommandInsertText(inputState);
+  // Only Chrome on macOS accepts a pending text replacement when a handled
+  // selection command runs. Elsewhere an insertText that follows is legitimate
+  // input (e.g. from a virtual keyboard or IME that sends no keydown in
+  // between) and must not be dropped.
+  if (!IS_APPLE || IS_IOS || !IS_CHROME) {
+    return;
+  }
   inputState.isInsertTextAfterHandledSelectionCommand = true;
   inputState.handledSelectionCommandTimeoutId = setTimeout(
     () => clearHandledSelectionCommandInsertText(inputState),
