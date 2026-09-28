@@ -1522,17 +1522,27 @@ describe('native checkbox inputs (semantic mode)', () => {
       );
       expect(input.type).toBe('checkbox');
       expect(input.tabIndex).toBe(-1);
-      // Accessible name: the input is labelled by its row li.
-      expect(li.id).not.toBe('');
-      expect(input.getAttribute('aria-labelledby')).toBe(li.id);
+      // Accessible name: the row's own inline text (a label spanning the
+      // li would read the nested rows too).
+      const ownText = Array.from(li.childNodes)
+        .filter(
+          child =>
+            child !== input &&
+            !(child instanceof HTMLElement && /^[UO]L$/.test(child.tagName)),
+        )
+        .map(child => child.textContent)
+        .join('');
+      expect(input.getAttribute('aria-label')).toBe(ownText);
+      expect(input.disabled).toBe(false);
+      // The li carries none of the ARIA emulation: aria-checked is not
+      // allowed on a plain list item, and the input owns the state.
       expect(li.getAttribute('role')).toBe(null);
-      // aria-checked stays (inert without the role, but keeps HTML
-      // captured from the live DOM importable by default-mode editors).
-      expect(li.getAttribute('aria-checked')).toBe(
-        (li.firstElementChild as HTMLInputElement).checked ? 'true' : 'false',
-      );
+      expect(li.getAttribute('aria-checked')).toBe(null);
       expect(li.getAttribute('tabIndex')).toBe(null);
     }
+    const hostLi = listItems.find(li => li.textContent?.startsWith('host'));
+    invariant(hostLi !== undefined, 'expected the host row');
+    expect(hostLi.firstElementChild?.getAttribute('aria-label')).toBe('host');
     expect(
       listItems.map(li => (li.firstElementChild as HTMLInputElement).checked),
     ).toEqual([true, false, true]);
@@ -1975,11 +1985,14 @@ describe('review round 4 regression fixes', () => {
     editor.read('force-commit', () => {
       exported = $generateHtmlFromNodes(editor);
     });
-    // aria-checked keeps the state readable for editors that do not consume
-    // the checkbox inputs; the live-DOM label plumbing stays out of exports.
-    expect(exported).toContain('aria-checked');
-    expect(exported).not.toContain('aria-labelledby');
-    expect(exported).not.toContain('id=');
+    // The input's `checked` attribute carries the state (the li has no
+    // aria-checked, which is not allowed on a plain list item); the render-
+    // time wiring of the input stays out of exports.
+    expect(exported).not.toContain('aria-checked');
+    expect(exported).toMatch(/<input[^>]* checked=""/);
+    expect(exported).not.toContain('aria-label');
+    expect(exported).not.toContain('disabled');
+    expect(exported).not.toContain('tabindex');
 
     using defaultEditor = buildCheckEditor({hasSemanticNesting: false});
     defaultEditor.update(
@@ -2304,7 +2317,7 @@ describe('review round 5 regression fixes', () => {
     );
   });
 
-  test('$setBlocksType converts an emptied host row (isBlock override)', () => {
+  test('$setBlocksType converts an emptied host row (isBlockOverride)', () => {
     using editor = buildEditor();
     editor.update(
       () => {
@@ -2390,8 +2403,11 @@ describe('review round 5 regression fixes', () => {
       {discrete: true},
     );
     // What a drag operation or scraper sees: the live DOM, not exportDOM.
+    // The input's `checked` attribute carries the state; the default-mode
+    // importer below reads it because the list is a Lexical check list.
     const liveHTML = rootElement.innerHTML;
-    expect(liveHTML).toContain('aria-checked');
+    expect(liveHTML).not.toContain('aria-checked');
+    expect(liveHTML).toMatch(/<input[^>]* checked=""/);
 
     using defaultEditor = buildEditor({hasSemanticNesting: false});
     defaultEditor.update(
@@ -2589,8 +2605,8 @@ describe('review round 6 regression fixes', () => {
       const exported = $generateHtmlFromNodes(editor);
       expect(exported).toContain('<input type="checkbox"');
       expect(exported).not.toContain('tabindex');
-      expect(exported).not.toContain('aria-labelledby');
-      expect(exported).not.toContain('id=');
+      expect(exported).not.toContain('aria-label');
+      expect(exported).not.toContain('disabled');
     });
   });
 
@@ -2897,7 +2913,7 @@ describe('review round 7 regression fixes', () => {
 });
 
 describe('review round 8 regression fixes', () => {
-  test('isBlock() only overrides the wrapper and emptied-host shapes', () => {
+  test('isBlockOverride() only overrides the wrapper and emptied-host shapes', () => {
     using editor = buildEditor();
     editor.update(
       () => {
@@ -2915,12 +2931,12 @@ describe('review round 8 regression fixes', () => {
             $createListItemNode().append($createTextNode('w')),
           ),
         );
-        expect(wrapper.isBlock()).toBe(false);
+        expect(wrapper.isBlockOverride()).toBe(false);
 
         // Emptied host row (only marked nested lists): the one shape the
         // default heuristic gets wrong — forced to block.
         const emptied = $createListItemNode().append($markedBullet());
-        expect(emptied.isBlock()).toBe(true);
+        expect(emptied.isBlockOverride()).toBe(true);
 
         // Canonical host (leading content + trailing marked list): defers
         // to the default heuristic (which already resolves it to a block).
@@ -2928,11 +2944,11 @@ describe('review round 8 regression fixes', () => {
           $createTextNode('a'),
           $markedBullet(),
         );
-        expect(host.isBlock()).toBe(null);
+        expect(host.isBlockOverride()).toBe(null);
 
         // Plain content item: defers.
         const plain = $createListItemNode().append($createTextNode('a'));
-        expect(plain.isBlock()).toBe(null);
+        expect(plain.isBlockOverride()).toBe(null);
 
         // Non-canonical (marked list BEFORE trailing inline content):
         // must defer, not flip to block as the previous end-checks did.
@@ -2940,7 +2956,7 @@ describe('review round 8 regression fixes', () => {
           $markedBullet(),
           $createTextNode('a'),
         );
-        expect(nonCanonical.isBlock()).toBe(null);
+        expect(nonCanonical.isBlockOverride()).toBe(null);
       },
       {discrete: true},
     );
@@ -4289,6 +4305,78 @@ describe('review round 19 regression fixes', () => {
     );
     expect(editor.read(() => $convertToMarkdownString(MD))).toBe(
       '- one\n- \n    - n\n- three',
+    );
+  });
+});
+
+describe('review round 20 regression fixes', () => {
+  test('native checkbox inputs follow the editable state', async () => {
+    using editor = buildCheckEditor();
+    const rootElement = mountRootElement(editor);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append($createTextNode('task')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const input = () => {
+      const element = rootElement.querySelector('input');
+      invariant(element !== null, 'expected the native input');
+      return element;
+    };
+    expect(input().disabled).toBe(false);
+    // A read-only editor renders its checkboxes disabled, so neither a
+    // click nor Space toggles one natively; toggling the editable state
+    // re-renders the rows (on a microtask, see ListExtension).
+    const flush = async () => {
+      await Promise.resolve();
+      editor.read('force-commit', () => {});
+    };
+    editor.setEditable(false);
+    await flush();
+    expect(input().disabled).toBe(true);
+    editor.setEditable(true);
+    await flush();
+    expect(input().disabled).toBe(false);
+  });
+
+  test('the accessible name of a host row excludes its nested rows', () => {
+    using editor = buildCheckEditor();
+    const rootElement = mountRootElement(editor);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append(
+                $createTextNode('Buy groceries'),
+                $markedNestedCheckList(),
+              ),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const [host, nested] = Array.from(rootElement.querySelectorAll('input'));
+    expect(host.getAttribute('aria-label')).toBe('Buy groceries');
+    expect(nested.getAttribute('aria-label')).toBe('nested');
+    // The name tracks the row's text as it is edited.
+    editor.update(
+      () => {
+        const text = $getRoot().getAllTextNodes()[0];
+        text.setTextContent('Buy milk');
+      },
+      {discrete: true},
+    );
+    expect(rootElement.querySelector('input')?.getAttribute('aria-label')).toBe(
+      'Buy milk',
     );
   });
 });

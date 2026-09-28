@@ -2959,7 +2959,10 @@ export function INTERNAL_$isBlock(
     return false;
   }
 
-  const override = node.isBlock();
+  if (node.isInline()) {
+    return false;
+  }
+  const override = node.isBlockOverride();
   if (override !== null) {
     return override;
   }
@@ -2971,7 +2974,7 @@ export function INTERNAL_$isBlock(
     $isTextNode(firstChild) ||
     firstChild.isInline();
 
-  return !node.isInline() && node.canBeEmpty() !== false && isLeafElement;
+  return node.canBeEmpty() !== false && isLeafElement;
 }
 
 /**

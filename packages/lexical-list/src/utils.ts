@@ -320,6 +320,40 @@ export function $copyListForSplit(list: ListNode): ListNode {
  * classes) — passed in rather than resolved here so this stays a pure DOM
  * predicate.
  */
+/**
+ * Whether `domNode` is a check list `<ul>` exported by Lexical itself (it
+ * carries the `__lexicallisttype="check"` attribute the reconciler and
+ * exportDOM write). Used to recognize a row's native checkbox input when
+ * HTML from the semantic nesting mode is pasted into a default-mode editor,
+ * where class-less inputs are otherwise not consumed.
+ */
+export function isLexicalCheckListElement(
+  domNode: HTMLElement | null,
+): boolean {
+  return (
+    domNode !== null && domNode.getAttribute('__lexicallisttype') === 'check'
+  );
+}
+
+/**
+ * The item's own inline text — its children's text content excluding any
+ * nested `ListNode`s (the rows nested beneath it). The accessible name of
+ * a check row's native checkbox input.
+ */
+export function $getListItemOwnTextContent(listItem: ListItemNode): string {
+  let text = '';
+  for (
+    let child = listItem.getFirstChild();
+    child !== null;
+    child = child.getNextSibling()
+  ) {
+    if (!$isListNode(child)) {
+      text += child.getTextContent();
+    }
+  }
+  return text;
+}
+
 export function isDomChecklistElement(
   domNode: HTMLElement,
   hasSemanticNesting: boolean,

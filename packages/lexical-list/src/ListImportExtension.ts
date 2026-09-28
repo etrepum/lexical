@@ -21,6 +21,7 @@ import {
   $isParagraphNode,
   $setDirectionFromDOM,
   $setFormatFromDOM,
+  getParentElement,
   type LexicalNode,
 } from 'lexical';
 
@@ -41,7 +42,11 @@ import {
   $markNestedListsAsSemantic,
   $markPlainImportedCheckRows,
 } from './semanticNesting';
-import {findCheckboxInputChild, isCheckboxInputElement} from './utils';
+import {
+  findCheckboxInputChild,
+  isCheckboxInputElement,
+  isLexicalCheckListElement,
+} from './utils';
 
 /**
  * Lift nested `ListNode`s out of `ListItemNode`s into sibling
@@ -193,17 +198,18 @@ function $flattenListItemBlocks(children: LexicalNode[]): LexicalNode[] {
 
 const ListItemRule = defineImportRule({
   $import: (ctx, el) => {
-    // In the semantic nesting mode a class-less direct checkbox input marks
-    // a task-list row (the mode's own export renders one first in the li);
-    // mirrors the legacy $convertListItemElement path.
+    // A class-less direct checkbox input marks a task-list row (the
+    // semantic nesting mode's own export renders one first in the li): in
+    // that mode, and for a Lexical check list (its `__lexicallisttype`
+    // attribute) pasted into a default-mode editor, so the export keeps its
+    // checked state there; mirrors the legacy $convertListItemElement path.
     const hasSemanticNesting = $isListSemanticNestingEnabled();
-    if (hasSemanticNesting) {
+    if (hasSemanticNesting || isLexicalCheckListElement(getParentElement(el))) {
       const input = findCheckboxInputChild(el);
       if (input !== null) {
-        // markNestedLists is unconditionally true on this path: the
-        // enclosing guard established the semantic mode, and a checkbox
-        // input proves the li renders a row.
-        return $buildChecklistItem(ctx, el, input, true);
+        // Nested lists are marked only in the semantic mode (a checkbox
+        // input proves the li renders a row there).
+        return $buildChecklistItem(ctx, el, input, hasSemanticNesting);
       }
     }
     const ariaChecked = el.getAttribute('aria-checked');

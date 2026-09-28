@@ -618,13 +618,12 @@ describe('semantic nested list browser behavior', () => {
       const hostLi = findRowLi(contentEditable, 'host item');
       const input = rowCheckbox(hostLi);
       expect(input.checked).toBe(false);
-      // Accessible name: the input is labelled by its row li.
-      expect(input.getAttribute('aria-labelledby')).toBe(hostLi.id);
-      expect(hostLi.id).not.toBe('');
+      // Accessible name: the row's own text — not the nested rows' too.
+      expect(input.getAttribute('aria-label')).toBe('host item');
+      // The li carries none of the ARIA emulation (aria-checked is not
+      // allowed on a plain list item; the input owns the state).
       expect(hostLi.getAttribute('role')).toBe(null);
-      // aria-checked stays (inert without the role) so live-DOM HTML
-      // captures keep their checked state importable.
-      expect(hostLi.getAttribute('aria-checked')).toBe('false');
+      expect(hostLi.getAttribute('aria-checked')).toBe(null);
       // Every row (including nested ones) has one; 5 rows in the fixture.
       expect(
         contentEditable.querySelectorAll('li > input[type=checkbox]').length,
@@ -749,6 +748,60 @@ describe('semantic nested list browser behavior', () => {
         );
         expect(anchorNode.firstElementChild).toBeInstanceOf(HTMLInputElement);
         expect(domSelection.anchorOffset).toBe(1);
+      });
+      // The rewrite settles: the caret now sits after the input, so no later
+      // selectionchange matches the guard and nothing reconciles again.
+      let updates = 0;
+      const unregister = editor.registerUpdateListener(() => {
+        updates++;
+      });
+      await new Promise(resolve => setTimeout(resolve, 250));
+      unregister();
+      expect(updates).toBe(0);
+    });
+
+    test('Escape after moving checkbox focus lands the caret on the focused row', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      placeCaret(editor, contentEditable, 'first item', 0);
+      const hostLi = findRowLi(contentEditable, 'host item');
+      // Left focuses the first row's checkbox, Down moves the focus to the
+      // host row's, Space toggles it; the DOM selection is still on the
+      // first row at this point. Escape must exit into the focused row.
+      await userEvent.keyboard('{ArrowLeft}{ArrowDown}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(rowCheckbox(hostLi));
+      });
+      await userEvent.keyboard(' ');
+      await vi.waitFor(() => {
+        expect(rowCheckbox(hostLi).checked).toBe(true);
+      });
+      await userEvent.keyboard('{Escape}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(contentEditable);
+        expect(readLexicalCaret(editor)).toEqual(['host item', 0]);
+      });
+    });
+
+    test('typing while a moved checkbox focus is active inserts into the focused row', async () => {
+      const {contentEditable, editor} = mountSemanticEditor();
+      setUpFixture(editor, 'check');
+      placeCaret(editor, contentEditable, 'first item', 0);
+      const hostLi = findRowLi(contentEditable, 'host item');
+      await userEvent.keyboard('{ArrowLeft}{ArrowDown}');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(rowCheckbox(hostLi));
+      });
+      await userEvent.keyboard('x');
+      await vi.waitFor(() => {
+        expect(document.activeElement).toBe(contentEditable);
+        const texts = editor.read(() =>
+          $getRoot()
+            .getAllTextNodes()
+            .map(node => node.getTextContent()),
+        );
+        expect(texts).toContain('xhost item');
+        expect(texts).not.toContain('xfirst item');
       });
     });
 

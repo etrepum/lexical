@@ -838,6 +838,10 @@ const $listExport = (
     selection != null
       ? (node: LexicalNode) => node.isSelected(selection)
       : () => false;
+  // Loop-invariants of the list itself, read once rather than per row.
+  const listType = listNode.getListType();
+  const listMarker = $getState(listNode, listMarkerState);
+  const start = listNode.getStart();
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
@@ -855,15 +859,13 @@ const $listExport = (
       );
       if (emitsRow) {
         const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
-        const listType = listNode.getListType();
-        const listMarker = $getState(listNode, listMarkerState);
         // getChecked() is a boolean only for a task row; a plain row in a
         // mixed check list reports undefined and exports as a bare `- item`,
         // matching GitHub's mixed task lists.
         const checked = listItemNode.getChecked();
         const prefix =
           listType === 'number'
-            ? `${listNode.getStart() + index}. `
+            ? `${start + index}. `
             : listType === 'check' && checked !== undefined
               ? `${listMarker} [${checked ? 'x' : ' '}] `
               : listMarker + ' ';

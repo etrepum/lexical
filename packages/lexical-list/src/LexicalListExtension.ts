@@ -28,7 +28,7 @@ import {ListImportRules} from './ListImportExtension';
 import {registerList, registerListStrictIndentTransform} from './registerList';
 import {
   $normalizeSemanticListItem,
-  registerListSemanticNestingConfig,
+  registerListEditorConfig,
 } from './semanticNesting';
 
 export interface ListConfig {
@@ -98,10 +98,11 @@ export const ListExtension = defineExtension({
     configExtension(DOMImportExtension, {
       rules: ListImportRules,
     }),
-    // Render-time accessible-name wiring for the semantic mode's native
-    // checkbox inputs (a generated li id + aria-labelledby). $decorateDOM
-    // runs only in the reconciler, so the generated ids never leak into
-    // exported HTML.
+    // Render-time wiring for the semantic mode's native checkbox inputs
+    // (accessible name, tab order, editable state). $decorateDOM runs only
+    // in the reconciler — for every reconciled row, including one whose
+    // text just changed — so the wiring tracks the row's content and never
+    // leaks into exported HTML.
     configExtension(DOMRenderExtension, {
       overrides: [
         domOverride([ListItemNode], {
@@ -116,7 +117,7 @@ export const ListExtension = defineExtension({
     const stores = state.getOutput();
     let firstSemanticNestingRun = true;
     return mergeRegister(
-      registerListSemanticNestingConfig(editor),
+      registerListEditorConfig(editor),
       effect(() => {
         return registerList(editor, {
           restoreNumbering: stores.shouldPreserveNumbering.value,
@@ -131,9 +132,26 @@ export const ListExtension = defineExtension({
         const isFirstRun = firstSemanticNestingRun;
         firstSemanticNestingRun = false;
         if (stores.hasSemanticNesting.value) {
-          return editor.registerNodeTransform(
-            ListItemNode,
-            $normalizeSemanticListItem,
+          return mergeRegister(
+            editor.registerNodeTransform(
+              ListItemNode,
+              $normalizeSemanticListItem,
+            ),
+            // The rows' native checkbox inputs follow the editor's editable
+            // state (decorateListItemDOM disables them in a read-only
+            // editor); toggling it reconciles nothing by itself, so
+            // re-render the rows. Deferred a microtask: an update issued
+            // while the editable listeners run is queued behind that
+            // notification and would not commit until some later update
+            // (setEditable's own slot re-render updates after the listeners
+            // for the same reason).
+            editor.registerEditableListener(() => {
+              queueMicrotask(() => {
+                if (editor.getRootElement() !== null) {
+                  markNodesWithTypesAsDirty(editor, [ListItemNode.getType()]);
+                }
+              });
+            }),
           );
         }
         // Registering the transform marks all list items dirty (converting

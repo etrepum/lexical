@@ -1079,7 +1079,7 @@ declare export class ElementNode extends LexicalNode {
     destination: 'clone' | 'html',
   ): boolean;
   canBeEmpty(): boolean;
-  isBlock(): boolean | null;
+  isBlockOverride(): boolean | null;
   canInsertTextBefore(): boolean;
   canInsertTextAfter(): boolean;
   isInline(): boolean;

@@ -261,15 +261,10 @@ export function registerCheckList(
     editor.registerCommand(
       KEY_ESCAPE_COMMAND,
       () => {
-        const activeItem = getActiveCheckListItem(editor);
-
-        if (activeItem != null) {
-          const rootElement = editor.getRootElement();
-
-          if (rootElement != null) {
-            rootElement.focus();
-          }
-
+        if (getActiveCheckListItem(editor) != null) {
+          // Exits focus mode with the caret on the focused row (see
+          // returnFocusToRoot).
+          returnFocusToRoot(editor);
           return true;
         }
 
@@ -526,15 +521,18 @@ function handleCheckItemEvent(
     return;
   }
 
-  // Only rows that render a checkbox are toggleable. updateListItemChecked
-  // stamps aria-checked on exactly those <li>s in both modes (ARIA
-  // emulation and native input) and strips it from dedicated wrapper
-  // items, so this single mode-neutral check covers rows where a theme
-  // draws a ::before marker whose area must stay clickable. Trust the
-  // reconciler-written DOM rather than inferring from child shape — a row
-  // emptied of its inline content has a list as its first Lexical child
-  // but still renders a checkbox.
-  if (!target.hasAttribute('aria-checked')) {
+  // Only rows that render a checkbox are toggleable: the ARIA emulation
+  // stamps aria-checked on exactly those <li>s, the native-input mode
+  // renders the input as the li's first child, and dedicated wrapper items
+  // get neither — so this check covers rows where a theme draws a ::before
+  // marker whose area must stay clickable. Trust the reconciler-written DOM
+  // rather than inferring from child shape — a row emptied of its inline
+  // content has a list as its first Lexical child but still renders a
+  // checkbox.
+  if (
+    !target.hasAttribute('aria-checked') &&
+    getListItemCheckboxDOM(target) === null
+  ) {
     return;
   }
 
@@ -672,9 +670,25 @@ function returnFocusToRoot(editor: LexicalEditor): void {
   // getActiveCheckListItem also resolves the row's native checkbox input
   // (semantic nesting mode) to its <li>, so focus mode exits the same way
   // whether the li or its input holds the focus.
-  if (rootElement !== null && getActiveCheckListItem(editor) !== null) {
-    rootElement.focus({preventScroll: true});
+  const activeItem = getActiveCheckListItem(editor);
+  if (rootElement === null || activeItem === null) {
+    return;
   }
+  if (getListItemCheckboxDOM(activeItem) !== null) {
+    // While a native input holds the focus the DOM selection can be stale:
+    // arrow Up/Down move the focus between inputs without the reconciler
+    // rewriting it. Put the caret at the focused row's start before handing
+    // the focus back (the same ordering KEY_ARROW_RIGHT_COMMAND uses), so
+    // Escape, typing, or any other exit lands in the row whose checkbox
+    // was focused rather than wherever the caret was left.
+    editor.update(() => {
+      const listItemNode = $getNearestNodeFromDOMNode(activeItem);
+      if ($isListItemNode(listItemNode)) {
+        $selectCheckRowStart(listItemNode);
+      }
+    });
+  }
+  rootElement.focus({preventScroll: true});
 }
 
 function isCheckListItem(dom: HTMLElement): boolean {

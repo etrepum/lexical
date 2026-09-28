@@ -34,6 +34,7 @@ import {
   type ElementDOMSlot,
   ElementNode,
   getCachedClassNameArray,
+  getParentElement,
   getStyleObjectFromCSS,
   isHTMLElement,
   type LexicalEditor,
@@ -65,18 +66,20 @@ import {
   $isListSemanticNestingEnabled,
   $markNestedListsAsSemantic,
   $parkNestedListsInWrapper,
-  isListSemanticNestingEnabledForConfig,
+  getListEditorForConfig,
 } from './semanticNesting';
 import {
   $copyListForSplit,
+  $getListItemOwnTextContent,
   $getNewListStart,
   $hasNestedListChild,
   $isCheckList,
+  $isEmptiedHostRow,
   $isWrapperListItemNode,
   findCheckboxInputChild,
   isCheckboxInputElement,
+  isLexicalCheckListElement,
   listItemPlainState,
-  listSemanticNestingState,
 } from './utils';
 
 export type SerializedListItemNode = Spread<
@@ -272,17 +275,17 @@ export class ListItemNode extends ElementNode {
     // Classified once per reconcile; both helpers below need it. A check
     // row renders a real <input type=checkbox> — rather than the ARIA /
     // ::before emulation — in the semantic nesting representation; the
-    // theme keys and DOM wiring differ, so resolve it once here. The mode
-    // is read from the editor when the caller has one (the reconciler and
-    // exportDOM do), otherwise from the config object it passed — which
-    // identifies the editor without needing an active one, so a subclass
-    // keeping the one-argument `createDOM(config)` still builds the right
+    // theme keys and DOM wiring differ, so resolve it once here. The owning
+    // editor is the caller's when it has one (the reconciler and exportDOM
+    // do), otherwise the one registered for the config object it passed —
+    // found without an active editor, so a subclass keeping the
+    // one-argument `createDOM(config)` still builds the right
     // representation inside a bare editorState.read().
     const isWrapper = $isWrapperListItemNode(this);
+    const owner =
+      editor !== undefined ? editor : getListEditorForConfig(config);
     const hasSemanticNesting =
-      editor !== undefined
-        ? $isListSemanticNestingEnabled(editor)
-        : isListSemanticNestingEnabledForConfig(config);
+      owner !== undefined && $isListSemanticNestingEnabled(owner);
     // Task-ness, not the list type, decides whether the row draws a checkbox:
     // a plain row in a check list (the GitHub mixed task-list case) reports
     // getChecked() === undefined and renders none, and getChecked already
@@ -790,31 +793,21 @@ export class ListItemNode extends ElementNode {
     return true;
   }
 
-  isBlock(): boolean | null {
+  isBlockOverride(): boolean | null {
     // An item with any inline (non-list) child — or no children — defers to
     // the default first-child heuristic (null), which already resolves it
     // correctly. Only an item whose children are ALL nested lists needs an
-    // answer of its own: an emptied host row (some list marked) still
-    // renders a row and must behave as a block; a dedicated wrapper (all
-    // unmarked) is a container, not a block. The same split
-    // $isEmptiedHostRow / $isWrapperListItemNode encode, folded into one
-    // child walk because this sits on caret/selection hot paths: it stops
-    // at the first inline child, otherwise remembers whether any nested
-    // list carries the mark.
-    let marked = false;
-    let child = this.getFirstChild();
-    if (child === null) {
-      return null;
-    }
-    for (; child !== null; child = child.getNextSibling()) {
-      if (!$isListNode(child)) {
-        return null;
-      }
-      if (!marked && $getState(child, listSemanticNestingState)) {
-        marked = true;
-      }
-    }
-    return marked;
+    // answer of its own, and the two shared predicates are that split's
+    // single encoding: a dedicated wrapper (all unmarked) is a container,
+    // not a block; an emptied host row (some list marked) still renders a
+    // row and must behave as a block. Both exit at the first inline child,
+    // so the common content row costs one link read per predicate on the
+    // caret/selection hot paths this serves.
+    return $isWrapperListItemNode(this)
+      ? false
+      : $isEmptiedHostRow(this)
+        ? true
+        : null;
   }
 }
 
@@ -841,6 +834,14 @@ function $isAtRowContentStart(
     : firstChild;
   return firstDescendant !== null && point.getNode().is(firstDescendant);
 }
+
+// The variable theme classes a list item may carry (checked/unchecked in
+// both representations, nested, host), per theme object — see
+// $setListItemThemeClassNames.
+const listItemVariantClassNames = new WeakMap<
+  EditorThemeClasses,
+  readonly string[]
+>();
 
 /**
  * Whether `point` is at the end of the item's own inline content or beyond
@@ -959,23 +960,26 @@ function $setListItemThemeClassNames(
   // (fresh create vs. cross-parent reuse) or which checkbox representation
   // the row used last (the emulated and native check classes must never
   // linger together). classList.remove on a missing class is a no-op, so
-  // this is safe even on a freshly-created element.
-  const classesToRemove: string[] = [];
-  for (const checkClassNames of [
-    checkedClassNames,
-    uncheckedClassNames,
-    checkedNativeClassNames,
-    uncheckedNativeClassNames,
-  ]) {
-    if (checkClassNames !== undefined) {
-      classesToRemove.push(...checkClassNames);
+  // this is safe even on a freshly-created element. The set is a function
+  // of the theme alone, memoized per theme object rather than rebuilt on
+  // every reconcile of every dirty row.
+  let classesToRemove = listItemVariantClassNames.get(listTheme);
+  if (classesToRemove === undefined) {
+    const variantClasses: string[] = [];
+    for (const variantClassNames of [
+      checkedClassNames,
+      uncheckedClassNames,
+      checkedNativeClassNames,
+      uncheckedNativeClassNames,
+      nestedListItemClassNames,
+      hostListItemClassNames,
+    ]) {
+      if (variantClassNames !== undefined) {
+        variantClasses.push(...variantClassNames);
+      }
     }
-  }
-  if (nestedListItemClassNames !== undefined) {
-    classesToRemove.push(...nestedListItemClassNames);
-  }
-  if (hostListItemClassNames !== undefined) {
-    classesToRemove.push(...hostListItemClassNames);
+    classesToRemove = variantClasses;
+    listItemVariantClassNames.set(listTheme, classesToRemove);
   }
   if (classesToRemove.length > 0) {
     // The cached arrays hold normalized single tokens, so classList is
@@ -1038,7 +1042,6 @@ function $setListItemThemeClassNames(
 const listItemCheckboxInputs = new WeakSet<Element>();
 
 /** Prefix of the generated li ids that decorateListItemDOM writes and cleans up. */
-const LISTITEM_ID_PREFIX = 'lexical-listitem-';
 
 /**
  * The native `<input type="checkbox">` rendered as the first child of a
@@ -1076,10 +1079,10 @@ export function getListItemFocusTarget(dom: HTMLElement): HTMLElement {
 function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
   const input = dom.ownerDocument.createElement('input');
   input.type = 'checkbox';
-  // Focus-mode wiring (tabIndex) and accessible-name wiring (a generated
-  // li id + aria-labelledby on the input) are strictly render-time
-  // concerns, applied by ListExtension's DOMRenderExtension override
-  // (decorateListItemDOM) so that neither leaks into exported HTML.
+  // Focus-mode wiring (tabIndex), the accessible name (aria-label) and the
+  // editable state (disabled) are strictly render-time concerns, applied by
+  // ListExtension's DOMRenderExtension override (decorateListItemDOM) so
+  // that none of them leaks into exported HTML.
   setDOMUnmanaged(input);
   listItemCheckboxInputs.add(input);
   dom.insertBefore(input, dom.firstChild);
@@ -1087,17 +1090,24 @@ function createListItemCheckboxDOM(dom: HTMLElement): HTMLInputElement {
 }
 
 /**
- * Render-time accessible-name wiring for a check row's native checkbox
- * input: a bare input announces as a nameless checkbox, whereas the
- * role="checkbox" li it replaces exposed its text content as the
- * accessible name. The li gets a generated id (scoped by editor and node
- * key) for aria-labelledby to reference. Registered by ListExtension as a
- * DOMRenderExtension `$decorateDOM` override — reconciler-only, so
- * exported HTML never carries the generated ids.
+ * Render-time wiring for a check row's native checkbox input. Registered by
+ * ListExtension as a DOMRenderExtension `$decorateDOM` override, which the
+ * reconciler runs for every reconciled row — including one whose text just
+ * changed — and never for exportDOM, so nothing here reaches exported HTML.
+ *
+ * - Accessible name: a bare input announces as a nameless checkbox, and a
+ *   label spanning the whole `<li>` would read every nested row beneath a
+ *   host row too. `aria-label` carries the row's own inline text instead.
+ * - Tab order: focus-mode navigation (checkList.ts) moves focus between
+ *   rows with the arrow keys; the inputs stay out of the tab order like the
+ *   li[tabIndex=-1] focus target they replace.
+ * - Editable state: a read-only editor renders its inputs disabled, so
+ *   neither a click nor Space toggles one natively (ListExtension re-renders
+ *   the rows when the editable state changes).
  *
  * @internal
  */
-export function decorateListItemDOM(
+export function $decorateListItemDOM(
   node: ListItemNode,
   prevNode: null | ListItemNode,
   dom: HTMLElement,
@@ -1105,25 +1115,22 @@ export function decorateListItemDOM(
 ): void {
   const input = getListItemCheckboxDOM(dom);
   if (input === null) {
-    if (dom.id.startsWith(LISTITEM_ID_PREFIX)) {
-      dom.removeAttribute('id');
-    }
     return;
   }
-  // Focus-mode navigation (checkList.ts) moves focus between rows with
-  // the arrow keys; keep the inputs out of the tab order like the
-  // li[tabIndex=-1] focus target they replace. Applied here (not in
-  // createDOM) so exported HTML keeps keyboard-focusable checkboxes.
   if (input.getAttribute('tabindex') !== '-1') {
     input.tabIndex = -1;
   }
-  if (!dom.id) {
-    dom.id = `${LISTITEM_ID_PREFIX}${editor.getKey()}-${node.getKey()}`;
+  const label = $getListItemOwnTextContent(node);
+  if (input.getAttribute('aria-label') !== label) {
+    input.setAttribute('aria-label', label);
   }
-  if (input.getAttribute('aria-labelledby') !== dom.id) {
-    input.setAttribute('aria-labelledby', dom.id);
+  const disabled = !editor.isEditable();
+  if (input.disabled !== disabled) {
+    input.disabled = disabled;
   }
 }
+/** @deprecated renamed to {@link $decorateListItemDOM} by @lexical/eslint-plugin rules-of-lexical */
+export const decorateListItemDOM = $decorateListItemDOM;
 
 function updateListItemChecked(
   dom: HTMLElement,
@@ -1149,22 +1156,18 @@ function updateListItemChecked(
     input.remove();
   }
 
-  // The li carries role/tabIndex only for the ARIA emulation (with a
-  // native input, the input owns those semantics), but aria-checked on
-  // every check row: without the role it is inert for assistive
-  // technology, while HTML captured from the live DOM (drag, scrapers,
-  // non-Lexical copy paths) keeps its checked state readable by importers
-  // that do not consume checkbox inputs.
+  // The li carries role/tabIndex/aria-checked only for the ARIA emulation.
+  // With a native input the input owns those semantics, and aria-checked
+  // is not allowed on a plain list item (an `aria-allowed-attr` audit
+  // failure); the input's `checked` attribute carries the state in HTML
+  // captured from the live DOM, and both importers consume it.
   if (isCheckbox && !useNativeInput) {
     dom.setAttribute('role', 'checkbox');
     dom.setAttribute('tabIndex', '-1');
+    dom.setAttribute('aria-checked', checked ? 'true' : 'false');
   } else {
     dom.removeAttribute('role');
     dom.removeAttribute('tabIndex');
-  }
-  if (isCheckbox) {
-    dom.setAttribute('aria-checked', checked ? 'true' : 'false');
-  } else {
     dom.removeAttribute('aria-checked');
   }
 }
@@ -1172,12 +1175,18 @@ function updateListItemChecked(
 function $convertListItemElement(domNode: HTMLElement): DOMConversionOutput {
   // A direct checkbox-input child marks a task-list row. GitHub's
   // `li.task-list-item > input` is recognized everywhere (existing
-  // behavior); class-less inputs — including the semantic nesting mode's
-  // own export, which renders the row's real checkbox first in the li —
-  // are consumed only when that mode is enabled, so default-mode editors
-  // keep importing arbitrary `<li><input type=checkbox>…` HTML unchanged.
+  // behavior); class-less inputs — the semantic nesting mode's own export,
+  // which renders the row's real checkbox first in the li — are consumed
+  // when that mode is enabled or when the enclosing list is a Lexical
+  // check list (its `__lexicallisttype` attribute), so that export keeps
+  // its checked state when pasted into a default-mode editor, while
+  // arbitrary `<li><input type=checkbox>…` HTML imports unchanged there.
   const hasSemanticNesting = $isListSemanticNestingEnabled();
-  if (domNode.classList.contains('task-list-item') || hasSemanticNesting) {
+  if (
+    domNode.classList.contains('task-list-item') ||
+    hasSemanticNesting ||
+    isLexicalCheckListElement(getParentElement(domNode))
+  ) {
     const input = findCheckboxInputChild(domNode);
     if (input !== null) {
       return $convertCheckboxInput(input, domNode, hasSemanticNesting);

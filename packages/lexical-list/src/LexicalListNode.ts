@@ -48,6 +48,7 @@ import {
   $markPlainImportedCheckRows,
   $markSemanticNestedLists,
   $mergeWrapperListItemIntoPrevious,
+  getListEditorForConfig,
 } from './semanticNesting';
 import {$getListDepth, $isWrapperListItemNode} from './utils';
 
@@ -173,7 +174,7 @@ export class ListNode extends ElementNode {
 
   // View
 
-  createDOM(config: EditorConfig, _editor?: LexicalEditor): HTMLElement {
+  createDOM(config: EditorConfig, editor?: LexicalEditor): HTMLElement {
     const tag = this.__tag;
     const dom = $getDocument().createElement(tag);
 
@@ -182,6 +183,7 @@ export class ListNode extends ElementNode {
     }
     // @ts-expect-error Internal field.
     dom.__lexicalListType = this.__listType;
+    updateListCheckAttribute(dom, this.__listType, config, editor);
     $setListThemeClassNames(dom, config.theme, this);
 
     return dom;
@@ -196,6 +198,7 @@ export class ListNode extends ElementNode {
     }
 
     $setListThemeClassNames(dom, config.theme, this);
+    updateListCheckAttribute(dom, this.__listType, config);
 
     if (prevNode.__start !== this.__start) {
       dom.setAttribute('start', String(this.__start));
@@ -278,6 +281,35 @@ export class ListNode extends ElementNode {
   }
 }
 
+/**
+ * In the semantic nesting mode the live `<ul>` of a check list carries the
+ * same `__lexicallisttype="check"` marker exportDOM writes: its rows render
+ * native checkbox inputs and no `aria-checked` (not allowed on a plain list
+ * item), so HTML captured from the live DOM (drag, scrapers, non-Lexical
+ * copy paths) needs the list-level marker for an importer — a default-mode
+ * editor included — to read it as a check list and consume the inputs.
+ * The default representation's DOM is unchanged (its rows carry the ARIA
+ * emulation, which importers already recognize).
+ */
+function updateListCheckAttribute(
+  dom: HTMLElement,
+  listType: ListType,
+  config: EditorConfig,
+  editor?: LexicalEditor,
+): void {
+  const owner = editor !== undefined ? editor : getListEditorForConfig(config);
+  const marked =
+    listType === 'check' &&
+    owner !== undefined &&
+    $isListSemanticNestingEnabled(owner);
+  if (marked) {
+    if (dom.getAttribute('__lexicallisttype') !== 'check') {
+      dom.setAttribute('__lexicallisttype', 'check');
+    }
+  } else if (dom.hasAttribute('__lexicallisttype')) {
+    dom.removeAttribute('__lexicallisttype');
+  }
+}
 function $setListThemeClassNames(
   dom: HTMLElement,
   editorThemeClasses: EditorThemeClasses,

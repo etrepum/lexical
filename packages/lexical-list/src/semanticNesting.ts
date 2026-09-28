@@ -111,7 +111,7 @@ export function $parkNestedListsInWrapper(
  * call it unconditionally) — default-mode check-list import is unchanged, and
  * mixed task lists are a semantic-mode feature.
  *
- * @internal
+ * @experimental
  */
 export function $markPlainImportedCheckRows(
   items: ListItemNode[],
@@ -137,7 +137,7 @@ export function $markPlainImportedCheckRows(
  * extension. Used by the DOM import paths to decide which nested list
  * representation to normalize to.
  *
- * @internal
+ * @experimental
  */
 export function $isListSemanticNestingEnabled(
   editor: LexicalEditor = $getEditor(),
@@ -145,44 +145,41 @@ export function $isListSemanticNestingEnabled(
   return makeListSemanticNestingReader(editor)();
 }
 
-// The mode keyed by the editor's config object — the one argument every
-// createDOM / updateDOM call carries — so the DOM build needs neither an
-// editor argument nor an active editor (a bare editorState.read() has an
-// active state but no active editor). Populated by ListExtension for the
-// editor's lifetime; an editor built without the extension is absent and
-// reads as off.
-const semanticNestingByConfig = new WeakMap<EditorConfig, () => boolean>();
+// The editor keyed by its config object — the one argument every createDOM
+// / updateDOM call carries — so a DOM build can find its editor without an
+// editor argument or an active editor (a bare editorState.read() has an
+// active state but no active editor). Registered by ListExtension for the
+// editor's lifetime; a config no ListExtension registered (or a copied
+// config) resolves to no editor, and the row then renders the default
+// representation.
+const editorByConfig = new WeakMap<EditorConfig, LexicalEditor>();
 
 /**
- * Record the `hasSemanticNesting` reader for `editor` under its config
- * object, for {@link isListSemanticNestingEnabledForConfig}. Registered by
- * {@link ListExtension}; returns the cleanup.
+ * Record `editor` under its config object for
+ * {@link getListEditorForConfig}. Registered by {@link ListExtension};
+ * returns the cleanup.
  *
  * @internal
  */
-export function registerListSemanticNestingConfig(
-  editor: LexicalEditor,
-): () => void {
+export function registerListEditorConfig(editor: LexicalEditor): () => void {
   const config = editor._config;
-  semanticNestingByConfig.set(config, makeListSemanticNestingReader(editor));
+  editorByConfig.set(config, editor);
   return () => {
-    semanticNestingByConfig.delete(config);
+    editorByConfig.delete(config);
   };
 }
 
 /**
- * Whether the `hasSemanticNesting` config of {@link ListExtension} is
- * enabled for the editor that owns `config` (an `EditorConfig`, as passed to
- * `createDOM` / `updateDOM`). `false` for a config no ListExtension has
- * registered. Not a `$` function: it reads no editor state.
+ * The editor that owns `config` (an `EditorConfig`, as passed to `createDOM`
+ * / `updateDOM`), or `undefined` for a config no ListExtension registered.
+ * Not a `$` function: it reads no editor state.
  *
  * @internal
  */
-export function isListSemanticNestingEnabledForConfig(
+export function getListEditorForConfig(
   config: EditorConfig,
-): boolean {
-  const reader = semanticNestingByConfig.get(config);
-  return reader !== undefined && reader();
+): LexicalEditor | undefined {
+  return editorByConfig.get(config);
 }
 
 // One reader per editor: the extension set is fixed after build, so the
