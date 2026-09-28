@@ -13,6 +13,7 @@ import {
   $createRangeSelection,
   $getSelection,
   $isRangeSelection,
+  $selectionTouchesElement,
   $updateElementSelectionOnCreateDeleteNode,
   type PointType,
   type RangeSelection,
@@ -752,7 +753,12 @@ export function $splitTextPointCaretSlice(
     return origin;
   }
   const parent = origin.getParent();
-  const index = origin.getIndexWithinParent();
+  // Only element-point repair needs the sibling index. Text-only ranges
+  // avoid an extra linear scan before splitText's own insertion lookup.
+  const index =
+    selection && parent && $selectionTouchesElement(selection, parent)
+      ? origin.getIndexWithinParent()
+      : -1;
   // Capture offsets before splitText repairs the active selection. In
   // particular, an element point before a prefix must stay on that prefix.
   const points = selection

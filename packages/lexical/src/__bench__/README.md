@@ -29,6 +29,7 @@ jsdom setup cost.
 | ---- | ------- | -------- |
 | `nodeMap.bench.ts` | `bench` | `Map` vs `GenMap` on clone / typing / paste / iteration / get |
 | `getWritable.bench.ts` | `bench` | headless writes, replacement, and selection formatting at fixed document sizes |
+| `caretSelection.bench.ts` | `bench` | uncached selection traversal in flat/nested trees and partial formatting near a paragraph's end |
 | `dom/editorCycle.bench.ts` | `bench-dom` | real `editor.update` cycle cost on a jsdom-backed editor |
 | `dom/editorOperations.bench.ts` | `bench-dom` | editor operations: split, format, delete range, paste, select-all |
 
@@ -36,7 +37,7 @@ Helpers shared across files live in `_utils.ts` (microbench) and
 `dom/_utils.ts` (real-editor). Use them when you can; extract new helpers
 there if your bench file grows beyond a single workload.
 
-For writable-node changes, compare production bundles with the same current
+For writable-node or selection changes, compare production bundles with the same current
 benchmark on every revision:
 
 ```sh
@@ -58,12 +59,27 @@ isolated effect of changing build settings. This is a headless source bundle,
 not the published package layout or the compiler annotation pipeline.
 
 The runner also includes the working tree. It verifies each workload before
-timing, rotates revision order across nine samples, and reports median
-microseconds per update plus the individual samples. This reduces timing
+timing, resets fixture node keys for each workload, rotates revision order
+across nine samples, and reports median microseconds per workload run plus
+the individual samples. This reduces timing
 drift between separate runs. Measurements cover headless updates without DOM
 reconciliation; small differences still need to be treated as noise.
 Set `LEXICAL_BENCH_FILTER` to a regular expression over the workload name and
 `LEXICAL_BENCH_SAMPLES` to a positive integer for longer, focused comparisons.
+
+To compare the checked-out PR directly with main for selection work:
+
+```sh
+LEXICAL_BENCH_FILTER='selection traversal|partial formatting|select all and format' \
+  LEXICAL_BENCH_SAMPLES=15 node scripts/bench-get-writable.mjs origin/main
+```
+
+Selection traversal measures 20 uncached `getNodes()` calls in a read context.
+The nested fixture groups every ten paragraphs under another element. Partial
+formatting splits the final text sibling, checks its format, and merges the
+fragments back in the same update so the document size stays fixed. That timing
+includes restoration and commit, not just the split. Run focused comparisons
+again in fresh processes before treating small differences as regressions.
 
 ## When to add a bench
 

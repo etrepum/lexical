@@ -36,7 +36,9 @@ const revisions = refs.map(ref => ({
   sha: git(['rev-parse', '--verify', `${ref}^{commit}`]),
 }));
 revisions.push({label: 'WORKTREE', sha: null});
-const benchmark = 'packages/lexical/src/__bench__/getWritable.bench.ts';
+const benchmarks = ['getWritable', 'caretSelection'].map(
+  name => `packages/lexical/src/__bench__/${name}.bench.ts`,
+);
 const filter = new RegExp(process.env.LEXICAL_BENCH_FILTER || '');
 const sampleCount = Number(process.env.LEXICAL_BENCH_SAMPLES || 9);
 if (!Number.isSafeInteger(sampleCount) || sampleCount < 1) {
@@ -84,10 +86,13 @@ try {
         {
           name: 'revision-benchmark',
           setup(bundler) {
-            bundler.onResolve({filter: /getWritable\.bench\.ts$/}, () => ({
-              path: join(root, benchmark),
-              sideEffects: true,
-            }));
+            bundler.onResolve(
+              {filter: /(getWritable|caretSelection)\.bench\.ts$/},
+              args => ({
+                path: join(root, args.path),
+                sideEffects: true,
+              }),
+            );
             bundler.onResolve({filter: /^vitest$/}, () => ({
               namespace: 'benchmark',
               path: 'vitest',
@@ -135,7 +140,9 @@ try {
         },
       ],
       stdin: {
-        contents: `import './${benchmark}'; export {cases, pendingTests} from 'vitest';`,
+        contents:
+          benchmarks.map(path => `import './${path}';`).join('\n') +
+          `export {cases, pendingTests} from 'vitest'; export {resetRandomKey} from './packages/lexical/src/index.ts';`,
         loader: 'js',
         resolveDir: root,
       },
@@ -148,11 +155,14 @@ try {
     );
     await writeFile(outfile, code);
     bundles.push({bytes: Buffer.byteLength(code), eliminatedDevConstants});
-    const {cases, pendingTests} = await import(pathToFileURL(outfile).href);
+    const {cases, pendingTests, resetRandomKey} = await import(
+      pathToFileURL(outfile).href
+    );
     await Promise.all(pendingTests);
-    if (cases.length !== 12) {
-      throw new Error(`Expected 12 workloads, got ${cases.length}`);
+    if (cases.length !== 18) {
+      throw new Error(`Expected 18 workloads, got ${cases.length}`);
     }
+    for (const workload of cases) workload.resetKeys = resetRandomKey;
     variants.push(cases);
   }
   console.log(
@@ -171,6 +181,7 @@ try {
       continue;
     }
     for (const workload of cases) {
+      workload.resetKeys();
       workload.setup();
       // Verify both halves of the text/format alternation before timing.
       for (let i = 0; i < 4; i++) {

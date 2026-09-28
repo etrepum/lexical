@@ -21,6 +21,39 @@ import {
 import {describe, expect, test} from 'vitest';
 
 describe('selection text slices', () => {
+  test.each(['format', 'extract'] as const)(
+    '%s of a detached text range repairs the active element point',
+    operation => {
+      using editor = buildEditorFromExtensions({name: 'slice-active-element'});
+      editor.update(
+        () => {
+          const text = $createTextNode('abcde');
+          const following = $createTextNode('after').setFormat('italic');
+          const paragraph = $createParagraphNode().append(text, following);
+          $getRoot().clear().append(paragraph);
+          const active = paragraph.select(2, 2);
+          const selection = $createRangeSelection();
+          selection.anchor.set(text.getKey(), 1, 'text');
+          selection.focus.set(text.getKey(), 4, 'text');
+
+          if (operation === 'format') {
+            selection.formatText('bold');
+          } else {
+            selection.extract();
+          }
+
+          expect(selection.getTextContent()).toBe('bcd');
+          expect($getSelection()).toBe(active);
+          expect(active.isCollapsed()).toBe(true);
+          expect(active.anchor.key).toBe(following.getKey());
+          expect(active.anchor.type).toBe('text');
+          expect(active.anchor.offset).toBe(5);
+        },
+        {discrete: true},
+      );
+    },
+  );
+
   test.each([false, true])(
     'styling retains the selected prefix at an element start (backward=%s)',
     backward => {

@@ -4366,7 +4366,9 @@ function $getNodesFromCaretRangeCompat(
     nodes.push(beforeSlice.caret.origin);
   }
   const seenAncestors = new Set<ElementNode>();
-  const seenElements = new Set<ElementNode>();
+  // Enter/exit events are nested. Only leading ancestors lack an included
+  // enter event, so a depth counter can skip repeated elements on exit.
+  let openElements = 0;
   for (const caret of range) {
     if ($isChildCaret(caret)) {
       // Emulate the leading under-selection behavior of getNodes by
@@ -4376,13 +4378,15 @@ function $getNodesFromCaretRangeCompat(
       if (nodes.length === 0) {
         seenAncestors.add(origin);
       } else {
-        seenElements.add(origin);
+        openElements++;
         nodes.push(origin);
       }
     } else {
       const {origin} = caret;
-      if (!$isElementNode(origin) || !seenElements.has(origin)) {
+      if (!$isElementNode(origin) || openElements === 0) {
         nodes.push(origin);
+      } else {
+        openElements--;
       }
     }
   }
@@ -4415,7 +4419,9 @@ function $getNodesFromCaretRangeCompat(
     const lastIncludedNode = nodes[nodes.length - 1];
     if ($isElementNode(lastIncludedNode)) {
       if (
-        seenElements.has(lastIncludedNode) ||
+        // A non-empty included element at the tail has not exited yet:
+        // otherwise one of its descendants would follow it in nodes.
+        openElements > 0 ||
         lastIncludedNode.isEmpty() ||
         seenAncestors.has(lastIncludedNode)
       ) {
