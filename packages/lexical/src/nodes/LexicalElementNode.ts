@@ -15,7 +15,11 @@ import type {
 
 import invariant from '@lexical/internal/invariant';
 
-import {$collectSiblingNodes, $linkSiblings} from '../caret/LexicalCaretTree';
+import {
+  $collectSiblingNodes,
+  $detachNode,
+  $insertNodeBetween,
+} from '../caret/LexicalCaretTree';
 import {$isTextNode, type TextNode} from '../index';
 import {
   DOUBLE_LINE_BREAK,
@@ -68,7 +72,6 @@ import {
   $getDOMSlot,
   $getNodeByKey,
   $isRootOrShadowRoot,
-  $removeFromParent,
   isHTMLElement,
   toggleTextFormatType,
 } from '../LexicalUtils';
@@ -843,16 +846,22 @@ export class ElementNode
         const nextSibling = nodeToDelete.getNextSibling();
         const nodeKeyToDelete = nodeToDelete.__key;
         const writableNodeToDelete = nodeToDelete.getWritable();
-        $removeFromParent(writableNodeToDelete);
+        $detachNode(writableNodeToDelete);
         nodesToRemoveKeys.push(nodeKeyToDelete);
         nodeToDelete = nextSibling;
       }
     }
 
-    let prevNode = nodeBeforeRange;
+    // Retain the writable insertion tail instead of dirtying it again for
+    // every child. No boundary needs to be writable for a deletion-only splice.
+    let writablePrevNode =
+      nodesToInsert.length > 0 && nodeBeforeRange !== null
+        ? nodeBeforeRange.getWritable()
+        : null;
     for (const nodeToInsert of nodesToInsert) {
-      if (prevNode !== null && nodeToInsert.is(prevNode)) {
-        nodeBeforeRange = prevNode = prevNode.getPreviousSibling();
+      if (writablePrevNode !== null && nodeToInsert.is(writablePrevNode)) {
+        nodeBeforeRange = writablePrevNode.getPreviousSibling();
+        writablePrevNode = nodeBeforeRange && nodeBeforeRange.getWritable();
       }
       if (nodeAfterRange !== null && nodeToInsert.is(nodeAfterRange)) {
         nodeAfterRange = nodeAfterRange.getNextSibling();
@@ -861,27 +870,21 @@ export class ElementNode
       if (writableNodeToInsert.__parent === writableSelfKey) {
         newSize--;
       }
-      $removeFromParent(writableNodeToInsert);
+      $detachNode(writableNodeToInsert);
       const nodeKeyToInsert = nodeToInsert.__key;
-      $linkSiblings(
-        writableSelf,
-        prevNode && prevNode.getWritable(),
-        writableNodeToInsert,
-      );
       // Keep both links valid before detaching the next insertion. It may be
       // nodeAfterRange, whose previous sibling must now be this inserted node.
-      $linkSiblings(
+      $insertNodeBetween(
         writableSelf,
         writableNodeToInsert,
+        writablePrevNode,
         nodeAfterRange && nodeAfterRange.getWritable(),
       );
       if (nodeToInsert.__key === writableSelfKey) {
         invariant(false, 'append: attempting to append self');
       }
-      // Set child parent to self
-      writableNodeToInsert.__parent = writableSelfKey;
       nodesToInsertKeys.push(nodeKeyToInsert);
-      prevNode = nodeToInsert;
+      writablePrevNode = writableNodeToInsert;
     }
 
     writableSelf.__size = newSize;

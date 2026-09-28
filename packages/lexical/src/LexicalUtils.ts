@@ -543,7 +543,7 @@ export function $markSlotsUsed(): void {
  * Please do not use it as it may change in the future.
  */
 export function $removeFromParent(node: LexicalNode): void {
-  $detachNode(node);
+  $detachNode(node.getParent() === null ? node : node.getWritable());
 }
 /** @deprecated renamed to {@link $removeFromParent} by @lexical/eslint-plugin rules-of-lexical */
 export const removeFromParent = $removeFromParent;

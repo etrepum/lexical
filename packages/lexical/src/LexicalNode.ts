@@ -32,9 +32,9 @@ import {
 } from '.';
 import {
   $collectSiblingNodes,
-  $detachNode,
+  $detachNodeWithSelection,
+  $insertNodeBetween,
   $insertSibling,
-  $linkSiblings,
   $selectAdjacentNode,
 } from './caret/LexicalCaretTree';
 import {DOMSlot} from './LexicalDOMSlot';
@@ -801,8 +801,8 @@ export function $removeNode(
     nodeToRemove.selectPrevious();
   }
 
-  $detachNode(
-    nodeToRemove,
+  $detachNodeWithSelection(
+    nodeToRemove.getWritable(),
     restoreSelection && !selectionMoved && $isRangeSelection(selection)
       ? selection
       : null,
@@ -1919,24 +1919,19 @@ export class LexicalNode {
     const size = writableParent.__size;
     // Detaching repairs the cloned selection's old-parent offsets (#6031).
     const replaceWithOldParent = writableReplaceWith.getParent();
-    $detachNode(
+    $detachNodeWithSelection(
       writableReplaceWith,
       $isRangeSelection(selection) ? selection : null,
     );
     const prevSibling = self.getPreviousSibling();
     const nextSibling = self.getNextSibling();
     $removeNode(self, false, true);
-    $linkSiblings(
+    $insertNodeBetween(
       writableParent,
+      writableReplaceWith,
       prevSibling && prevSibling.getWritable(),
-      writableReplaceWith,
-    );
-    $linkSiblings(
-      writableParent,
-      writableReplaceWith,
       nextSibling && nextSibling.getWritable(),
     );
-    writableReplaceWith.__parent = writableParent.__key;
     // `size` was read before replaceWith was detached. When replaceWith was
     // already a child of this same parent, two children collapse into one, so
     // the restored size must account for the node that is not coming back.

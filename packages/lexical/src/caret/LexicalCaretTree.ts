@@ -34,7 +34,7 @@ import {errorOnInsertTextNodeOnRoot} from '../LexicalUtils';
  * first/last boundary. Callers own the parent/size updates and must pass
  * writable nodes, obtained through getWritable for copy-on-write and dirtying.
  */
-export function $linkSiblings(
+function $linkSiblings(
   writableParent: ElementNode,
   writablePrevious: LexicalNode | null,
   writableNext: LexicalNode | null,
@@ -53,42 +53,45 @@ export function $linkSiblings(
   }
 }
 
+/** Insert into a gap, repairing both boundaries. All nodes must be writable. */
+export function $insertNodeBetween(
+  writableParent: ElementNode,
+  writableNode: LexicalNode,
+  previous: LexicalNode | null,
+  next: LexicalNode | null,
+): void {
+  const key = writableNode.__key;
+  if (previous === null) {
+    writableParent.__first = key;
+  } else {
+    previous.__next = key;
+  }
+  if (next === null) {
+    writableParent.__last = key;
+  } else {
+    next.__prev = key;
+  }
+  writableNode.__prev = previous === null ? null : previous.__key;
+  writableNode.__next = next === null ? null : next.__key;
+  writableNode.__parent = writableParent.__key;
+}
+
 /**
- * Detach a child and optionally repair element offsets in its old parent.
- * Return points that were immediately after the child, before that repair;
- * insertAfter uses them to follow the moved node to its new parent (#6031).
+ * Unlink a writable child without selection bookkeeping. Detached nodes are
+ * not modified. Callers obtain getWritable once before entering this layer.
  */
-export function $detachNode(
-  node: LexicalNode,
-  selection: RangeSelection | null = null,
-): PointType[] | null {
+export function $detachNode(writableNode: LexicalNode): void {
   invariant(
-    $getSlotHostKey(node) === null,
+    $getSlotHostKey(writableNode) === null,
     '$removeFromParent: node %s is slotted into host %s; a slotted node and a child are mutually exclusive. Remove it from its slot first.',
-    node.__key,
-    String($getSlotHostKey(node)),
+    writableNode.__key,
+    String($getSlotHostKey(writableNode)),
   );
-  const parent = node.getParent();
-  let points: PointType[] | null = null;
+  const parent = writableNode.getParent();
   if (parent !== null) {
-    // Avoid a sibling walk when no element point can observe the index.
-    // This keeps bulk moves linear when the selection is elsewhere (#5194).
-    const index =
-      selection && $selectionTouchesElement(selection, parent)
-        ? node.getIndexWithinParent()
-        : -1;
-    if (selection && index !== -1) {
-      points = [selection.anchor, selection.focus].filter(
-        point =>
-          point.type === 'element' &&
-          point.key === parent.__key &&
-          point.offset === index + 1,
-      );
-    }
-    const writableNode = node.getWritable();
     const writableParent = parent.getWritable();
-    const previous = node.getPreviousSibling();
-    const next = node.getNextSibling();
+    const previous = writableNode.getPreviousSibling();
+    const next = writableNode.getNextSibling();
     $linkSiblings(
       writableParent,
       previous && previous.getWritable(),
@@ -98,9 +101,35 @@ export function $detachNode(
     writableNode.__next = null;
     writableNode.__parent = null;
     writableParent.__size--;
-    if (selection && index !== -1) {
-      $updateElementSelectionOnCreateDeleteNode(selection, parent, index, -1);
-    }
+  }
+}
+
+/**
+ * Detach a writable child and repair element offsets in the old parent. Return
+ * points that followed it before repair, so insertAfter can move them (#6031).
+ */
+export function $detachNodeWithSelection(
+  node: LexicalNode,
+  selection: RangeSelection | null,
+): PointType[] | null {
+  const parent = selection && node.getParent();
+  // Keep bulk moves linear when no element point observes the index (#5194).
+  const index =
+    selection && parent && $selectionTouchesElement(selection, parent)
+      ? node.getIndexWithinParent()
+      : -1;
+  const points =
+    selection && parent && index !== -1
+      ? [selection.anchor, selection.focus].filter(
+          point =>
+            point.type === 'element' &&
+            point.key === parent.__key &&
+            point.offset === index + 1,
+        )
+      : null;
+  $detachNode(node);
+  if (selection && parent && index !== -1) {
+    $updateElementSelectionOnCreateDeleteNode(selection, parent, index, -1);
   }
   return points;
 }
@@ -127,7 +156,7 @@ export function $insertSibling(
     restoreSelection && $isRangeSelection(currentSelection)
       ? currentSelection
       : null;
-  const points = $detachNode(writableNode, selection);
+  const points = $detachNodeWithSelection(writableNode, selection);
   const parent = origin.getParentOrThrow().getWritable();
   // Before insertion this is the new node's index in either direction.
   const index =
@@ -140,17 +169,12 @@ export function $insertSibling(
     ? origin.getNextSibling()
     : origin.getPreviousSibling();
   const writableSibling = sibling && sibling.getWritable();
-  $linkSiblings(
+  $insertNodeBetween(
     parent,
+    writableNode,
     isNext ? writableOrigin : writableSibling,
-    writableNode,
-  );
-  $linkSiblings(
-    parent,
-    writableNode,
     isNext ? writableSibling : writableOrigin,
   );
-  writableNode.__parent = parent.__key;
   parent.__size++;
   if (selection && index !== -1) {
     $updateElementSelectionOnCreateDeleteNode(selection, parent, index);

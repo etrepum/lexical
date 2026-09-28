@@ -24,7 +24,6 @@ import {
   $getRoot,
   $isRootOrShadowRoot,
   $isShadowRootNode,
-  $removeFromParent,
   $restoreEmptyContainerParagraph,
   $setSelection,
   INTERNAL_$isBlock,
@@ -62,7 +61,7 @@ import {
   type TextPointCaret,
   type TextPointCaretSlice,
 } from './LexicalCaret';
-import {$getAdjacentNodes} from './LexicalCaretTree';
+import {$detachNode, $getAdjacentNodes} from './LexicalCaretTree';
 
 export {$getAdjacentNodes} from './LexicalCaretTree';
 
@@ -289,9 +288,8 @@ export function $removeTextFromCaretRange<D extends CaretDirection>(
       }
     }
   }
-  // Use $removeFromParent instead of node.remove() to skip redundant
-  // per-node selection restoration — selection is rebuilt from
-  // anchor/focus candidates below.
+  // Selection is rebuilt from anchor/focus candidates below, so detach
+  // without restoring it for every removed node.
   const removedParents = new Set<ElementNode>();
   for (const node of removedNodes) {
     const parent = node.getParent();
@@ -300,7 +298,7 @@ export function $removeTextFromCaretRange<D extends CaretDirection>(
     if (parent !== null && !seenStart.has(parent.getKey())) {
       removedParents.add(parent);
     }
-    $removeFromParent(node);
+    $detachNode(parent === null ? node : node.getWritable());
   }
   // Remove inline wrappers (canBeEmpty=false) that became empty
   for (const parent of removedParents) {
