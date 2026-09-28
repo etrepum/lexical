@@ -62,6 +62,9 @@ import {
   type TextPointCaret,
   type TextPointCaretSlice,
 } from './LexicalCaret';
+import {$getAdjacentNodes} from './LexicalCaretTree';
+
+export {$getAdjacentNodes} from './LexicalCaretTree';
 
 /**
  * @param point
@@ -651,16 +654,18 @@ export function $getChildCaretAtIndex<D extends CaretDirection>(
   index: number,
   direction: D,
 ): NodeCaret<D> {
-  let caret: NodeCaret<'next'> = $getChildCaret(parent, 'next');
-  for (let i = 0; i < index; i++) {
-    const nextCaret: null | SiblingCaret<LexicalNode, 'next'> =
-      caret.getAdjacentCaret();
-    if (nextCaret === null) {
-      break;
-    }
-    caret = nextCaret;
-  }
-  return $getCaretInDirection(caret, direction);
+  // Preserve the forward walk's rounding and clamping, but use the node's
+  // nearest-boundary lookup and allocate only the final caret.
+  const size = parent.getChildrenSize();
+  const offset = index > 0 ? Math.min(Math.ceil(index), size) : 0;
+  const originIndex = offset - (direction === 'next' ? 1 : 0);
+  const origin =
+    originIndex < 0 || originIndex >= size
+      ? null
+      : parent.getChildAtIndex(originIndex);
+  return origin === null
+    ? $getChildCaret(parent, direction)
+    : $getSiblingCaret(origin, direction);
 }
 
 /**
@@ -691,34 +696,6 @@ export function $getAdjacentSiblingOrParentSiblingCaret<
     nextCaret = $getAdjacentChildCaret(caret);
   }
   return nextCaret && [nextCaret, depthDiff];
-}
-
-/**
- * Get the adjacent nodes to initialCaret in the given direction.
- *
- * @example
- * ```ts
- * expect($getAdjacentNodes($getChildCaret(parent, 'next'))).toEqual(parent.getChildren());
- * expect($getAdjacentNodes($getChildCaret(parent, 'previous'))).toEqual(parent.getChildren().reverse());
- * expect($getAdjacentNodes($getSiblingCaret(node, 'next'))).toEqual(node.getNextSiblings());
- * expect($getAdjacentNodes($getSiblingCaret(node, 'previous'))).toEqual(node.getPreviousSiblings().reverse());
- * ```
- *
- * @param initialCaret The caret to start at (the origin will not be included)
- * @returns An array of siblings.
- */
-export function $getAdjacentNodes(
-  initialCaret: NodeCaret<CaretDirection>,
-): LexicalNode[] {
-  const siblings = [];
-  for (
-    let caret = initialCaret.getAdjacentCaret();
-    caret;
-    caret = caret.getAdjacentCaret()
-  ) {
-    siblings.push(caret.origin);
-  }
-  return siblings;
 }
 
 export function $splitTextPointCaret<D extends CaretDirection>(

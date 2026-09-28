@@ -15,7 +15,7 @@ import type {
 
 import invariant from '@lexical/internal/invariant';
 
-import {$linkSiblings} from '../caret/LexicalCaretTree';
+import {$collectSiblingNodes, $linkSiblings} from '../caret/LexicalCaretTree';
 import {$isTextNode, type TextNode} from '../index';
 import {
   DOUBLE_LINE_BREAK,
@@ -381,13 +381,7 @@ export class ElementNode
    */
   getChildren<T extends LexicalNode>(): T[];
   getChildren(): LexicalNode[] {
-    const children: LexicalNode[] = [];
-    let child = this.getFirstChild();
-    while (child !== null) {
-      children.push(child);
-      child = child.getNextSibling();
-    }
-    return children;
+    return $collectSiblingNodes(this.getFirstChild(), 'next');
   }
   getChildrenKeys(): NodeKey[] {
     const children: NodeKey[] = [];
@@ -512,23 +506,12 @@ export class ElementNode
    */
   getDescendantByIndex<T extends LexicalNode>(index: number): null | T;
   getDescendantByIndex(index: number): null | LexicalNode {
-    const children = this.getChildren();
-    const childrenLength = children.length;
-    // For non-empty element nodes, we resolve its descendant
-    // (either a leaf node or the bottom-most element)
-    if (index >= childrenLength) {
-      const resolvedNode = children[childrenLength - 1];
-      return (
-        ($isElementNode(resolvedNode) && resolvedNode.getLastDescendant()) ||
-        resolvedNode ||
-        null
-      );
-    }
-    const resolvedNode = children[index];
+    const atEnd = index >= this.getChildrenSize();
+    const child = atEnd ? this.getLastChild() : this.getChildAtIndex(index);
     return (
-      ($isElementNode(resolvedNode) && resolvedNode.getFirstDescendant()) ||
-      resolvedNode ||
-      null
+      ($isElementNode(child) &&
+        (atEnd ? child.getLastDescendant() : child.getFirstDescendant())) ||
+      child
     );
   }
   /**

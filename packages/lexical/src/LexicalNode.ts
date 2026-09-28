@@ -31,6 +31,7 @@ import {
   type NODE_STATE_KEY,
 } from '.';
 import {
+  $collectSiblingNodes,
   $detachNode,
   $insertSibling,
   $linkSiblings,
@@ -1436,20 +1437,10 @@ export class LexicalNode {
    */
   getPreviousSiblings<T extends LexicalNode>(): T[];
   getPreviousSiblings(): LexicalNode[] {
-    const siblings: LexicalNode[] = [];
-    const parent = this.getParent();
-    if (parent === null) {
-      return siblings;
-    }
-    let node = parent.getFirstChild();
-    while (node !== null) {
-      if (node.is(this)) {
-        break;
-      }
-      siblings.push(node);
-      node = node.getNextSibling();
-    }
-    return siblings;
+    return $collectSiblingNodes(
+      this.getPreviousSibling(),
+      'previous',
+    ).reverse();
   }
 
   /**
@@ -1483,13 +1474,7 @@ export class LexicalNode {
    */
   getNextSiblings<T extends LexicalNode>(): T[];
   getNextSiblings(): LexicalNode[] {
-    const siblings: LexicalNode[] = [];
-    let node = this.getNextSibling();
-    while (node !== null) {
-      siblings.push(node);
-      node = node.getNextSibling();
-    }
-    return siblings;
+    return $collectSiblingNodes(this.getNextSibling(), 'next');
   }
 
   /**

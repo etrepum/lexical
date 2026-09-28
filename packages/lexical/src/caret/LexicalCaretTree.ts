@@ -8,7 +8,7 @@
 
 import type {LexicalNode} from '../LexicalNode';
 import type {ElementNode} from '../nodes/LexicalElementNode';
-import type {CaretDirection, SiblingCaret} from './LexicalCaret';
+import type {CaretDirection, NodeCaret, SiblingCaret} from './LexicalCaret';
 
 import invariant from '@lexical/internal/invariant';
 
@@ -197,4 +197,44 @@ export function $selectAdjacentNode(
   }
   const index = sibling.getIndexWithinParent() + (isNext ? 0 : 1);
   return parent.select(index, index);
+}
+
+/**
+ * Get the adjacent nodes to initialCaret in the given direction.
+ *
+ * @example
+ * ```ts
+ * expect($getAdjacentNodes($getChildCaret(parent, 'next'))).toEqual(parent.getChildren());
+ * expect($getAdjacentNodes($getChildCaret(parent, 'previous'))).toEqual(parent.getChildren().reverse());
+ * expect($getAdjacentNodes($getSiblingCaret(node, 'next'))).toEqual(node.getNextSiblings());
+ * expect($getAdjacentNodes($getSiblingCaret(node, 'previous'))).toEqual(node.getPreviousSiblings().reverse());
+ * ```
+ *
+ * @param initialCaret The caret to start at (the origin will not be included)
+ * @returns An array of siblings.
+ */
+export function $getAdjacentNodes(
+  initialCaret: NodeCaret<CaretDirection>,
+): LexicalNode[] {
+  return $collectSiblingNodes(
+    initialCaret.getNodeAtCaret(),
+    initialCaret.direction,
+  );
+}
+
+/** Collect siblings including start, without allocating intermediate carets. */
+export function $collectSiblingNodes(
+  start: LexicalNode | null,
+  direction: CaretDirection,
+): LexicalNode[] {
+  const siblings: LexicalNode[] = [];
+  for (
+    let node = start;
+    node !== null;
+    node =
+      direction === 'next' ? node.getNextSibling() : node.getPreviousSibling()
+  ) {
+    siblings.push(node);
+  }
+  return siblings;
 }
