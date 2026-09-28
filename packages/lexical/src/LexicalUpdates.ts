@@ -6,8 +6,14 @@
  *
  */
 
-import type {LexicalNode, SerializedLexicalNode} from './LexicalNode';
+import type {
+  LexicalNode,
+  ParsableSerializedNode,
+  SerializedLexicalNode,
+  SerializedPartialNode,
+} from './LexicalNode';
 
+import createError from '@lexical/internal/createError';
 import devInvariant from '@lexical/internal/devInvariant';
 import invariant from '@lexical/internal/invariant';
 
@@ -31,9 +37,11 @@ import {
 } from './LexicalEditor';
 import {
   cloneEditorState,
+  type CompactSerializedEditorState,
   createEmptyEditorState,
   type EditorState,
   editorStateHasDirtySelection,
+  type ParsableSerializedEditorState,
   type SerializedEditorState,
 } from './LexicalEditorState';
 import {
@@ -50,6 +58,7 @@ import {
   $isRangeSelection,
   $updateDOMSelection,
   applySelectionTransforms,
+  type BaseSelection,
 } from './LexicalSelection';
 import {$isSlotHost, $setSlot} from './LexicalSlot';
 import {
@@ -85,6 +94,7 @@ let isCommittingPendingUpdates = false;
 // Tracks editors that have a pending macrotask scheduled to reset their cascade
 // budget. See `scheduleCascadeReset`.
 const editorsWithPendingCascadeReset = new Set<LexicalEditor>();
+const editorsWithPendingSelectionChange = new Set<LexicalEditor>();
 let infiniteTransformCount = 0;
 
 const observerOptions = {
@@ -391,18 +401,34 @@ function $applyAllTransforms(
   editor._dirtyElements = dirtyElements;
 }
 
-type InternalSerializedNode = {
-  children?: InternalSerializedNode[];
-  $slots?: Record<string, InternalSerializedNode>;
-  type: string;
-  version: number;
-};
-
 /** Deserializes a SerializedLexicalNode JSON object into its corresponding LexicalNode instance. */
 export function $parseSerializedNode(
-  serializedNode: SerializedLexicalNode,
+  // The node's type is not known here — that is what it reads `type` to
+  // discover — so this is `SerializedPartialNode`, which carries children and
+  // leaves the node-specific properties `unknown`. Naming
+  // `SerializedPartial<SerializedLexicalNode>` rejected any element subtree
+  // written as a literal, since that type has no `children` at all.
+  //
+  // `SerializedLexicalNode` is in the union for the callers that hold a real
+  // serialized type rather than a literal. An *interface* gets no implicit
+  // index signature in TypeScript, so `interface SerializedCustomText extends
+  // SerializedTextNode` was not assignable to `SerializedPartialNode` alone —
+  // and the whole point of the index signature is that a document stays
+  // writable as a literal, which a closed type took away. A union keeps both:
+  // a literal is checked against the indexed member, a declared interface
+  // against the structural one.
+  //
+  // `ParsableSerializedNode` is the third for an interface whose `version` is
+  // optional, which is the honest shape here: this drops `version`, so
+  // requiring it described the caller rather than the parameter — and because
+  // `children` and `$slots` recurse, requiring it once rejected the whole
+  // subtree.
+  serializedNode:
+    | SerializedPartialNode
+    | SerializedLexicalNode
+    | ParsableSerializedNode,
 ): LexicalNode {
-  const internalSerializedNode: InternalSerializedNode = serializedNode;
+  const internalSerializedNode: ParsableSerializedNode = serializedNode;
   return $parseSerializedNodeImpl(
     internalSerializedNode,
     getActiveEditor()._nodes,
@@ -410,7 +436,7 @@ export function $parseSerializedNode(
 }
 
 function $parseSerializedNodeImpl<
-  SerializedNode extends InternalSerializedNode,
+  SerializedNode extends ParsableSerializedNode,
 >(
   serializedNode: SerializedNode,
   registeredNodes: RegisteredNodes,
@@ -465,7 +491,10 @@ function $parseSerializedNodeImpl<
 }
 
 export function parseEditorState(
-  serializedEditorState: SerializedEditorState,
+  serializedEditorState:
+    | SerializedEditorState
+    | CompactSerializedEditorState
+    | ParsableSerializedEditorState,
   editor: LexicalEditor,
   updateFn: void | (() => void),
 ): EditorState {
@@ -479,7 +508,7 @@ export function parseEditorState(
   const previousDirtyType = editor._dirtyType;
   editor._dirtyElements = new Map();
   editor._dirtyLeaves = new Set();
-  editor._cloneNotNeeded = new Set();
+  editor._cloneNotNeeded = new Map();
   editor._dirtyType = NO_DIRTY_NODES;
   activeEditorState = editorState;
   isReadOnlyMode = false;
@@ -574,7 +603,17 @@ export function $commitPendingUpdates(
   const previouslyCommitting = isCommittingPendingUpdates;
   isCommittingPendingUpdates = true;
   try {
+    const notificationResult = $notifyPendingSelectionChange(editor);
     $commitPendingUpdatesImpl(editor, recoveryEditorState);
+    if (notificationResult) {
+      // Report only after preserving the pending edit. Update error recovery
+      // would otherwise roll it back, even with a non-throwing error handler.
+      editor._onWarn(
+        createError(
+          'Selection change listeners are endlessly changing the selection.',
+        ),
+      );
+    }
   } finally {
     isCommittingPendingUpdates = previouslyCommitting;
   }
@@ -700,6 +739,14 @@ function $commitPendingUpdatesImpl(
   // reconciles) would inherit the COLLABORATION tag and be skipped by
   // syncLexicalUpdateToYjs, desyncing the peers.
   editor._updateTags = new Set();
+  // These callbacks belong to this commit. Commands dispatched by commit
+  // listeners may start another update, which must not inherit them and
+  // schedule an otherwise empty commit (breaking typing history merging).
+  // An outer update still owns its callbacks when it forces an early commit.
+  const deferred = editor._deferred;
+  if (!previouslyUpdating) {
+    editor._deferred = [];
+  }
   $garbageCollectDetachedDecorators(editor, pendingEditorState);
 
   // ======
@@ -762,13 +809,6 @@ function $commitPendingUpdatesImpl(
       currentEditorState,
     );
   }
-  if (
-    !$isRangeSelection(pendingSelection) &&
-    pendingSelection !== null &&
-    (currentSelection === null || !currentSelection.is(pendingSelection))
-  ) {
-    editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
-  }
   /**
    * Capture pendingDecorators after garbage collecting detached decorators
    */
@@ -802,7 +842,6 @@ function $commitPendingUpdatesImpl(
   // example, setEditorState() inside editor.update()). Keep $onUpdate
   // callbacks queued so the outer update drains them after updateFn returns.
   if (!previouslyUpdating) {
-    const deferred = editor._deferred;
     triggerDeferredUpdateCallbacks(editor, deferred);
   }
   $triggerEnqueuedUpdates(editor);
@@ -881,6 +920,65 @@ export function triggerListeners<T extends keyof MapListeners>(
   }
 }
 
+function hasSelectionChanged(
+  editor: LexicalEditor,
+  selection: null | BaseSelection,
+): boolean {
+  const previous = editor._lastNotifiedSelection;
+  return selection === null ? previous !== null : !selection.is(previous);
+}
+
+/** @internal Must run in the editor's pending update. */
+export function $dispatchSelectionChangeCommand(
+  editor: LexicalEditor,
+  selection: null | BaseSelection,
+  force = false,
+): void {
+  if (!force && !hasSelectionChanged(editor, selection)) {
+    return;
+  }
+  editor.dispatchCommand(SELECTION_CHANGE_COMMAND);
+}
+
+/** Returns true when listeners exceed the notification limit. */
+function $notifyPendingSelectionChange(editor: LexicalEditor): boolean {
+  if (editorsWithPendingSelectionChange.has(editor)) {
+    return false;
+  }
+  editorsWithPendingSelectionChange.add(editor);
+  try {
+    for (let count = 0; editor._pendingEditorState !== null; count++) {
+      const pending = editor._pendingEditorState;
+      const selection = pending._selection;
+      const root = editor._rootElement;
+      if (!hasSelectionChanged(editor, selection)) {
+        return false;
+      }
+      const skipNotification =
+        (selection === null || $isRangeSelection(selection)) &&
+        (editor._headless || root === null || !root.isConnected);
+      if (skipNotification || count === 100) {
+        // Do not replay skipped notifications after reconnecting the root or
+        // after stopping a listener loop.
+        editor._lastNotifiedSelection =
+          selection === null ? null : selection.clone();
+        return !skipNotification;
+      }
+      // Extend the pending update, including its normal error handling. The
+      // caller owns the commit, so listener edits and transforms join it.
+      $beginUpdate(
+        editor,
+        () => editor.dispatchCommand(SELECTION_CHANGE_COMMAND),
+        undefined,
+        true,
+      );
+    }
+    return false;
+  } finally {
+    editorsWithPendingSelectionChange.delete(editor);
+  }
+}
+
 export function triggerCommandListeners<TCommand extends AnyLexicalCommand>(
   editor: LexicalEditor,
   type: TCommand,
@@ -906,8 +1004,8 @@ export function triggerCommandListeners<TCommand extends AnyLexicalCommand>(
   //   dispatched from those contexts.
   // - isCommittingPendingUpdates is true for the whole of
   //   $commitPendingUpdates, covering the internal SELECTION_CHANGE_COMMAND
-  //   dispatch and commands dispatched from mutation listeners, both of which
-  //   run with editor._updating === false.
+  //   dispatch (inside an update) as well as commands dispatched from mutation
+  //   listeners, which can run with editor._updating === false.
   // Genuine external input can never arrive in the middle of a commit because
   // the commit is synchronous, so neither guard weakens the per-action reset.
   if (!isCommittingPendingUpdates) {
@@ -916,6 +1014,21 @@ export function triggerCommandListeners<TCommand extends AnyLexicalCommand>(
         editors[e]._cascadeCount = 0;
       }
     }
+  }
+
+  if (type === SELECTION_CHANGE_COMMAND) {
+    if (activeEditor !== editor || isReadOnlyMode) {
+      let handled = false;
+      updateEditorSync(editor, () => {
+        handled = triggerCommandListeners(editor, type, payload, fromEditor);
+      });
+      return handled;
+    }
+    // Count every dispatch, including explicit calls by applications. Capture
+    // before listeners run so their selection changes can notify in turn.
+    const selection = getActiveEditorState()._selection;
+    editor._lastNotifiedSelection =
+      selection === null ? null : selection.clone();
   }
 
   for (let i = 4; i >= 0; i--) {
@@ -1009,26 +1122,14 @@ function $triggerEnqueuedUpdates(editor: LexicalEditor): void {
     // commit.
     editor._updates = [];
     editor._cascadeCount = 0;
-    // The cascade has already been broken above by clearing the update queue,
-    // so this is a recoverable internal guard rather than a fatal error. Route
-    // it directly through the editor's warn-level hook (`_onWarn`, default:
-    // throw in dev / `console.warn` in prod) so embedders can capture how often
-    // the guard trips as warn-severity telemetry.
-    //
-    // This must be a direct `editor._onWarn(...)` call rather than an
-    // `invariant`/`$devInvariant` helper: `transform-error-messages` rewrites
-    // those call sites to a bare `formatProd*Message(code, ...)` in the
-    // compiled bundle, dropping the editor reference, so the warning would
-    // never actually reach `_onWarn` in a built artifact (only when the
-    // untransformed `source` is consumed). Calling the hook directly keeps the
-    // routing intact in every build, at the cost of shipping this message
-    // string in the bundle.
+    // Report the recoverable guard through onWarn after breaking the cascade.
     editor._onWarn(
-      new Error(
+      createError(
         'One or more update listeners are endlessly enqueueing more updates. ' +
           'May have encountered infinite recursion caused by update listeners ' +
           'that trigger additional updates without a stop condition. ' +
-          `Editor namespace: ${editor._config.namespace}`,
+          'Editor namespace: %s',
+        editor._config.namespace,
       ),
     );
     return;
@@ -1044,7 +1145,9 @@ function triggerDeferredUpdateCallbacks(
   editor: LexicalEditor,
   deferred: (() => void)[],
 ): void {
-  editor._deferred = [];
+  if (editor._deferred === deferred) {
+    editor._deferred = [];
+  }
 
   if (deferred.length !== 0) {
     const previouslyUpdating = editor._updating;
@@ -1126,6 +1229,7 @@ function $beginUpdate(
   editor: LexicalEditor,
   updateFn: () => void,
   options?: EditorUpdateOptions,
+  skipCommit = false,
 ): void {
   const updateTags = editor._updateTags;
   let onUpdate;
@@ -1246,6 +1350,11 @@ function $beginUpdate(
 
     // Restore existing editor state to the DOM
     editor._pendingEditorState = currentEditorState;
+    // A notification in the rejected update must not suppress a later retry
+    // or manufacture a selection change while recovering the committed state.
+    const selection = currentEditorState._selection;
+    editor._lastNotifiedSelection =
+      selection === null ? null : selection.clone();
     editor._dirtyType = FULL_RECONCILE;
 
     editor._cloneNotNeeded.clear();
@@ -1262,6 +1371,12 @@ function $beginUpdate(
     activeEditor = previousActiveEditor;
     editor._updating = previouslyUpdating;
     infiniteTransformCount = 0;
+  }
+
+  // Selection notifications extend an update that is already about to commit.
+  // Its caller owns the commit, including any deferred callbacks.
+  if (skipCommit) {
+    return;
   }
 
   const shouldUpdate =
@@ -1309,7 +1424,11 @@ export function updateEditorSync(
       // routed to editor._onError rather than rethrown, so the mutation is
       // silently dropped. Route through $beginUpdate instead, which starts a
       // fresh writable update, so the work actually applies.
-      if (__DEV__) {
+      // DOM selection updates during commit can synchronously dispatch focus
+      // commands against the frozen state. This is internal bookkeeping, not
+      // an application read. Explicit reads set isReadOnlyMode and should
+      // still warn, even when entered from a callback during a commit.
+      if (__DEV__ && (!isCommittingPendingUpdates || isReadOnlyMode)) {
         console.warn(
           `updateEditorSync: an editor update (e.g. a command listener that ` +
             `mutates the editor) ran while a read-only context was on the ` +

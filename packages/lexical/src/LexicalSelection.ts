@@ -66,6 +66,7 @@ import {getIsProcessingMutations} from './LexicalMutations';
 import {insertRangeAfter, type LexicalNode, type NodeKey} from './LexicalNode';
 import {$normalizeSelection} from './LexicalNormalization';
 import {
+  $getSelectionSlotFrame,
   $getSlot,
   $getSlotFrame,
   $getSlotHost,
@@ -99,6 +100,7 @@ import {
   doesContainSurrogatePair,
   getActiveElement,
   getActiveElementDeep,
+  getCaretRect,
   getComposedStaticRange,
   getDOMSelection,
   getDOMSelectionPoints,
@@ -572,7 +574,12 @@ export class NodeSelection implements BaseSelection {
 
 function $ensureRootHasParagraph(): void {
   const root = $getRoot();
-  if (root.isEmpty()) {
+  // Root slots (such as footnotes) do not replace the editable document body.
+  // Deletion inside a slot must keep the selection in that slot.
+  if (
+    root.getChildrenSize() === 0 &&
+    $getSelectionSlotFrame($getSelection()) === null
+  ) {
     const paragraph = $createParagraphNode();
     root.append(paragraph);
     paragraph.select();
@@ -1989,14 +1996,6 @@ export class RangeSelection implements BaseSelection {
       this.anchor.type === 'element' &&
       this.anchor.offset === 0
     ) {
-      const anchorNode = this.anchor.getNode();
-      if (
-        anchorNode.isEmpty() &&
-        $isRootNode(anchorNode.getParent()) &&
-        anchorNode.getPreviousSibling() === null
-      ) {
-        $collapseAtStart(this, anchorNode);
-      }
       $ensureRootHasParagraph();
     }
   }
@@ -2583,8 +2582,29 @@ function $extendSelectionForDeletion(
   const landedRange =
     getComposedStaticRange(domSelection, rootElement) ||
     domSelection.getRangeAt(0);
-  const landedContainer = landedRange.startContainer;
-  const landedOffset = landedRange.startOffset;
+  let landedContainer = landedRange.startContainer;
+  let landedOffset = landedRange.startOffset;
+  if (
+    granularity === 'lineboundary' &&
+    isDOMTextNode(landedContainer) &&
+    getNearestEditorFromDOMNode(landedContainer) === editor
+  ) {
+    const landedNode = $getNodeFromDOM(landedContainer);
+    if (
+      $isDecoratorNode(landedNode) &&
+      landedNode.isInline() &&
+      !landedNode.isIsolated()
+    ) {
+      const decoratorDOM = editor.getElementByKey(landedNode.getKey());
+      if (decoratorDOM !== null && decoratorDOM.contains(landedContainer)) {
+        // A native line boundary can land in a decorator's private text.
+        // Resolve it at the atomic node's edge; that text is not a TextNode
+        // and applyDOMRange would otherwise leave the selection collapsed.
+        landedContainer = decoratorDOM;
+        landedOffset = isBackward ? 0 : decoratorDOM.childNodes.length;
+      }
+    }
+  }
   // Native 'move' cannot cross inline-grid/flex span boundaries (#7301).
   // When at the deletion-side edge of an unmergeable TextNode, extend into
   // the adjacent sibling directly instead of relying on the native result.
@@ -2791,7 +2811,16 @@ function shouldDeleteExactlyOneCodeUnit(text: string) {
  * return false on pre-2020 platforms that do not have unicode character
  * class support.
  */
-const doesContainEmoji: (text: string) => boolean = (() => {
+/**
+ * Feature-detect Unicode property escapes and return the emoji test. A
+ * function declared side-effect free (so the build annotates the call below)
+ * rather than an IIFE at module scope: an IIFE containing a `try` is a side
+ * effect to bundlers, which would pin this module — and with it most of
+ * `lexical` — into every bundle that imports it.
+ *
+ * @__NO_SIDE_EFFECTS__
+ */
+function createEmojiTest(): (text: string) => boolean {
   try {
     const re = new RegExp('\\p{Emoji}', 'u');
     const test = re.test.bind(re);
@@ -2813,7 +2842,9 @@ const doesContainEmoji: (text: string) => boolean = (() => {
   }
   // fallback, surrogate pair already checked
   return () => false;
-})();
+}
+
+const doesContainEmoji: (text: string) => boolean = createEmojiTest();
 
 function $removeSegment(
   node: TextNode,
@@ -3817,6 +3848,31 @@ function $getElementAndOffsetForPoint(
   return [element, offset];
 }
 
+/**
+ * The DOM node that a caret at an element point is measured on to scroll it
+ * into view: the child at `offset` in the element's slot, which the caret is
+ * just before. When that child is the keyed DOM of a leaf node whose DOM slot
+ * is an element inside it, like a <br> that a DOMRenderExtension override
+ * wraps in a <span>, the caret is next to that inner element. The wrapper
+ * can be much wider, for example when it also draws something at the start
+ * of the next line, so it is not measured.
+ */
+function $getElementPointScrollTarget(
+  editor: LexicalEditor,
+  slotElement: Node,
+  offset: number,
+): HTMLElement | Text | null {
+  const child = slotElement.childNodes[offset];
+  if (!isHTMLElement(child)) {
+    return (child as Text | undefined) || null;
+  }
+  const key = getNodeKeyFromDOMNode(child, editor);
+  const node = key !== undefined ? $getNodeByKey(key) : null;
+  return node !== null && !$isElementNode(node)
+    ? $getDOMSlot(node, child, editor).element
+    : child;
+}
+
 /** @internal */
 export function $updateDOMSelection(
   prevSelection: BaseSelection | null,
@@ -4055,8 +4111,7 @@ export function $updateDOMSelection(
     const selectionTarget: null | Range | HTMLElement | Text =
       $isRangeSelection(nextSelection) &&
       nextSelection.anchor.type === 'element'
-        ? (nextAnchorNode.childNodes[nextAnchorOffset] as HTMLElement | Text) ||
-          null
+        ? $getElementPointScrollTarget(editor, nextAnchorNode, nextAnchorOffset)
         : getCurrentRange();
     if (selectionTarget !== null) {
       let selectionRect: DOMRect;
@@ -4064,10 +4119,17 @@ export function $updateDOMSelection(
         const range = selectionTarget.ownerDocument.createRange();
         range.selectNode(selectionTarget);
         selectionRect = range.getBoundingClientRect();
-      } else {
+      } else if (isHTMLElement(selectionTarget)) {
         selectionRect = selectionTarget.getBoundingClientRect();
+      } else {
+        selectionRect = getCaretRect(selectionTarget);
       }
-      scrollIntoViewIfNeeded(editor, selectionRect, rootElement);
+      scrollIntoViewIfNeeded(
+        editor,
+        selectionRect,
+        rootElement,
+        nextAnchorNode,
+      );
     }
   }
 
