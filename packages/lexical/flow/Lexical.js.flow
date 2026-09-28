@@ -586,8 +586,10 @@ declare export class LexicalNode {
   isParentOf(targetNode: LexicalNode): boolean;
   getNodesBetween(targetNode: LexicalNode): LexicalNode[];
   isDirty(): boolean;
+  /** @final Subclasses must not override this method. */
   // $FlowFixMe[incompatible-type]
   getLatest<T extends LexicalNode>(this: T): T;
+  /** @final Subclasses must not override this method. */
   // $FlowFixMe[incompatible-type]
   getWritable<T extends LexicalNode>(this: T): T;
   getTextContent(includeDirectionless?: boolean): string;

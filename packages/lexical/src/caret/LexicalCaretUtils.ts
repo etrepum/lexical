@@ -21,8 +21,10 @@ import {
 import {$getSlotFrame, $getSlotNames} from '../LexicalSlot';
 import {
   $copyNode,
+  $getLatest,
   $getNodeByKeyOrThrow,
   $getRoot,
+  $getWritable,
   $isRootOrShadowRoot,
   $isShadowRootNode,
   $restoreEmptyContainerParagraph,
@@ -299,7 +301,7 @@ export function $removeTextFromCaretRange<D extends CaretDirection>(
     if (parent !== null && !seenStart.has(parent.getKey())) {
       removedParents.add(parent);
     }
-    $detachNode(parent === null ? node : node.getWritable());
+    $detachNode(parent === null ? node : $getWritable(node));
   }
   // Remove inline wrappers (canBeEmpty=false) that became empty
   for (const parent of removedParents) {
@@ -926,7 +928,7 @@ export function $insertNodeToNearestRootAtCaret<
     node.isInline() ? $createParagraphNode().append(node) : node,
   );
   return $getCaretInDirection(
-    $getSiblingCaret(node.getLatest(), 'next'),
+    $getSiblingCaret($getLatest(node), 'next'),
     caret.direction,
   );
 }
@@ -959,7 +961,7 @@ export function $isBlockFullySelected(
   // common ancestor to walk across the boundary. Different frames are
   // never fully selected; the same frame compares safely within it.
   const anchorFrame = $getSlotFrame(range.anchor.origin);
-  const blockFrame = $getSlotFrame(blockNode.getLatest());
+  const blockFrame = $getSlotFrame($getLatest(blockNode));
   if (
     anchorFrame === null ? blockFrame !== null : !anchorFrame.is(blockFrame)
   ) {

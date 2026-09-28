@@ -12,7 +12,12 @@ import devInvariant from '@lexical/internal/devInvariant';
 import invariant from '@lexical/internal/invariant';
 
 import {$getSlotHostKey} from '../LexicalSlot';
-import {$getRoot, $isRootOrShadowRoot} from '../LexicalUtils';
+import {
+  $getLatest,
+  $getRoot,
+  $getWritable,
+  $isRootOrShadowRoot,
+} from '../LexicalUtils';
 import {$isElementNode, type ElementNode} from '../nodes/LexicalElementNode';
 import {$isRootNode} from '../nodes/LexicalRootNode';
 
@@ -440,7 +445,7 @@ abstract class AbstractCaret<
       removeCaret !== null && nodesToRemove.size < deleteCount;
       removeCaret = removeCaret.getAdjacentCaret()
     ) {
-      const writableNode = removeCaret.origin.getWritable();
+      const writableNode = $getWritable(removeCaret.origin);
       nodesToRemove.set(writableNode.getKey(), writableNode);
     }
     // TODO: Optimize this to work directly with node internals
@@ -489,7 +494,7 @@ abstract class AbstractChildCaret<
 {
   readonly type = 'child';
   getLatest(): ChildCaret<T, D> {
-    const origin = this.origin.getLatest();
+    const origin = $getLatest(this.origin);
     return origin === this.origin
       ? this
       : $getChildCaret(origin, this.direction);
@@ -607,7 +612,7 @@ abstract class AbstractSiblingCaret<
 {
   readonly type = 'sibling';
   getLatest(): SiblingCaret<T, D> {
-    const origin = this.origin.getLatest();
+    const origin = $getLatest(this.origin);
     return origin === this.origin
       ? this
       : $getSiblingCaret(origin, this.direction);
@@ -674,7 +679,7 @@ abstract class AbstractTextPointCaret<
     this.offset = offset;
   }
   getLatest(): TextPointCaret<T, D> {
-    const origin = this.origin.getLatest();
+    const origin = $getLatest(this.origin);
     return origin === this.origin
       ? this
       : $getTextPointCaret(origin, this.direction, this.offset);
@@ -1392,8 +1397,8 @@ function $initialElementTuple(
   node: LexicalNode,
 ): [ElementNode | null, LexicalNode | null] {
   return $isElementNode(node)
-    ? [node.getLatest(), null]
-    : [node.getParent(), node.getLatest()];
+    ? [$getLatest(node), null]
+    : [node.getParent(), $getLatest(node)];
 }
 
 /**

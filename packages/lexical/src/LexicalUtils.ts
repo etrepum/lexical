@@ -543,7 +543,7 @@ export function $markSlotsUsed(): void {
  * Please do not use it as it may change in the future.
  */
 export function $removeFromParent(node: LexicalNode): void {
-  $detachNode(node.getParent() === null ? node : node.getWritable());
+  $detachNode(node.getParent() === null ? node : $getWritable(node));
 }
 /** @deprecated renamed to {@link $removeFromParent} by @lexical/eslint-plugin rules-of-lexical */
 export const removeFromParent = $removeFromParent;
@@ -609,13 +609,13 @@ export function $setCompositionKey(compositionKey: null | NodeKey): void {
     if (previousCompositionKey !== null) {
       const node = $getNodeByKey(previousCompositionKey);
       if (node !== null) {
-        node.getWritable();
+        $getWritable(node);
       }
     }
     if (compositionKey !== null) {
       const node = $getNodeByKey(compositionKey);
       if (node !== null) {
-        node.getWritable();
+        $getWritable(node);
       }
     }
   }
@@ -1978,7 +1978,7 @@ export function $isInlineElementOrDecoratorNode<T>(node: LexicalNode): node is (
 export function $getNearestRootOrShadowRoot(
   node: LexicalNode,
 ): RootNode | ElementNode {
-  let current = node.getLatest();
+  let current = $getLatest(node);
   while (current !== null) {
     // The slot link is a virtual shadow root: a slotted node is the root of
     // its own isolated scope (its parent is null), so it is the nearest
@@ -5582,4 +5582,56 @@ export function getSuperclassOf(
   // static link severed by the loose transform — use the instance chain
   const parentProto = klass.prototype && Object.getPrototypeOf(klass.prototype);
   return parentProto ? parentProto.constructor : null;
+}
+
+/** @internal Implementation of the non-overridable LexicalNode.getLatest method. */
+export function $getLatest<T extends LexicalNode>(node: T): T {
+  if ($isEphemeral(node)) {
+    return node;
+  }
+  // Cast: the nodeMap entry for this key is always the same node class
+  const latest = $getNodeByKey(node.__key) as T | null;
+  if (latest === null) {
+    invariant(
+      false,
+      'Lexical node does not exist in active editor state. Avoid using the same node references between nested closures from editorState.read/editor.update.',
+    );
+  }
+  return latest;
+}
+
+/** @internal Implementation of the non-overridable LexicalNode.getWritable method. */
+export function $getWritable<T extends LexicalNode>(node: T): T {
+  if ($isEphemeral(node)) {
+    return node;
+  }
+  errorOnReadOnly();
+  const editorState = getActiveEditorState();
+  const editor = getActiveEditor();
+  const key = node.__key;
+  const cloneNotNeeded = editor._cloneNotNeeded;
+  // Cast: a key always identifies the same node class.
+  const writableNode = cloneNotNeeded.get(key) as T | undefined;
+  const selection = editorState._selection;
+  if (selection !== null) {
+    selection.setCachedNodes(null);
+  }
+  if (writableNode !== undefined) {
+    // Transforms clear the dirty node set on each iteration to keep track on newly dirty nodes
+    internalMarkNodeAsDirty(writableNode);
+    return writableNode;
+  }
+  const nodeMap = editorState._nodeMap;
+  // Cast: the nodeMap entry for this key is always the same node class.
+  const latestNode = nodeMap.get(key) as T | undefined;
+  invariant(
+    latestNode !== undefined,
+    'Lexical node does not exist in active editor state. Avoid using the same node references between nested closures from editorState.read/editor.update.',
+  );
+  const mutableNode = $cloneWithProperties(latestNode);
+  cloneNotNeeded.set(key, mutableNode);
+  nodeMap.set(key, mutableNode);
+  internalMarkNodeAsDirty(mutableNode);
+
+  return mutableNode;
 }

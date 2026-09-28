@@ -67,13 +67,14 @@ import {
   withAccessors,
   withField,
 } from 'lexical';
-import {assert, describe, expect, expectTypeOf, test} from 'vitest';
+import {assert, describe, expect, expectTypeOf, test, vi} from 'vitest';
 
 import {
   isSchemaDefault,
   isSchemaEqual,
   isSchemaField,
 } from '../../LexicalSchema';
+import {getActiveEditorState} from '../../LexicalUpdates';
 import {resolveSchemaField} from '../../LexicalUtils';
 import {initializeUnitTest} from '../utils';
 
@@ -984,30 +985,14 @@ describe('the export and parse shapes differ only where parsing is looser', () =
   });
 });
 
-class CountingNode extends ElementNode {
-  getLatestCalls = 0;
-
-  getLatest(): this {
-    const latest = super.getLatest();
-    latest.getLatestCalls += 1;
-    return latest;
-  }
-}
-
-class PlainCountingNode extends CountingNode {
-  $config() {
-    return this.config('plain-counting', {extends: CountingNode});
-  }
-}
-
 describe('withField compiles to direct field access', () => {
-  class FieldNode extends CountingNode {
+  class FieldNode extends ElementNode {
     __label = 'default';
     calls = 0;
 
     $config() {
       return this.config('field-node', {
-        extends: CountingNode,
+        extends: ElementNode,
         json: nodeSchema<FieldNode>()({
           label: withField(stringValue('default'), {field: '__label'}),
         }),
@@ -1071,30 +1056,29 @@ describe('withField compiles to direct field access', () => {
     );
   });
 
-  test('a field property adds no version resolution to an export', () => {
-    // ElementNode's own properties are method-backed and each resolve the
-    // latest version themselves, so the absolute count is theirs. What this
-    // pins is the delta: declaring a `withField` property must add nothing,
-    // because the walk already handed exportJSON the current node.
+  test('exporting a field property requires no node-map lookups', () => {
+    // exportJSON reads an ephemeral copy. Its schema fields must not look
+    // the node up again in the active editor state.
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
         name: '[with-field-latest]',
-        nodes: [FieldNode, PlainCountingNode],
+        nodes: [FieldNode],
       }),
     );
     editor.update(
       () => {
-        const withFieldNode = $create(FieldNode);
-        const withoutFieldNode = $create(PlainCountingNode);
-        $getRoot().append(withFieldNode, withoutFieldNode);
-        const [a, b] = $getRoot().getChildren();
-        assert(a instanceof FieldNode && b instanceof PlainCountingNode);
-        a.getLatestCalls = 0;
-        b.getLatestCalls = 0;
-        a.exportJSON();
-        b.exportJSON();
-        expect(a.getLatestCalls).toBe(b.getLatestCalls);
+        const node = $create(FieldNode);
+        $getRoot().append(node);
+        // Observe the actual node-map lookups, including internal accessor
+        // calls, without overriding the final getLatest method.
+        const get = vi.spyOn(getActiveEditorState()._nodeMap, 'get');
+        try {
+          node.exportJSON();
+          expect(get).not.toHaveBeenCalled();
+        } finally {
+          get.mockRestore();
+        }
       },
       {discrete: true},
     );

@@ -27,7 +27,7 @@ import {
   $getSlotHostKey,
 } from '../LexicalSlot';
 import {errorOnReadOnly} from '../LexicalUpdates';
-import {errorOnInsertTextNodeOnRoot} from '../LexicalUtils';
+import {$getWritable, errorOnInsertTextNodeOnRoot} from '../LexicalUtils';
 
 /**
  * Connect the two sides of a child-list gap. Null denotes the parent's
@@ -89,13 +89,13 @@ export function $detachNode(writableNode: LexicalNode): void {
   );
   const parent = writableNode.getParent();
   if (parent !== null) {
-    const writableParent = parent.getWritable();
+    const writableParent = $getWritable(parent);
     const previous = writableNode.getPreviousSibling();
     const next = writableNode.getNextSibling();
     $linkSiblings(
       writableParent,
-      previous && previous.getWritable(),
-      next && next.getWritable(),
+      previous && $getWritable(previous),
+      next && $getWritable(next),
     );
     writableNode.__prev = null;
     writableNode.__next = null;
@@ -148,8 +148,8 @@ export function $insertSibling(
   errorOnReadOnly();
   const isNext = direction === 'next';
   errorOnInsertTextNodeOnRoot(origin, node);
-  const writableOrigin = origin.getWritable();
-  const writableNode = node.getWritable();
+  const writableOrigin = $getWritable(origin);
+  const writableNode = $getWritable(node);
   $errorOnSlotCycleChild(origin.getParentOrThrow(), writableNode);
   const currentSelection = $getSelection();
   const selection =
@@ -157,7 +157,7 @@ export function $insertSibling(
       ? currentSelection
       : null;
   const points = $detachNodeWithSelection(writableNode, selection);
-  const parent = origin.getParentOrThrow().getWritable();
+  const parent = $getWritable(origin.getParentOrThrow());
   // Before insertion this is the new node's index in either direction.
   const index =
     selection &&
@@ -168,7 +168,7 @@ export function $insertSibling(
   const sibling = isNext
     ? origin.getNextSibling()
     : origin.getPreviousSibling();
-  const writableSibling = sibling && sibling.getWritable();
+  const writableSibling = sibling && $getWritable(sibling);
   $insertNodeBetween(
     parent,
     writableNode,

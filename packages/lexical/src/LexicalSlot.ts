@@ -28,7 +28,12 @@ import {
   $isRangeSelection,
 } from '.';
 import {$detachNode} from './caret/LexicalCaretTree';
-import {$markSlotsUsed, iterStaticNodeConfigChain} from './LexicalUtils';
+import {
+  $getLatest,
+  $getWritable,
+  $markSlotsUsed,
+  iterStaticNodeConfigChain,
+} from './LexicalUtils';
 
 const __DEV__ = process.env.NODE_ENV !== 'production';
 
@@ -80,7 +85,7 @@ export function $isSlotChild(
  * @internal
  */
 export function $getSlotHostKey(node: LexicalNode): null | NodeKey {
-  const latest = node.getLatest();
+  const latest = $getLatest(node);
   return $isSlotChild(latest) ? latest.__slotHost : null;
 }
 
@@ -119,7 +124,7 @@ export function $getSlotNameWithinHost(slotChild: LexicalNode): string | null {
   if (host === null) {
     return null;
   }
-  const childKey = slotChild.getLatest().__key;
+  const childKey = $getLatest(slotChild).__key;
   for (const [name, key] of $getSlotMap(host)) {
     if (key === childKey) {
       return name;
@@ -142,7 +147,7 @@ export function $getSlotNameWithinHost(slotChild: LexicalNode): string | null {
  * @experimental
  */
 export function $getSlotFrame(node: LexicalNode): LexicalNode | null {
-  let current: LexicalNode | null = node.getLatest();
+  let current: LexicalNode | null = $getLatest(node);
   while (current !== null) {
     if ($getSlotHostKey(current) !== null) {
       return current;
@@ -196,7 +201,7 @@ export function $getSelectionSlotFrame(
  * @internal
  */
 export function $getSlotMap(node: LexicalNode): ReadonlyMap<string, NodeKey> {
-  const latest = node.getLatest();
+  const latest = $getLatest(node);
   return $isSlotHost(latest) && latest.__slots !== null
     ? latest.__slots
     : EMPTY_SLOTS;
@@ -471,10 +476,10 @@ export function $setSlot<T extends LexicalNode & SlotHostNode>(
   // Re-setting the value a name already holds is a no-op rather than a trip
   // over the "already slotted" invariant below, so idempotent callers (sync
   // layers, import rules) don't have to special-case it.
-  const latestHost = host.getLatest();
+  const latestHost = $getLatest(host);
   if (
     latestHost.__slots !== null &&
-    latestHost.__slots.get(name) === node.getLatest().__key
+    latestHost.__slots.get(name) === $getLatest(node).__key
   ) {
     return latestHost;
   }
@@ -499,13 +504,13 @@ export function $setSlot<T extends LexicalNode & SlotHostNode>(
       host.__key,
     );
   }
-  const writableSelf = host.getWritable();
+  const writableSelf = $getWritable(host);
   const slots = $getWritableSlots(writableSelf);
   const previousKey = slots.get(name);
   if (previousKey !== undefined) {
     $detachSlottedNode(previousKey);
   }
-  const writableNode = node.getWritable();
+  const writableNode = $getWritable(node);
   // Move semantics: a value slotted elsewhere (or under another name on this
   // same host) is unlinked from its current host's map without destroying the
   // moving subtree — the up-link is rewritten below. The cycle guard above
@@ -514,7 +519,7 @@ export function $setSlot<T extends LexicalNode & SlotHostNode>(
   if (previousHost !== null) {
     const previousName = $getSlotNameWithinHost(writableNode);
     if (previousName !== null) {
-      $getWritableSlots(previousHost.getWritable()).delete(previousName);
+      $getWritableSlots($getWritable(previousHost)).delete(previousName);
     }
     writableNode.__slotHost = null;
   }
@@ -540,7 +545,7 @@ export function $removeSlot<T extends LexicalNode & SlotHostNode>(
   host: T,
   name: SlotName<T>,
 ): T {
-  const writableSelf = host.getWritable();
+  const writableSelf = $getWritable(host);
   if (writableSelf.__slots === null) {
     return writableSelf;
   }
@@ -612,7 +617,7 @@ function $detachSlottedNode(slotKey: NodeKey): void {
   if (previous === null) {
     return;
   }
-  const writablePrevious = previous.getWritable();
+  const writablePrevious = $getWritable(previous);
   invariant(
     $isSlotChild(writablePrevious),
     'detach: slotted node %s must be an ElementNode or a DecoratorNode',

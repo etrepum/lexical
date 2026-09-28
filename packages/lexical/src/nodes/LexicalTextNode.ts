@@ -74,6 +74,8 @@ import {
   $getDocument,
   $getEditor,
   $getEditorDOMRenderConfig,
+  $getLatest,
+  $getWritable,
   $setCompositionKey,
   getCachedClassNameArray,
   internalMarkSiblingsAsDirty,
@@ -473,7 +475,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns a number representing the format of the text node.
    */
   getFormat(): number {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__format;
   }
 
@@ -485,7 +487,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns a number representing the detail of the text node.
    */
   getDetail(): number {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__detail;
   }
 
@@ -495,7 +497,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns TextModeType.
    */
   getMode(): TextModeType {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return TEXT_TYPE_TO_MODE[self.__mode];
   }
 
@@ -505,7 +507,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns CSSText-like string of styles applied to the underlying DOM node.
    */
   getStyle(): string {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__style;
   }
 
@@ -516,7 +518,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns true if the node is in token mode, false otherwise.
    */
   isToken(): boolean {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__mode === IS_TOKEN;
   }
 
@@ -536,7 +538,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns true if the node is in segmented mode, false otherwise.
    */
   isSegmented(): boolean {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__mode === IS_SEGMENTED;
   }
   /**
@@ -545,7 +547,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns true if the node is directionless, false otherwise.
    */
   isDirectionless(): boolean {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return (self.__detail & IS_DIRECTIONLESS) !== 0;
   }
   /**
@@ -555,7 +557,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns true if the node is unmergeable, false otherwise.
    */
   isUnmergeable(): boolean {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return (self.__detail & IS_UNMERGEABLE) !== 0;
   }
 
@@ -579,7 +581,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns true if the node is simple text, false otherwise.
    */
   isSimpleText(): boolean {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__type === 'text' && self.__mode === 0;
   }
 
@@ -589,7 +591,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns a string representing the text content of the node.
    */
   getTextContent(): string {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     return self.__text;
   }
 
@@ -599,7 +601,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns a number representing the TextFormatTypes applied to the node.
    */
   getFormatFlags(type: TextFormatType, alignWithFormat: null | number): number {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     const format = self.__format;
     return toggleTextFormatType(format, type, alignWithFormat);
   }
@@ -768,7 +770,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * // TODO 0.12 This should just be a `string`.
    */
   setFormat(format: TextFormatType | number): this {
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__format =
       typeof format === 'string' ? TEXT_TYPE_TO_FORMAT[format] : format;
     return self;
@@ -786,7 +788,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * // TODO 0.12 This should just be a `string`.
    */
   setDetail(detail: TextDetailType | number): this {
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__detail =
       typeof detail === 'string' ? DETAIL_TYPE_TO_DETAIL[detail] : detail;
     return self;
@@ -801,7 +803,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns this TextNode.
    */
   setStyle(style: string): this {
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__style = style;
     return self;
   }
@@ -827,7 +829,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns this TextNode.
    */
   toggleDirectionless(): this {
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__detail ^= IS_DIRECTIONLESS;
     return self;
   }
@@ -838,7 +840,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns this TextNode.
    */
   toggleUnmergeable(): this {
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__detail ^= IS_UNMERGEABLE;
     return self;
   }
@@ -856,10 +858,10 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    */
   setMode(type: TextModeType): this {
     const mode = TEXT_MODE_TO_TYPE[type];
-    if (this.getLatest().__mode === mode) {
+    if ($getLatest(this).__mode === mode) {
       return this;
     }
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__mode = mode;
     return self;
   }
@@ -872,10 +874,10 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    * @returns this TextNode.
    */
   setTextContent(text: string): this {
-    if (this.getLatest().__text === text) {
+    if ($getLatest(this).__text === text) {
       return this;
     }
-    const self = this.getWritable();
+    const self = $getWritable(this);
     self.__text = text;
     return self;
   }
@@ -955,7 +957,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
     newText: string,
     moveSelection?: boolean,
   ): TextNode {
-    const writableSelf = this.getWritable();
+    const writableSelf = $getWritable(this);
     const text = writableSelf.__text;
     const handledTextLength = newText.length;
     let index = offset;
@@ -1015,7 +1017,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
    */
   splitText(...splitOffsets: number[]): TextNode[] {
     errorOnReadOnly();
-    const self = this.getLatest();
+    const self = $getLatest(this);
     const textContent = self.getTextContent();
     if (textContent === '') {
       return [];
@@ -1149,7 +1151,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
     // Insert the nodes into the parent's children
     if (parent !== null) {
       internalMarkSiblingsAsDirty(this);
-      const writableParent = parent.getWritable();
+      const writableParent = $getWritable(parent);
       const insertionIndex = this.getIndexWithinParent();
       if (hasReplacedSelf) {
         writableParent.splice(insertionIndex, 0, splitNodes);
@@ -1221,7 +1223,7 @@ export class TextNode extends LexicalNode implements InlineFormattableNode {
     const targetText = target.__text;
     const newText = isBefore ? targetText + text : text + targetText;
     this.setTextContent(newText);
-    const writableSelf = this.getWritable();
+    const writableSelf = $getWritable(this);
     target.remove();
     return writableSelf;
   }

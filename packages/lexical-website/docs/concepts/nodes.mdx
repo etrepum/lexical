@@ -95,7 +95,9 @@ objects and arrays of those.
 If a property should be readable or changeable from outside the node, give it
 `get*()` and `set*()` methods. They must call `getLatest()` and
 `getWritable()`, which keep the node consistent with Lexical's immutable
-editor state.
+editor state. These two base methods must not be overridden: core operations
+may call their implementations directly. Customize the node's own getters,
+setters, and supported lifecycle methods instead.
 
 ```ts
 import {ElementNode, nodeSchema, stringValue, withField} from 'lexical';

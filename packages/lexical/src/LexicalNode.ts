@@ -62,18 +62,15 @@ import {
   $getSlotHostKey,
   $getSlotsTextContent,
 } from './LexicalSlot';
-import {
-  errorOnReadOnly,
-  getActiveEditor,
-  getActiveEditorState,
-} from './LexicalUpdates';
+import {errorOnReadOnly, getActiveEditor} from './LexicalUpdates';
 import {
   $applyJSONSetters,
-  $cloneWithProperties,
   $exportNodeJSONOnce,
   $getCompositionKey,
   $getEditorDOMRenderConfig,
+  $getLatest,
   $getNodeByKey,
+  $getWritable,
   $hasAncestor,
   $isRootOrShadowRoot,
   $maybeMoveChildrenSelectionToParent,
@@ -84,7 +81,6 @@ import {
   getRegisteredNode,
   getStaticNodeConfig,
   getSuperclassOf,
-  internalMarkNodeAsDirty,
 } from './LexicalUtils';
 
 const __DEV__ = process.env.NODE_ENV !== 'production';
@@ -802,7 +798,7 @@ export function $removeNode(
   }
 
   $detachNodeWithSelection(
-    nodeToRemove.getWritable(),
+    $getWritable(nodeToRemove),
     restoreSelection && !selectionMoved && $isRangeSelection(selection)
       ? selection
       : null,
@@ -1307,7 +1303,7 @@ export class LexicalNode {
    */
   getParent<T extends ElementNode>(): T | null;
   getParent(): ElementNode | null {
-    const parent = this.getLatest().__parent;
+    const parent = $getLatest(this).__parent;
     if (parent === null) {
       return null;
     }
@@ -1419,7 +1415,7 @@ export class LexicalNode {
    */
   getPreviousSibling<T extends LexicalNode>(): T | null;
   getPreviousSibling(): LexicalNode | null {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     const prevKey = self.__prev;
     return prevKey === null ? null : $getNodeByKey(prevKey);
   }
@@ -1456,7 +1452,7 @@ export class LexicalNode {
    */
   getNextSibling<T extends LexicalNode>(): T | null;
   getNextSibling(): LexicalNode | null {
-    const self = this.getLatest();
+    const self = $getLatest(this);
     const nextKey = self.__next;
     return nextKey === null ? null : $getNodeByKey(nextKey);
   }
@@ -1575,20 +1571,11 @@ export class LexicalNode {
    * Returns the latest version of the node from the active EditorState.
    * This is used to avoid getting values from stale node references.
    *
+   * @final Subclasses must not override this method. Core operations may call
+   * its implementation directly.
    */
   getLatest(): this {
-    if ($isEphemeral(this)) {
-      return this;
-    }
-    // Cast: the nodeMap entry for this key is always the same node class
-    const latest = $getNodeByKey(this.__key) as this | null;
-    if (latest === null) {
-      invariant(
-        false,
-        'Lexical node does not exist in active editor state. Avoid using the same node references between nested closures from editorState.read/editor.update.',
-      );
-    }
-    return latest;
+    return $getLatest(this);
   }
 
   /**
@@ -1596,40 +1583,11 @@ export class LexicalNode {
    * if necessary. Will throw an error if called outside of a Lexical Editor
    * {@link LexicalEditor.update} callback.
    *
+   * @final Subclasses must not override this method. Core operations may call
+   * its implementation directly.
    */
   getWritable(): this {
-    if ($isEphemeral(this)) {
-      return this;
-    }
-    errorOnReadOnly();
-    const editorState = getActiveEditorState();
-    const editor = getActiveEditor();
-    const key = this.__key;
-    const cloneNotNeeded = editor._cloneNotNeeded;
-    // Cast: a key always identifies the same node class.
-    const writableNode = cloneNotNeeded.get(key) as this | undefined;
-    const selection = editorState._selection;
-    if (selection !== null) {
-      selection.setCachedNodes(null);
-    }
-    if (writableNode !== undefined) {
-      // Transforms clear the dirty node set on each iteration to keep track on newly dirty nodes
-      internalMarkNodeAsDirty(writableNode);
-      return writableNode;
-    }
-    const nodeMap = editorState._nodeMap;
-    // Cast: the nodeMap entry for this key is always the same node class.
-    const latestNode = nodeMap.get(key) as this | undefined;
-    invariant(
-      latestNode !== undefined,
-      'Lexical node does not exist in active editor state. Avoid using the same node references between nested closures from editorState.read/editor.update.',
-    );
-    const mutableNode = $cloneWithProperties(latestNode);
-    cloneNotNeeded.set(key, mutableNode);
-    nodeMap.set(key, mutableNode);
-    internalMarkNodeAsDirty(mutableNode);
-
-    return mutableNode;
+    return $getWritable(this);
   }
 
   /**
@@ -1892,7 +1850,7 @@ export class LexicalNode {
       selection = selection.clone();
     }
     errorOnInsertTextNodeOnRoot(this, replaceWith);
-    const self = this.getLatest();
+    const self = $getLatest(this);
     const toReplaceKey = this.__key;
     // A named-slot value has no parent (its up-link is __slotHost), so the
     // getParentOrThrow below would throw an unhelpful generic error. Fail with
@@ -1911,8 +1869,8 @@ export class LexicalNode {
       );
     }
     const key = replaceWith.__key;
-    const writableReplaceWith = replaceWith.getWritable();
-    const writableParent = this.getParentOrThrow().getWritable();
+    const writableReplaceWith = $getWritable(replaceWith);
+    const writableParent = $getWritable(this.getParentOrThrow());
     // Before any mutation: becoming a child of this node's parent must not
     // close a cycle through a slot up-link (reverse of $setSlot's guard).
     $errorOnSlotCycleChild(writableParent, writableReplaceWith);
@@ -1929,8 +1887,8 @@ export class LexicalNode {
     $insertNodeBetween(
       writableParent,
       writableReplaceWith,
-      prevSibling && prevSibling.getWritable(),
-      nextSibling && nextSibling.getWritable(),
+      prevSibling && $getWritable(prevSibling),
+      nextSibling && $getWritable(nextSibling),
     );
     // `size` was read before replaceWith was detached. When replaceWith was
     // already a child of this same parent, two children collapse into one, so
@@ -2064,7 +2022,7 @@ export class LexicalNode {
    *
    * */
   markDirty(): void {
-    this.getWritable();
+    $getWritable(this);
   }
 
   /**
