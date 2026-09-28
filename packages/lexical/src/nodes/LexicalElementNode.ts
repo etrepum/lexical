@@ -15,6 +15,7 @@ import type {
 
 import invariant from '@lexical/internal/invariant';
 
+import {$linkSiblings} from '../caret/LexicalCaretTree';
 import {$isTextNode, type TextNode} from '../index';
 import {
   DOUBLE_LINE_BREAK,
@@ -879,14 +880,18 @@ export class ElementNode
       }
       $removeFromParent(writableNodeToInsert);
       const nodeKeyToInsert = nodeToInsert.__key;
-      if (prevNode === null) {
-        writableSelf.__first = nodeKeyToInsert;
-        writableNodeToInsert.__prev = null;
-      } else {
-        const writablePrevNode = prevNode.getWritable();
-        writablePrevNode.__next = nodeKeyToInsert;
-        writableNodeToInsert.__prev = writablePrevNode.__key;
-      }
+      $linkSiblings(
+        writableSelf,
+        prevNode && prevNode.getWritable(),
+        writableNodeToInsert,
+      );
+      // Keep both links valid before detaching the next insertion. It may be
+      // nodeAfterRange, whose previous sibling must now be this inserted node.
+      $linkSiblings(
+        writableSelf,
+        writableNodeToInsert,
+        nodeAfterRange && nodeAfterRange.getWritable(),
+      );
       if (nodeToInsert.__key === writableSelfKey) {
         invariant(false, 'append: attempting to append self');
       }
@@ -894,23 +899,6 @@ export class ElementNode
       writableNodeToInsert.__parent = writableSelfKey;
       nodesToInsertKeys.push(nodeKeyToInsert);
       prevNode = nodeToInsert;
-    }
-
-    if (nodeAfterRange === null) {
-      if (prevNode !== null) {
-        const writablePrevNode = prevNode.getWritable();
-        writablePrevNode.__next = null;
-        writableSelf.__last = prevNode.__key;
-      }
-    } else {
-      const writableNodeAfterRange = nodeAfterRange.getWritable();
-      if (prevNode !== null) {
-        const writablePrevNode = prevNode.getWritable();
-        writableNodeAfterRange.__prev = prevNode.__key;
-        writablePrevNode.__next = nodeAfterRange.__key;
-      } else {
-        writableNodeAfterRange.__prev = null;
-      }
     }
 
     writableSelf.__size = newSize;
@@ -925,24 +913,16 @@ export class ElementNode
         const nodesToRemoveKeySet = new Set(nodesToRemoveKeys);
         const nodesToInsertKeySet = new Set(nodesToInsertKeys);
 
-        const {anchor, focus} = selection;
-        if (isPointRemoved(anchor, nodesToRemoveKeySet, nodesToInsertKeySet)) {
-          moveSelectionPointToSibling(
-            anchor,
-            anchor.getNode(),
-            this,
-            nodeBeforeRange,
-            nodeAfterRange,
-          );
-        }
-        if (isPointRemoved(focus, nodesToRemoveKeySet, nodesToInsertKeySet)) {
-          moveSelectionPointToSibling(
-            focus,
-            focus.getNode(),
-            this,
-            nodeBeforeRange,
-            nodeAfterRange,
-          );
+        for (const point of [selection.anchor, selection.focus]) {
+          if (isPointRemoved(point, nodesToRemoveKeySet, nodesToInsertKeySet)) {
+            moveSelectionPointToSibling(
+              point,
+              point.getNode(),
+              this,
+              nodeBeforeRange,
+              nodeAfterRange,
+            );
+          }
         }
         // Cleanup if node can't be empty
         if (newSize === 0 && !this.canBeEmpty() && !$isRootOrShadowRoot(this)) {
