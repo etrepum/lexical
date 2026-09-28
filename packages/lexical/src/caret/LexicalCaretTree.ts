@@ -6,7 +6,7 @@
  *
  */
 
-import type {LexicalNode} from '../LexicalNode';
+import type {LexicalNode, NodeKey} from '../LexicalNode';
 import type {ElementNode} from '../nodes/LexicalElementNode';
 import type {CaretDirection, NodeCaret, SiblingCaret} from './LexicalCaret';
 
@@ -102,6 +102,37 @@ export function $detachNode(writableNode: LexicalNode): void {
     writableNode.__parent = null;
     writableParent.__size--;
   }
+}
+
+/**
+ * Detach a contiguous child range, repairing its outer boundaries once.
+ * Resolve all writable nodes before changing links so clone hooks see a
+ * consistent tree. The caller handles selection repair.
+ */
+export function $detachSiblingRange(
+  writableParent: ElementNode,
+  first: LexicalNode | null,
+  count: number,
+  before: LexicalNode | null,
+): NodeKey[] {
+  const nodes: LexicalNode[] = [];
+  let node = first;
+  for (let i = 0; i < count; i++) {
+    invariant(node !== null, 'splice: sibling not found');
+    const next = node.getNextSibling();
+    nodes.push(node.getWritable());
+    node = next;
+  }
+  const previous = before && before.getWritable();
+  const next = node && node.getWritable();
+  $linkSiblings(writableParent, previous, next);
+  writableParent.__size -= nodes.length;
+  return nodes.map(writable => {
+    writable.__prev = null;
+    writable.__next = null;
+    writable.__parent = null;
+    return writable.__key;
+  });
 }
 
 /**

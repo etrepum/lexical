@@ -30,6 +30,8 @@ jsdom setup cost.
 | `nodeMap.bench.ts` | `bench` | `Map` vs `GenMap` on clone / typing / paste / iteration / get |
 | `getWritable.bench.ts` | `bench` | headless writes, replacement, and selection formatting at fixed document sizes |
 | `caretSelection.bench.ts` | `bench` | uncached selection traversal in flat/nested trees and partial formatting near a paragraph's end |
+| `bulkSplice.bench.ts` | `bench` | contiguous sibling splicing |
+| `largeDocument.bench.ts` / `dom/largeDocument.bench.ts` | `bench` / `bench-dom` | fixed-size edits, replacement, and detached-subtree collection in 1,000- and 10,000-paragraph documents |
 | `dom/editorCycle.bench.ts` | `bench-dom` | real `editor.update` cycle cost on a jsdom-backed editor |
 | `dom/editorOperations.bench.ts` | `bench-dom` | editor operations: split, format, delete range, paste, select-all |
 
@@ -80,6 +82,16 @@ formatting splits the final text sibling, checks its format, and merges the
 fragments back in the same update so the document size stays fixed. That timing
 includes restoration and commit, not just the split. Run focused comparisons
 again in fresh processes before treating small differences as regressions.
+
+The sibling-splice fixture removes 100 or 1,000 middle text siblings, checks
+that the two boundary nodes remain, and reinserts the same nodes in the same
+update. Timing includes restoration and commit. Document size and reciprocal
+links are checked after each sample.
+
+```sh
+LEXICAL_BENCH_FILTER='sibling splice' LEXICAL_BENCH_SAMPLES=15 \
+  node scripts/bench-get-writable.mjs origin/main
+```
 
 ## When to add a bench
 
@@ -206,3 +218,29 @@ median.
   as relative comparisons, not absolute production estimates.
 - Benchmark timings do not run in CI. Benchmark types are checked by
   `pnpm run tsc-test`, which is part of `pnpm run ci-check`.
+
+For large-document GC and reconciliation changes, run the shared fixtures in
+both headless and DOM-backed modes:
+
+```sh
+LEXICAL_BENCH_FILTER='large document' LEXICAL_BENCH_SAMPLES=15 \
+  node scripts/bench-get-writable.mjs origin/main
+LEXICAL_BENCH_DOM=1 LEXICAL_BENCH_SAMPLES=15 \
+  node scripts/bench-get-writable.mjs origin/main
+```
+
+DOM mode installs jsdom before importing the production bundles and runs only
+`largeDocument.bench.ts`. It includes DOM reconciliation, but excludes browser
+layout, paint, and interactive latency. The same fixtures run in Vitest's
+`bench` and `bench-dom` projects. Both modes alternate fixed-length text values,
+keep document size constant, and check the resulting model; DOM mode also checks
+DOM text, child count, and the node-to-DOM map for leaked entries. Each workload
+releases the previous fixture during setup.
+
+The removal fixtures mark the enclosing elements dirty, remove the subtree,
+and build its replacement in one committed update. The broad case has two
+nested elements under a wrapper and 1,000 paragraphs; the deep stress case has
+32 nested elements under a wrapper and 100 paragraphs. These timings include
+replacement construction, transforms, GC, and commit, plus reconciliation in DOM
+mode. They are not isolated GC timings. Separate first/middle/last edits expose
+the distinction between the reconciler's full child walk and suffix fast path.

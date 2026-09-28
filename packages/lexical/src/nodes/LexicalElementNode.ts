@@ -18,6 +18,7 @@ import invariant from '@lexical/internal/invariant';
 import {
   $collectSiblingNodes,
   $detachNode,
+  $detachSiblingRange,
   $insertNodeBetween,
 } from '../caret/LexicalCaretTree';
 import {$isTextNode, type TextNode} from '../index';
@@ -818,7 +819,7 @@ export class ElementNode
     }
     const writableSelfKey = writableSelf.__key;
     const nodesToInsertKeys = [];
-    const nodesToRemoveKeys = [];
+    let nodesToRemoveKeys: NodeKey[] = [];
     let nodeAfterRange = this.getChildAtIndex(start + deleteCount);
     let nodeBeforeRange = null;
     let newSize = oldSize - deleteCount + nodesToInsert.length;
@@ -835,21 +836,14 @@ export class ElementNode
     }
 
     if (deleteCount > 0) {
-      let nodeToDelete =
+      nodesToRemoveKeys = $detachSiblingRange(
+        writableSelf,
         nodeBeforeRange === null
           ? this.getFirstChild()
-          : nodeBeforeRange.getNextSibling();
-      for (let i = 0; i < deleteCount; i++) {
-        if (nodeToDelete === null) {
-          invariant(false, 'splice: sibling not found');
-        }
-        const nextSibling = nodeToDelete.getNextSibling();
-        const nodeKeyToDelete = nodeToDelete.__key;
-        const writableNodeToDelete = nodeToDelete.getWritable();
-        $detachNode(writableNodeToDelete);
-        nodesToRemoveKeys.push(nodeKeyToDelete);
-        nodeToDelete = nextSibling;
-      }
+          : nodeBeforeRange.getNextSibling(),
+        deleteCount,
+        nodeBeforeRange,
+      );
     }
 
     // Retain the writable insertion tail instead of dirtying it again for

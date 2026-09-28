@@ -36,9 +36,38 @@ const revisions = refs.map(ref => ({
   sha: git(['rev-parse', '--verify', `${ref}^{commit}`]),
 }));
 revisions.push({label: 'WORKTREE', sha: null});
-const benchmarks = ['getWritable', 'caretSelection'].map(
-  name => `packages/lexical/src/__bench__/${name}.bench.ts`,
-);
+const useDOM = process.env.LEXICAL_BENCH_DOM === '1';
+if (useDOM) {
+  const {JSDOM} = await import('jsdom');
+  const {window} = new JSDOM('<!doctype html><html><body></body></html>', {
+    pretendToBeVisual: true,
+    url: 'https://localhost/',
+  });
+  for (const name of [
+    'window',
+    'document',
+    'navigator',
+    'Node',
+    'Element',
+    'HTMLElement',
+    'DocumentFragment',
+    'Text',
+    'MutationObserver',
+    'DOMParser',
+    'Range',
+    'getComputedStyle',
+  ]) {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      value: name === 'window' ? window : window[name],
+    });
+  }
+}
+const benchmarks = (
+  useDOM
+    ? ['largeDocument']
+    : ['getWritable', 'caretSelection', 'bulkSplice', 'largeDocument']
+).map(name => `packages/lexical/src/__bench__/${name}.bench.ts`);
 const filter = new RegExp(process.env.LEXICAL_BENCH_FILTER || '');
 const sampleCount = Number(process.env.LEXICAL_BENCH_SAMPLES || 9);
 if (!Number.isSafeInteger(sampleCount) || sampleCount < 1) {
@@ -87,7 +116,10 @@ try {
           name: 'revision-benchmark',
           setup(bundler) {
             bundler.onResolve(
-              {filter: /(getWritable|caretSelection)\.bench\.ts$/},
+              {
+                filter:
+                  /(getWritable|caretSelection|bulkSplice|largeDocument)\.bench\.ts$/,
+              },
               args => ({
                 path: join(root, args.path),
                 sideEffects: true,
@@ -159,8 +191,11 @@ try {
       pathToFileURL(outfile).href
     );
     await Promise.all(pendingTests);
-    if (cases.length !== 18) {
-      throw new Error(`Expected 18 workloads, got ${cases.length}`);
+    const expectedWorkloads = useDOM ? 14 : 34;
+    if (cases.length !== expectedWorkloads) {
+      throw new Error(
+        `Expected ${expectedWorkloads} workloads, got ${cases.length}`,
+      );
     }
     for (const workload of cases) workload.resetKeys = resetRandomKey;
     variants.push(cases);
@@ -169,6 +204,7 @@ try {
     JSON.stringify({
       bundles,
       cpu: cpus()[0].model,
+      environment: useDOM ? 'jsdom' : 'headless',
       node: process.version,
       optimizer: 'babel-preset-env + terser (ecma 2021, passes 2)',
       revisions,
