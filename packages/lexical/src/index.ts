@@ -56,6 +56,7 @@ export {
   $getAdjacentSiblingOrParentSiblingCaret,
   $getCaretRangeInDirection,
   $getChildCaretAtIndex,
+  $getTextPointCaretSliceForNode,
   $insertNodeToNearestRootAtCaret,
   $isBlockFullySelected,
   $isExtendableTextPointCaret,

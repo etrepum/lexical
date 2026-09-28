@@ -5,12 +5,12 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$createLinkNode, LinkNode} from '@lexical/link';
+import {buildEditorFromExtensions} from '@lexical/extension';
+import {$createLinkNode, LinkExtension} from '@lexical/link';
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
-  createEditor,
   type TextNode,
 } from 'lexical';
 import {expect, test} from 'vitest';
@@ -18,21 +18,21 @@ import {expect, test} from 'vitest';
 test.each([false, true])(
   'node traversal stops at a nested ancestor endpoint (reverse=%s)',
   reverse => {
-    const editor = createEditor({
-      nodes: [LinkNode],
-      onError: error => {
-        throw error;
-      },
+    using editor = buildEditorFromExtensions({
+      dependencies: [LinkExtension],
+      name: 'caret-node-between',
     });
     editor.update(
       () => {
         const text = $createTextNode('inside');
         const link = $createLinkNode('https://example.test').append(text);
         const paragraph = $createParagraphNode().append(link);
-        $getRoot().append(
-          paragraph,
-          $createParagraphNode().append($createTextNode('outside')),
-        );
+        $getRoot()
+          .clear()
+          .append(
+            paragraph,
+            $createParagraphNode().append($createTextNode('outside')),
+          );
         expect(
           reverse
             ? paragraph.getNodesBetween(text)
@@ -45,23 +45,21 @@ test.each([false, true])(
 );
 
 test('node traversal recognizes a stale target reference', () => {
-  const editor = createEditor({
-    onError: error => {
-      throw error;
-    },
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   let start: TextNode, end: TextNode;
   editor.update(
     () => {
       start = $createTextNode('start').toggleUnmergeable();
       end = $createTextNode('end').toggleUnmergeable();
-      $getRoot().append(
-        $createParagraphNode().append(
-          start,
-          end,
-          $createTextNode('outside').toggleUnmergeable(),
-        ),
-      );
+      $getRoot()
+        .clear()
+        .append(
+          $createParagraphNode().append(
+            start,
+            end,
+            $createTextNode('outside').toggleUnmergeable(),
+          ),
+        );
     },
     {discrete: true},
   );

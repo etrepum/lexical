@@ -1749,7 +1749,12 @@ declare export function $caretRangeFromSelection(
 ): CaretRange<CaretDirection>;
 declare export function $splitTextPointCaretSlice(
   slice: TextPointCaretSlice<>,
+  selection?: RangeSelection | null,
 ): TextNode | null;
+declare export function $getTextPointCaretSliceForNode(
+  slices: ReadonlyArray<TextPointCaretSlice<> | null>,
+  node: LexicalNode,
+): TextPointCaretSlice<> | void;
 declare export function $getAdjacentSiblingOrParentSiblingCaret<
   D extends CaretDirection,
 >(

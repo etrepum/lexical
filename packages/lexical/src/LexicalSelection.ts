@@ -26,6 +26,7 @@ import {
   $getChildCaret,
   $getSiblingCaret,
   $getTextNodeOffset,
+  $getTextPointCaretSliceForNode,
   $insertNodeToNearestRootAtCaret,
   $isBlockFullySelected,
   $isChildCaret,
@@ -54,7 +55,6 @@ import {
   type PointCaret,
   SKIP_SCROLL_INTO_VIEW_TAG,
   type TextNode,
-  type TextPointCaretSlice,
 } from '.';
 import {IS_FIREFOX} from './environment';
 import {DOM_TEXT_TYPE, TEXT_TYPE_TO_FORMAT} from './LexicalConstants';
@@ -764,10 +764,10 @@ export class RangeSelection implements BaseSelection {
    * @returns a string representing the text content of all the nodes in the Selection
    */
   getTextContent(): string {
-    const nodes = this.getNodes();
-    if (nodes.length === 0 || this.isCollapsed()) {
+    if (this.isCollapsed()) {
       return '';
     }
+    const nodes = this.getNodes();
     const slices = $caretRangeFromSelection(this).getTextSlices();
     let textContent = '';
     let prevWasElement = true;
@@ -799,9 +799,7 @@ export class RangeSelection implements BaseSelection {
       } else {
         prevWasElement = false;
         if ($isTextNode(node)) {
-          const slice = slices.find(
-            candidate => candidate !== null && candidate.caret.origin.is(node),
-          );
+          const slice = $getTextPointCaretSliceForNode(slices, node);
           textContent += slice ? slice.getTextContent() : node.getTextContent();
         } else if ($isDecoratorNode(node) || $isLineBreakNode(node)) {
           textContent += node.getTextContent();
@@ -1479,10 +1477,8 @@ export class RangeSelection implements BaseSelection {
     const slices = $caretRangeFromSelection(this).getTextSlices();
     const extracted: LexicalNode[] = [];
     for (const node of nodes) {
-      const slice = slices.find(
-        candidate => candidate !== null && candidate.caret.origin.is(node),
-      );
-      const replacement = slice ? $splitSelectedTextNode(this, slice) : node;
+      const slice = $getTextPointCaretSliceForNode(slices, node);
+      const replacement = slice ? $splitTextPointCaretSlice(slice, this) : node;
       if (replacement !== null) {
         extracted.push(replacement);
       }
@@ -2106,43 +2102,6 @@ function $deleteTextByGranularity(
   }
 }
 
-/** Split a text slice and retain the supplied selection, even when inactive. */
-function $splitSelectedTextNode(
-  selection: RangeSelection,
-  slice: TextPointCaretSlice,
-): TextNode | null {
-  const {origin} = slice.caret;
-  const [start] = slice.getSliceIndices();
-  const size = origin.getTextContentSize();
-  // Capture text offsets and equivalent element starts before splitText
-  // mutates the active selection; detached selections need the same update.
-  const points = [selection.anchor, selection.focus].map(point => {
-    const offset =
-      point.type === 'text' && point.key === origin.__key
-        ? point.offset - start
-        : point.type === 'element' &&
-            point.key === origin.getLatest().__parent &&
-            point.offset === origin.getIndexWithinParent()
-          ? 0
-          : null;
-    return offset === null ? null : ([point, offset] as const);
-  });
-  const node = $splitTextPointCaretSlice(slice);
-  // A prefix split can reuse origin, so identity alone does not detect it.
-  // Let the slice helper decide whether to split, then re-pin only on a split.
-  if (
-    node !== null &&
-    (node !== origin || node.getTextContentSize() !== size)
-  ) {
-    for (const pair of points) {
-      if (pair !== null) {
-        pair[0].set(node.__key, pair[1], 'text');
-      }
-    }
-  }
-  return node;
-}
-
 /**
  * Apply a pure bitmask transform to every formattable node, using caret
  * slices to isolate partially selected text. ElementNodes use textFormat.
@@ -2160,48 +2119,42 @@ function $updateTextFormat(
     return;
   }
 
-  const textNodes: TextNode[] = [];
-  if (!selection.isCollapsed()) {
-    for (const node of selection.getNodes()) {
-      if ($isTextNode(node)) {
-        textNodes.push(node);
-      } else if ($isElementNode(node)) {
-        node.setTextFormat(applyFormat(node.getTextFormat()));
-      } else if ($isInlineFormattable(node)) {
-        node.setFormat(applyFormat(node.getFormat()));
+  const nodes = selection.isCollapsed() ? [] : selection.getNodes();
+  const slices = nodes.length
+    ? $caretRangeFromSelection(selection).getTextSlices()
+    : [];
+  let hasText = false;
+  let firstFormat: number | undefined;
+  let lastFormat = 0;
+  for (const node of nodes) {
+    if ($isTextNode(node)) {
+      hasText = true;
+      const slice = $getTextPointCaretSliceForNode(slices, node);
+      if (slice && slice.distance === 0) {
+        continue;
       }
+      const nextFormat = applyFormat(node.getFormat());
+      const replacement =
+        slice && !$isTokenOrSegmented(node)
+          ? $splitTextPointCaretSlice(slice, selection)
+          : node;
+      if (replacement !== null) {
+        replacement.setFormat(nextFormat);
+        if (firstFormat === undefined) {
+          firstFormat = nextFormat;
+        }
+        lastFormat = nextFormat;
+      }
+    } else if ($isElementNode(node)) {
+      node.setTextFormat(applyFormat(node.getTextFormat()));
+    } else if ($isInlineFormattable(node)) {
+      node.setFormat(applyFormat(node.getFormat()));
     }
   }
-  if (textNodes.length === 0) {
+  if (!hasText) {
     selection.setFormat(applyFormat(selection.format));
     $setCompositionKey(null);
-    return;
-  }
-
-  const slices = $caretRangeFromSelection(selection).getTextSlices();
-  let firstFormat: number | undefined;
-  let lastFormat: number | undefined;
-  for (const node of textNodes) {
-    const slice = slices.find(
-      candidate => candidate !== null && candidate.caret.origin.is(node),
-    );
-    if (slice && slice.distance === 0) {
-      continue;
-    }
-    const nextFormat = applyFormat(node.getFormat());
-    const replacement =
-      slice && !$isTokenOrSegmented(node)
-        ? $splitSelectedTextNode(selection, slice)
-        : node;
-    if (replacement !== null) {
-      replacement.setFormat(nextFormat);
-      if (firstFormat === undefined) {
-        firstFormat = nextFormat;
-      }
-      lastFormat = nextFormat;
-    }
-  }
-  if (firstFormat !== undefined && lastFormat !== undefined) {
+  } else if (firstFormat !== undefined) {
     selection.format = firstFormat | lastFormat;
   }
 }

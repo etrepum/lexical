@@ -5,6 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import {buildEditorFromExtensions} from '@lexical/extension';
+import {$patchStyleText} from '@lexical/selection';
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -13,7 +15,6 @@ import {
   $getSelection,
   $isTextNode,
   $setSelection,
-  createEditor,
   IS_BOLD,
   IS_ITALIC,
 } from 'lexical';
@@ -21,20 +22,83 @@ import {describe, expect, test} from 'vitest';
 
 describe('selection text slices', () => {
   test.each([false, true])(
+    'styling retains the selected prefix at an element start (backward=%s)',
+    backward => {
+      using editor = buildEditorFromExtensions({name: 'slice-style'});
+      editor.update(
+        () => {
+          const text = $createTextNode('abc');
+          const paragraph = $createParagraphNode().append(text);
+          $getRoot().clear().append(paragraph);
+          const selection = $createRangeSelection();
+          const [start, end] = backward
+            ? [selection.focus, selection.anchor]
+            : [selection.anchor, selection.focus];
+          start.set(paragraph.getKey(), 0, 'element');
+          end.set(text.getKey(), 1, 'text');
+          $setSelection(selection);
+
+          $patchStyleText(selection, {color: 'red'});
+          expect(selection.getTextContent()).toBe('a');
+          $patchStyleText(selection, {color: 'blue'});
+          expect(paragraph.getFirstChildOrThrow().getTextContent()).toBe('a');
+          expect(selection.anchor.getNode().getStyle()).toBe('color: blue;');
+          expect(paragraph.getLastChildOrThrow().getTextContent()).toBe('bc');
+        },
+        {discrete: true},
+      );
+    },
+  );
+
+  test.each(['format', 'extract'] as const)(
+    '%s retains detached element endpoints after a split',
+    operation => {
+      using editor = buildEditorFromExtensions({name: 'slice-detached-end'});
+      editor.update(
+        () => {
+          const first = $createTextNode('abc');
+          const second = $createTextNode('def').setFormat('italic');
+          const paragraph = $createParagraphNode().append(first, second);
+          const other = $createTextNode('other');
+          $getRoot()
+            .clear()
+            .append(paragraph, $createParagraphNode().append(other));
+          const active = other.select(2, 2);
+          const selection = $createRangeSelection();
+          selection.anchor.set(first.getKey(), 1, 'text');
+          selection.focus.set(paragraph.getKey(), 2, 'element');
+
+          if (operation === 'format') {
+            selection.formatText('bold');
+          } else {
+            selection.extract();
+          }
+          expect(selection.getTextContent()).toBe('bcdef');
+          expect(selection.focus.offset).toBeLessThanOrEqual(
+            selection.focus.type === 'element'
+              ? selection.focus.getNode().getChildrenSize()
+              : selection.focus.getNode().getTextContentSize(),
+          );
+          expect($getSelection()).toBe(active);
+          expect(active.anchor.key).toBe(other.getKey());
+          expect(active.anchor.offset).toBe(2);
+        },
+        {discrete: true},
+      );
+    },
+  );
+
+  test.each([false, true])(
     'extracts through an element endpoint between children (backward=%s)',
     backward => {
-      const editor = createEditor({
-        onError: error => {
-          throw error;
-        },
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const first = $createTextNode('abcd');
           const second = $createTextNode('efgh').setFormat('italic');
           const third = $createTextNode('ijkl').setFormat('bold');
           const paragraph = $createParagraphNode().append(first, second, third);
-          $getRoot().append(paragraph);
+          $getRoot().clear().append(paragraph);
           const selection = $createRangeSelection();
           const [start, end] = backward
             ? [selection.focus, selection.anchor]
@@ -60,17 +124,13 @@ describe('selection text slices', () => {
   test.each([false, true])(
     'does not extract text from an empty mixed-point range (backward=%s)',
     backward => {
-      const editor = createEditor({
-        onError: error => {
-          throw error;
-        },
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const text = $createTextNode('abcd');
           const following = $createTextNode('efgh').setFormat('italic');
           const paragraph = $createParagraphNode().append(text, following);
-          $getRoot().append(paragraph);
+          $getRoot().clear().append(paragraph);
           const selection = $createRangeSelection();
           const [elementPoint, textPoint] = backward
             ? [selection.focus, selection.anchor]
@@ -89,17 +149,13 @@ describe('selection text slices', () => {
   );
 
   test('pending format excludes a final node selected at offset zero', () => {
-    const editor = createEditor({
-      onError: error => {
-        throw error;
-      },
-    });
+    using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
     editor.update(
       () => {
         const first = $createTextNode('abcd').setFormat(IS_BOLD);
         const second = $createTextNode('efgh').setFormat(IS_ITALIC);
         const paragraph = $createParagraphNode().append(first, second);
-        $getRoot().append(paragraph);
+        $getRoot().clear().append(paragraph);
         const selection = $createRangeSelection();
         selection.anchor.set(first.getKey(), 0, 'text');
         selection.focus.set(second.getKey(), 0, 'text');
@@ -116,17 +172,15 @@ describe('selection text slices', () => {
   });
 
   test('formatting a detached selection retains its partial text range', () => {
-    const editor = createEditor({
-      onError: error => {
-        throw error;
-      },
-    });
+    using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
     editor.update(
       () => {
         const text = $createTextNode('abcde');
         const other = $createTextNode('other');
         const paragraph = $createParagraphNode().append(text);
-        $getRoot().append(paragraph, $createParagraphNode().append(other));
+        $getRoot()
+          .clear()
+          .append(paragraph, $createParagraphNode().append(other));
         const active = other.select(2, 2);
         const selection = $createRangeSelection();
         selection.anchor.set(text.getKey(), 4, 'text');
@@ -167,11 +221,7 @@ describe('selection text slices', () => {
   )(
     'formatting retains an element start (backward=$backward, active=$active, preceding=$preceding, end=$endOffset)',
     ({backward, active, preceding, endOffset}) => {
-      const editor = createEditor({
-        onError: error => {
-          throw error;
-        },
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const text = $createTextNode('abc');
@@ -180,7 +230,9 @@ describe('selection text slices', () => {
             paragraph.append($createTextNode('before').setFormat('italic'));
           paragraph.append(text, $createTextNode('def'));
           const other = $createTextNode('other');
-          $getRoot().append(paragraph, $createParagraphNode().append(other));
+          $getRoot()
+            .clear()
+            .append(paragraph, $createParagraphNode().append(other));
           const unrelated = other.select(2, 2);
           const selection = $createRangeSelection();
           const [start, end] = backward

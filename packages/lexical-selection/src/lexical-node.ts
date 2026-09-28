@@ -14,6 +14,7 @@ import {
   $getNodeByKey,
   $getPreviousSelection,
   $getSelection,
+  $getTextPointCaretSliceForNode,
   $isElementNode,
   $isRangeSelection,
   $isRootNode,
@@ -348,15 +349,16 @@ export function $forEachSelectedTextNode(
     if (!$isTextNode(node) || !node.canHaveFormat()) {
       continue;
     }
-    const slice = slices.find(
-      candidate => candidate !== null && candidate.caret.origin.is(node),
-    );
+    const slice = $getTextPointCaretSliceForNode(slices, node);
     if (slice ? slice.distance === 0 : node.getTextContentSize() === 0) {
       continue;
     }
     fn(
       slice && !$isTokenOrSegmented(node)
-        ? $splitTextPointCaretSlice(slice)!
+        ? $splitTextPointCaretSlice(
+            slice,
+            $isRangeSelection(selection) ? selection : null,
+          )!
         : node,
     );
   }

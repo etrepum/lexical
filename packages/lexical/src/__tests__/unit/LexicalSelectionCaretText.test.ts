@@ -5,24 +5,20 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import {buildEditorFromExtensions} from '@lexical/extension';
 import {
   $createParagraphNode,
   $createRangeSelection,
   $createTextNode,
   $getRoot,
   $setSlot,
-  createEditor,
 } from 'lexical';
 import {expect, test} from 'vitest';
 
 test.each([false, true])(
   'selected text ends at the same boundary for an element or text point (backward=%s)',
   backward => {
-    const editor = createEditor({
-      onError: error => {
-        throw error;
-      },
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const first = $createTextNode('abcd');
@@ -32,7 +28,7 @@ test.each([false, true])(
           second,
           $createTextNode('ijkl').setFormat('bold'),
         );
-        $getRoot().append(paragraph);
+        $getRoot().clear().append(paragraph);
         const selection = $createRangeSelection();
         const [start, end] = backward
           ? [selection.focus, selection.anchor]
@@ -52,11 +48,7 @@ test.each([false, true])(
 test.each([false, true])(
   'equivalent mixed text and element points contain no selected text (backward=%s)',
   backward => {
-    const editor = createEditor({
-      onError: error => {
-        throw error;
-      },
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const first = $createTextNode('abcd');
@@ -64,7 +56,7 @@ test.each([false, true])(
           first,
           $createTextNode('efgh').setFormat('italic'),
         );
-        $getRoot().append(paragraph);
+        $getRoot().clear().append(paragraph);
         const selection = $createRangeSelection();
         const [start, end] = backward
           ? [selection.focus, selection.anchor]
@@ -82,16 +74,12 @@ test.each([false, true])(
 test.each([0, 1])(
   'collapsed element point beside a slot host contains no text (offset=%s)',
   offset => {
-    const editor = createEditor({
-      onError: error => {
-        throw error;
-      },
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const root = $getRoot();
         const host = $createParagraphNode();
-        root.append(host);
+        root.clear().append(host);
         $setSlot(
           host,
           'title',

@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import {buildEditorFromExtensions} from '@lexical/extension';
 import {
   $createParagraphNode,
   $createTextNode,
@@ -12,24 +13,19 @@ import {
   $getTextPointCaret,
   $getTextPointCaretSlice,
   $splitTextPointCaretSlice,
-  createEditor,
   IS_BOLD,
 } from 'lexical';
 import {expect, test} from 'vitest';
 
 test.each(['next', 'previous'] as const)('split a %s text slice', direction => {
-  const editor = createEditor({
-    onError: error => {
-      throw error;
-    },
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   editor.update(
     () => {
       const text = $createTextNode('abcde')
         .setFormat('bold')
         .setStyle('color: red;');
       const paragraph = $createParagraphNode().append(text);
-      $getRoot().append(paragraph);
+      $getRoot().clear().append(paragraph);
       const caret = $getTextPointCaret(
         text,
         direction,
@@ -52,16 +48,12 @@ test.each(['next', 'previous'] as const)('split a %s text slice', direction => {
 });
 
 test('empty and full text slices leave the node intact', () => {
-  const editor = createEditor({
-    onError: error => {
-      throw error;
-    },
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   editor.update(
     () => {
       const text = $createTextNode('abcde');
       const paragraph = $createParagraphNode().append(text);
-      $getRoot().append(paragraph);
+      $getRoot().clear().append(paragraph);
       expect(
         $splitTextPointCaretSlice(
           $getTextPointCaretSlice($getTextPointCaret(text, 'next', 2), 0),
