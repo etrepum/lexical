@@ -33,8 +33,6 @@ import {
 } from './LexicalSchema';
 import {errorOnReadOnly} from './LexicalUpdates';
 import {
-  $getLatest,
-  $getWritable,
   getRegisteredNodeOrThrow,
   iterStaticNodeConfigChain,
 } from './LexicalUtils';
@@ -568,7 +566,7 @@ export function $getState<K extends string, V>(
   version: NodeStateVersion = NODE_STATE_LATEST,
 ): V {
   const latestOrDirectNode =
-    version === NODE_STATE_LATEST ? $getLatest(node) : node;
+    version === NODE_STATE_LATEST ? node.getLatest() : node;
   const state = latestOrDirectNode.__state;
   if (state) {
     $checkCollision(node, stateConfig, state);
@@ -632,7 +630,7 @@ export function $setState<Node extends LexicalNode, K extends string, V>(
   errorOnReadOnly();
   let value: V;
   if (typeof valueOrUpdater === 'function') {
-    const latest = $getLatest(node);
+    const latest = node.getLatest();
     const prevValue = $getState(latest, stateConfig);
     value = (valueOrUpdater as (v: V) => V)(prevValue);
     if (stateConfig.isEqual(prevValue, value)) {
@@ -641,7 +639,7 @@ export function $setState<Node extends LexicalNode, K extends string, V>(
   } else {
     value = valueOrUpdater;
   }
-  const writable = $getWritable(node);
+  const writable = node.getWritable();
   const state = $getWritableNodeState(writable);
   $checkCollision(node, stateConfig, state);
   state.updateFromKnown(stateConfig, value);
@@ -1059,7 +1057,7 @@ export class NodeState<T extends LexicalNode> {
 export function $getWritableNodeState<T extends LexicalNode>(
   node: T,
 ): NodeState<T> {
-  const writable = $getWritable(node);
+  const writable = node.getWritable();
   const state = writable.__state
     ? writable.__state.getWritable(writable)
     : new NodeState(writable, $getSharedNodeState(writable));
@@ -1094,7 +1092,7 @@ export function $updateStateFromJSON<T extends LexicalNode>(
   node: T,
   serialized: LexicalParseJSON<SerializedLexicalNode>,
 ): T {
-  const writable = $getWritable(node);
+  const writable = node.getWritable();
   // Only the nested NodeState (under NODE_STATE_KEY) is applied here; flat
   // states, which serialize at the top level, are applied via $setState by the
   // node's compiled serialization schema (see $applyJSONSetters).

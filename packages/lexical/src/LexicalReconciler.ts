@@ -50,8 +50,6 @@ import {
   $createChildrenArray,
   $getDocument,
   $getDOMSlot,
-  $getLatest,
-  $getWritable,
   $isRootOrShadowRoot,
   $markSlotEditable,
   cloneDecorators,
@@ -1913,10 +1911,10 @@ function $reconcileNode(
     // leaving the local `nextNode` pointing at a stale instance whose
     // `__cachedText` would no-op the comparison below while the actual root
     // in the map carries `null` (RootNode constructor's default).
-    const latestRoot = $getLatest(nextNode);
+    const latestRoot = nextNode.getLatest();
     if (latestRoot.__cachedText !== subTreeTextContent) {
       // Cache the latest text content.
-      const nextRootNode = $getWritable(latestRoot);
+      const nextRootNode = latestRoot.getWritable();
       nextRootNode.__cachedText = subTreeTextContent;
       // This invariant from #8099 is left commented out for performance reasons
       // if (__DEV__) {

@@ -70,9 +70,7 @@ import {
 import {errorOnReadOnly, getActiveEditor} from '../LexicalUpdates';
 import {
   $getDOMSlot,
-  $getLatest,
   $getNodeByKey,
-  $getWritable,
   $isRootOrShadowRoot,
   isHTMLElement,
   toggleTextFormatType,
@@ -359,7 +357,7 @@ export class ElementNode
   }
 
   getFormat(): number {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__format;
   }
   getFormatType(): ElementFormatType {
@@ -367,11 +365,11 @@ export class ElementNode
     return ELEMENT_FORMAT_TO_TYPE[format] || '';
   }
   getStyle(): string {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__style;
   }
   getIndent(): number {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__indent;
   }
   /**
@@ -398,7 +396,7 @@ export class ElementNode
     return children;
   }
   getChildrenSize(): number {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__size;
   }
   isEmpty(): boolean {
@@ -413,7 +411,7 @@ export class ElementNode
     return dirtyElements !== null && dirtyElements.has(this.__key);
   }
   isLastChild(): boolean {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     const parentLastChild = this.getParentOrThrow().getLastChild();
     return parentLastChild !== null && parentLastChild.is(self);
   }
@@ -531,7 +529,7 @@ export class ElementNode
    */
   getFirstChild<T extends LexicalNode>(): null | T;
   getFirstChild(): null | LexicalNode {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     const firstKey = self.__first;
     return firstKey === null ? null : $getNodeByKey(firstKey);
   }
@@ -565,7 +563,7 @@ export class ElementNode
    */
   getLastChild<T extends LexicalNode>(): null | T;
   getLastChild(): null | LexicalNode {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     const lastKey = self.__last;
     return lastKey === null ? null : $getNodeByKey(lastKey);
   }
@@ -665,11 +663,11 @@ export class ElementNode
     return textContentSize;
   }
   getDirection(): 'ltr' | 'rtl' | null {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__dir;
   }
   getTextFormat(): number {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__textFormat;
   }
   hasFormat(type: ElementFormatType): boolean {
@@ -689,13 +687,13 @@ export class ElementNode
    * @returns a number representing the TextFormatTypes applied to the node.
    */
   getFormatFlags(type: TextFormatType, alignWithFormat: null | number): number {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     const format = self.__textFormat;
     return toggleTextFormatType(format, type, alignWithFormat);
   }
 
   getTextStyle(): string {
-    const self = $getLatest(this);
+    const self = this.getLatest();
     return self.__textStyle;
   }
 
@@ -755,7 +753,7 @@ export class ElementNode
     return lastNode ? lastNode.selectEnd() : this.select();
   }
   clear(): this {
-    const writableSelf = $getWritable(this);
+    const writableSelf = this.getWritable();
     const children = this.getChildren();
     children.forEach(child => child.remove());
     return writableSelf;
@@ -764,32 +762,32 @@ export class ElementNode
     return this.splice(this.getChildrenSize(), 0, nodesToAppend);
   }
   setDirection(direction: 'ltr' | 'rtl' | null): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__dir = direction;
     return self;
   }
   setFormat(type: ElementFormatType): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__format = type !== '' ? ELEMENT_TYPE_TO_FORMAT[type] || 0 : 0;
     return self;
   }
   setStyle(style: string): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__style = style || '';
     return self;
   }
   setTextFormat(type: number): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__textFormat = type;
     return self;
   }
   setTextStyle(style: string): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__textStyle = style;
     return self;
   }
   setIndent(indentLevel: number): this {
-    const self = $getWritable(this);
+    const self = this.getWritable();
     self.__indent = indentLevel;
     return self;
   }
@@ -805,7 +803,7 @@ export class ElementNode
       this.__type,
     );
     const oldSize = this.getChildrenSize();
-    const writableSelf = $getWritable(this);
+    const writableSelf = this.getWritable();
     invariant(
       start + deleteCount <= oldSize,
       'ElementNode.splice: start + deleteCount > oldSize (%s + %s > %s)',
@@ -847,7 +845,7 @@ export class ElementNode
         }
         const nextSibling = nodeToDelete.getNextSibling();
         const nodeKeyToDelete = nodeToDelete.__key;
-        const writableNodeToDelete = $getWritable(nodeToDelete);
+        const writableNodeToDelete = nodeToDelete.getWritable();
         $detachNode(writableNodeToDelete);
         nodesToRemoveKeys.push(nodeKeyToDelete);
         nodeToDelete = nextSibling;
@@ -858,17 +856,17 @@ export class ElementNode
     // every child. No boundary needs to be writable for a deletion-only splice.
     let writablePrevNode =
       nodesToInsert.length > 0 && nodeBeforeRange !== null
-        ? $getWritable(nodeBeforeRange)
+        ? nodeBeforeRange.getWritable()
         : null;
     for (const nodeToInsert of nodesToInsert) {
       if (writablePrevNode !== null && nodeToInsert.is(writablePrevNode)) {
         nodeBeforeRange = writablePrevNode.getPreviousSibling();
-        writablePrevNode = nodeBeforeRange && $getWritable(nodeBeforeRange);
+        writablePrevNode = nodeBeforeRange && nodeBeforeRange.getWritable();
       }
       if (nodeAfterRange !== null && nodeToInsert.is(nodeAfterRange)) {
         nodeAfterRange = nodeAfterRange.getNextSibling();
       }
-      const writableNodeToInsert = $getWritable(nodeToInsert);
+      const writableNodeToInsert = nodeToInsert.getWritable();
       if (writableNodeToInsert.__parent === writableSelfKey) {
         newSize--;
       }
@@ -880,7 +878,7 @@ export class ElementNode
         writableSelf,
         writableNodeToInsert,
         writablePrevNode,
-        nodeAfterRange && $getWritable(nodeAfterRange),
+        nodeAfterRange && nodeAfterRange.getWritable(),
       );
       if (nodeToInsert.__key === writableSelfKey) {
         invariant(false, 'append: attempting to append self');
