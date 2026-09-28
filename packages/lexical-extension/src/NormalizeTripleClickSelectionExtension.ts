@@ -122,6 +122,9 @@ function $fixFocusOverselection() {
       const domSelection =
         rootElement && getDOMSelection(rootElement.ownerDocument.defaultView);
       if (domSelection) {
+        // This native triple-click correction intentionally updates the browser
+        // range synchronously on already-mounted nodes. General selection UI
+        // must defer DOM reads until reconciliation has completed.
         $updateDOMSelection(
           $getPreviousSelection(),
           sel,
@@ -156,7 +159,10 @@ export const NormalizeTripleClickSelectionExtension = defineExtension({
     namedSignals(config),
   config: safeCast<NormalizeTripleClickSelectionConfig>({
     $fixFocusOverselection,
-    dateNow: Date.now,
+    // Wrapped rather than passing `Date.now` itself: a module-scope property
+    // read is a side effect to bundlers, which would pin this extension into
+    // every bundle that imports the module.
+    dateNow: () => Date.now(),
     disabled: false,
     thresholdMsec: 100,
   }),

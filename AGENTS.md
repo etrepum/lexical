@@ -36,7 +36,7 @@ For E2E testing workflow:
 - `pnpm run lint:fix` - Auto-fix lint issues
 - `pnpm run prettier` - Check code formatting
 - `pnpm run prettier:fix` - Auto-fix formatting issues
-- `pnpm run flow` - Run Flow type checker
+- `pnpm run flow` - Run a full foreground Flow check (does not reuse a server)
 - `pnpm run tsc` - Run TypeScript compiler
 - `pnpm run ci-check` - Run all checks (TypeScript, Flow, Prettier, ESLint)
 
@@ -67,6 +67,18 @@ Metavariables (`$NAME`, `$$$LIST`) capture nodes for reporting or rewriting
 with `--rewrite`. Reach for it whenever a change spans many files and must be
 precise — e.g. moving symbols that `@lexical/utils` merely re-exports back to
 a direct `lexical` import.
+
+### Extension source imports
+
+Import from the `@lexical/extension` barrel across package boundaries. Within
+`packages/lexical-extension`, use relative imports and re-exports. Do not
+manually rewrite these source imports to `@lexical/extension/*`: ESLint
+enforces the source convention, and `@lexical/compiler`'s `subpathImports`
+pass rewrites them in all published package builds, including www. Public
+sibling entries stay external so shared modules such as signals retain one
+instance. Helpers with only one owning entry live under `src/internal` and
+are bundled into that entry, without exposing additional public subpaths.
+Downstream users may import either the barrel or public subpaths.
 
 ### Tree-shaking annotations
 
@@ -106,6 +118,26 @@ lazy (a `nodes: () => [...]` callback is not evaluated at module scope), or
 declare the function side-effect free so its calls are annotated too. A
 third-party factory that cannot be declared is annotated by hand at the call
 site, which is what the remaining hand-written annotations in the tree are.
+
+Factory calls are not the only module-scope statements that pin a module.
+esbuild and webpack keep, as a side effect, any property read at module scope
+(`navigator.userAgent`, `Date.now`, `SomeExtension.name`), any call or `new`
+they were not told is pure (`new RegExp(...)`, `Object.freeze(...)`,
+`[...].join(',')`), an array or object spread, an `in` test, a `try`
+statement, a mutation (`table.push(...)`, `Klass.static = ...`), a class with
+a computed member (`[SOME_SYMBOL]?: number` — write `declare` on it), and an
+IIFE — together with everything the statement references. One
+`LexicalEditor.version = ...` after the class kept nearly all of `lexical` in
+a bundle that imported only `createCommand` (#9120). Move such work into a
+function declared `@__NO_SIDE_EFFECTS__` and call it at module scope, so the
+build annotates the call; annotate a call to a builtin or to a third-party
+function (`/* @__PURE__ */ forwardRef(...)`) by hand. Two tests enforce this
+by bundling a bare `import 'pkg'` of every entry with esbuild and requiring
+that nothing is retained: `scripts/__tests__/unit/treeShakingSource.test.ts`
+on the sources (runs with `pnpm run test-unit`) and
+`scripts/__tests__/integration/tree-shaking.test.mjs` on the published
+builds. A failure prints the retained code; its first statement is usually
+the culprit.
 
 A factory whose body is a trivial expression over its own arguments (like
 `safeCast`, `defineExtension`, or `configExtension`) is additionally marked
@@ -249,6 +281,36 @@ When adding/modifying APIs, types must be maintained for both systems.
 - If an API genuinely must change, deprecate the old one first (keep it working, document the replacement) rather than removing it outright.
 - When in doubt, assume external code depends on the current behavior and keep it intact.
 
+## Dependencies: Lexical is a singleton within one app
+
+An application must resolve exactly one copy of `lexical`, and one copy of each
+`@lexical/*` package it uses. The active editor and editor state are
+module-scope variables in `LexicalUpdates.ts`, node registration and
+`instanceof LexicalNode` compare class references, and commands are object
+identities from `createCommand()` — none of which survive a second copy of the
+module. Two copies also mean two versions, which is API drift inside one editor.
+
+The boundary is the app, not the page: several self-contained apps, each with
+its own bundled Lexical, can coexist on one page (`isLexicalEditor` is an
+`instanceof` check precisely to support that). They just cannot interoperate —
+nodes, editors, `EditorState`s, selections and commands must never be passed
+across such a boundary, only serialized data.
+
+- Inside this monorepo, packages depend on siblings with `"lexical":
+  "workspace:*"`; `pnpm publish` rewrites that to the exact published version,
+  so every `@lexical/*` release pins the matching `lexical`. Keep that pattern
+  when adding a package — do not hand-write a version range.
+- A **library** published on top of Lexical (anything outside this repo that
+  imports `lexical` or `@lexical/*`) declares those packages in
+  `peerDependencies`, plus `devDependencies` for its own build and tests, never
+  in `dependencies`. Apps bring their own Lexical and own the version.
+- Code under `examples/` and `packages/lexical-playground` are applications, so
+  they depend on Lexical directly — that is correct and should stay.
+
+The user-facing version of this rule lives in
+`packages/lexical-website/docs/concepts/one-lexical-per-app.md`; keep the two in
+sync when either changes.
+
 ## Important Development Notes
 
 ### Reconciliation and Updates
@@ -360,5 +422,8 @@ should follow this rule as written.
 - Uses Rollup for bundling
 - Build script: `scripts/build.mjs`
 - Supports multiple build modes: development, production, www (Meta internal)
-- TypeScript source → compiled to CommonJS and ESM
+- TypeScript source → compiled to ESM for npm (`dist/*.js` in the
+  `"type": "module"` packages; CommonJS consumers load it through
+  `require(esm)`, so the fork modules must stay free of top-level await) and
+  to CommonJS for www only (`--www`)
 - Package manager logic in `scripts/shared/packagesManager.mjs`

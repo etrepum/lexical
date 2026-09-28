@@ -28,6 +28,8 @@ import MagicString from 'magic-string';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import {parserPluginsFor} from './parserPlugins.mjs';
+
 /**
  * The Lexical factories that are annotated with `__NO_SIDE_EFFECTS__` at
  * their definition. That annotation is only honored by esbuild for calls in
@@ -44,10 +46,17 @@ import * as path from 'node:path';
  * @type {ReadonlyArray<string>}
  */
 export const PURE_FACTORY_FUNCTIONS = [
+  // The combinators that build a node's serialization schema at module
+  // scope, nested inside each other and inside createState.
+  'aliasedValue',
+  'arrayValue',
+  'booleanValue',
   'configExtension',
   'createCommand',
   'createContextState',
   'createImportState',
+  'createLinkMatcherWithRegExp',
+  'createRefCountedRegistry',
   'createRenderState',
   'createState',
   'declarePeerDependency',
@@ -55,7 +64,23 @@ export const PURE_FACTORY_FUNCTIONS = [
   'defineImportRule',
   'defineOverlayRules',
   'domOverride',
+  'enumValue',
+  // @lexical/react publishes each module as its own entry, so this is public
+  // and callable by name from another package even though it is @internal.
+  'newContext',
+  'nodeSchema',
+  'nullable',
+  'numberValue',
+  'objectValue',
+  'optional',
+  'rawValue',
   'safeCast',
+  'stringValue',
+  'transformValue',
+  'unionValue',
+  'warnOnlyOnce',
+  'withAccessors',
+  'withField',
 ];
 
 /**
@@ -134,9 +159,17 @@ export const PURE_NAMESPACES = ['sel'];
  *
  * @type {ReadonlyMap<string, string>}
  */
-export const INLINE_FACTORY_FORMS = new Map(
-  Array.from(INLINE_FACTORIES, ([name, spec]) => [name, spec.form]),
-);
+export const INLINE_FACTORY_FORMS = inlineFactoryForms();
+
+/**
+ * @__NO_SIDE_EFFECTS__
+ * @returns {ReadonlyMap<string, string>}
+ */
+function inlineFactoryForms() {
+  return new Map(
+    Array.from(INLINE_FACTORIES, ([name, spec]) => [name, spec.form]),
+  );
+}
 
 /**
  * The annotation inserted before a module-scope factory call. No trailing
@@ -273,28 +306,6 @@ const SKIPPED_KEYS = new Set([
   'loc',
   'trailingComments',
 ]);
-
-/**
- * @param {undefined | string} filename
- * @param {undefined | ReadonlyArray<any>} extraPlugins
- * @returns {Array<any>} the Babel parser plugins to parse this file with
- */
-function parserPluginsFor(filename, extraPlugins) {
-  const name = typeof filename === 'string' ? filename : '';
-  const isTypeScript = /\.[cm]?tsx?$/i.test(name);
-  /** @type {Array<any>} */
-  const plugins = ['explicitResourceManagement'];
-  if (isTypeScript) {
-    plugins.push('typescript');
-  }
-  // `<T>(value: T) => value` in a .ts file is a generic arrow function, not
-  // an opening JSX element, so the jsx plugin must stay off there. Any other
-  // extension (including an unknown one) is parsed with jsx enabled.
-  if (!isTypeScript || /\.[cm]?tsx$/i.test(name)) {
-    plugins.push('jsx');
-  }
-  return extraPlugins ? plugins.concat(extraPlugins) : plugins;
-}
 
 /**
  * Find the block comment that ends immediately before `offset` (ignoring
@@ -1030,6 +1041,16 @@ function collectFactoryNames(program, functions, opts) {
       continue;
     }
     for (const specifier of statement.specifiers) {
+      if (specifier.type === 'ImportDefaultSpecifier') {
+        // A Lexical module with a default export is named for it (the
+        // `warnOnlyOnce` module of the internal package exports `warnOnlyOnce`),
+        // which is the only name a default import can be matched against.
+        const name = source.slice(source.lastIndexOf('/') + 1);
+        if (trusted && functions.has(name)) {
+          add(specifier.local.name, name, null, true);
+        }
+        continue;
+      }
       if (
         specifier.type !== 'ImportSpecifier' ||
         specifier.imported.type !== 'Identifier'

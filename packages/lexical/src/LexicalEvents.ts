@@ -65,7 +65,6 @@ import {
   PASTE_COMMAND,
   REDO_COMMAND,
   REMOVE_TEXT_COMMAND,
-  SELECTION_CHANGE_COMMAND,
   SKIP_SELECTION_FOCUS_TAG,
   UNDO_COMMAND,
 } from '.';
@@ -74,6 +73,7 @@ import {
   IS_ANDROID_CHROME,
   IS_APPLE,
   IS_APPLE_WEBKIT,
+  IS_CHROME,
   IS_FIREFOX,
   IS_IOS,
   IS_SAFARI,
@@ -101,7 +101,11 @@ import {
   $internalCreateRangeSelection,
   type RangeSelection,
 } from './LexicalSelection';
-import {getActiveEditor, updateEditorSync} from './LexicalUpdates';
+import {
+  $dispatchSelectionChangeCommand,
+  getActiveEditor,
+  updateEditorSync,
+} from './LexicalUpdates';
 import {
   $addUpdateTag,
   $findMatchingParent,
@@ -151,31 +155,45 @@ type RootElementEvents = [
   string,
   Record<string, unknown> | ((event: Event, editor: LexicalEditor) => void),
 ][];
-const PASS_THROUGH_COMMAND = Object.freeze({});
+const PASS_THROUGH_COMMAND = /* @__PURE__ */ Object.freeze({});
 const ANDROID_COMPOSITION_LATENCY = 30;
-const rootElementEvents: RootElementEvents = [
-  ['keydown', onKeyDown],
-  ['pointerdown', onPointerDown],
-  ['compositionstart', onCompositionStart],
-  ['compositionend', onCompositionEnd],
-  ['input', onInput],
-  ['click', onClick],
-  ['cut', PASS_THROUGH_COMMAND],
-  ['copy', PASS_THROUGH_COMMAND],
-  ['dragstart', PASS_THROUGH_COMMAND],
-  ['dragover', PASS_THROUGH_COMMAND],
-  ['dragend', PASS_THROUGH_COMMAND],
-  ['paste', PASS_THROUGH_COMMAND],
-  ['focus', PASS_THROUGH_COMMAND],
-  ['blur', PASS_THROUGH_COMMAND],
-  ['drop', PASS_THROUGH_COMMAND],
-];
+let rootElementEvents: RootElementEvents | undefined;
 
-if (CAN_USE_BEFORE_INPUT) {
-  rootElementEvents.push([
-    'beforeinput',
-    (event, editor) => onBeforeInput(event as InputEvent, editor),
-  ]);
+function getRootElementEvents(): RootElementEvents {
+  if (rootElementEvents !== undefined) {
+    return rootElementEvents;
+  }
+  const events: RootElementEvents = [
+    ['keydown', onKeyDown],
+    ['pointerdown', onPointerDown],
+    ['compositionstart', onCompositionStart],
+    ['compositionend', onCompositionEnd],
+    ['input', onInput],
+    ['click', onClick],
+    ['cut', PASS_THROUGH_COMMAND],
+    ['copy', PASS_THROUGH_COMMAND],
+    ['dragstart', PASS_THROUGH_COMMAND],
+    ['dragover', PASS_THROUGH_COMMAND],
+    ['dragend', PASS_THROUGH_COMMAND],
+    ['paste', PASS_THROUGH_COMMAND],
+    ['focus', PASS_THROUGH_COMMAND],
+    ['blur', PASS_THROUGH_COMMAND],
+    ['drop', PASS_THROUGH_COMMAND],
+  ];
+  if (CAN_USE_BEFORE_INPUT) {
+    events.push([
+      'beforeinput',
+      (event, editor) => onBeforeInput(event as InputEvent, editor),
+    ]);
+  }
+  if (IS_IOS) {
+    events.push([
+      'keyup',
+      (event, editor) => onKeyUp(event as KeyboardEvent, editor),
+    ]);
+  }
+  rootElementEvents = events;
+  return events;
 }
 
 // Node can be moved between documents (for example using createPortal), so we
@@ -524,7 +542,11 @@ function onSelectionChange(
       }
     }
 
-    dispatchCommand(editor, SELECTION_CHANGE_COMMAND);
+    $dispatchSelectionChangeCommand(
+      editor,
+      selection,
+      selection !== null && (selection.dirty || !$isRangeSelection(selection)),
+    );
   });
 }
 
@@ -783,6 +805,11 @@ function clearHandledSelectionCommandInsertText(inputState: InputState): void {
 }
 
 function markHandledSelectionCommandInsertText(inputState: InputState): void {
+  // Only desktop Chrome on macOS accepts pending system text replacements
+  // after these commands. Elsewhere, the next insertText may be real input.
+  if (!IS_APPLE || IS_IOS || !IS_CHROME) {
+    return;
+  }
   clearHandledSelectionCommandInsertText(inputState);
   inputState.isInsertTextAfterHandledSelectionCommand = true;
   inputState.handledSelectionCommandTimeoutId = setTimeout(
@@ -1148,6 +1175,7 @@ function $handleBeforeInput(event: InputEvent): boolean {
     case 'insertLineBreak': {
       // Used for Android
       $setCompositionKey(null);
+      inputState.isInsertLineBreak = false;
       dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
       break;
     }
@@ -1158,9 +1186,9 @@ function $handleBeforeInput(event: InputEvent): boolean {
 
       // Safari does not provide the type "insertLineBreak".
       // So instead, we need to infer it from the keyboard event.
-      // We do not apply this logic to iOS to allow newline auto-capitalization
-      // work without creating linebreaks when pressing Enter
-      if (inputState.isInsertLineBreak && !IS_IOS) {
+      // The keydown handler distinguishes an explicit iOS Shift press from
+      // automatic capitalization before saving the intent for this input.
+      if (inputState.isInsertLineBreak) {
         inputState.isInsertLineBreak = false;
         dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, false);
       } else {
@@ -1626,6 +1654,14 @@ function onCompositionEnd(
 
 function onKeyDown(event: KeyboardEvent, editor: LexicalEditor): void {
   const inputState = editor._inputState;
+  if (IS_IOS) {
+    // The virtual keyboard emits Shift events for manual toggles, but not for
+    // automatic capitalization. Other key events may clear this state, never
+    // set it, since their shiftKey flag also reflects automatic capitalization.
+    inputState.isShiftKeyDown =
+      event.key === 'Shift' ||
+      (inputState.isShiftKeyDown && event.shiftKey && event.key !== 'CapsLock');
+  }
   inputState.lastKeyDownTimeStamp = event.timeStamp;
   inputState.lastKeyCode = event.key;
   if (event.key !== 'Backspace') {
@@ -1635,6 +1671,12 @@ function onKeyDown(event: KeyboardEvent, editor: LexicalEditor): void {
     return;
   }
   dispatchCommand(editor, KEY_DOWN_COMMAND, event);
+}
+
+function onKeyUp(event: KeyboardEvent, editor: LexicalEditor): void {
+  if (!event.shiftKey || event.key === 'CapsLock') {
+    editor._inputState.isShiftKeyDown = false;
+  }
 }
 
 /** @internal */
@@ -1651,7 +1693,9 @@ const ANY_MODIFIERS = {
 const CTRL_KEY = {ctrlKey: true} as const;
 const META_KEY = {metaKey: true} as const;
 const SHIFT_KEY_ANY = {shiftKey: 'any'} as const;
-const ALT_SHIFT_KEY_ANY = {...SHIFT_KEY_ANY, altKey: 'any'} as const;
+// Spelled out rather than spread from SHIFT_KEY_ANY: an object spread at
+// module scope is a side effect to bundlers.
+const ALT_SHIFT_KEY_ANY = {altKey: 'any', shiftKey: 'any'} as const;
 
 /**
  * The keydown shortcuts that the editor handles natively, compiled to
@@ -1693,8 +1737,13 @@ function buildKeyDownShortcuts(): KeyDownShortcut[] {
     key: 'Enter',
     modifiers,
     onMatch: (event, editor) => {
-      editor._inputState.isInsertLineBreak = isInsertLineBreak;
+      const inputState = editor._inputState;
+      inputState.isInsertLineBreak =
+        isInsertLineBreak && (!IS_IOS || inputState.isShiftKeyDown);
       dispatchCommand(editor, KEY_ENTER_COMMAND, event);
+      if (event.defaultPrevented) {
+        inputState.isInsertLineBreak = false;
+      }
     },
   });
   // Only RangeSelection can use the native cut/copy
@@ -1753,7 +1802,6 @@ function buildKeyDownShortcuts(): KeyDownShortcut[] {
             modifiers: CTRL_KEY,
             onMatch: (event: KeyboardEvent, editor: LexicalEditor) => {
               event.preventDefault();
-              editor._inputState.isInsertLineBreak = true;
               dispatchCommand(editor, INSERT_LINE_BREAK_COMMAND, true);
             },
           },
@@ -2067,8 +2115,9 @@ export function addRootElementEvents(
   // with this root element's other listeners in removeRootElementEvents.
   removeHandles.push(documentSelectionChange.register(doc));
 
-  for (let i = 0; i < rootElementEvents.length; i++) {
-    const [eventName, onEvent] = rootElementEvents[i];
+  const events = getRootElementEvents();
+  for (let i = 0; i < events.length; i++) {
+    const [eventName, onEvent] = events[i];
     const eventHandler =
       typeof onEvent === 'function'
         ? (event: Event) => {
@@ -2135,6 +2184,8 @@ export function addRootElementEvents(
                 );
 
               case 'blur': {
+                editor._inputState.isShiftKeyDown = false;
+                editor._inputState.isInsertLineBreak = false;
                 return (
                   isEditable &&
                   dispatchCommand(editor, BLUR_COMMAND, event as FocusEvent)

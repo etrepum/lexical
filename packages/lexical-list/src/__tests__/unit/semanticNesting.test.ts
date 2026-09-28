@@ -3232,6 +3232,12 @@ describe('semantic ≡ default Markdown under editing', () => {
     return {def, sem};
   }
 
+  // Markdown import nests by content column (CommonMark), so `  - b` under
+  // `- a` is a > b and `    - c` under it is b > c. Rows that own a nested
+  // list ("b" in the two-level document) are the one case whose result
+  // legitimately differs between modes under outdent / paragraph
+  // conversion — see the explicit per-mode assertions below — so the
+  // equality loop covers the leaf rows and the childless-parent row only.
   const DOCS: {name: string; markdown: string; rows: string[]}[] = [
     {
       markdown: '- a\n  - b\n- c',
@@ -3241,7 +3247,7 @@ describe('semantic ≡ default Markdown under editing', () => {
     {
       markdown: '- a\n  - b\n    - c\n- d',
       name: 'two nested levels',
-      rows: ['a', 'b', 'c', 'd'],
+      rows: ['a', 'c', 'd'],
     },
     {
       // All-check rows: no bullet/check mix, so the semantic mixed-list merge
@@ -3265,24 +3271,44 @@ describe('semantic ≡ default Markdown under editing', () => {
     }
   }
 
-  // Indenting a row that already owns a nested list is the one operation whose
-  // *document* legitimately differs between modes, and the semantic result is
-  // the correct one: the sub-tree moves as a unit (its child stays one level
-  // below it), whereas the default wrapper representation detaches the child.
-  // This is the semantic feature working as intended, not drift — assert both
-  // shapes explicitly so a regression on either side is caught.
-  test('indenting a row with children keeps its subtree together (semantic) / detaches it (default)', () => {
+  // Re-indenting or converting a row that already owns a nested list is the
+  // one operation whose *document* legitimately differs between modes, and
+  // the semantic result is the correct one: the sub-tree moves as a unit (its
+  // child stays one level below it), whereas the default wrapper
+  // representation leaves the child's wrapper at its old depth. This is the
+  // semantic feature working as intended, not drift — assert both shapes
+  // explicitly so a regression on either side is caught.
+  describe('a row with children (a > b > c, then d)', () => {
     const markdown = '- a\n  - b\n    - c\n- d';
-    const $indentB = () => {
-      const row = $findRowByText('b');
-      row.setIndent(row.getIndent() + 1);
-    };
-    const sem = editAndExport(markdown, $indentB, true);
-    const def = editAndExport(markdown, $indentB, false);
-    // Semantic: c follows b down a level (a > (b > c) > d).
-    expect(sem).toBe('- a\n    - b\n        - c\n- d');
-    // Default: the wrapper detaches c, leaving b and c as siblings.
-    expect(def).toBe('- a\n    - b\n    - c\n- d');
+
+    test('indenting "b" keeps its subtree together (semantic) / detaches it (default)', () => {
+      const $indentB = () => {
+        const row = $findRowByText('b');
+        row.setIndent(row.getIndent() + 1);
+      };
+      const sem = editAndExport(markdown, $indentB, true);
+      const def = editAndExport(markdown, $indentB, false);
+      // Semantic: c follows b down a level (a > (b > c)).
+      expect(sem).toBe('- a\n        - b\n            - c\n- d');
+      // Default: the wrapper detaches c, leaving b and c as siblings.
+      expect(def).toBe('- a\n        - b\n        - c\n- d');
+    });
+
+    test('outdenting "b" keeps its subtree together (semantic) / strands it (default)', () => {
+      const sem = editAndExport(markdown, () => $outdent('b'), true);
+      const def = editAndExport(markdown, () => $outdent('b'), false);
+      // Semantic: c follows b up a level (b > c).
+      expect(sem).toBe('- a\n- b\n    - c\n- d');
+      // Default: c's wrapper stays two levels down, now below a top-level b.
+      expect(def).toBe('- a\n- b\n        - c\n- d');
+    });
+
+    test('converting "b" to a paragraph keeps its subtree one level down (semantic) / strands it (default)', () => {
+      const sem = editAndExport(markdown, () => $toParagraph('b'), true);
+      const def = editAndExport(markdown, () => $toParagraph('b'), false);
+      expect(sem).toBe('- a\n\nb\n\n    - c\n- d');
+      expect(def).toBe('- a\n\nb\n\n        - c\n- d');
+    });
   });
 });
 

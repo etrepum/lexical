@@ -69,10 +69,19 @@ export type CursorSelection = {
   selections: HTMLElement[];
 };
 
-const SUPPORTS_CSS_HIGHLIGHTS =
-  typeof Highlight !== 'undefined' &&
-  typeof CSS !== 'undefined' &&
-  'highlights' in CSS;
+/** @__NO_SIDE_EFFECTS__ */
+function supportsCSSHighlights(): boolean {
+  return (
+    typeof Highlight !== 'undefined' &&
+    typeof CSS !== 'undefined' &&
+    'highlights' in CSS
+  );
+}
+
+// A call to a function declared side-effect free, so that the probe (an `in`
+// test is a side effect to bundlers) does not pin this module into bundles
+// that never render a cursor.
+const SUPPORTS_CSS_HIGHLIGHTS = supportsCSSHighlights();
 
 /**
  * The subset of a binding that {@link getCursorHighlightSheet} reads. Declared
@@ -478,6 +487,75 @@ function updateCursor(
     return;
   }
 
+  const positionCaretAtFocus = (): boolean => {
+    const focusRange = createDOMRange(
+      editor,
+      focusNode,
+      focus.offset,
+      focusNode,
+      focus.offset,
+    );
+    let caretRect =
+      focusRange === null ? undefined : focusRange.getBoundingClientRect();
+    if ((!caretRect || caretRect.height === 0) && $isLineBreakNode(focusNode)) {
+      const focusEl = editor.getElementByKey(focusKey) as HTMLElement | null;
+      if (focusEl !== null) {
+        caretRect = focusEl.getBoundingClientRect();
+      }
+    }
+    if (
+      caretRect !== undefined &&
+      caretRect.width === 0 &&
+      caretRect.height === 0 &&
+      $isElementNode(focusNode)
+    ) {
+      // A collapsed range at an element boundary can have no geometry. Use
+      // the adjacent text boundary instead of treating (0, 0) as a caret.
+      const adjacentRect = editor.read('latest', () => {
+        const previous = focusNode.getChildAtIndex(focus.offset - 1);
+        const next = focusNode.getChildAtIndex(focus.offset);
+        for (const [node, offset] of [
+          [previous, $isTextNode(previous) ? previous.getTextContentSize() : 0],
+          [next, 0],
+        ] as const) {
+          if ($isTextNode(node)) {
+            const range = createDOMRange(editor, node, offset, node, offset);
+            const rect =
+              range === null ? undefined : range.getBoundingClientRect();
+            if (rect && rect.height > 0) {
+              return rect;
+            }
+          }
+        }
+        return null;
+      });
+      if (adjacentRect !== null) {
+        caretRect = adjacentRect;
+      }
+    }
+    if (!caretRect || (caretRect.width === 0 && caretRect.height === 0)) {
+      return false;
+    }
+
+    setDOMStyleObject(caret.style, {
+      'background-color': theme.cursor ? '' : color,
+      bottom: '',
+      height: `${caretRect.height || 16}px`,
+      left: `${caretRect.left - containerRect.left}px`,
+      'pointer-events': 'none',
+      position: 'absolute',
+      right: '',
+      top: `${caretRect.top - containerRect.top}px`,
+      width: '1px',
+      'z-index': '10',
+    });
+
+    if (caret.parentNode !== cursorsContainer) {
+      cursorsContainer.appendChild(caret);
+    }
+    return true;
+  };
+
   if (highlight !== null) {
     // modern path: CSS Custom Highlight API
     const range = createDOMRange(
@@ -497,35 +575,7 @@ function updateCursor(
       highlight.add(range);
     }
 
-    // Caret stays as a positioned element; anchor it to the focus end.
-    const caretRange = range.cloneRange();
-    caretRange.collapse(false);
-    let caretRect: DOMRect = caretRange.getBoundingClientRect();
-    if (caretRect.height === 0 && $isLineBreakNode(focusNode)) {
-      // Bare <br>: collapsed range reports zero size. Fall back to the
-      // line break's own box so the caret still renders.
-      const focusEl = editor.getElementByKey(focusKey) as HTMLElement | null;
-      if (focusEl !== null) {
-        caretRect = focusEl.getBoundingClientRect();
-      }
-    }
-
-    setDOMStyleObject(caret.style, {
-      'background-color': theme.cursor ? '' : color,
-      bottom: '',
-      height: `${caretRect.height || 16}px`,
-      left: `${caretRect.left - containerRect.left}px`,
-      'pointer-events': 'none',
-      position: 'absolute',
-      right: '',
-      top: `${caretRect.top - containerRect.top}px`,
-      width: '1px',
-      'z-index': '10',
-    });
-
-    if (caret.parentNode !== cursorsContainer) {
-      cursorsContainer.appendChild(caret);
-    }
+    positionCaretAtFocus();
     return;
   }
 
@@ -611,11 +661,21 @@ function updateCursor(
         'z-index': '5',
       });
     }
+  }
 
-    if (i === selectionRectsLength - 1) {
-      if (caret.parentNode !== selection) {
-        selection.appendChild(caret);
-      }
+  if (!positionCaretAtFocus() && selectionRectsLength > 0) {
+    const lastSelection = selections[selectionRectsLength - 1];
+    // A reused caret may still have container-relative coordinates. Restore
+    // rectangle-relative positioning before moving it into the fallback span.
+    setDOMStyleObject(caret.style, {
+      bottom: '0',
+      height: '',
+      left: '',
+      right: '-1px',
+      top: '0',
+    });
+    if (caret.parentNode !== lastSelection) {
+      lastSelection.appendChild(caret);
     }
   }
 
@@ -651,10 +711,12 @@ export function getAnchorAndFocusCollabNodesForUserState(
 
     if (anchorAbsPos !== null && focusAbsPos !== null) {
       [anchorCollabNode, anchorOffset] = getCollabNodeAndOffset(
+        binding,
         anchorAbsPos.type,
         anchorAbsPos.index,
       );
       [focusCollabNode, focusOffset] = getCollabNodeAndOffset(
+        binding,
         focusAbsPos.type,
         focusAbsPos.index,
       );
@@ -697,10 +759,12 @@ export function $getAnchorAndFocusForUserState(
 
   if (isBindingV1(binding)) {
     const [anchorCollabNode, anchorOffset] = getCollabNodeAndOffset(
+      binding,
       anchorAbsPos.type,
       anchorAbsPos.index,
     );
     const [focusCollabNode, focusOffset] = getCollabNodeAndOffset(
+      binding,
       focusAbsPos.type,
       focusAbsPos.index,
     );
@@ -795,14 +859,47 @@ function $setPoint(point: Point, key: NodeKey, offset: number): void {
   }
 }
 
+/**
+ * Whether `sharedType` is inside the subtree this binding is bound to.
+ *
+ * Several editors can share one Yjs `Doc` (see the `rootName` and `getXmlText`
+ * binding options), which also puts them on one awareness channel, so a peer's
+ * position can describe a place in another editor's subtree. V1 resolves a
+ * position through the collab node cached on the shared type
+ * (`sharedType._collabNode`), which belongs to whichever binding materialized
+ * it and carries `NodeKey`s that only mean something in that binding's editor.
+ *
+ * The test walks the yjs type tree rather than the collab nodes: a cached
+ * collab node outlives the binding that created it (`destroy` does not clear
+ * `_collabNode`, and a later binding reuses the node without re-parenting it),
+ * so its `_parent` chain can still end at a previous binding's root even for a
+ * position that is squarely inside this one.
+ */
+function isSharedTypeInBinding(
+  binding: Binding,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sharedType: any,
+): boolean {
+  const rootSharedType = binding.root.getSharedType();
+  let type: null | {parent: unknown} = sharedType;
+  while (type != null) {
+    if (type === rootSharedType) {
+      return true;
+    }
+    type = type.parent as null | {parent: unknown};
+  }
+  return false;
+}
+
 function getCollabNodeAndOffset(
+  binding: Binding,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sharedType: any,
   offset: number,
 ): [null | AnyCollabNode, number] {
   const collabNode = sharedType._collabNode;
 
-  if (collabNode === undefined) {
+  if (collabNode === undefined || !isSharedTypeInBinding(binding, sharedType)) {
     return [null, 0];
   }
 
