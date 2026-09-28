@@ -57,7 +57,7 @@ preserved. The shared Terser settings use ES2021 and two compression passes;
 the runner additionally verifies that all development constants are eliminated
 before importing the bundle. Every revision uses the same current build options,
 so the comparison measures source changes under that configuration, not the
-isolated effect of changing build settings. This is a headless source bundle,
+isolated effect of changing build settings. This is a source bundle,
 not the published package layout or the compiler annotation pipeline.
 
 The runner also includes the working tree. It verifies each workload before
@@ -244,3 +244,31 @@ nested elements under a wrapper and 1,000 paragraphs; the deep stress case has
 replacement construction, transforms, GC, and commit, plus reconciliation in DOM
 mode. They are not isolated GC timings. Separate first/middle/last edits expose
 the distinction between the reconciler's full child walk and suffix fast path.
+
+### Real browser comparisons
+
+The comparison runner can run the large-document fixtures in a Playwright
+browser engine instead of jsdom:
+
+```sh
+pnpm exec playwright install firefox
+LEXICAL_BENCH_BROWSER=firefox LEXICAL_BENCH_SAMPLES=15 \
+  node scripts/bench-get-writable.mjs origin/main > firefox-results.jsonl
+```
+
+Use `chromium` or `webkit` in both commands to select another engine. The host
+must have the engine's system dependencies installed. `LEXICAL_BENCH_BROWSER`
+takes precedence over `LEXICAL_BENCH_DOM` and selects the same 14 DOM workloads.
+`LEXICAL_BENCH_FILTER` also works in browser mode.
+
+Both main and the working tree use the same production build configuration and
+fixtures. The shared measurement loop runs inside the browser page; Playwright
+only loads it and receives completed workload results. Output records the
+engine version and resolved comparison commit. Revision order rotates between
+samples, with correctness checks after each sample.
+
+These timings measure synchronous editor updates, including DOM reconciliation.
+The runner yields for animation frames and queued callbacks between samples,
+outside timing; it does not measure layout, paint, or interaction latency.
+Compare revisions within the same engine and run, rather than comparing absolute
+browser timings with Node/jsdom results.

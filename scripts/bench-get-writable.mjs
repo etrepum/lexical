@@ -13,12 +13,17 @@ import {transformAsync} from '@babel/core';
 import {build} from 'esbuild';
 import {execFileSync} from 'node:child_process';
 import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {createServer} from 'node:http';
 import {cpus, tmpdir} from 'node:os';
 import {join, relative, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 import {getBuildBabelOptions} from './shared/buildOptions.mjs';
 import {optimizeBenchmark} from './shared/optimizeBenchmark.mjs';
+import {
+  prepareBenchmarks,
+  runEditorBenchmarks,
+} from './shared/runEditorBenchmarks.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const refs = process.argv.slice(2);
@@ -36,8 +41,15 @@ const revisions = refs.map(ref => ({
   sha: git(['rev-parse', '--verify', `${ref}^{commit}`]),
 }));
 revisions.push({label: 'WORKTREE', sha: null});
-const useDOM = process.env.LEXICAL_BENCH_DOM === '1';
-if (useDOM) {
+const browserEngine = process.env.LEXICAL_BENCH_BROWSER || '';
+if (
+  browserEngine &&
+  !['chromium', 'firefox', 'webkit'].includes(browserEngine)
+) {
+  throw new Error('LEXICAL_BENCH_BROWSER must be chromium, firefox, or webkit');
+}
+const useDOM = Boolean(browserEngine) || process.env.LEXICAL_BENCH_DOM === '1';
+if (useDOM && !browserEngine) {
   const {JSDOM} = await import('jsdom');
   const {window} = new JSDOM('<!doctype html><html><body></body></html>', {
     pretendToBeVisual: true,
@@ -68,30 +80,22 @@ const benchmarks = (
     ? ['largeDocument']
     : ['getWritable', 'caretSelection', 'bulkSplice', 'largeDocument']
 ).map(name => `packages/lexical/src/__bench__/${name}.bench.ts`);
-const filter = new RegExp(process.env.LEXICAL_BENCH_FILTER || '');
 const sampleCount = Number(process.env.LEXICAL_BENCH_SAMPLES || 9);
 if (!Number.isSafeInteger(sampleCount) || sampleCount < 1) {
   throw new Error('LEXICAL_BENCH_SAMPLES must be a positive integer');
 }
 const temporary = await mkdtemp(join(tmpdir(), 'lexical-get-writable-'));
-/** @param {number[]} values */
-const median = values =>
-  [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
-/**
- * @param {() => void} run
- * @param {number} milliseconds
- */
-const measure = (run, milliseconds) => {
-  const start = performance.now();
-  let count = 0;
-  let elapsed;
-  do {
-    run();
-    count++;
-    elapsed = performance.now() - start;
-  } while (elapsed < milliseconds);
-  return (elapsed * 1000) / count;
+const expectedWorkloads = useDOM ? 14 : 34;
+const options = {
+  browser: Boolean(browserEngine),
+  filter: process.env.LEXICAL_BENCH_FILTER || '',
+  labels: revisions.map(({label}) => label),
+  sampleCount,
 };
+/** @type {import('playwright').Browser | undefined} */
+let browser;
+/** @type {import('node:http').Server | undefined} */
+let server;
 
 try {
   const variants = [];
@@ -110,7 +114,7 @@ try {
       define: {'process.env.NODE_ENV': '"production"'},
       format: 'esm',
       outfile,
-      platform: 'node',
+      platform: browserEngine ? 'browser' : 'node',
       plugins: [
         {
           name: 'revision-benchmark',
@@ -187,68 +191,118 @@ try {
     );
     await writeFile(outfile, code);
     bundles.push({bytes: Buffer.byteLength(code), eliminatedDevConstants});
-    const {cases, pendingTests, resetRandomKey} = await import(
-      pathToFileURL(outfile).href
-    );
-    await Promise.all(pendingTests);
-    const expectedWorkloads = useDOM ? 14 : 34;
-    if (cases.length !== expectedWorkloads) {
-      throw new Error(
-        `Expected ${expectedWorkloads} workloads, got ${cases.length}`,
+    if (!browserEngine) {
+      variants.push(
+        await prepareBenchmarks(
+          await import(pathToFileURL(outfile).href),
+          expectedWorkloads,
+        ),
       );
     }
-    for (const workload of cases) workload.resetKeys = resetRandomKey;
-    variants.push(cases);
+  }
+  if (browserEngine) {
+    const engines = await import('playwright');
+    browser = await engines[
+      /** @type {'chromium' | 'firefox' | 'webkit'} */ (browserEngine)
+    ].launch({headless: true});
   }
   console.log(
     JSON.stringify({
+      browserVersion: browser && browser.version(),
       bundles,
       cpu: cpus()[0].model,
-      environment: useDOM ? 'jsdom' : 'headless',
+      environment: browserEngine || (useDOM ? 'jsdom' : 'headless'),
       node: process.version,
       optimizer: 'babel-preset-env + terser (ecma 2021, passes 2)',
       revisions,
       sampleCount,
     }),
   );
-  for (let index = 0; index < variants[0].length; index++) {
-    const cases = variants.map(variant => variant[index]);
-    if (!filter.test(cases[0].name)) {
-      continue;
+  const report = (/** @type {unknown} */ result) =>
+    console.log(JSON.stringify(result));
+  if (browser) {
+    const modules = new Map();
+    for (let i = 0; i < revisions.length; i++) {
+      modules.set(
+        `/${i}.mjs`,
+        await readFile(join(temporary, `${i}.mjs`), 'utf8'),
+      );
     }
-    for (const workload of cases) {
-      workload.resetKeys();
-      workload.setup();
-      // Verify both halves of the text/format alternation before timing.
-      for (let i = 0; i < 4; i++) {
-        workload.run();
-        workload.teardown();
-      }
-    }
-    for (let warmup = 0; warmup < 3; warmup++) {
-      for (const workload of cases) measure(workload.run, 250);
-    }
-    /** @type {number[][]} */
-    const samples = cases.map(() => []);
-    for (let round = 0; round < sampleCount; round++) {
-      for (let offset = 0; offset < cases.length; offset++) {
-        const i = (round + offset) % cases.length;
-        samples[i].push(measure(cases[i].run, 350));
-        cases[i].teardown();
-      }
-    }
-    console.log(
-      JSON.stringify({
-        microseconds: Object.fromEntries(
-          revisions.map(({label}, i) => [label, median(samples[i])]),
-        ),
-        name: cases[0].name,
-        samples: Object.fromEntries(
-          revisions.map(({label}, i) => [label, samples[i]]),
-        ),
-      }),
+    modules.set(
+      '/runner.mjs',
+      await readFile(
+        new URL('./shared/runEditorBenchmarks.mjs', import.meta.url),
+        'utf8',
+      ),
     );
+    const benchmarkServer = (server = createServer((request, response) => {
+      const url = request.url || '/';
+      const body =
+        url === '/'
+          ? '<!doctype html><html><body></body></html>'
+          : modules.get(url);
+      response.writeHead(body === undefined ? 404 : 200, {
+        'Content-Type': url === '/' ? 'text/html' : 'text/javascript',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+      });
+      response.end(body);
+    }));
+    await new Promise(
+      /** @param {(value?: unknown) => void} done */ done =>
+        benchmarkServer.listen(0, '127.0.0.1', done),
+    );
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('No benchmark server address');
+    const startupTimeout = setTimeout(() => {
+      console.error(
+        'Browser page startup exceeded 30 seconds; closing browser.',
+      );
+      if (browser) void browser.close();
+    }, 30_000);
+    let page;
+    try {
+      page = await browser.newPage();
+    } finally {
+      clearTimeout(startupTimeout);
+    }
+    await page.exposeFunction('reportBenchmark', report);
+    await page.goto(`http://127.0.0.1:${address.port}`);
+    await page.evaluate(
+      async ({
+        options: browserOptions,
+        expectedWorkloads: workloadCount,
+        count,
+      }) => {
+        const runnerURL = '/runner.mjs';
+        const runner = await import(runnerURL);
+        const browserVariants = [];
+        for (let i = 0; i < count; i++) {
+          browserVariants.push(
+            await runner.prepareBenchmarks(
+              await import(`/${i}.mjs`),
+              workloadCount,
+            ),
+          );
+        }
+        await runner.runEditorBenchmarks(
+          browserVariants,
+          browserOptions,
+          Reflect.get(window, 'reportBenchmark'),
+        );
+      },
+      {count: revisions.length, expectedWorkloads, options},
+    );
+  } else {
+    await runEditorBenchmarks(variants, options, report);
   }
 } finally {
+  if (browser) await browser.close();
+  const benchmarkServer = server;
+  if (benchmarkServer)
+    await new Promise((done, reject) =>
+      benchmarkServer.close(error => (error ? reject(error) : done(undefined))),
+    );
   await rm(temporary, {force: true, recursive: true});
 }
