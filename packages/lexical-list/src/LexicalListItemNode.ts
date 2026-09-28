@@ -12,7 +12,6 @@ import {
   $copyNode,
   $createParagraphNode,
   $getDocument,
-  $getEditor,
   $getSelection,
   $getSiblingCaret,
   $getState,
@@ -170,13 +169,24 @@ export class ListItemNode extends ElementNode {
           // state: clear both the checked flag and the mixed-list "plain"
           // mark (read the raw field / state directly — getChecked already
           // reports undefined off a check list, so it can't gate this).
-          if (parent.getListType() !== 'check') {
+          if (!$isCheckList(parent)) {
             if (node.getLatest().__checked !== undefined) {
               node.setChecked(undefined);
             }
             if ($getState(node, listItemPlainState)) {
               $setState(node, listItemPlainState, false);
             }
+          } else if (
+            node.getLatest().__checked !== undefined &&
+            $getState(node, listItemPlainState)
+          ) {
+            // The plain mark and a checked flag are mutually exclusive
+            // (setChecked / setListItemPlain each clear the other), but
+            // hand-authored JSON can carry both — the schema writes the
+            // field directly. The mark is what rendered (getChecked reads
+            // undefined), so the hidden flag goes, or a later toggle would
+            // flip a row the user saw as plain into an unchecked checkbox.
+            node.setChecked(undefined);
           }
         } else if (parent) {
           const newParent = node.createParentElementNode();
@@ -256,12 +266,11 @@ export class ListItemNode extends ElementNode {
     prevNode: ListItemNode | null,
     dom: HTMLLIElement,
     config: EditorConfig,
-    // The editor is taken from the caller (createDOM / exportDOM receive
-    // it) rather than always from $getEditor(), so exportDOM keeps working
-    // inside a bare editorState.read() the way it did before the semantic
-    // nesting mode was consulted here; updateDOM runs in the reconciler,
-    // where the active editor is always set.
-    editor: LexicalEditor = $getEditor(),
+    // The editor is taken from the caller when it has one (createDOM /
+    // exportDOM receive it); otherwise the mode is read from the active
+    // editor, and reads as off in a bare editorState.read() (see
+    // $isListSemanticNestingEnabled), so a DOM build never throws there.
+    editor?: LexicalEditor,
   ) {
     // Classified once per reconcile; both helpers below need it. A check
     // row renders a real <input type=checkbox> — rather than the ARIA /
@@ -780,12 +789,11 @@ export class ListItemNode extends ElementNode {
     // An item with any inline (non-list) child — or no children — defers to
     // the default first-child heuristic (null), which already resolves it
     // correctly. Only an item whose children are ALL nested lists needs an
-    // answer of its own, and the two shared predicates cover exactly that
-    // split: an emptied host row (a marked list) still renders a row and
-    // must behave as a block; a dedicated wrapper (all unmarked) is a
-    // container, not a block. Both early-exit on the first inline child,
-    // keeping this safe on caret/selection hot paths.
-    // A single child walk (this sits on caret/selection hot paths): stops
+    // answer of its own: an emptied host row (some list marked) still
+    // renders a row and must behave as a block; a dedicated wrapper (all
+    // unmarked) is a container, not a block. The same split
+    // $isEmptiedHostRow / $isWrapperListItemNode encode, folded into one
+    // child walk because this sits on caret/selection hot paths: it stops
     // at the first inline child, otherwise remembers whether any nested
     // list carries the mark.
     let marked = false;
@@ -1019,7 +1027,7 @@ function $setListItemThemeClassNames(
  * Ownership stamp for the checkbox inputs this module creates. Membership —
  * not DOM shape — is what getListItemCheckboxDOM tests, so an application's
  * own unmanaged `<input type="checkbox">` prepended to a list item is never
- * claimed by the reconciler (removed/synced by $updateListItemChecked) or
+ * claimed by the reconciler (removed/synced by updateListItemChecked) or
  * by checkList.ts's click/focus routing.
  */
 const listItemCheckboxInputs = new WeakSet<Element>();

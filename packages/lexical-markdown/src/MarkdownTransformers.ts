@@ -769,7 +769,22 @@ function $retypeNestedList(
   $mergeable: (list: ListNode) => boolean,
 ): void {
   const nestedList = listItem.getParent();
-  if (!$isListNode(nestedList) || $mergeable(nestedList)) {
+  if (!$isListNode(nestedList)) {
+    return;
+  }
+  if (nestedList.getListType() === listType) {
+    return;
+  }
+  // A nested list that `setIndent` just created for this very line (the
+  // item is its only child) is a `$copyNode` of the list above it, whose
+  // marker state was reset by the copy — so it has no marker of its own to
+  // compare against and no sibling rows to merge with. The line opens the
+  // level, so the level takes the line's own type (a lone `- b` under
+  // `- [ ] a` is a bullet list, as GitHub renders it; a later `- [ ] c` at
+  // that level promotes it via $reconcileMixedList). Only an existing
+  // nested list, whose marker the line that opened it wrote, is consulted
+  // for the mixed-list merge.
+  if (nestedList.getChildrenSize() > 1 && $mergeable(nestedList)) {
     return;
   }
   const wrapper = nestedList.getParent();

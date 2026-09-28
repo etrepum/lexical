@@ -420,8 +420,10 @@ function onSelectionChange(
         // the rewrite lands on/inside a managed child, so the next
         // selectionchange no longer matches this guard and it settles.
         // The unmanaged-first-child precheck keeps this O(1) for the vast
-        // majority of editors and events — only elements that actually
-        // lead with setDOMUnmanaged scaffolding resolve a slot. The slot is
+        // majority of editors and events — only elements that lead with
+        // unmanaged DOM resolve a slot (setDOMUnmanaged scaffolding, or a
+        // decorator's DOM: that one is a keyed managed child of its slot,
+        // so getFirstChildOffset() is 0 and the guard never fires). The slot is
         // resolved through the editor's render config (overrides included),
         // and consulted only when it measures the same element the browser
         // reported, so a slot re-anchored via `withElement` (e.g. a table's

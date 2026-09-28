@@ -661,10 +661,15 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
       // fallback empty paragraph when there are NO blocks at all, so the
       // nested list would otherwise stand in for the row's own content;
       // prepend the empty paragraph to match the default representation,
-      // whose childless content item produces one.
-      children: $isEmptiedHostRow(child)
-        ? [{children: [], type: 'paragraph'}, ...blocks]
-        : blocks,
+      // whose childless content item produces one. When a selection export
+      // left none of the nested rows in, exportBlocks already supplied the
+      // fallback paragraph and it must not be doubled.
+      children:
+        $isEmptiedHostRow(child) &&
+        blocks.length > 0 &&
+        blocks[0].type !== 'paragraph'
+          ? [{children: [], type: 'paragraph'}, ...blocks]
+          : blocks,
       spread: false,
       type: 'listItem',
     };

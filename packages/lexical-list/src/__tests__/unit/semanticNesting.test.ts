@@ -4147,3 +4147,118 @@ describe('review round 17 regression fixes', () => {
     );
   });
 });
+
+describe('review round 18 regression fixes', () => {
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  function importShape(markdown: string): string {
+    using editor = buildEditor();
+    editor.update(() => $convertFromMarkdownString(markdown, MD), {
+      discrete: true,
+    });
+    return editor.read(() => {
+      const shape = (node: LexicalNode): string => {
+        if (!$isElementNode(node)) {
+          return node.getTextContent();
+        }
+        const label = $isListNode(node)
+          ? `${node.getListType()}`
+          : $isListItemNode(node)
+            ? node.getListItemPlain()
+              ? 'plain'
+              : node.getChecked() === undefined
+                ? 'li'
+                : node.getChecked()
+                  ? 'checked'
+                  : 'unchecked'
+            : node.getType();
+        return `${label}[${node.getChildren().map(shape).join(',')}]`;
+      };
+      return $getRoot().getChildren().map(shape).join(' | ');
+    });
+  }
+
+  test('a nested level opened by a plain line takes its own type, whatever the marker', () => {
+    // Fresh nested lists have no sibling context: the line opens the level
+    // and the level is a bullet list, for `-` exactly as for `*` (before,
+    // the copied list's reset marker matched `-` only, so the two markers
+    // produced different trees for the same document).
+    expect(importShape('- [ ] a\n  - b')).toBe(
+      'check[unchecked[a,bullet[li[b]]]]',
+    );
+    expect(importShape('* [ ] a\n  * b')).toBe(
+      'check[unchecked[a,bullet[li[b]]]]',
+    );
+    expect(importShape('* [ ] a\n  - b')).toBe(
+      'check[unchecked[a,bullet[li[b]]]]',
+    );
+    // A later task line at that level promotes it to a mixed task list.
+    expect(importShape('- [ ] a\n  - b\n  - [ ] c')).toBe(
+      'check[unchecked[a,check[plain[b],unchecked[c]]]]',
+    );
+    // A task line opening a level under a bullet row: a nested check list.
+    expect(importShape('- a\n  - [ ] b')).toBe(
+      'bullet[li[a,check[unchecked[b]]]]',
+    );
+  });
+
+  test('a loose mixed task list imports as one list (GitHub)', () => {
+    expect(importShape('- [ ] a\n\n- b')).toBe('check[unchecked[a],plain[b]]');
+  });
+
+  test('hand-authored JSON carrying both checked and the plain mark normalizes to plain', () => {
+    using editor = buildCheckEditor();
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append($createTextNode('task')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const json = editor.getEditorState().toJSON();
+    const list = json.root.children[0] as unknown as {
+      children: {checked?: boolean; $?: Record<string, unknown>}[];
+    };
+    list.children[0].checked = true;
+    list.children[0].$ = {listItemPlain: true};
+    editor.setEditorState(editor.parseEditorState(JSON.stringify(json)));
+    editor.read('force-commit', () => {
+      const listNode = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      const item = $assertNodeType(listNode.getFirstChild(), $isListItemNode);
+      expect(item.getListItemPlain()).toBe(true);
+      expect(item.getChecked()).toBeUndefined();
+      // The hidden flag is gone, so toggling makes a fresh checkbox row.
+      expect(item.__checked).toBeUndefined();
+    });
+  });
+
+  test('createDOM(config) from a one-argument subclass works in a bare read', () => {
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('check').append(
+              $createListItemNode(false).append($createTextNode('task')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const outerHTML = editor.getEditorState().read(() => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
+      // The historical one-argument call (as a subclass keeping the old
+      // signature would make): no active editor here, so the mode reads as
+      // off rather than throwing.
+      return item.createDOM(editor._config).outerHTML;
+    });
+    expect(outerHTML).toContain('role="checkbox"');
+  });
+});

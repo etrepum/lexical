@@ -25,6 +25,7 @@ import {
 } from './LexicalListItemNode';
 import {$isListNode, type ListNode} from './LexicalListNode';
 import {
+  $isCheckList,
   $isWrapperListItemNode,
   isDomChecklistElement,
   listSemanticNestingState,
@@ -115,7 +116,7 @@ export function $markPlainImportedCheckRows(
   items: ListItemNode[],
   listNode: ListNode,
 ): void {
-  if (listNode.getListType() !== 'check' || !$isListSemanticNestingEnabled()) {
+  if (!$isCheckList(listNode) || !$isListSemanticNestingEnabled()) {
     return;
   }
   for (const item of items) {
@@ -137,15 +138,27 @@ export function $markPlainImportedCheckRows(
  *
  * @internal
  */
-export function $isListSemanticNestingEnabled(
-  editor: LexicalEditor = $getEditor(),
-): boolean {
-  const dep = getPeerDependencyFromEditor<typeof ListExtension>(
-    editor,
-    '@lexical/list/List',
-  );
-  return dep !== undefined && dep.output.hasSemanticNesting.peek();
+export function $isListSemanticNestingEnabled(editor?: LexicalEditor): boolean {
+  if (editor === undefined) {
+    try {
+      editor = $getEditor();
+    } catch {
+      // A bare editorState.read() has an active state but no active editor
+      // (e.g. `createDOM(config)` from a subclass that keeps the one-argument
+      // signature, called while exporting DOM there). The mode is unknowable
+      // then and reads as off — the behavior every list item had before the
+      // mode existed — rather than turning a DOM build into a throw.
+      return false;
+    }
+  }
+  return makeListSemanticNestingReader(editor)();
 }
+
+// One reader per editor: the extension set is fixed after build, so the
+// dependency lookup (builder → extension map → dependency → signal) happens
+// once and every later check — per reconcile of a check row, per keypress in
+// the checklist handlers — is a WeakMap get plus a signal peek.
+const semanticNestingReaders = new WeakMap<LexicalEditor, () => boolean>();
 
 /**
  * A per-editor reader for the `hasSemanticNesting` config, resolving the
@@ -159,13 +172,19 @@ export function $isListSemanticNestingEnabled(
 export function makeListSemanticNestingReader(
   editor: LexicalEditor,
 ): () => boolean {
-  const dep = getPeerDependencyFromEditor<typeof ListExtension>(
-    editor,
-    '@lexical/list/List',
-  );
-  return dep === undefined
-    ? () => false
-    : () => dep.output.hasSemanticNesting.peek();
+  let reader = semanticNestingReaders.get(editor);
+  if (reader === undefined) {
+    const dep = getPeerDependencyFromEditor<typeof ListExtension>(
+      editor,
+      '@lexical/list/List',
+    );
+    reader =
+      dep === undefined
+        ? () => false
+        : () => dep.output.hasSemanticNesting.peek();
+    semanticNestingReaders.set(editor, reader);
+  }
+  return reader;
 }
 
 /**

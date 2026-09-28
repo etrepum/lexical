@@ -340,8 +340,8 @@ function $setListThemeClassNames(
 
 /*
  * This function normalizes the children of a ListNode after the conversion from HTML,
- * ensuring that they are all ListItemNodes and contain either a single nested ListNode
- * or some other inline content.
+ * ensuring that they are all ListItemNodes: in the default representation each item
+ * contains either a single nested ListNode or some other inline content.
  *
  * When semantic nesting is enabled for the active editor (see the
  * `hasSemanticNesting` config of `ListExtension`) the normalization instead

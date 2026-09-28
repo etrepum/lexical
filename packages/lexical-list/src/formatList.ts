@@ -48,6 +48,7 @@ import {
   $getAllListItems,
   $getNewListStart,
   $getTopListNode,
+  $isCheckList,
   $isEmptiedHostRow,
   $isWrapperListItemNode,
   $removeHighestEmptyListParent,
@@ -443,7 +444,7 @@ export function $removeList(): void {
  * @param list - The list whose children are updated.
  */
 export function $updateChildrenListItemValue(list: ListNode): void {
-  const isNotChecklist = list.getListType() !== 'check';
+  const isNotChecklist = !$isCheckList(list);
   let value = list.getStart();
   for (const child of list.getChildren()) {
     if ($isListItemNode(child)) {

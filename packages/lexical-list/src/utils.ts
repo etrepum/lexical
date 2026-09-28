@@ -169,10 +169,11 @@ export function $hasNestedListChild(listItem: ListItemNode): boolean {
 }
 
 /**
- * Whether `node` is a check-list ListNode. The single encoding of "this
- * list item's parent is a check list" — i.e. the item renders a checkbox —
- * shared by rendering ({@link $updateListItemChecked}), theming, and
- * checklist navigation so they cannot disagree on which rows are checkboxes.
+ * Whether `node` is a check-list ListNode: the single encoding of "this list
+ * is a check list", shared by the ListItemNode / ListNode transforms, the
+ * import normalization and `getListItemPlain`. (Whether an individual row
+ * renders a checkbox is a different question — a plain row in a mixed task
+ * list does not — and is answered by `getChecked()` / {@link $isTaskListItem}.)
  */
 export function $isCheckList(
   node: LexicalNode | null | undefined,
@@ -270,26 +271,14 @@ export function $listItemEmitsRow(
   if (!hasSelection) {
     return true;
   }
-  let hasChild = false;
-  let hasOwnContent = false;
-  for (
-    let child = listItem.getFirstChild();
-    child !== null;
-    child = child.getNextSibling()
-  ) {
-    hasChild = true;
-    if ($isListNode(child)) {
-      continue;
-    }
-    hasOwnContent = true;
-    if (
-      isSelected(child) ||
-      ($isElementNode(child) && $hasSelectedRowContent(child, isSelected))
-    ) {
-      return true;
-    }
-  }
-  return !hasOwnContent && hasChild && isSelected(listItem);
+  // A content row emits when its own content is selected; an emptied host
+  // row (all children are lists, at least one marked — a childless item is
+  // neither) emits when the item itself is selected. Export-only path, so
+  // the second walk for the emptied-host case is not measurable.
+  return (
+    $hasSelectedRowContent(listItem, isSelected) ||
+    ($isEmptiedHostRow(listItem) && isSelected(listItem))
+  );
 }
 
 /**

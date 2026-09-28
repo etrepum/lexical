@@ -526,7 +526,7 @@ function handleCheckItemEvent(
     return;
   }
 
-  // Only rows that render a checkbox are toggleable. $updateListItemChecked
+  // Only rows that render a checkbox are toggleable. updateListItemChecked
   // stamps aria-checked on exactly those <li>s in both modes (ARIA
   // emulation and native input) and strips it from dedicated wrapper
   // items, so this single mode-neutral check covers rows where a theme
