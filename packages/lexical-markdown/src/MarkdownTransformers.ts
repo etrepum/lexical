@@ -503,6 +503,12 @@ function getColumn(whitespaces: string): number {
  */
 let importListColumns: number[] | null = null;
 let importJoinsLooseLists = false;
+// The lists this import has written a bullet marker to (see listReplace):
+// the direct record of which lists a line of this import placed a row in.
+// A list absent from it — the copy `setIndent` just made to open a level,
+// whose marker state the copy reset — has no marker of its own to compare a
+// line against and no rows of this import to merge with.
+let importMarkedLists: WeakSet<ListNode> | null = null;
 
 /**
  * Run `fn` with the columns of a single markdown import tracked across the
@@ -522,13 +528,16 @@ export function withListIndentColumns<T>(
 ): T {
   const previousColumns = importListColumns;
   const previousJoins = importJoinsLooseLists;
+  const previousMarked = importMarkedLists;
   importListColumns = [];
   importJoinsLooseLists = joinLooseLists;
+  importMarkedLists = new WeakSet();
   try {
     return fn();
   } finally {
     importListColumns = previousColumns;
     importJoinsLooseLists = previousJoins;
+    importMarkedLists = previousMarked;
   }
 }
 
@@ -631,9 +640,14 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
         // GitHub starts a NEW list when the bullet character changes, so
         // the bullet/check cross-type merge only applies when this line's
         // marker matches the sibling list's ('- [ ]' continues a '-' list
-        // but not a '*' list). Same-type merging keeps its classic
+        // but not a '*' list) — a marker this import wrote, so a list it
+        // has not placed a row in (the copy setIndent made to open a level,
+        // whose marker the copy reset) is never merged into on the strength
+        // of the reset default. Same-type merging keeps its classic
         // marker-blind rule.
         listMarker !== undefined &&
+        importMarkedLists !== null &&
+        importMarkedLists.has(sibling) &&
         $getState(sibling, listMarkerState) === listMarker);
     // Mixed-list bookkeeping for the row that just landed in `list`. When a
     // task line joins a non-check list, promote the list and mark the other
@@ -737,6 +751,9 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
     if ($isListNode(listNode)) {
       if (listMarker) {
         $setState(listNode, listMarkerState, listMarker);
+        if (importMarkedLists !== null) {
+          importMarkedLists.add(listNode);
+        }
       }
       // Reconcile against the list the row finally landed in: an indented
       // task line nests via setIndent first, so reconciling its merge target
@@ -769,22 +786,14 @@ function $retypeNestedList(
   $mergeable: (list: ListNode) => boolean,
 ): void {
   const nestedList = listItem.getParent();
-  if (!$isListNode(nestedList)) {
-    return;
-  }
-  if (nestedList.getListType() === listType) {
-    return;
-  }
-  // A nested list that `setIndent` just created for this very line (the
-  // item is its only child) is a `$copyNode` of the list above it, whose
-  // marker state was reset by the copy — so it has no marker of its own to
-  // compare against and no sibling rows to merge with. The line opens the
-  // level, so the level takes the line's own type (a lone `- b` under
+  // A nested list `setIndent` just created for this line is a `$copyNode`
+  // of the list above it: no row of this import sits in it, so `$mergeable`
+  // (which only merges into lists this import wrote a marker to) says no
+  // and the line opens the level with its own type — a lone `- b` under
   // `- [ ] a` is a bullet list, as GitHub renders it; a later `- [ ] c` at
-  // that level promotes it via $reconcileMixedList). Only an existing
-  // nested list, whose marker the line that opened it wrote, is consulted
-  // for the mixed-list merge.
-  if (nestedList.getChildrenSize() > 1 && $mergeable(nestedList)) {
+  // that level promotes it via $reconcileMixedList. A level the import
+  // already placed rows in keeps them together as a mixed task list.
+  if (!$isListNode(nestedList) || $mergeable(nestedList)) {
     return;
   }
   const wrapper = nestedList.getParent();

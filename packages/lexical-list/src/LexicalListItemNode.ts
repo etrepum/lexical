@@ -65,6 +65,7 @@ import {
   $isListSemanticNestingEnabled,
   $markNestedListsAsSemantic,
   $parkNestedListsInWrapper,
+  isListSemanticNestingEnabledForConfig,
 } from './semanticNesting';
 import {
   $copyListForSplit,
@@ -165,28 +166,28 @@ export class ListItemNode extends ElementNode {
       $transform: (node: ListItemNode): void => {
         const parent = node.getParent();
         if ($isListNode(parent)) {
-          // A row that is no longer in a check list carries no checkbox
-          // state: clear both the checked flag and the mixed-list "plain"
-          // mark (read the raw field / state directly — getChecked already
-          // reports undefined off a check list, so it can't gate this).
-          if (!$isCheckList(parent)) {
-            if (node.getLatest().__checked !== undefined) {
-              node.setChecked(undefined);
-            }
-            if ($getState(node, listItemPlainState)) {
-              $setState(node, listItemPlainState, false);
-            }
-          } else if (
+          // Checkbox state is normalized against the parent list (read the
+          // raw field / state directly — getChecked already reports
+          // undefined off a check list, so it can't gate this):
+          // - off a check list a row carries no checkbox state at all, so
+          //   both the checked flag and the mixed-list "plain" mark go;
+          // - in a check list the plain mark and a checked flag are mutually
+          //   exclusive (setChecked / setListItemPlain each clear the
+          //   other), but hand-authored JSON can carry both since the schema
+          //   writes the field directly. The mark is what rendered
+          //   (getChecked reads undefined), so the hidden flag goes, or a
+          //   later toggle would flip a row the user saw as plain into an
+          //   unchecked checkbox.
+          const inCheckList = $isCheckList(parent);
+          const plain = $getState(node, listItemPlainState);
+          if (
             node.getLatest().__checked !== undefined &&
-            $getState(node, listItemPlainState)
+            (!inCheckList || plain)
           ) {
-            // The plain mark and a checked flag are mutually exclusive
-            // (setChecked / setListItemPlain each clear the other), but
-            // hand-authored JSON can carry both — the schema writes the
-            // field directly. The mark is what rendered (getChecked reads
-            // undefined), so the hidden flag goes, or a later toggle would
-            // flip a row the user saw as plain into an unchecked checkbox.
             node.setChecked(undefined);
+          }
+          if (!inCheckList && plain) {
+            $setState(node, listItemPlainState, false);
           }
         } else if (parent) {
           const newParent = node.createParentElementNode();
@@ -266,18 +267,22 @@ export class ListItemNode extends ElementNode {
     prevNode: ListItemNode | null,
     dom: HTMLLIElement,
     config: EditorConfig,
-    // The editor is taken from the caller when it has one (createDOM /
-    // exportDOM receive it); otherwise the mode is read from the active
-    // editor, and reads as off in a bare editorState.read() (see
-    // $isListSemanticNestingEnabled), so a DOM build never throws there.
     editor?: LexicalEditor,
   ) {
     // Classified once per reconcile; both helpers below need it. A check
     // row renders a real <input type=checkbox> — rather than the ARIA /
     // ::before emulation — in the semantic nesting representation; the
-    // theme keys and DOM wiring differ, so resolve it once here.
+    // theme keys and DOM wiring differ, so resolve it once here. The mode
+    // is read from the editor when the caller has one (the reconciler and
+    // exportDOM do), otherwise from the config object it passed — which
+    // identifies the editor without needing an active one, so a subclass
+    // keeping the one-argument `createDOM(config)` still builds the right
+    // representation inside a bare editorState.read().
     const isWrapper = $isWrapperListItemNode(this);
-    const hasSemanticNesting = $isListSemanticNestingEnabled(editor);
+    const hasSemanticNesting =
+      editor !== undefined
+        ? $isListSemanticNestingEnabled(editor)
+        : isListSemanticNestingEnabledForConfig(config);
     // Task-ness, not the list type, decides whether the row draws a checkbox:
     // a plain row in a check list (the GitHub mixed task-list case) reports
     // getChecked() === undefined and renders none, and getChecked already

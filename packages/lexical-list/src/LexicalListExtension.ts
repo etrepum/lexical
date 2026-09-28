@@ -26,7 +26,10 @@ import {decorateListItemDOM, ListItemNode} from './LexicalListItemNode';
 import {ListNode} from './LexicalListNode';
 import {ListImportRules} from './ListImportExtension';
 import {registerList, registerListStrictIndentTransform} from './registerList';
-import {$normalizeSemanticListItem} from './semanticNesting';
+import {
+  $normalizeSemanticListItem,
+  registerListSemanticNestingConfig,
+} from './semanticNesting';
 
 export interface ListConfig {
   /**
@@ -113,6 +116,7 @@ export const ListExtension = defineExtension({
     const stores = state.getOutput();
     let firstSemanticNestingRun = true;
     return mergeRegister(
+      registerListSemanticNestingConfig(editor),
       effect(() => {
         return registerList(editor, {
           restoreNumbering: stores.shouldPreserveNumbering.value,

@@ -131,4 +131,41 @@ describe('@lexical/mdast emptied host row selection export', () => {
     // prepended one) — which serialized as a stray trailing newline.
     expect(markdown).toBe('- one\n-');
   });
+
+  test('a nested list in range whose only row is childless does not leak an empty list', () => {
+    using editor = createEditor();
+    importMarkdown(editor, '- one\n- two\n  - n\n- three');
+    // Empty both the host row's own content and its nested row.
+    editor.update(
+      () => {
+        const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        const two = $assertNodeType(list.getChildAtIndex(1), $isListItemNode);
+        const twoText = two.getFirstChild();
+        invariant(twoText !== null, 'expected row text');
+        twoText.remove();
+        const nested = $assertNodeType(two.getFirstChild(), $isListNode);
+        const n = $assertNodeType(nested.getFirstChild(), $isListItemNode);
+        n.clear();
+      },
+      {discrete: true},
+    );
+    const markdown = editor.read(() => {
+      const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+      const [one, two] = list
+        .getChildren()
+        .map(child => $assertNodeType(child, $isListItemNode));
+      const oneText = one.getFirstChild();
+      invariant(oneText !== null, 'expected row text');
+      const nested = $assertNodeType(two.getLastChild(), $isListNode);
+      const n = $assertNodeType(nested.getFirstChild(), $isListItemNode);
+      // Focus at the element point of the childless nested item: the nested
+      // list is in range, but none of its rows emit, so it exports empty and
+      // must be dropped rather than serialized as a stray empty list.
+      const selection = $createRangeSelection();
+      selection.anchor.set(oneText.getKey(), 0, 'text');
+      selection.focus.set(n.getKey(), 0, 'element');
+      return $convertSelectionToMarkdownString(selection);
+    });
+    expect(markdown).toBe('- one\n-');
+  });
 });

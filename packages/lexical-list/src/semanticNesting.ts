@@ -13,6 +13,7 @@ import {$firstToLastIterator} from '@lexical/utils';
 import {
   $getEditor,
   $setState,
+  type EditorConfig,
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
@@ -138,20 +139,50 @@ export function $markPlainImportedCheckRows(
  *
  * @internal
  */
-export function $isListSemanticNestingEnabled(editor?: LexicalEditor): boolean {
-  if (editor === undefined) {
-    try {
-      editor = $getEditor();
-    } catch {
-      // A bare editorState.read() has an active state but no active editor
-      // (e.g. `createDOM(config)` from a subclass that keeps the one-argument
-      // signature, called while exporting DOM there). The mode is unknowable
-      // then and reads as off — the behavior every list item had before the
-      // mode existed — rather than turning a DOM build into a throw.
-      return false;
-    }
-  }
+export function $isListSemanticNestingEnabled(
+  editor: LexicalEditor = $getEditor(),
+): boolean {
   return makeListSemanticNestingReader(editor)();
+}
+
+// The mode keyed by the editor's config object — the one argument every
+// createDOM / updateDOM call carries — so the DOM build needs neither an
+// editor argument nor an active editor (a bare editorState.read() has an
+// active state but no active editor). Populated by ListExtension for the
+// editor's lifetime; an editor built without the extension is absent and
+// reads as off.
+const semanticNestingByConfig = new WeakMap<EditorConfig, () => boolean>();
+
+/**
+ * Record the `hasSemanticNesting` reader for `editor` under its config
+ * object, for {@link isListSemanticNestingEnabledForConfig}. Registered by
+ * {@link ListExtension}; returns the cleanup.
+ *
+ * @internal
+ */
+export function registerListSemanticNestingConfig(
+  editor: LexicalEditor,
+): () => void {
+  const config = editor._config;
+  semanticNestingByConfig.set(config, makeListSemanticNestingReader(editor));
+  return () => {
+    semanticNestingByConfig.delete(config);
+  };
+}
+
+/**
+ * Whether the `hasSemanticNesting` config of {@link ListExtension} is
+ * enabled for the editor that owns `config` (an `EditorConfig`, as passed to
+ * `createDOM` / `updateDOM`). `false` for a config no ListExtension has
+ * registered. Not a `$` function: it reads no editor state.
+ *
+ * @internal
+ */
+export function isListSemanticNestingEnabledForConfig(
+  config: EditorConfig,
+): boolean {
+  const reader = semanticNestingByConfig.get(config);
+  return reader !== undefined && reader();
 }
 
 // One reader per editor: the extension set is fixed after build, so the

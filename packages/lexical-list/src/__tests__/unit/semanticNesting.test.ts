@@ -4255,10 +4255,40 @@ describe('review round 18 regression fixes', () => {
       const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
       const item = $assertNodeType(list.getFirstChild(), $isListItemNode);
       // The historical one-argument call (as a subclass keeping the old
-      // signature would make): no active editor here, so the mode reads as
-      // off rather than throwing.
+      // signature would make): no active editor here, so the mode is read
+      // from the config object, and the row still gets the editor's own
+      // representation — the native input, not the ARIA emulation.
       return item.createDOM(editor._config).outerHTML;
     });
-    expect(outerHTML).toContain('role="checkbox"');
+    expect(outerHTML).toContain('type="checkbox"');
+    expect(outerHTML).not.toContain('role="checkbox"');
+  });
+});
+
+describe('review round 19 regression fixes', () => {
+  const MD = [CHECK_LIST, ...TRANSFORMERS];
+
+  test('markdown pipeline: an emptied host row exports as one blank row', () => {
+    // The mdast pipeline serializes the same row as a bare `-`
+    // (MdastMixedChecklist.test.ts); this pipeline keeps the marker's
+    // trailing space, because UNORDERED_LIST_REGEX requires whitespace after
+    // the marker and a bare `-` would re-import as a paragraph rather than
+    // an empty row. Both emit exactly one blank row for the host; they
+    // differ only in that serializer detail.
+    using editor = buildEditor();
+    editor.update(
+      () => {
+        $convertFromMarkdownString('- one\n- two\n  - n\n- three', MD);
+        const list = $assertNodeType($getRoot().getFirstChild(), $isListNode);
+        const two = $assertNodeType(list.getChildAtIndex(1), $isListItemNode);
+        const twoText = two.getFirstChild();
+        invariant(twoText !== null, 'expected row text');
+        twoText.remove();
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(MD))).toBe(
+      '- one\n- \n    - n\n- three',
+    );
   });
 });

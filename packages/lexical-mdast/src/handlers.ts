@@ -650,26 +650,31 @@ function $exportListNode(node: ListNode, ctx: MdastExportContext): List {
       }
       continue;
     }
-    const blocks = ctx.exportBlocks(child);
+    // A nested list that exported empty — every row filtered out by a
+    // selection, while the list itself was in range — is dropped here as it
+    // is in the non-emitting branch above, so no stray empty `list` reaches
+    // the output.
+    let blocks = ctx
+      .exportBlocks(child)
+      .filter(block => block.type !== 'list' || block.children.length > 0);
+    // An emptied host row (its inline content deleted, only nested lists
+    // remain) renders exactly one blank content line, as the default
+    // representation's childless content item does: prepend the empty
+    // paragraph when the nested content exported (it would otherwise stand
+    // in for the row's own content) or when nothing did — and never double
+    // the fallback paragraph exportBlocks supplies for a childless export.
+    if (
+      $isEmptiedHostRow(child) &&
+      (blocks.length === 0 || blocks[0].type !== 'paragraph')
+    ) {
+      blocks = [{children: [], type: 'paragraph'}, ...blocks];
+    }
     const item: ListItem = {
       // getChecked() is a boolean only for a task row; a plain row in a mixed
       // check list (or any non-check row) reports undefined, which maps to
       // mdast's `null` — "not a task" — so it serializes as a bare `- item`.
       checked: child.getChecked() ?? null,
-      // An emptied host row (its inline content deleted, only nested lists
-      // remain) renders a blank content line. exportBlocks only adds the
-      // fallback empty paragraph when there are NO blocks at all, so the
-      // nested list would otherwise stand in for the row's own content;
-      // prepend the empty paragraph to match the default representation,
-      // whose childless content item produces one. When a selection export
-      // left none of the nested rows in, exportBlocks already supplied the
-      // fallback paragraph and it must not be doubled.
-      children:
-        $isEmptiedHostRow(child) &&
-        blocks.length > 0 &&
-        blocks[0].type !== 'paragraph'
-          ? [{children: [], type: 'paragraph'}, ...blocks]
-          : blocks,
+      children: blocks,
       spread: false,
       type: 'listItem',
     };
