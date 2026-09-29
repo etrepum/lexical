@@ -651,3 +651,146 @@ describe('LexicalTableMobileSelection touch gestures (#8538)', () => {
     });
   });
 });
+
+/**
+ * On iOS a double tap in an empty cell selects back to the nearest word, which
+ * lies above the table. There is no cancelable event for it, only the
+ * selection change. That selection must not be widened over the table, or
+ * typing deletes the table and the text above it (#9266).
+ */
+describe('LexicalTableMobileSelection double tap in an empty cell (#9266)', () => {
+  let editor: LexicalEditorWithDispose;
+  let container: HTMLDivElement;
+  let textKey: string;
+  let cellKey: string;
+  let cellElement: HTMLTableCellElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [TableExtension],
+        name: '@lexical/table/DoubleTapTest',
+        theme: {tableScrollableWrapper: ''},
+      }),
+    );
+    editor.setRootElement(container);
+    editor.update(
+      () => {
+        const textNode = $createTextNode('Hello world');
+        const tableNode = $createTableNodeWithDimensions(2, 2, false);
+        $getRoot()
+          .clear()
+          .append($createParagraphNode().append(textNode), tableNode);
+        textKey = textNode.getKey();
+        const firstRow = tableNode.getFirstChildOrThrow<ElementNode>();
+        cellKey = firstRow.getFirstChildOrThrow().getKey();
+      },
+      {discrete: true},
+    );
+    cellElement = container.querySelector('td')!;
+    expect(cellElement).not.toBe(null);
+  });
+
+  afterEach(() => {
+    editor.dispose();
+    document.body.removeChild(container);
+  });
+
+  function dispatchPointer(type: string, pointerType: string): void {
+    cellElement.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        button: 0,
+        buttons: type === 'pointerup' ? 0 : 1,
+        cancelable: true,
+        pointerId: 1,
+        pointerType,
+      }),
+    );
+  }
+
+  /** A tap that leaves the caret in the first cell. */
+  function tapCell(pointerType = 'touch'): void {
+    dispatchPointer('pointerdown', pointerType);
+    dispatchPointer('pointerup', pointerType);
+    editor.update(
+      () => {
+        $getNodeByKey<ElementNode>(cellKey)!.selectStart();
+        editor.dispatchCommand(SELECTION_CHANGE_COMMAND, undefined);
+      },
+      {discrete: true},
+    );
+  }
+
+  /**
+   * The native selection change: from the caret in the cell back to the start
+   * of "world", with the ends in the given order.
+   */
+  function selectBackToWord(backward: boolean): void {
+    editor.update(
+      () => {
+        const selection = $getNodeByKey<ElementNode>(cellKey)!.selectStart();
+        const inCell = backward ? selection.anchor : selection.focus;
+        const outside = backward ? selection.focus : selection.anchor;
+        outside.set(textKey, 'Hello '.length, 'text');
+        expect(inCell.getNode().getKey()).not.toBe(textKey);
+        editor.dispatchCommand(SELECTION_CHANGE_COMMAND, undefined);
+      },
+      {discrete: true},
+    );
+  }
+
+  function expectCaretInCell(): void {
+    editor.read(() => {
+      const selection = $getSelection();
+      expect($isRangeSelection(selection)).toBe(true);
+      if ($isRangeSelection(selection)) {
+        expect(selection.isCollapsed()).toBe(true);
+        const cellNode = $getNodeByKey<ElementNode>(cellKey)!;
+        expect(cellNode.isParentOf(selection.anchor.getNode())).toBe(true);
+      }
+    });
+  }
+
+  function expectSelectionLeavesCell(): void {
+    editor.read(() => {
+      const selection = $getSelection();
+      expect($isRangeSelection(selection)).toBe(true);
+      if ($isRangeSelection(selection)) {
+        expect(selection.isCollapsed()).toBe(false);
+      }
+    });
+  }
+
+  test.each([
+    ['backward', true],
+    ['forward', false],
+  ])(
+    'a %s selection from a tapped cell back past the table collapses into the cell',
+    (_name, backward) => {
+      tapCell();
+      selectBackToWord(backward);
+
+      expectCaretInCell();
+    },
+  );
+
+  test('the selection is left alone when a key was pressed after the tap', () => {
+    tapCell();
+    container.dispatchEvent(
+      new KeyboardEvent('keydown', {bubbles: true, key: 'ArrowUp'}),
+    );
+    selectBackToWord(true);
+
+    expectSelectionLeavesCell();
+  });
+
+  test('the selection is left alone after a mouse click', () => {
+    tapCell('mouse');
+    selectBackToWord(true);
+
+    expectSelectionLeavesCell();
+  });
+});

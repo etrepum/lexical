@@ -243,6 +243,7 @@ export function registerTableWindowHandlers(
     }
 
     const pointerDownCallback = (event: PointerEvent) => {
+      tableObservers.lastPointerType = event.pointerType;
       // Listener is on editorWindow; the composed target is needed so the
       // rootElement.contains check below sees the shadow-internal target.
       const target = getComposedEventTarget(event);
@@ -280,11 +281,14 @@ export function registerTableWindowHandlers(
       });
     };
 
-    return registerEventListener(
-      editorWindow,
-      'pointerdown',
-      pointerDownCallback,
-    );
+    return registerEventListeners(editorWindow, {
+      // A selection change after a key press is the keyboard's, whatever
+      // pointer was last used.
+      keydown: () => {
+        tableObservers.lastPointerType = null;
+      },
+      pointerdown: pointerDownCallback,
+    });
   });
 }
 
@@ -1295,6 +1299,69 @@ export function $syncTableSelectionObservers(
 }
 
 /**
+ * On iOS a double tap in an empty cell selects back to the nearest word,
+ * which lies outside the cell, often above the table. There is no cancelable
+ * event to stop it, only the selection change that results. Left alone, the
+ * code below widens that selection over the whole table, so typing or
+ * Backspace deletes the table along with the text above it (#9266).
+ *
+ * A tap is never meant to select out of a cell: taps only place a caret, and
+ * selecting across cells on touch is a drag, which the table handles itself.
+ * So when a touch-driven selection change turns the caret in a cell into a
+ * range that leaves that cell, put the caret back where the tap left it.
+ *
+ * @returns true if the selection was collapsed
+ */
+function $collapseTouchSelectionEscapingCell(
+  selection: RangeSelection,
+  tableObservers: TableObservers,
+  anchorCellNode: TableCellNode | null,
+  focusCellNode: TableCellNode | null,
+): boolean {
+  const prevSelection = $getPreviousSelection();
+  if (
+    tableObservers.lastPointerType !== 'touch' ||
+    selection.isCollapsed() ||
+    !$isRangeSelection(prevSelection) ||
+    !prevSelection.isCollapsed()
+  ) {
+    return false;
+  }
+  const prevCellNode = $findCellNode(prevSelection.anchor.getNode());
+  if (
+    prevCellNode === null ||
+    (anchorCellNode !== null && anchorCellNode.is(focusCellNode))
+  ) {
+    return false;
+  }
+  // A drag that leaves the cell is selecting cells, which is handled below.
+  const prevTableNode = $findTableNode(prevCellNode);
+  const observerInfo =
+    prevTableNode && tableObservers.observers.get(prevTableNode.getKey());
+  if (observerInfo && observerInfo[0].isPointerDrag) {
+    return false;
+  }
+  // The end of the new selection that is still in the tapped cell is where
+  // the tap put the caret.
+  const point = prevCellNode.is(anchorCellNode)
+    ? selection.anchor
+    : prevCellNode.is(focusCellNode)
+      ? selection.focus
+      : null;
+  if (point === null) {
+    return false;
+  }
+  const newSelection = selection.clone();
+  if (point === selection.anchor) {
+    newSelection.focus.set(point.key, point.offset, point.type);
+  } else {
+    newSelection.anchor.set(point.key, point.offset, point.type);
+  }
+  $setSelection(newSelection);
+  return true;
+}
+
+/**
  * Handles cases where range selections cross into, out of, or within tables.
  */
 function $fixRangeSelectionForSelectedTable(
@@ -1314,6 +1381,17 @@ function $fixRangeSelectionForSelectedTable(
     : null;
   const focusCellTable = focusCellNode ? $findTableNode(focusCellNode) : null;
   const isBackward = selection.isBackward();
+
+  if (
+    $collapseTouchSelectionEscapingCell(
+      selection,
+      tableObservers,
+      anchorCellNode,
+      focusCellNode,
+    )
+  ) {
+    return;
+  }
 
   const isSameTable =
     anchorCellNode &&

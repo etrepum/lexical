@@ -102,6 +102,15 @@ export class TableObservers {
   >;
   nextFocus: TableNextFocus | null;
   shouldCheckSelectionForTable: NodeKey | null;
+  /**
+   * @internal
+   * The pointerType of the most recent pointerdown inside the editor, or null
+   * when a key has been pressed since. A selection change that arrives with
+   * this set to 'touch' was made by a tap rather than by the keyboard or a
+   * mouse, and on iOS a double tap in an empty cell makes one that reaches
+   * back past the table (#9266).
+   */
+  lastPointerType: string | null;
 
   constructor() {
     this.observers = new Map<
@@ -110,6 +119,7 @@ export class TableObservers {
     >();
     this.nextFocus = null;
     this.shouldCheckSelectionForTable = null;
+    this.lastPointerType = null;
   }
 
   /**
