@@ -2023,8 +2023,13 @@ function $reconcileNodeChildren(
         continue;
       }
       if (!nextChildrenSet.has(prevKey)) {
-        // Remove prev and continue
-        siblingDOM = getNextSibling(getPrevElementByKeyOrThrow(prevKey));
+        // Remove prev and continue. If prev moved to an element that was
+        // reconciled earlier, its DOM was already reused there and no
+        // longer marks a position in this element, so siblingDOM stays put.
+        const prevDOM = getPrevElementByKeyOrThrow(prevKey);
+        if (prevDOM.parentNode === slot.element) {
+          siblingDOM = getNextSibling(prevDOM);
+        }
         $destroyNode(prevKey, slot.element);
         prevIndex++;
         prevChildrenSet.delete(prevKey);
