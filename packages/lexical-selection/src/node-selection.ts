@@ -97,3 +97,35 @@ export function $convertContiguousNodeSelection(
   $flushSyncAfterUpdate();
   return true;
 }
+
+/**
+ * Answer an arrow key pressed while a NodeSelection is active. With Shift, a
+ * contiguous NodeSelection becomes the RangeSelection that covers the same
+ * nodes (see {@link $convertContiguousNodeSelection}) and `false` is returned,
+ * so the caller can let the key extend it. Otherwise the default action is
+ * prevented, the caret moves off the first selected node in `direction` (see
+ * {@link $exitNodeSelectionToward}) and `true` is returned. An empty
+ * NodeSelection is left alone and `false` is returned.
+ *
+ * @param event The arrow key's event.
+ * @param selection The active NodeSelection.
+ * @param direction The direction the key moves in.
+ * @returns Whether the key was handled. When `false`, the caller should read
+ * the selection again, since it may now be a RangeSelection.
+ */
+export function $handleNodeSelectionArrowKey(
+  event: KeyboardEvent,
+  selection: NodeSelection,
+  direction: CaretDirection,
+): boolean {
+  const nodes = selection.getNodes();
+  if (nodes.length === 0) {
+    return false;
+  }
+  if (event.shiftKey && $convertContiguousNodeSelection(selection, direction)) {
+    return false;
+  }
+  event.preventDefault();
+  $exitNodeSelectionToward(nodes[0], direction);
+  return true;
+}

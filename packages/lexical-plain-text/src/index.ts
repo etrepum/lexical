@@ -18,8 +18,7 @@ import {
   NormalizeTripleClickSelectionExtension,
 } from '@lexical/extension';
 import {
-  $convertContiguousNodeSelection,
-  $exitNodeSelectionToward,
+  $handleNodeSelectionArrowKey,
   $isParentRTL,
   $moveCharacter,
   $shouldOverrideDefaultCharacterSelection,
@@ -32,7 +31,6 @@ import {
   $isRangeSelection,
   $selectAll,
   CAN_USE_BEFORE_INPUT,
-  type CaretDirection,
   COMMAND_PRIORITY_EDITOR,
   type CommandPayloadType,
   CONTROLLED_TEXT_INSERTION_COMMAND,
@@ -59,7 +57,6 @@ import {
   KEY_ENTER_COMMAND,
   type LexicalEditor,
   mergeRegister,
-  type NodeSelection,
   PASTE_COMMAND,
   PASTE_TAG,
   REMOVE_TEXT_COMMAND,
@@ -139,29 +136,6 @@ function onCutForPlainText(
       tag: CUT_TAG,
     },
   );
-}
-
-/**
- * Answers an arrow key pressed while a NodeSelection is active, as rich text
- * does. With Shift, a contiguous NodeSelection becomes the RangeSelection that
- * covers the same nodes, and `false` leaves the key to extend it. Otherwise the
- * caret moves to the side of the first selected node in `direction`.
- */
-function $exitNodeSelection(
-  event: KeyboardEvent,
-  selection: NodeSelection,
-  direction: CaretDirection,
-): boolean {
-  const nodes = selection.getNodes();
-  if (nodes.length === 0) {
-    return false;
-  }
-  if (event.shiftKey && $convertContiguousNodeSelection(selection, direction)) {
-    return false;
-  }
-  event.preventDefault();
-  $exitNodeSelectionToward(nodes[0], direction);
-  return true;
 }
 
 export function registerPlainText(editor: LexicalEditor): () => void {
@@ -289,7 +263,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
           const [node] = selection.getNodes();
           const direction =
             node !== undefined && $isParentRTL(node) ? 'next' : 'previous';
-          if ($exitNodeSelection(event, selection, direction)) {
+          if ($handleNodeSelectionArrowKey(event, selection, direction)) {
             return true;
           }
           selection = $getSelection();
@@ -321,7 +295,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
           const [node] = selection.getNodes();
           const direction =
             node !== undefined && $isParentRTL(node) ? 'previous' : 'next';
-          if ($exitNodeSelection(event, selection, direction)) {
+          if ($handleNodeSelectionArrowKey(event, selection, direction)) {
             return true;
           }
           selection = $getSelection();
@@ -349,7 +323,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
         const selection = $getSelection();
         return (
           $isNodeSelection(selection) &&
-          $exitNodeSelection(event, selection, 'previous')
+          $handleNodeSelectionArrowKey(event, selection, 'previous')
         );
       },
       COMMAND_PRIORITY_EDITOR,
@@ -360,7 +334,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
         const selection = $getSelection();
         return (
           $isNodeSelection(selection) &&
-          $exitNodeSelection(event, selection, 'next')
+          $handleNodeSelectionArrowKey(event, selection, 'next')
         );
       },
       COMMAND_PRIORITY_EDITOR,

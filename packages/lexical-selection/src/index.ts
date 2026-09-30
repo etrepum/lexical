@@ -22,6 +22,7 @@ export {
 export {
   $convertContiguousNodeSelection,
   $exitNodeSelectionToward,
+  $handleNodeSelectionArrowKey,
 } from './node-selection';
 export {
   $copyBlockFormatIndent,

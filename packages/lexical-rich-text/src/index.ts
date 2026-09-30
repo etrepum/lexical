@@ -17,8 +17,7 @@ import {
 } from '@lexical/clipboard';
 import {type ReadonlySignal, signal} from '@lexical/extension';
 import {
-  $convertContiguousNodeSelection,
-  $exitNodeSelectionToward,
+  $handleNodeSelectionArrowKey,
   $isParentRTL,
   $moveCharacter,
   $shouldOverrideDefaultCharacterSelection,
@@ -1450,20 +1449,10 @@ export function registerRichText(
         if ($isNodeSelection(selection)) {
           // If selection is on a node, let's try and move selection
           // back to being a range selection.
-          const nodes = selection.getNodes();
-          if (nodes.length > 0) {
-            if (
-              event.shiftKey &&
-              $convertContiguousNodeSelection(selection, 'previous')
-            ) {
-              // Fallthrough
-              selection = $getSelection();
-            } else {
-              event.preventDefault();
-              $exitNodeSelectionToward(nodes[0], 'previous');
-              return true;
-            }
+          if ($handleNodeSelectionArrowKey(event, selection, 'previous')) {
+            return true;
           }
+          selection = $getSelection();
         }
         if ($isRangeSelection(selection)) {
           if ($isSelectionAtStartOfRoot(selection)) {
@@ -1500,20 +1489,10 @@ export function registerRichText(
         if ($isNodeSelection(selection)) {
           // If selection is on a node, let's try and move selection
           // back to being a range selection.
-          const nodes = selection.getNodes();
-          if (nodes.length > 0) {
-            if (
-              event.shiftKey &&
-              $convertContiguousNodeSelection(selection, 'next')
-            ) {
-              // Fallthrough
-              selection = $getSelection();
-            } else {
-              event.preventDefault();
-              $exitNodeSelectionToward(nodes[0], 'next');
-              return true;
-            }
+          if ($handleNodeSelectionArrowKey(event, selection, 'next')) {
+            return true;
           }
+          selection = $getSelection();
         }
         if ($isRangeSelection(selection)) {
           if ($isSelectionAtEndOfRoot(selection)) {
@@ -1553,21 +1532,13 @@ export function registerRichText(
         if ($isNodeSelection(selection)) {
           // If selection is on a node, let's try and move selection
           // back to being a range selection.
-          const nodes = selection.getNodes();
-          if (nodes.length > 0) {
-            const direction = $isParentRTL(nodes[0]) ? 'next' : 'previous';
-            if (
-              event.shiftKey &&
-              $convertContiguousNodeSelection(selection, direction)
-            ) {
-              // Fallthrough
-              selection = $getSelection();
-            } else {
-              event.preventDefault();
-              $exitNodeSelectionToward(nodes[0], direction);
-              return true;
-            }
+          const [node] = selection.getNodes();
+          const direction =
+            node !== undefined && $isParentRTL(node) ? 'next' : 'previous';
+          if ($handleNodeSelectionArrowKey(event, selection, direction)) {
+            return true;
           }
+          selection = $getSelection();
         }
         if (!$isRangeSelection(selection)) {
           return false;
@@ -1611,21 +1582,13 @@ export function registerRichText(
         if ($isNodeSelection(selection)) {
           // If selection is on a node, let's try and move selection
           // back to being a range selection.
-          const nodes = selection.getNodes();
-          if (nodes.length > 0) {
-            const direction = $isParentRTL(nodes[0]) ? 'previous' : 'next';
-            if (
-              event.shiftKey &&
-              $convertContiguousNodeSelection(selection, direction)
-            ) {
-              // Fallthrough
-              selection = $getSelection();
-            } else {
-              event.preventDefault();
-              $exitNodeSelectionToward(nodes[0], direction);
-              return true;
-            }
+          const [node] = selection.getNodes();
+          const direction =
+            node !== undefined && $isParentRTL(node) ? 'previous' : 'next';
+          if ($handleNodeSelectionArrowKey(event, selection, direction)) {
+            return true;
           }
+          selection = $getSelection();
         }
         if (!$isRangeSelection(selection)) {
           return false;

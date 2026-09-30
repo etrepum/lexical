@@ -75,6 +75,11 @@ declare export function $convertContiguousNodeSelection(
   selection: NodeSelection,
   direction: CaretDirection,
 ): boolean;
+declare export function $handleNodeSelectionArrowKey(
+  event: KeyboardEvent,
+  selection: NodeSelection,
+  direction: CaretDirection,
+): boolean;
 
 declare export function createDOMRange(
   editor: LexicalEditor,
