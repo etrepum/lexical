@@ -908,6 +908,15 @@ export function applyTableHandlers(
           ) {
             return false;
           }
+          // A range with one end in this table is widened around the table
+          // first, and then it is the editor's to cut as well
+          if (
+            $isRangeSelection(selection) &&
+            !$isSelectionInTable(selection, tableNode)
+          ) {
+            $deleteCellHandler(event);
+            return false;
+          }
           // Copying to the clipboard is async so we must capture the data
           // before we delete it
           void copyToClipboard(

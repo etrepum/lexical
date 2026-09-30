@@ -914,8 +914,11 @@ describe('LexicalTableNode tests', () => {
             );
           });
 
-          test('Cut table as last node in range selection ', () => {
+          test('Cut table as last node in range selection ', async () => {
             const {editor} = testEnv;
+            // The table widens the range around itself, and then the cut is
+            // the editor's own
+            onTestFinished(registerRichText(editor));
 
             editor.update(
               () => {
@@ -941,10 +944,18 @@ describe('LexicalTableNode tests', () => {
             );
             editor.update(
               () => {
-                editor.dispatchCommand(CUT_COMMAND, new ClipboardEvent('cut'));
+                editor.dispatchCommand(
+                  CUT_COMMAND,
+                  new ClipboardEvent('cut', {
+                    clipboardData: new DataTransfer(),
+                  }),
+                );
               },
               {discrete: true},
             );
+
+            // Rich text removes the range once its copy has resolved
+            await new Promise(resolve => setTimeout(resolve, 0));
 
             expectHtmlToBeEqual(
               testEnv.innerHTML,
@@ -954,8 +965,11 @@ describe('LexicalTableNode tests', () => {
             );
           });
 
-          test('Cut table as first node in range selection ', () => {
+          test('Cut table as first node in range selection ', async () => {
             const {editor} = testEnv;
+            // The table widens the range around itself, and then the cut is
+            // the editor's own
+            onTestFinished(registerRichText(editor));
 
             editor.update(
               () => {
@@ -981,10 +995,18 @@ describe('LexicalTableNode tests', () => {
             );
             editor.update(
               () => {
-                editor.dispatchCommand(CUT_COMMAND, new ClipboardEvent('cut'));
+                editor.dispatchCommand(
+                  CUT_COMMAND,
+                  new ClipboardEvent('cut', {
+                    clipboardData: new DataTransfer(),
+                  }),
+                );
               },
               {discrete: true},
             );
+
+            // Rich text removes the range once its copy has resolved
+            await new Promise(resolve => setTimeout(resolve, 0));
 
             expectHtmlToBeEqual(
               testEnv.innerHTML,

@@ -125,8 +125,9 @@ function $firstTable() {
 }
 
 // A table answers the cuts that concern it: a table selection, or a range with
-// an end in the table. A range with neither end in it is the editor's own, as
-// it would be with no table in the document (#9281).
+// both ends in the table. A range with one end in it is widened around the
+// table first, and a range with neither end in it is the editor's own, as it
+// would be with no table in the document (#9281).
 describe('the cuts a table answers (#9281)', () => {
   test.for([{withTable: false}, {withTable: true}])(
     'select all over a heading, a table and a paragraph leaves an empty paragraph (withTable: $withTable)',
@@ -139,6 +140,31 @@ describe('the cuts a table answers (#9281)', () => {
           ...(withTable ? [$table()] : []),
           $createParagraphNode().append($createTextNode('x y')),
         ],
+        () => $selectAll(),
+      );
+
+      const {lowListenerRan} = await cut(editor);
+
+      expect(readOutline(editor)).toEqual([['paragraph', []]]);
+      expect(lowListenerRan).toBe(true);
+    },
+  );
+
+  test.for(['first', 'last'])(
+    'select all over a document whose %s block is a table leaves an empty paragraph',
+    async where => {
+      using editor = createEditor();
+      setUp(
+        editor,
+        () => {
+          const blocks: LexicalNode[] = [
+            $createHeadingNode('h1').append($createTextNode('Title')),
+            $createParagraphNode().append($createTextNode('x y')),
+          ];
+          return where === 'first'
+            ? [$table(), ...blocks]
+            : [...blocks, $table()];
+        },
         () => $selectAll(),
       );
 
@@ -220,7 +246,7 @@ describe('the cuts a table answers (#9281)', () => {
     ).toBe('');
   });
 
-  test('a range from outside the table into a cell is the table’s', async () => {
+  test('a range from outside the table into a cell is widened around the table, then cut by the editor', async () => {
     using editor = createEditor();
     setUp(
       editor,
@@ -244,7 +270,7 @@ describe('the cuts a table answers (#9281)', () => {
 
     const {lowListenerRan} = await cut(editor);
 
-    expect(lowListenerRan).toBe(false);
+    expect(lowListenerRan).toBe(true);
     expect(readOutline(editor)).toEqual([['paragraph', ['text:x after']]]);
   });
 });
