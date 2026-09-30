@@ -10,6 +10,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -32,7 +33,13 @@ const websiteRequire = createRequire(
 test.each(['flat', 'pnpm'])(
   'links external types and sources with a %s install',
   async layout => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'lexical-typedoc-'));
+    // TypeScript resolves node_modules files to their real paths. If the temp
+    // directory sits behind a symlink (macOS's /var -> /private/var), TypeDoc's
+    // base path widens to cover both spellings and index.ts is no longer
+    // displayed as a bare "index.ts".
+    const directory = realpathSync(
+      mkdtempSync(path.join(tmpdir(), 'lexical-typedoc-')),
+    );
     onTestFinished(() => rmSync(directory, {force: true, recursive: true}));
     const packageDirectory = path.join(
       directory,
