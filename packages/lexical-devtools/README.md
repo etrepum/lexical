@@ -57,7 +57,15 @@ If new version of the extension contains big changes to it's UI or functionality
 
 **Chrome, Firefox:**
 
-Go to the ["Publish DevTools extension to stores" GitHub action](https://github.com/facebook/lexical/actions/workflows/devtools-extension-publish.yml) and start it manually. Increase "Build version" in case publish happens more than once within single Lexical monorepo version.
+Go to the ["Publish DevTools extension to stores" GitHub action](https://github.com/facebook/lexical/actions/workflows/devtools-extension-publish.yml) and start it manually. "Build version" is a whole number appended to the package version (`0.52.0` becomes `0.52.0.0`); increase it when publishing more than once within a single Lexical monorepo version. Tick "Dry run" to check the store credentials without uploading anything.
+
+The workflow reads these repository secrets:
+
+- `EXTENSION_FIREFOX_JWT_ISSUER`, `EXTENSION_FIREFOX_JWT_SECRET`: an API key from https://addons.mozilla.org/developers/addon/api/key/ belonging to an author of the add-on.
+- `EXTENSION_CHROME_PUBLISHER_ID`: the id in the developer dashboard URL, `https://chrome.google.com/webstore/devconsole/<publisher-id>`.
+- `EXTENSION_CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL`, `EXTENSION_CHROME_SERVICE_ACCOUNT_PRIVATE_KEY`: the `client_email` and `private_key` fields of a JSON key for a Google Cloud service account that has the Chrome Web Store API enabled and has been added to the publisher in the dashboard's account settings, following [Use service accounts with the Chrome Web Store API](https://developer.chrome.com/docs/webstore/service-accounts). Paste the private key with real line breaks, not `\n` escapes.
+
+Running `pnpm --filter @lexical/devtools exec wxt submit init` walks through creating the same values interactively.
 
 **Safari:**
 

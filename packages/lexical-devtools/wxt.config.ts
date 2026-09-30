@@ -25,10 +25,14 @@ export default defineConfig({
 
     let buildVersion = 0; // For dev purposes
     if (process.env.BUILD_VERSION) {
+      // parseInt would read '0.35.0.0' as 0 and quietly reuse a version
+      // number the stores have already seen, so require a whole number.
+      if (!/^\d+$/.test(process.env.BUILD_VERSION)) {
+        throw new Error(
+          `BUILD_VERSION must be a whole number, got ${JSON.stringify(process.env.BUILD_VERSION)}`,
+        );
+      }
       buildVersion = parseInt(process.env.BUILD_VERSION, 10);
-    }
-    if (isNaN(buildVersion)) {
-      throw new Error('BUILD_VERSION must be a number');
     }
 
     let version = JSON.parse(
