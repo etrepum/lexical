@@ -36,12 +36,12 @@ import {
   isDOMDocumentNode,
   isHTMLElement,
   isInlineDomNode,
-  isOnlyChildInBlockNode,
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
 
 import {contextValue} from './ContextRecord';
+import {hasPlaceholderLineBreak} from './import/hasPlaceholderLineBreak';
 import {$inlineStylesFromStyleSheetsDOM} from './import/inlineStylesFromStyleSheets';
 import {
   $getSessionDOMRenderConfig,
@@ -568,29 +568,32 @@ function $createNodesFromDOM(
   }
 
   if (isBlockDomNode(node)) {
-    const preserveEmptyBlock =
+    const createWrapperFn = !hasBlockAncestorLexicalNodeForChildren
+      ? $createParagraphNode
+      : () => {
+          const artificialNode = new ArtificialNode__DO_NOT_USE();
+          allArtificialNodes.push(artificialNode);
+          return artificialNode;
+        };
+    if (
       currentLexicalNode === null &&
       (transformOutput === null || transformOutput.node === null) &&
       postTransform == null &&
       childLexicalNodes.length === 0 &&
-      hasOnlyPlaceholderLineBreak(node);
-    if (!hasBlockAncestorLexicalNodeForChildren) {
-      childLexicalNodes = wrapContinuousInlines(
-        node,
-        childLexicalNodes,
-        $createParagraphNode,
-        preserveEmptyBlock,
-      );
+      hasPlaceholderLineBreak(node)
+    ) {
+      // Keep the blank line whose placeholder <br> the line-break importer
+      // dropped, instead of hoisting away an empty block.
+      childLexicalNodes = [
+        createWrapperFn().setFormat(
+          (node as HTMLElement).style.textAlign as ElementFormatType,
+        ),
+      ];
     } else {
       childLexicalNodes = wrapContinuousInlines(
         node,
         childLexicalNodes,
-        () => {
-          const artificialNode = new ArtificialNode__DO_NOT_USE();
-          allArtificialNodes.push(artificialNode);
-          return artificialNode;
-        },
-        preserveEmptyBlock,
+        createWrapperFn,
       );
     }
   }
@@ -619,27 +622,14 @@ function $createNodesFromDOM(
   return lexicalNodes;
 }
 
-// The line-break importer drops a block's sole BR placeholder. Preserve the
-// block itself so an empty line is not lost when its children are hoisted.
-function hasOnlyPlaceholderLineBreak(node: Node): boolean {
-  const child = isHTMLElement(node) ? node.firstElementChild : null;
-  return (
-    child !== null && child.nodeName === 'BR' && isOnlyChildInBlockNode(child)
-  );
-}
-
 function wrapContinuousInlines(
   domNode: Node,
   nodes: LexicalNode[],
   createWrapperFn: () => ElementNode,
-  preserveEmptyBlock: boolean,
 ): LexicalNode[] {
   const textAlign = (domNode as HTMLElement).style
     .textAlign as ElementFormatType;
   const out: LexicalNode[] = [];
-  if (preserveEmptyBlock) {
-    out.push(createWrapperFn().setFormat(textAlign));
-  }
   let continuousInlines: LexicalNode[] = [];
   // wrap contiguous inline child nodes in para
   for (let i = 0; i < nodes.length; i++) {

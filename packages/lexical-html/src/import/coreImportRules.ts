@@ -38,6 +38,7 @@ import {
 
 import {contextValue} from '../ContextRecord';
 import {defineImportRule} from './defineImportRule';
+import {hasPlaceholderLineBreak} from './hasPlaceholderLineBreak';
 import {
   ImportTextFormat,
   ImportTextStyle,
@@ -571,10 +572,12 @@ const TransparentBlockRule = defineImportRule({
       // the default hoist) handle it.
       return $next();
     }
-    return $propagateTextAlignToBlockChildren(
-      ctx.$importChildren(el, {schema: BlockSchema}),
-      el,
-    );
+    const children = ctx.$importChildren(el, {schema: BlockSchema});
+    if (children.length === 0 && hasPlaceholderLineBreak(el)) {
+      // Keep the blank line whose placeholder `<br>` LineBreakRule dropped.
+      children.push($createParagraphNode());
+    }
+    return $propagateTextAlignToBlockChildren(children, el);
   },
   match: sel.any(),
   name: '@lexical/html/transparent-block',
