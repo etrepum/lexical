@@ -7,16 +7,17 @@
  */
 
 import type {ExtensionState} from '../../store';
-import type {LexicalCommandLog} from '@lexical/devtools-core';
-import type {LexicalEditor} from 'lexical';
+import type {CommandLogs} from '../../utils/ensureCommandLogger';
 import type {StoreApi} from 'zustand';
 
 import {registerRPCService} from '@webext-pegasus/rpc';
 
+import {installLexicalDevtoolsAgentAPI} from '../../agent/agentAPI';
+import {readEditorState} from '../../lexicalForExtension';
 import {InjectedPegasusService} from './InjectedPegasusService';
 import scanAndListenForEditors from './scanAndListenForEditors';
 
-const commandLog = new WeakMap<LexicalEditor, LexicalCommandLog>();
+const commandLog: CommandLogs = new WeakMap();
 
 export default async function main(
   tabID: number,
@@ -28,6 +29,14 @@ export default async function main(
   );
 
   scanAndListenForEditors(tabID, extensionStore, commandLog);
+
+  // Scripted clients (test runners, agents driving the browser) cannot open
+  // the DevTools panel, so expose the same views on the page itself. Nothing
+  // it returns is beyond what the page can already read from its own editors.
+  installLexicalDevtoolsAgentAPI(window, {
+    commandLogs: commandLog,
+    readEditorState,
+  });
 
   // Serialized state is masked while no panel is open for this tab, so re-scan
   // whenever that changes to swap the relayed states between masked and clear.

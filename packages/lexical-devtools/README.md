@@ -49,6 +49,59 @@ BUILD_VERSION=0 pnpm run safari:archive
 PASSWORD="XXX" pnpm run safari:upload
 ```
 
+## Page API for agents and test automation
+
+Scripted clients (Playwright, Chrome DevTools MCP, browser-driving agents)
+can't open a DevTools panel, so the extension also installs its views on the
+page as `window.__LEXICAL_DEVTOOLS__`. Every call returns plain data, so it
+works from `page.evaluate()` or any "run JavaScript in the page" tool.
+`__LEXICAL_DEVTOOLS__.help()` lists the methods:
+
+| Method | Returns |
+| --- | --- |
+| `editors()` | Every editor on the page: key, namespace, editable, focused, Lexical version, node count |
+| `tree(target?)` | The panel's tree view as text: nodes with keys, the selection, recent commands |
+| `json(target?)` | `editorState.toJSON()` |
+| `selection(target?)` | The selection as plain data (range, node or table) |
+| `node(key, target?)` | One node's type, parent, children, text and JSON |
+| `html(target?)` | The rendered DOM, pretty printed |
+| `commands(target?)` | Recent commands with their payloads |
+| `dispatch(type, payload?, target?)` | Dispatches a registered command by its type, e.g. `dispatch('FORMAT_TEXT_COMMAND', 'bold')` |
+| `setEditorState(json, target?)` | Replaces the state with serialized JSON |
+| `waitForUpdate(target?, {timeout?})` | Resolves after the next update, or `null` on timeout |
+
+`target` picks the editor: an index into `editors()`, an editor key, a CSS
+selector or element inside the editor, or the editor itself. Without one, the
+focused editor is used, or else the first on the page.
+
+The same API ships on its own as `lexical-devtools-agent.js` in the built
+extension, for a browser that doesn't have the extension installed:
+
+```js
+// pnpm run build:chrome, then:
+await page.addInitScript({
+  path: 'packages/lexical-devtools/.output/chrome-mv3/lexical-devtools-agent.js',
+});
+await page.goto('http://localhost:3000/');
+console.log(await page.evaluate(() => __LEXICAL_DEVTOOLS__.tree()));
+```
+
+Or load the whole extension, which also works headless in Chromium:
+
+```js
+const extension = 'packages/lexical-devtools/.output/chrome-mv3';
+const context = await chromium.launchPersistentContext(userDataDir, {
+  args: [
+    `--disable-extensions-except=${extension}`,
+    `--load-extension=${extension}`,
+  ],
+});
+```
+
+Both bundle their own copy of Lexical and reach the page's editors through
+the node classes those editors registered, so the page doesn't need to expose
+anything.
+
 ## Publishing flow
 
 **Preconditions:**

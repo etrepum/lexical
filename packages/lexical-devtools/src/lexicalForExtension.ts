@@ -84,6 +84,88 @@ export function $isTextNode(
   return node instanceof TextNode;
 }
 
+export function $isDecoratorNode<T>(
+  node: lexical.LexicalNode | null | undefined,
+): node is lexical.DecoratorNode<T> {
+  // Duck typing: no node type is registered for DecoratorNode itself, and
+  // neither ElementNode nor TextNode has a decorate method.
+  return (
+    node != null &&
+    typeof (node as {decorate?: unknown}).decorate === 'function'
+  );
+}
+
+export function $isParagraphNode(
+  node: lexical.LexicalNode | null | undefined,
+): node is lexical.ParagraphNode {
+  if (node == null) {
+    return false;
+  }
+
+  const ParagraphNode = getActiveEditor()._nodes.get('paragraph')!.klass;
+
+  return node instanceof ParagraphNode;
+}
+
+// The slot accessors below read the page's slot fields directly. Lexical's own
+// versions check the host with its private ElementNode/DecoratorNode classes
+// (which no page node is an instance of) and look up keys through its own
+// active editor state, so from here they would report no slots at all.
+
+function getNodeByKey(key: lexical.NodeKey): lexical.LexicalNode | null {
+  return getActiveEditorState()._nodeMap.get(key) ?? null;
+}
+
+function getSlotMap(
+  node: lexical.LexicalNode,
+): ReadonlyMap<string, lexical.NodeKey> {
+  const latest = node.getLatest() as {
+    __slots?: null | Map<string, lexical.NodeKey>;
+  };
+  return latest.__slots ?? new Map();
+}
+
+export function $getSlotNames(node: lexical.LexicalNode): string[] {
+  return Array.from(getSlotMap(node).keys());
+}
+
+export function $getSlot(
+  node: lexical.LexicalNode,
+  name: string,
+): lexical.LexicalNode | null {
+  const key = getSlotMap(node).get(name);
+  return key === undefined ? null : getNodeByKey(key);
+}
+
+export function $getSlotHost(
+  node: lexical.LexicalNode,
+): lexical.ElementNode | lexical.DecoratorNode<unknown> | null {
+  const latest = node.getLatest() as {__slotHost?: null | lexical.NodeKey};
+  const hostKey = latest.__slotHost;
+  return hostKey == null
+    ? null
+    : (getNodeByKey(hostKey) as
+        | lexical.ElementNode
+        | lexical.DecoratorNode<unknown>
+        | null);
+}
+
+export function $getSlotNameWithinHost(
+  slotChild: lexical.LexicalNode,
+): string | null {
+  const host = $getSlotHost(slotChild);
+  if (host === null) {
+    return null;
+  }
+  const childKey = slotChild.getKey();
+  for (const [name, key] of getSlotMap(host)) {
+    if (key === childKey) {
+      return name;
+    }
+  }
+  return null;
+}
+
 export function $isRangeSelection(x: unknown): x is lexical.RangeSelection {
   // Duck typing :P (and not instanceof RangeSelection) because extension operates
   // from different JS bundle and has no reference to the RangeSelection used on the page

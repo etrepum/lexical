@@ -10,7 +10,7 @@ import type {LexicalCommandLog} from './useLexicalCommandsLog';
 
 import {$generateHtmlFromNodes} from '@lexical/html';
 import {$isLinkNode, type LinkNode} from '@lexical/link';
-import {$isMarkNode} from '@lexical/mark';
+import {$isMarkNode, type MarkNode} from '@lexical/mark';
 import {$isTableSelection, type TableSelection} from '@lexical/table';
 import {
   $getRoot,
@@ -104,6 +104,30 @@ const MODE_PREDICATES = [
   (node: TextNode) => node.isSegmented() && 'Segmented',
 ];
 
+/**
+ * True when `node` is an instance of the class `editor` registered for `type`.
+ *
+ * `$isLinkNode` and the like test against the classes this module imported,
+ * and the devtools extension bundles its own copy of Lexical, so a page's
+ * nodes are never instances of those. The classes an editor registered are
+ * the page's own, so checking against them as well works from either side.
+ */
+function isNodeOfRegisteredType<T extends LexicalNode>(
+  editor: LexicalEditor,
+  node: LexicalNode,
+  type: string,
+): node is T {
+  const registered = editor._nodes.get(type);
+  return registered !== undefined && node instanceof registered.klass;
+}
+
+function isTableSelection(
+  selection: BaseSelection,
+): selection is TableSelection {
+  // Duck typed for the same reason as isNodeOfRegisteredType.
+  return $isTableSelection(selection) || 'tableKey' in selection;
+}
+
 export function generateContent(
   editor: LexicalEditor,
   commandsLog: LexicalCommandLog,
@@ -147,6 +171,7 @@ export function generateContent(
           res += `${isSelected ? SYMBOLS.selectedLine : ' '} ${indent.join(
             ' ',
           )} ${nodeKeyDisplay} ${slotPrefix}${typeDisplay}${slotMeta} ${printNode(
+            editor,
             node,
             customPrintNode,
             obfuscateText,
@@ -167,7 +192,7 @@ export function generateContent(
         ? ': null'
         : $isRangeSelection(selection)
           ? $printRangeSelection(selection)
-          : $isTableSelection(selection)
+          : isTableSelection(selection)
             ? printTableSelection(selection)
             : printNodeSelection(selection);
     },
@@ -360,6 +385,7 @@ function normalize(text: string, obfuscateText: boolean = false) {
 }
 
 function printNode(
+  editor: LexicalEditor,
   node: LexicalNode,
   customPrintNode?: CustomPrintNodeFn,
   obfuscateText: boolean = false,
@@ -380,7 +406,10 @@ function printNode(
       .filter(Boolean)
       .join(' ')
       .trim();
-  } else if ($isLinkNode(node)) {
+  } else if (
+    $isLinkNode(node) ||
+    isNodeOfRegisteredType<LinkNode>(editor, node, 'link')
+  ) {
     const link = node.getURL();
     const title =
       link.length === 0 ? '(empty)' : `"${normalize(link, obfuscateText)}"`;
@@ -389,7 +418,10 @@ function printNode(
       .filter(Boolean)
       .join(' ')
       .trim();
-  } else if ($isMarkNode(node)) {
+  } else if (
+    $isMarkNode(node) ||
+    isNodeOfRegisteredType<MarkNode>(editor, node, 'mark')
+  ) {
     return `ids: [ ${node.getIDs().join(', ')} ]`;
   } else if ($isParagraphNode(node)) {
     const formatText = printTextFormatProperties(node);

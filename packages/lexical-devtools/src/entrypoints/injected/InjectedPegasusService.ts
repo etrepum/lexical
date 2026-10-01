@@ -8,12 +8,13 @@
 
 import type {ExtensionState} from '../../store';
 import type {SerializedRawEditorState} from '../../types';
+import type {CommandLogs} from '../../utils/ensureCommandLogger';
 import type {IPegasusRPCService, PegasusRPCMessage} from '@webext-pegasus/rpc';
-import type {LexicalEditor} from 'lexical';
 import type {StoreApi} from 'zustand';
 
-import {generateContent, type LexicalCommandLog} from '@lexical/devtools-core';
+import {generateContent} from '@lexical/devtools-core';
 
+import {renderedHTML} from '../../agent/agentAPI';
 import {ElementPicker} from '../../element-picker';
 import {readEditorState} from '../../lexicalForExtension';
 import {deserializeEditorState} from '../../serializeEditorState';
@@ -45,7 +46,7 @@ export class InjectedPegasusService implements IPegasusRPCService<InjectedPegasu
   constructor(
     private readonly tabID: number,
     private readonly extensionStore: StoreApi<ExtensionState>,
-    private readonly commandLog: WeakMap<LexicalEditor, LexicalCommandLog>,
+    private readonly commandLog: CommandLogs,
   ) {}
 
   refreshLexicalEditors(message: PegasusRPCMessage) {
@@ -84,11 +85,20 @@ export class InjectedPegasusService implements IPegasusRPCService<InjectedPegasu
       throw new Error(`Can't find editor with key: ${editorKey}`);
     }
 
+    if (exportDOM) {
+      // $generateHtmlFromNodes only works with the copy of Lexical that built
+      // the editor, and this script bundles its own, so show the editor's
+      // rendered DOM instead.
+      return obfuscateText
+        ? ''
+        : `<!-- Rendered DOM of the editor (exportDOM output needs the page's own @lexical/html) -->\n${renderedHTML(editor)}`;
+    }
+
     return readEditorState(editor, editor.getEditorState(), () =>
       generateContent(
         editor,
         this.commandLog.get(editor) ?? [],
-        exportDOM,
+        false,
         undefined,
         obfuscateText,
       ),

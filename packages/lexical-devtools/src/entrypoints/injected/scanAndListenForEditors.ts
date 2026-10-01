@@ -7,21 +7,19 @@
  */
 
 import type {ExtensionState} from '../../store';
-import type {LexicalEditor} from 'lexical';
 import type {StoreApi} from 'zustand';
 
-import {
-  type LexicalCommandLog,
-  registerLexicalCommandLogger,
-} from '@lexical/devtools-core';
-
 import {serializeEditorState} from '../../serializeEditorState';
+import {
+  type CommandLogs,
+  ensureCommandLogger,
+} from '../../utils/ensureCommandLogger';
 import queryLexicalNodes from './utils/queryLexicalNodes';
 
 export default function scanAndListenForEditors(
   tabID: number,
   extensionStore: StoreApi<ExtensionState>,
-  commandLog: WeakMap<LexicalEditor, LexicalCommandLog>,
+  commandLog: CommandLogs,
 ) {
   const {setStatesForTab, lexicalState} = extensionStore.getState();
   const states = lexicalState[tabID] ?? {};
@@ -63,10 +61,6 @@ export default function scanAndListenForEditors(
         }),
       });
     });
-    // TODO: validate that this will be garbage collected when the editor node is destroyed
-    registerLexicalCommandLogger(editor, setter => {
-      const oldVal = commandLog.get(editor) ?? [];
-      commandLog.set(editor, setter(oldVal));
-    });
+    ensureCommandLogger(editor, commandLog);
   });
 }
