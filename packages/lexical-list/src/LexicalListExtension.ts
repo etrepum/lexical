@@ -7,19 +7,29 @@
  */
 
 import {effect, namedSignals} from '@lexical/extension';
-import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
+import {
+  CoreImportExtension,
+  DOMImportExtension,
+  domOverride,
+  DOMRenderExtension,
+} from '@lexical/html';
 import {
   configExtension,
   defineExtension,
+  markNodesWithTypesAsDirty,
   mergeRegister,
   safeCast,
 } from 'lexical';
 
 import {registerCheckList} from './checkList';
-import {ListItemNode} from './LexicalListItemNode';
+import {decorateListItemDOM, ListItemNode} from './LexicalListItemNode';
 import {ListNode} from './LexicalListNode';
 import {ListImportRules} from './ListImportExtension';
 import {registerList, registerListStrictIndentTransform} from './registerList';
+import {
+  $normalizeSemanticListItem,
+  registerListEditorConfig,
+} from './semanticNesting';
 
 export interface ListConfig {
   /**
@@ -28,6 +38,43 @@ export interface ListConfig {
    */
   hasStrictIndent: boolean;
   shouldPreserveNumbering: boolean;
+  /**
+   * When `true`, nested lists use the semantic DOM representation where the
+   * nested `<ul>`/`<ol>` lives inside the list item that precedes it
+   * (`<ul><li>parent<ul><li>child</li></ul></li></ul>`). When `false`
+   * (default), nesting requires a dedicated `<li>` with a sole `<ul>`/`<ol>`
+   * child.
+   *
+   * Enabling registers a {@link ListItemNode} transform that continuously
+   * merges dedicated wrapper items produced by editing operations (or
+   * deserialized documents in the default representation) into their
+   * preceding sibling, and switches the HTML import paths over to
+   * preserving `<li>text<ul>…</ul></li>` structures instead of splitting
+   * them. Nested lists that sit in a content-bearing item are marked with
+   * NodeState so that an item whose inline content is later deleted is not
+   * mistaken for a dedicated wrapper (the two are structurally identical);
+   * the mark serializes with the document JSON (not with HTML). HTML
+   * export produces the semantic representation in either mode.
+   *
+   * The flag only gates *producing* the semantic shape (this transform and
+   * the HTML import paths). *Honoring* it — rendering, values, checkbox
+   * roles, indent/outdent, export — is unconditional in every editor, so a
+   * marked document keeps its row identities when opened where the flag is
+   * off (or the extension is absent); no transform maintains or converts
+   * the representation there. Disabling does not convert content back to
+   * the default representation.
+   *
+   * The flag also enables GitHub-style mixed task lists: check rows render
+   * real `<input type="checkbox">` elements, a `contains-task-list` (or
+   * mdast list) mixing task rows and plain `<li>`s imports as one check
+   * list whose plain rows carry `listItemPlainState` (no checkbox), and
+   * Markdown import merges consecutive `- [ ]` / `- ` lines into a single
+   * list. As with the nesting shape, only *producing* mixed lists is gated;
+   * the plain-row mark is honored unconditionally.
+   *
+   * @experimental
+   */
+  hasSemanticNesting: boolean;
 }
 
 /**
@@ -39,6 +86,7 @@ export const ListExtension = defineExtension({
     return namedSignals(config);
   },
   config: safeCast<ListConfig>({
+    hasSemanticNesting: false,
     hasStrictIndent: false,
     shouldPreserveNumbering: false,
   }),
@@ -50,12 +98,26 @@ export const ListExtension = defineExtension({
     configExtension(DOMImportExtension, {
       rules: ListImportRules,
     }),
+    // Render-time wiring for the semantic mode's native checkbox inputs
+    // (accessible name, tab order, editable state). $decorateDOM runs only
+    // in the reconciler — for every reconciled row, including one whose
+    // text just changed — so the wiring tracks the row's content and never
+    // leaks into exported HTML.
+    configExtension(DOMRenderExtension, {
+      overrides: [
+        domOverride([ListItemNode], {
+          $decorateDOM: decorateListItemDOM,
+        }),
+      ],
+    }),
   ],
   name: '@lexical/list/List',
   nodes: () => [ListNode, ListItemNode],
   register(editor, config, state) {
     const stores = state.getOutput();
+    let firstSemanticNestingRun = true;
     return mergeRegister(
+      registerListEditorConfig(editor),
       effect(() => {
         return registerList(editor, {
           restoreNumbering: stores.shouldPreserveNumbering.value,
@@ -66,6 +128,40 @@ export const ListExtension = defineExtension({
           ? registerListStrictIndentTransform(editor)
           : undefined,
       ),
+      effect(() => {
+        const isFirstRun = firstSemanticNestingRun;
+        firstSemanticNestingRun = false;
+        if (stores.hasSemanticNesting.value) {
+          return mergeRegister(
+            editor.registerNodeTransform(
+              ListItemNode,
+              $normalizeSemanticListItem,
+            ),
+            // The rows' native checkbox inputs follow the editor's editable
+            // state (decorateListItemDOM disables them in a read-only
+            // editor); toggling it reconciles nothing by itself, so
+            // re-render the rows. Deferred a microtask: an update issued
+            // while the editable listeners run is queued behind that
+            // notification and would not commit until some later update
+            // (setEditable's own slot re-render updates after the listeners
+            // for the same reason).
+            editor.registerEditableListener(() => {
+              queueMicrotask(() => {
+                if (editor.getRootElement() !== null) {
+                  markNodesWithTypesAsDirty(editor, [ListItemNode.getType()]);
+                }
+              });
+            }),
+          );
+        }
+        // Registering the transform marks all list items dirty (converting
+        // the document forward); disabling must re-render them too, or
+        // check rows keep their stale native checkbox inputs while the
+        // ARIA emulation attributes are already gone.
+        if (!isFirstRun) {
+          markNodesWithTypesAsDirty(editor, [ListItemNode.getType()]);
+        }
+      }),
     );
   },
 });

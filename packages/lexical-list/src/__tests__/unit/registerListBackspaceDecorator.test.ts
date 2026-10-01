@@ -5,12 +5,18 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {buildEditorFromExtensions, defineExtension} from '@lexical/extension';
+import {
+  buildEditorFromExtensions,
+  configExtension,
+  defineExtension,
+} from '@lexical/extension';
 import {
   $createListItemNode,
   $createListNode,
   $isListNode,
+  $isWrapperListItemNode,
   ListExtension,
+  listSemanticNestingState,
   type ListType,
 } from '@lexical/list';
 import {
@@ -20,6 +26,7 @@ import {
   $getSelection,
   $isParagraphNode,
   $isRangeSelection,
+  $setState,
   KEY_BACKSPACE_COMMAND,
 } from 'lexical';
 import {
@@ -50,6 +57,12 @@ function backspaceEvent(): KeyboardEvent {
 
 const testExtension = defineExtension({
   dependencies: [ListExtension],
+  name: '[root]',
+  nodes: [TestDecoratorNode, IsolatedTestDecoratorNode],
+});
+
+const semanticTestExtension = defineExtension({
+  dependencies: [configExtension(ListExtension, {hasSemanticNesting: true})],
   name: '[root]',
   nodes: [TestDecoratorNode, IsolatedTestDecoratorNode],
 });
@@ -223,6 +236,61 @@ describe('registerList — Backspace adjacent to DecoratorNode (#5072)', () => {
           'Expected demoted ParagraphNode',
         );
         expect(children[2].getTextContent()).toBe('hello');
+      });
+    });
+  });
+
+  describe('semantic host row as the first item', () => {
+    test('demoting a host row parks its nested list instead of swallowing it', () => {
+      using editor = buildEditorFromExtensions(semanticTestExtension);
+
+      let handled = false;
+      const event = backspaceEvent();
+      editor.update(
+        () => {
+          const root = $getRoot();
+          root.clear();
+          const decorator = $createTestDecoratorNode().setIsInline(false);
+          // Host row: inline content followed by a marked nested list.
+          const nested = $createListNode('bullet').append(
+            $createListItemNode().append($createTextNode('child')),
+          );
+          $setState(nested, listSemanticNestingState, true);
+          const hostRow = $createListItemNode().append(
+            $createTextNode('first'),
+            nested,
+          );
+          const list = $createListNode('bullet').append(hostRow);
+          root.append(decorator, list);
+          hostRow.select(0, 0);
+          handled = editor.dispatchCommand(KEY_BACKSPACE_COMMAND, event);
+        },
+        {discrete: true},
+      );
+
+      expect(handled).toBe(true);
+
+      editor.read(() => {
+        const children = $getRoot().getChildren();
+        expect(children).toHaveLength(3);
+        expect(children[0]).toBeInstanceOf(TestDecoratorNode);
+        // Only the inline content demotes: the nested list must NOT be
+        // swallowed into the paragraph (an invalid <p><ul>…</ul></p>).
+        invariant(
+          $isParagraphNode(children[1]),
+          'Expected demoted ParagraphNode',
+        );
+        expect(children[1].getTextContent()).toBe('first');
+        expect(children[1].getChildren().every($isParagraphNode)).toBe(false);
+        expect(children[1].getChildren().some(node => $isListNode(node))).toBe(
+          false,
+        );
+        // The sub-list survives in a wrapper item within the trailing list.
+        const tail = children[2];
+        invariant($isListNode(tail), 'Expected trailing ListNode');
+        expect(tail.getTextContent()).toBe('child');
+        const wrapper = tail.getFirstChild();
+        invariant($isWrapperListItemNode(wrapper), 'Expected wrapper item');
       });
     });
   });

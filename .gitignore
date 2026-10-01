@@ -24,6 +24,7 @@ __screenshots__
 .vitest-attachments
 /SOURCE_CODE_REVIEW.md
 /playwright.local.config.mjs
+.vitest/
 
 npm-debug.log*
 

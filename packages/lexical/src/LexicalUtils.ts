@@ -723,6 +723,18 @@ export function getEditorStateTextContent(editorState: EditorState): string {
   return editorState.read(() => $getRoot().getTextContent());
 }
 
+/**
+ * Mark every node of the given types in the editor's current state as dirty,
+ * scheduling an update in which their transforms re-run and their DOM is
+ * reconciled. This is the mechanism `registerNodeTransform` uses so a newly
+ * registered transform sees pre-existing nodes; call it directly when a
+ * configuration change alters how a node type renders (e.g. an extension
+ * config signal toggling a rendering mode) and every existing node of that
+ * type must re-render.
+ *
+ * @param editor - The editor whose nodes should be marked dirty.
+ * @param types - The node types (as returned by `Klass.getType()`) to mark.
+ */
 export function markNodesWithTypesAsDirty(
   editor: LexicalEditor,
   types: string[],
@@ -1407,11 +1419,30 @@ export function removeEmptyDOMAttribute(
   }
 }
 
+/**
+ * The theme class string at `classNamesTheme[classNameThemeType]` split into
+ * an array of class tokens suitable for `classList.add(...)`/`remove(...)`,
+ * memoized on the theme object — reconcilers call this per dirty node, and
+ * re-tokenizing long class strings (e.g. utility-CSS themes) each time is
+ * measurable. Returns `undefined` when the theme does not define the key.
+ * The cache assumes theme values are stable for the editor's lifetime, as
+ * editor configuration is elsewhere. The returned array IS the cache entry
+ * (readonly): mutating it would corrupt the classes applied by every later
+ * reconcile of the same theme key.
+ */
 export function getCachedClassNameArray(
   classNamesTheme: EditorThemeClasses,
   classNameThemeType: string,
-): string[] {
+): readonly string[] | undefined {
   if (classNamesTheme.__lexicalClassNameCache === undefined) {
+    if (!Object.isExtensible(classNamesTheme)) {
+      // A frozen/sealed theme object cannot hold the cache; tokenize
+      // without memoizing rather than throwing from the reconciler.
+      const classNames = classNamesTheme[classNameThemeType];
+      return typeof classNames === 'string'
+        ? normalizeClassNames(classNames)
+        : undefined;
+    }
     classNamesTheme.__lexicalClassNameCache = {};
   }
   const classNamesCache = classNamesTheme.__lexicalClassNameCache;
@@ -2883,6 +2914,14 @@ export function INTERNAL_$isBlock(
     return false;
   }
 
+  if (node.isInline()) {
+    return false;
+  }
+  const override = node.isBlockOverride();
+  if (override !== null) {
+    return override;
+  }
+
   const firstChild = node.getFirstChild();
   const isLeafElement =
     firstChild === null ||
@@ -2890,7 +2929,7 @@ export function INTERNAL_$isBlock(
     $isTextNode(firstChild) ||
     firstChild.isInline();
 
-  return !node.isInline() && node.canBeEmpty() !== false && isLeafElement;
+  return node.canBeEmpty() !== false && isLeafElement;
 }
 
 /**

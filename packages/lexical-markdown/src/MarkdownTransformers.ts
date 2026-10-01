@@ -18,6 +18,9 @@ import {
   $createListNode,
   $isListItemNode,
   $isListNode,
+  $isListSemanticNestingEnabled,
+  $listItemEmitsRow,
+  $markPlainImportedCheckRows,
   ListItemNode,
   ListNode,
   type ListType,
@@ -500,6 +503,12 @@ function getColumn(whitespaces: string): number {
  */
 let importListColumns: number[] | null = null;
 let importJoinsLooseLists = false;
+// The lists this import has written a bullet marker to (see listReplace):
+// the direct record of which lists a line of this import placed a row in.
+// A list absent from it — the copy `setIndent` just made to open a level,
+// whose marker state the copy reset — has no marker of its own to compare a
+// line against and no rows of this import to merge with.
+let importMarkedLists: WeakSet<ListNode> | null = null;
 
 /**
  * Run `fn` with the columns of a single markdown import tracked across the
@@ -519,13 +528,16 @@ export function withListIndentColumns<T>(
 ): T {
   const previousColumns = importListColumns;
   const previousJoins = importJoinsLooseLists;
+  const previousMarked = importMarkedLists;
   importListColumns = [];
   importJoinsLooseLists = joinLooseLists;
+  importMarkedLists = new WeakSet();
   try {
     return fn();
   } finally {
     importListColumns = previousColumns;
     importJoinsLooseLists = previousJoins;
+    importMarkedLists = previousMarked;
   }
 }
 
@@ -608,6 +620,62 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       firstMatchChar === listMarkerState.parse(firstMatchChar)
         ? firstMatchChar
         : undefined;
+    // GitHub renders consecutive `- [ ]` and `- ` lines as one task list (the
+    // plain rows have no checkbox). When importing in the semantic nesting
+    // mode, treat bullet and check as the same kind so those lines merge into
+    // a single list instead of splitting into a bullet list and a check list;
+    // the resulting list is a check list if either side is, and its non-task
+    // rows are marked plain by $reconcileMixedList. Restricted to import
+    // (isImport): live typing keeps the classic same-type rule so a typed
+    // checkbox never retroactively converts an adjacent bullet list, and
+    // default-mode import is unchanged.
+    const semantic = isImport && $isListSemanticNestingEnabled();
+    const isUnordered = (type: ListType) =>
+      type === 'bullet' || type === 'check';
+    const $mergeable = (sibling: ListNode): boolean =>
+      sibling.getListType() === listType ||
+      (semantic &&
+        isUnordered(sibling.getListType()) &&
+        isUnordered(listType) &&
+        // GitHub starts a NEW list when the bullet character changes, so
+        // the bullet/check cross-type merge only applies when this line's
+        // marker matches the sibling list's ('- [ ]' continues a '-' list
+        // but not a '*' list) — a marker this import wrote, so a list it
+        // has not placed a row in (the copy setIndent made to open a level,
+        // whose marker the copy reset) is never merged into on the strength
+        // of the reset default. Same-type merging keeps its classic
+        // marker-blind rule.
+        listMarker !== undefined &&
+        importMarkedLists !== null &&
+        importMarkedLists.has(sibling) &&
+        $getState(sibling, listMarkerState) === listMarker);
+    // Mixed-list bookkeeping for the row that just landed in `list`. When a
+    // task line joins a non-check list, promote the list and mark the other
+    // rows plain — they were this import's non-task lines (their checked
+    // field is undefined), and the promotion happens at most once per list.
+    // When a non-task line joins a check list, mark only the new row: the
+    // existing rows already carry their own state, so a full-list pass
+    // would both be O(n^2) over the import and wrongly reclassify any
+    // never-toggled task row (checked undefined) as plain.
+    const $reconcileMixedList = (
+      list: ListNode,
+      newItem: ListItemNode,
+    ): void => {
+      if (!semantic) {
+        return;
+      }
+      if (listType === 'check') {
+        if (list.getListType() !== 'check') {
+          list.setListType('check');
+          $markPlainImportedCheckRows(
+            list.getChildren().filter($isListItemNode),
+            list,
+          );
+        }
+      } else if (list.getListType() === 'check') {
+        $markPlainImportedCheckRows([newItem], list);
+      }
+    };
     // A block of another kind closes every level above this line. Blank lines
     // do not: they only make the list loose, and a blank line must not decide
     // how the line after it is read, or the same sublist would be read one way
@@ -633,7 +701,7 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       columns === null || columns.length === 0
         ? getIndent(match[1])
         : getColumnIndent(columns, match[1]);
-    if ($isListNode(nextNode) && nextNode.getListType() === listType) {
+    if ($isListNode(nextNode) && $mergeable(nextNode)) {
       const firstChild = nextNode.getFirstChild();
       if (firstChild !== null) {
         firstChild.insertBefore(listItem);
@@ -651,7 +719,7 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
       parentNode.remove();
     } else if (
       $isListNode(precedingBlock) &&
-      (precedingBlock.getListType() === listType || indent > 0)
+      ($mergeable(precedingBlock) || indent > 0)
     ) {
       // An item of the same type continues the list, and inherits the
       // existing sequence — the typed number is intentionally ignored. An
@@ -675,13 +743,25 @@ const listReplace = (listType: ListType): ElementTransformer['replace'] => {
     }
     if (indent) {
       listItem.setIndent(indent);
-      $retypeNestedList(listItem, listType, match);
+      $retypeNestedList(listItem, listType, match, $mergeable);
     }
     // The marker belongs to the list the item actually ends up in, which is
     // only known once it has been indented and retyped.
     const listNode = listItem.getParent();
-    if (listMarker && $isListNode(listNode)) {
-      $setState(listNode, listMarkerState, listMarker);
+    if ($isListNode(listNode)) {
+      if (listMarker) {
+        $setState(listNode, listMarkerState, listMarker);
+        if (importMarkedLists !== null) {
+          importMarkedLists.add(listNode);
+        }
+      }
+      // Reconcile against the list the row finally landed in: an indented
+      // task line nests via setIndent first, so reconciling its merge target
+      // would promote the OUTER list to a check list for a row that belongs
+      // to a nested one (importing '- a\n    - [ ] t' must yield a bullet
+      // list whose nested list is the check list, exactly as GitHub renders
+      // it).
+      $reconcileMixedList(listNode, listItem);
     }
     if (columns !== null) {
       setOpenColumn(columns, indent, match, listType);
@@ -700,9 +780,20 @@ function $retypeNestedList(
   listItem: ListItemNode,
   listType: ListType,
   match: string[],
+  // The list types the item may stay in: the same type, or — importing in
+  // the semantic nesting mode — the unordered kind a mixed task list merges
+  // (the caller then promotes/marks the list, see $reconcileMixedList).
+  $mergeable: (list: ListNode) => boolean,
 ): void {
   const nestedList = listItem.getParent();
-  if (!$isListNode(nestedList) || nestedList.getListType() === listType) {
+  // A nested list `setIndent` just created for this line is a `$copyNode`
+  // of the list above it: no row of this import sits in it, so `$mergeable`
+  // (which only merges into lists this import wrote a marker to) says no
+  // and the line opens the level with its own type — a lone `- b` under
+  // `- [ ] a` is a bullet list, as GitHub renders it; a later `- [ ] c` at
+  // that level promotes it via $reconcileMixedList. A level the import
+  // already placed rows in keeps them together as a mixed task list.
+  if (!$isListNode(nestedList) || $mergeable(nestedList)) {
     return;
   }
   const wrapper = nestedList.getParent();
@@ -741,14 +832,64 @@ const $listExport = (
 ): string => {
   const output = [];
   const children = listNode.getChildren();
+  // Loop-invariant: one isSelected closure per export call, not one per
+  // list item ($listItemEmitsRow only consults it when a selection exists).
+  const isSelected =
+    selection != null
+      ? (node: LexicalNode) => node.isSelected(selection)
+      : () => false;
+  // Loop-invariants of the list itself, read once rather than per row.
+  const listType = listNode.getListType();
+  const listMarker = $getState(listNode, listMarkerState);
+  const start = listNode.getStart();
   let index = 0;
   for (const listItemNode of children) {
     if ($isListItemNode(listItemNode)) {
-      if (listItemNode.getChildrenSize() === 1) {
-        const firstChild = listItemNode.getFirstChild();
-        if ($isListNode(firstChild)) {
+      // A dedicated wrapper renders no row of its own, nor does a host row
+      // whose own content is not selected in a selection export; only their
+      // nested rows are exported. $listItemEmitsRow is the shared decision
+      // (also used by the mdast exporter) — a host whose nested rows alone
+      // are selected must not emit a row, matching the default
+      // representation where the unselected inline content lives in a
+      // separate li that is skipped.
+      const emitsRow = $listItemEmitsRow(
+        listItemNode,
+        selection != null,
+        isSelected,
+      );
+      if (emitsRow) {
+        const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
+        // getChecked() is a boolean only for a task row; a plain row in a
+        // mixed check list reports undefined and exports as a bare `- item`,
+        // matching GitHub's mixed task lists.
+        const checked = listItemNode.getChecked();
+        const prefix =
+          listType === 'number'
+            ? `${start + index}. `
+            : listType === 'check' && checked !== undefined
+              ? `${listMarker} [${checked ? 'x' : ' '}] `
+              : listMarker + ' ';
+        // exportChildren yields only the row's own content; nested
+        // ListNode children are handled below (see the list-item guard in
+        // MarkdownExport's $exportChildren).
+        let childrenText = exportChildren(listItemNode);
+        if (listType !== 'number') {
+          childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
+        }
+        output.push(indent + prefix + childrenText);
+        index++;
+      }
+      // Nested lists — the sole content of a wrapper item, or trailing a
+      // row's content in the semantic representation — export one level
+      // deeper. Link-walk, no children array allocation.
+      for (
+        let child = listItemNode.getFirstChild();
+        child !== null;
+        child = child.getNextSibling()
+      ) {
+        if ($isListNode(child)) {
           const nestedResult = $listExport(
-            firstChild,
+            child,
             exportChildren,
             depth + 1,
             selection,
@@ -756,31 +897,8 @@ const $listExport = (
           if (nestedResult) {
             output.push(nestedResult);
           }
-          continue;
         }
       }
-      // Skip unselected list items when selection is provided
-      if (
-        selection &&
-        !listItemNode.getChildren().some(child => child.isSelected(selection))
-      ) {
-        continue;
-      }
-      const indent = ' '.repeat(depth * LIST_INDENT_SIZE);
-      const listType = listNode.getListType();
-      const listMarker = $getState(listNode, listMarkerState);
-      const prefix =
-        listType === 'number'
-          ? `${listNode.getStart() + index}. `
-          : listType === 'check'
-            ? `${listMarker} [${listItemNode.getChecked() ? 'x' : ' '}] `
-            : listMarker + ' ';
-      let childrenText = exportChildren(listItemNode);
-      if (listType !== 'number') {
-        childrenText = childrenText.replace(/^(\s{0,3}\d+)(\.\s)/, '$1\\$2');
-      }
-      output.push(indent + prefix + childrenText);
-      index++;
     }
   }
 

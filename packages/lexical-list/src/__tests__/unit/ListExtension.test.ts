@@ -64,6 +64,7 @@ describe('CheckListExtension', () => {
     const ConfiguredListExtension = {
       ...ListExtension,
       config: {
+        hasSemanticNesting: false,
         hasStrictIndent: false,
         shouldPreserveNumbering: true, // The override
       },
