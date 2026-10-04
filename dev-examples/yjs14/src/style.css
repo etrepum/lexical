@@ -65,3 +65,22 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+.editor table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.editor td,
+.editor th {
+  border: 1px solid #889bb2;
+  min-width: 50px;
+  padding: 6px;
+}
+details {
+  margin: 12px 0;
+}
+details pre {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+}

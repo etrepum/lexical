@@ -9,10 +9,31 @@ import './style.css';
 
 import {
   buildEditorFromExtensions,
+  effect,
   getExtensionDependencyFromEditor,
 } from '@lexical/extension';
 import {RichTextExtension} from '@lexical/rich-text';
-import {YExtension, YHistoryExtension} from '@lexical/y';
+import {$createTableNodeWithDimensions, TableExtension} from '@lexical/table';
+import {
+  compareYCheckpoints,
+  createYDocumentView,
+  YAttributionExtension,
+  YAwarenessExtension,
+  type YBinding,
+  type YCheckpoint,
+  YCursorsExtension,
+  type YDocumentView,
+  YExtension,
+  YHistoryExtension,
+  YSuggestionsExtension,
+  YVersionsExtension,
+} from '@lexical/y';
+import {YTableSelectionExtension} from '@lexical/y/table';
+import {
+  applyAwarenessUpdate,
+  Awareness,
+  encodeAwarenessUpdate,
+} from '@y/protocols/awareness';
 import * as Y from '@y/y';
 import {
   $createParagraphNode,
@@ -39,19 +60,53 @@ const noteState = createState('sharedNote', {
 });
 let disposeSession = () => {};
 
-function createEditor(doc: Y.Doc, mount: HTMLElement, editable = true) {
+function createEditor(
+  doc: Y.Doc,
+  mount: HTMLElement,
+  editable = true,
+  author = 'Reader',
+  base: YBinding | null = null,
+  awareness: Awareness | null = null,
+) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [
+        defineExtension({
+          name: 'yjs14-example/mount',
+          register: mountedEditor => {
+            mountedEditor.setEditable(editable);
+            mountedEditor.setRootElement(mount);
+            return () => mountedEditor.setRootElement(null);
+          },
+        }),
         RichTextExtension,
+        TableExtension,
+        YTableSelectionExtension,
+        YVersionsExtension,
+        configExtension(YAttributionExtension, {
+          author,
+          storage: doc.get('authors'),
+        }),
+        ...(base ? [configExtension(YSuggestionsExtension, {base})] : []),
         configExtension(YExtension, {root: doc.get('root')}),
         YHistoryExtension,
+        ...(awareness
+          ? [
+              configExtension(YAwarenessExtension, {
+                awareness,
+                user: {
+                  color: author === 'Alice' ? '#2563eb' : '#be185d',
+                  name: author,
+                  textColor: '#fff',
+                },
+              }),
+              YCursorsExtension,
+            ]
+          : []),
       ],
       name: 'yjs14-dev-example',
     }),
   );
-  editor.setRootElement(mount);
-  editor.setEditable(editable);
   return editor;
 }
 
@@ -66,7 +121,15 @@ function start() {
         gcFilter: () => selectedMode !== 'filtered' || allowGC.checked,
       }),
   );
-  const alice = createEditor(docs[0], element('alice'));
+  const awareness = docs.map(doc => new Awareness(doc));
+  const alice = createEditor(
+    docs[0],
+    element('alice'),
+    true,
+    'Alice',
+    null,
+    awareness[0],
+  );
   // Initialize once and copy the encoded state, rather than inserting twice.
   alice.update(() =>
     $getRoot().append(
@@ -79,7 +142,14 @@ function start() {
     ),
   );
   Y.applyUpdate(docs[1], Y.encodeStateAsUpdate(docs[0]), transportOrigin);
-  const bob = createEditor(docs[1], element('bob'));
+  const bob = createEditor(
+    docs[1],
+    element('bob'),
+    true,
+    'Bob',
+    null,
+    awareness[1],
+  );
   const editors = [alice, bob];
   const histories = editors.map(
     editor =>
@@ -88,7 +158,54 @@ function start() {
   );
   histories.forEach(history => history.clear());
   let connected = true;
-  let checkpoint: Uint8Array | null = null;
+  const awarenessListeners = awareness.map((local, i) => {
+    const listener = (
+      {
+        added,
+        updated,
+        removed,
+      }: {added: number[]; updated: number[]; removed: number[]},
+      origin: unknown,
+    ) => {
+      if (connected && origin !== transportOrigin)
+        applyAwarenessUpdate(
+          awareness[1 - i],
+          encodeAwarenessUpdate(local, [...added, ...updated, ...removed]),
+          transportOrigin,
+        );
+    };
+    local.on('update', listener);
+    return listener;
+  });
+  const syncPresence = () =>
+    awareness.forEach((local, i) =>
+      applyAwarenessUpdate(
+        awareness[1 - i],
+        encodeAwarenessUpdate(local, [local.clientID]),
+        transportOrigin,
+      ),
+    );
+  syncPresence();
+  const versions = getExtensionDependencyFromEditor(
+    alice,
+    YVersionsExtension,
+  ).output;
+  const attribution = getExtensionDependencyFromEditor(
+    alice,
+    YAttributionExtension,
+  ).output;
+  let checkpoint: YCheckpoint | null = null;
+  let proposalEditor: ReturnType<typeof createEditor> | null = null;
+  let proposalView: YDocumentView | null = null;
+  let stopReview = () => {};
+  const stopAttribution = effect(() => {
+    void attribution.revision.value;
+    element('attribution').textContent = JSON.stringify(
+      attribution.getDelta(),
+      null,
+      2,
+    );
+  });
   let snapshot: Y.Snapshot | null = null;
   let historical: ReturnType<typeof createEditor> | null = null;
   let historicalDoc: Y.Doc | null = null;
@@ -134,6 +251,11 @@ function start() {
       b.onclick = () => report(callback);
       actions.append(b);
     };
+    button('Insert table', () =>
+      editor.update(() =>
+        $getRoot().append($createTableNodeWithDimensions(3, 3)),
+      ),
+    );
     button('Add shared note', () => {
       if (getNote())
         throw new Error('This document already has a shared note.');
@@ -181,6 +303,7 @@ function start() {
       const updates = docs.map(doc => Y.encodeStateAsUpdate(doc));
       Y.applyUpdate(docs[0], updates[1], transportOrigin);
       Y.applyUpdate(docs[1], updates[0], transportOrigin);
+      syncPresence();
     }
     element('connection').textContent = connected
       ? 'Disconnect peers'
@@ -190,7 +313,7 @@ function start() {
       : 'Peers disconnected. Both editors remain active.';
   });
   action('capture', () => {
-    checkpoint = Y.encodeStateAsUpdate(docs[0]);
+    checkpoint = versions.capture();
     snapshot = selectedMode === 'manual' ? Y.snapshot(docs[0]) : null;
     status.textContent = 'Checkpoint saved from Alice.';
   });
@@ -205,7 +328,7 @@ function start() {
   action('show', () => {
     if (!checkpoint) throw new Error('Save a checkpoint first.');
     const doc = new Y.Doc();
-    Y.applyUpdate(doc, checkpoint);
+    Y.applyUpdate(doc, checkpoint.update);
     show(doc);
   });
   action('snapshot', () => {
@@ -214,6 +337,51 @@ function start() {
         'Select manual retention, start a fresh session, and save a checkpoint first.',
       );
     show(Y.createDocFromSnapshot(docs[0], snapshot));
+  });
+  action('compare', () => {
+    if (!checkpoint) throw new Error('Save a checkpoint first.');
+    const comparison = compareYCheckpoints(checkpoint, versions.capture());
+    try {
+      element('comparison').textContent = JSON.stringify(
+        comparison.getDelta(),
+        null,
+        2,
+      );
+    } finally {
+      comparison.dispose();
+    }
+  });
+  action('propose', () => {
+    stopReview();
+    if (proposalEditor) proposalEditor.dispose();
+    if (proposalView) proposalView.dispose();
+    proposalView = createYDocumentView(versions.capture(), true);
+    proposalEditor = createEditor(
+      proposalView.doc,
+      element('proposal'),
+      true,
+      'Reviewer',
+      getExtensionDependencyFromEditor(alice, YExtension).output.binding,
+    );
+    const review = getExtensionDependencyFromEditor(
+      proposalEditor,
+      YSuggestionsExtension,
+    ).output;
+    stopReview = effect(() => {
+      void review.revision.value;
+      element('proposal-delta').textContent = JSON.stringify(
+        review.getDelta(),
+        null,
+        2,
+      );
+    });
+    action('accept', () => {
+      histories[0].stopCapturing();
+      review.accept();
+    });
+    action('reject', () => review.reject());
+    status.textContent =
+      'Edit the proposal below. Alice and Bob keep accepted content until you accept.';
   });
   action('clear-history', () => histories.forEach(history => history.clear()));
   action('collect', () => {
@@ -227,10 +395,18 @@ function start() {
   element('connection').textContent = 'Disconnect peers';
   refresh();
   disposeSession = () => {
+    stopAttribution();
+    stopReview();
+    if (proposalEditor) proposalEditor.dispose();
+    if (proposalView) proposalView.dispose();
     docs.forEach((doc, i) => doc.off('update', listeners[i]));
     if (historical) historical.dispose();
     if (historicalDoc) historicalDoc.destroy();
     editors.forEach(editor => editor.dispose());
+    awareness.forEach((local, i) => {
+      local.off('update', awarenessListeners[i]);
+      local.destroy();
+    });
     docs.forEach(doc => doc.destroy());
   };
 }

@@ -44,6 +44,24 @@ Changing the retention dropdown takes effect when starting a fresh session.
 Everything is in memory: refresh/reset discards the session and checkpoint.
 The transport has no persistence, authentication, or server dependencies.
 
-This demonstrates lifecycle and retention, not completed suggestion/attribution
-UI or native IME correctness. The package tests cover shared-value release,
-undo protection, filtered/manual collection, and concurrent moves/deletions.
+## Try review and tables
+
+1. Start a proposal and edit its separate editor. Alice/Bob remain unchanged.
+   Edit Alice while reviewing; that accepted edit appears in the proposal too.
+2. Accept the proposal, then undo in Alice. Repeat with rejection instead of
+   acceptance; concurrent accepted edits survive rejection.
+3. Expand the proposal delta inspector to inspect native insert/delete metadata.
+   Expand attribution after edits and undo to inspect the persisted author records.
+4. Save a checkpoint, change the document, and compare. View the saved checkpoint
+   after clearing history and collection; its content remains independently stored.
+5. Insert a table and edit/select cells. Remote ranges and table selections
+   appear as colored overlays in the other editor. Disconnect peers, edit both tables, and
+   reconnect. Exercise undo/redo after reconnect and after row/cell changes.
+6. Repeat proposal acceptance/rejection and checkpoint viewing in automatic,
+   filtered and manual retention modes. Pending proposal documents retain history
+   and are not included in the example's manual collection action.
+
+Review uses native deep delta inspectors, not an inline tracked-changes theme.
+The package browser tests cover selection overlays and transformed containers;
+manual native IME/composition testing is still useful. The example is separate
+from the playground and has no React or Yjs 13 dependencies.

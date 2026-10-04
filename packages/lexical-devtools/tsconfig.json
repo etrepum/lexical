@@ -352,6 +352,7 @@
       "@lexical/text": ["../lexical-text/src/index.ts"],
       "@lexical/utils": ["../lexical-utils/src/index.ts"],
       "@lexical/y": ["../lexical-y/src/index.ts"],
+      "@lexical/y/table": ["../lexical-y/src/table.ts"],
       "@lexical/yjs": ["../lexical-yjs/src/index.ts"]
     }
   },

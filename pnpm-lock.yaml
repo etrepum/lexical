@@ -533,9 +533,15 @@ importers:
       '@lexical/rich-text':
         specifier: workspace:*
         version: link:../../packages/lexical-rich-text
+      '@lexical/table':
+        specifier: workspace:*
+        version: link:../../packages/lexical-table
       '@lexical/y':
         specifier: workspace:*
         version: link:../../packages/lexical-y
+      '@y/protocols':
+        specifier: 1.0.6-rc.1
+        version: 1.0.6-rc.1(@y/y@14.0.0-rc.26)
       '@y/y':
         specifier: 14.0.0-rc.26
         version: 14.0.0-rc.26
@@ -1706,6 +1712,9 @@ importers:
         specifier: '>=5.2'
         version: 6.0.3
     devDependencies:
+      '@lexical/table':
+        specifier: workspace:*
+        version: link:../lexical-table
       '@y/protocols':
         specifier: 1.0.6-rc.1
         version: 1.0.6-rc.1(@y/y@14.0.0-rc.26)

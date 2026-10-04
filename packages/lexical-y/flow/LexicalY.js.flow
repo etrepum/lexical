@@ -6,17 +6,25 @@
  *
  * @flow strict
  */
-import type {LexicalEditor, LexicalExtension, RangeSelection} from 'lexical';
+import type {LexicalEditor, LexicalExtension, BaseSelection, LexicalNode} from 'lexical';
 import type {Signal} from '@lexical/extension';
-import type {Doc, Node as YNode, RelativePosition, UndoManager} from '@y/y';
+import type {Doc, Node as YNode, RelativePosition, UndoManager, DiffRenderer, Delta, ContentMap} from '@y/y';
 
-export type YSelection = {
+type YRangeSelection = {
   anchor: RelativePosition,
   focus: RelativePosition,
   anchorFallback?: Array<RelativePosition>,
   focusFallback?: Array<RelativePosition>,
   format: number,
   style: string,
+};
+export type YSelection = {kind: string, data: unknown, fallback?: YRangeSelection};
+export type YNodeReference = {id: string, start?: RelativePosition, end?: RelativePosition};
+export type YSelectionCodec = {
+  kind: string,
+  getNodesForHighlight?: (selection: BaseSelection) => LexicalNode[],
+  encode(binding: YBinding, selection: BaseSelection): unknown | null,
+  resolve(binding: YBinding, data: unknown, followUndoneDeletions: boolean): BaseSelection | null,
 };
 export type YBinding = {
   readonly doc: Doc,
@@ -28,6 +36,8 @@ export type YBinding = {
   selectionBefore: YSelection | null,
   restoringSelection: YSelection | null | void,
   register(): () => void,
+  registerProjectionTransform(transform: () => void): () => void,
+  readonly selectionCodecs: Map<string, YSelectionCodec>,
   read(dirty?: ReadonlySet<string>, changed?: ReadonlySet<YNode>, structural?: boolean): void,
   bootstrap(initialize: () => void): void,
   transact(callback: () => void): void,
@@ -61,7 +71,7 @@ export type YAwarenessConfig = {
   user: YUser,
 };
 declare export function $getYSelection(binding: YBinding): YSelection | null;
-declare export function $resolveYSelection(binding: YBinding, value: YSelection, followUndoneDeletions?: boolean): RangeSelection | null;
+declare export function $resolveYSelection(binding: YBinding, value: YSelection, followUndoneDeletions?: boolean): BaseSelection | null;
 declare export var YExtension: LexicalExtension<YConfig, '@lexical/y', {
   binding: YBinding,
   ready: Signal<boolean>,
@@ -79,7 +89,7 @@ declare export var YAwarenessExtension: LexicalExtension<YAwarenessConfig, '@lex
 export type YCursorContext = {
   clientID: number,
   presence: YPresence,
-  selection: RangeSelection,
+  selection: BaseSelection,
   rects: Array<DOMRect>,
   caret: DOMRect | null,
   container: HTMLElement,
@@ -91,3 +101,24 @@ export type YCursorsConfig = {
   zIndex: number,
 };
 declare export var YCursorsExtension: LexicalExtension<YCursorsConfig, '@lexical/y/Cursors', void, void>;
+
+declare export function $getYNodeReference(binding: YBinding, node: LexicalNode): YNodeReference | null;
+declare export function $resolveYNodeReference(binding: YBinding, value: YNodeReference, followUndoneDeletions?: boolean): LexicalNode[];
+declare export function isYNodeReference(value: unknown): boolean;
+declare export function registerYSelectionCodec(binding: YBinding, codec: YSelectionCodec): () => void;
+export type YCheckpoint = {update: Uint8Array, root: RelativePosition};
+export type YDocumentView = {doc: Doc, root: YNode, dispose(): void};
+export type YAttributionConfig = {storage: YNode | null, author: string};
+export type YSuggestionsConfig = {base: YBinding | null};
+declare export function createYDocumentView(checkpoint: YCheckpoint, suggestion?: boolean): YDocumentView;
+declare export function compareYCheckpoints(before: YCheckpoint, after: YCheckpoint): {
+  before: YDocumentView, after: YDocumentView, renderer: DiffRenderer,
+  getDelta(): Delta, dispose(): void,
+};
+declare export var YVersionsExtension: LexicalExtension<{}, '@lexical/y/Versions', {capture(): YCheckpoint}, void>;
+declare export var YSuggestionsExtension: LexicalExtension<YSuggestionsConfig, '@lexical/y/Suggestions', {
+  revision: Signal<number>, accept(): void, reject(): void, getDelta(): Delta, register(): () => void,
+}, void>;
+declare export var YAttributionExtension: LexicalExtension<YAttributionConfig, '@lexical/y/Attribution', {
+  author: Signal<string>, revision: Signal<number>, getAttributions(): ContentMap, getDelta(): Delta,
+}, void>;

@@ -21,7 +21,12 @@ import {
 
 import {Mapping} from './Mapping';
 import {type Attributes} from './Schema';
-import {$getYSelection, $restoreYSelection, type YSelection} from './Selection';
+import {
+  $getYSelection,
+  $restoreYSelection,
+  type YSelection,
+  type YSelectionCodec,
+} from './Selection';
 import {
   hasSharedReference,
   isSharedTypeDeleted,
@@ -41,6 +46,8 @@ export class YBinding {
   readonly doc: Doc;
   readonly error = signal<Error | null>(null);
   readonly mapping = new Mapping();
+  private readonly projectionTransforms = new Set<() => void>();
+  readonly selectionCodecs = new Map<string, YSelectionCodec>();
   readonly parents = new Map<YNode, YNode>();
   readonly recovered = new Set<YNode>();
   topologyChanged = false;
@@ -57,6 +64,15 @@ export class YBinding {
   private readonly sharedTypes = new Set<YNode>();
   private readonly pendingSharedOwners = new Map<string, Attributes>();
   private readonly sharedTypeListeners = new Set<(type: YNode) => void>();
+
+  /** Register deterministic, local projection repair for a schema integration. */
+  registerProjectionTransform(transform: () => void): () => void {
+    this.projectionTransforms.add(transform);
+    this.read();
+    return () => {
+      this.projectionTransforms.delete(transform);
+    };
+  }
 
   /** Mutate shared values with this binding's local history origin. */
   transact(callback: () => void): void {
@@ -310,6 +326,7 @@ export class YBinding {
             this.assertFormat();
             if (structural) readTopology(this);
             $readElement(this.root, this, changed);
+            for (const transform of this.projectionTransforms) transform();
             this.error.value = null;
           } catch (error) {
             this.mapping.clear();

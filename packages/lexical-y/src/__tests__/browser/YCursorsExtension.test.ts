@@ -11,11 +11,20 @@ import {
   getExtensionDependencyFromEditor,
 } from '@lexical/extension';
 import {
+  $createTableNodeWithDimensions,
+  $createTableSelectionFrom,
+  type TableCellNode,
+  TableExtension,
+  type TableNode,
+  type TableRowNode,
+} from '@lexical/table';
+import {
   $getYSelection,
   YAwarenessExtension,
   YCursorsExtension,
   YExtension,
 } from '@lexical/y';
+import {YTableSelectionExtension} from '@lexical/y/table';
 import {
   applyAwarenessUpdate,
   Awareness,
@@ -23,9 +32,11 @@ import {
 } from '@y/protocols/awareness';
 import * as Y from '@y/y';
 import {
+  $createNodeSelection,
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $setSelection,
   configExtension,
   defineExtension,
   TextNode,
@@ -155,12 +166,22 @@ test('mutation listener updates and force-commit reads preserve collaboration or
   );
 });
 
-test('custom cursor renderers receive geometry and clean up on refresh and disposal', () => {
+test.each([
+  'none',
+  'translate(40px, 30px) scale(1.5)',
+  'rotate(12deg) scale(0.8)',
+])('custom cursor geometry and cleanup with mount transform %s', transform => {
   const doc = new Y.Doc();
   const awareness = new Awareness(doc);
   const root = document.createElement('div');
   root.contentEditable = 'true';
   const mount = document.createElement('div');
+  Object.assign(mount.style, {
+    height: '200px',
+    margin: '40px',
+    transform,
+    width: '300px',
+  });
   document.body.append(root, mount);
   let renders = 0;
   let cleanups = 0;
@@ -178,6 +199,21 @@ test('custom cursor renderers receive geometry and clean up on refresh and dispo
             const label = container.ownerDocument.createElement('span');
             label.textContent = presence.user.name;
             container.append(label);
+            const rect = rects[0];
+            const highlight = container.ownerDocument.createElement('div');
+            Object.assign(highlight.style, {
+              height: `${rect.height}px`,
+              left: `${rect.left}px`,
+              position: 'absolute',
+              top: `${rect.top}px`,
+              width: `${rect.width}px`,
+            });
+            container.append(highlight);
+            const actual = highlight.getBoundingClientRect();
+            expect(Math.abs(actual.left - rect.left)).toBeLessThan(1);
+            expect(Math.abs(actual.top - rect.top)).toBeLessThan(1);
+            expect(Math.abs(actual.width - rect.width)).toBeLessThan(1);
+            expect(Math.abs(actual.height - rect.height)).toBeLessThan(1);
             return () => {
               cleanups++;
               label.remove();
@@ -229,3 +265,86 @@ test('custom cursor renderers receive geometry and clean up on refresh and dispo
   editor.dispose();
   expect(mount.childElementCount).toBe(0);
 });
+
+test.each(['node', 'table'])(
+  'renders %s highlights for a restored table and clears them on deletion',
+  kind => {
+    const doc = new Y.Doc();
+    const seed = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          configExtension(YExtension, {root: doc.get('root')}),
+          YTableSelectionExtension,
+        ],
+        name: 'seed-table',
+      }),
+    );
+    seed.update(() => $getRoot().append($createTableNodeWithDimensions(2, 2)));
+    seed.dispose();
+    const awareness = new Awareness(doc);
+    const root = document.createElement('div');
+    root.contentEditable = 'true';
+    document.body.append(root);
+    const editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          defineExtension({
+            name: 'mount-first',
+            register: mounted => {
+              mounted.setRootElement(root);
+              return () => mounted.setRootElement(null);
+            },
+          }),
+          TableExtension,
+          YTableSelectionExtension,
+          configExtension(YExtension, {root: doc.get('root')}),
+          configExtension(YAwarenessExtension, {awareness}),
+          YCursorsExtension,
+        ],
+        name: 'restored-table',
+      }),
+    );
+    onTestFinished(() => {
+      editor.dispose();
+      awareness.destroy();
+      doc.destroy();
+      root.remove();
+    });
+    const binding = getExtensionDependencyFromEditor(editor, YExtension).output
+      .binding;
+    const peers = getExtensionDependencyFromEditor(editor, YAwarenessExtension)
+      .output.peers;
+    editor.update(() => {
+      const table = $getRoot().getFirstChildOrThrow<TableNode>();
+      if (kind === 'node') {
+        const selection = $createNodeSelection();
+        selection.add(table.getKey());
+        $setSelection(selection);
+      } else {
+        const first = table
+          .getFirstChildOrThrow<TableRowNode>()
+          .getFirstChildOrThrow<TableCellNode>();
+        const last = table
+          .getLastChildOrThrow<TableRowNode>()
+          .getLastChildOrThrow<TableCellNode>();
+        $setSelection($createTableSelectionFrom(table, first, last));
+      }
+    });
+    peers.value = new Map([
+      [
+        123,
+        {
+          selection: editor.read('latest', () => $getYSelection(binding)),
+          user: {color: '#f00', name: 'Peer', textColor: '#fff'},
+        },
+      ],
+    ]);
+    expect(document.querySelectorAll('.lexical-y-highlight')).toHaveLength(
+      kind === 'node' ? 1 : 4,
+    );
+    for (const highlight of document.querySelectorAll('.lexical-y-highlight'))
+      expect(highlight.getBoundingClientRect().width).toBeGreaterThan(0);
+    editor.update(() => $getRoot().clear());
+    expect(document.querySelectorAll('.lexical-y-highlight')).toHaveLength(0);
+  },
+);

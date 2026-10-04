@@ -9,7 +9,12 @@
 import {effect} from '@lexical/extension';
 import invariant from '@lexical/internal/invariant';
 import {createDOMRange, createRectsFromDOMRange} from '@lexical/selection';
-import {defineExtension, type RangeSelection, safeCast} from 'lexical';
+import {
+  $isRangeSelection,
+  type BaseSelection,
+  defineExtension,
+  safeCast,
+} from 'lexical';
 
 import {$resolveYSelection} from './Selection';
 import {YAwarenessExtension, type YPresence} from './YAwarenessExtension';
@@ -18,7 +23,7 @@ import {YExtension} from './YExtension';
 export interface YCursorContext {
   clientID: number;
   presence: YPresence;
-  selection: RangeSelection;
+  selection: BaseSelection;
   rects: DOMRect[];
   caret: DOMRect | null;
   /** Fixed-position overlay; all geometry uses viewport coordinates. */
@@ -32,6 +37,39 @@ export interface YCursorsConfig {
   renderCursor: ((context: YCursorContext) => void | (() => void)) | null;
   className: string;
   zIndex: number;
+}
+
+/** Cancel the mounting container's 2D transform so children use viewport pixels. */
+function alignOverlayToViewport(overlay: HTMLElement): boolean {
+  overlay.style.transform = 'none';
+  overlay.style.transformOrigin = '0 0';
+  const points = [
+    [0, 0],
+    [100, 0],
+    [0, 100],
+  ].map(([left, top]) => {
+    const probe = overlay.ownerDocument.createElement('span');
+    Object.assign(probe.style, {
+      height: '0',
+      left: `${left}px`,
+      position: 'absolute',
+      top: `${top}px`,
+      width: '0',
+    });
+    overlay.append(probe);
+    return probe;
+  });
+  const [origin, x, y] = points.map(point => point.getBoundingClientRect());
+  points.forEach(point => point.remove());
+  const a = (x.left - origin.left) / 100;
+  const b = (x.top - origin.top) / 100;
+  const c = (y.left - origin.left) / 100;
+  const d = (y.top - origin.top) / 100;
+  const determinant = a * d - b * c;
+  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-8)
+    return false;
+  overlay.style.transform = `matrix(${d / determinant}, ${-b / determinant}, ${-c / determinant}, ${a / determinant}, ${(c * origin.top - d * origin.left) / determinant}, ${(b * origin.left - a * origin.top) / determinant})`;
+  return true;
 }
 
 /** Optional DOM cursor rendering; the binding and awareness also run headlessly. */
@@ -76,29 +114,49 @@ export const YCursorsExtension = defineExtension({
         cleanups.forEach(cleanup => cleanup());
         cleanups = [];
         overlay.replaceChildren();
+        if (!alignOverlayToViewport(overlay)) return;
         editor.read('latest', () => {
           for (const [id, presence] of currentPeers) {
             if (!presence.selection) continue;
             const selection = $resolveYSelection(binding, presence.selection);
             if (!selection) continue;
-            const {anchor, focus} = selection;
-            const range = createDOMRange(
-              editor,
-              anchor.getNode(),
-              anchor.offset,
-              focus.getNode(),
-              focus.offset,
-            );
-            if (!range) continue;
-            const rects = createRectsFromDOMRange(editor, range);
-            const caretRange = createDOMRange(
-              editor,
-              focus.getNode(),
-              focus.offset,
-              focus.getNode(),
-              focus.offset,
-            );
-            const caretRect = caretRange && caretRange.getBoundingClientRect();
+            const rangeSelection = $isRangeSelection(selection)
+              ? selection
+              : null;
+            const rects: DOMRect[] = [];
+            let caretRect: DOMRect | null = null;
+            if (rangeSelection) {
+              const {anchor, focus} = rangeSelection;
+              const range = createDOMRange(
+                editor,
+                anchor.getNode(),
+                anchor.offset,
+                focus.getNode(),
+                focus.offset,
+              );
+              if (!range) continue;
+              rects.push(...createRectsFromDOMRange(editor, range));
+              const caretRange = createDOMRange(
+                editor,
+                focus.getNode(),
+                focus.offset,
+                focus.getNode(),
+                focus.offset,
+              );
+              caretRect = caretRange && caretRange.getBoundingClientRect();
+            } else {
+              const codec = binding.selectionCodecs.get(
+                presence.selection.kind,
+              );
+              const nodes =
+                codec && codec.getNodesForHighlight
+                  ? codec.getNodesForHighlight(selection)
+                  : selection.getNodes();
+              for (const node of nodes) {
+                const dom = editor.getElementByKey(node.getKey());
+                if (dom) rects.push(dom.getBoundingClientRect());
+              }
+            }
             if (config.renderCursor) {
               const cleanup = config.renderCursor({
                 caret: caretRect,

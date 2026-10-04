@@ -243,6 +243,7 @@ async function build(
         typeof modulePkgName === 'string' &&
         !(
           modulePkgName in (pkg.packageJson.dependencies || {}) ||
+          modulePkgName in (pkg.packageJson.peerDependencies || {}) ||
           modulePkgName === pkg.getNpmName()
         )
       ) {

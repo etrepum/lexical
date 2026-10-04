@@ -26,11 +26,13 @@
   },
   "devDependencies": {
     "@y/protocols": "1.0.6-rc.1",
-    "@y/y": "14.0.0-rc.26"
+    "@y/y": "14.0.0-rc.26",
+    "@lexical/table": "workspace:*"
   },
   "peerDependencies": {
     "@y/y": "^14.0.0-rc.26",
-    "typescript": ">=5.2"
+    "typescript": ">=5.2",
+    "@lexical/table": "workspace:*"
   },
   "repository": {
     "type": "git",
@@ -47,6 +49,14 @@
       "development": "./dist/LexicalY.dev.js",
       "production": "./dist/LexicalY.prod.js",
       "default": "./dist/LexicalY.js"
+    },
+    "./table": {
+      "source": "./src/table.ts",
+      "types@<5.2": "./dist/typescript-too-old.d.ts",
+      "types": "./dist/table.d.ts",
+      "development": "./dist/LexicalYTable.dev.js",
+      "production": "./dist/LexicalYTable.prod.js",
+      "default": "./dist/LexicalYTable.js"
     }
   },
   "files": [
@@ -71,6 +81,9 @@
   },
   "peerDependenciesMeta": {
     "typescript": {
+      "optional": true
+    },
+    "@lexical/table": {
       "optional": true
     }
   },

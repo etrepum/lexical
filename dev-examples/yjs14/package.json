@@ -13,7 +13,9 @@
     "@lexical/rich-text": "workspace:*",
     "@lexical/y": "workspace:*",
     "@y/y": "14.0.0-rc.26",
-    "lexical": "workspace:*"
+    "lexical": "workspace:*",
+    "@lexical/table": "workspace:*",
+    "@y/protocols": "1.0.6-rc.1"
   },
   "devDependencies": {
     "typescript": "^6.0.3",

@@ -16,19 +16,23 @@ import {
   type RelativePosition,
 } from '@y/y';
 import {
+  $createNodeSelection,
   $createRangeSelection,
   $getNodeByKey,
   $getSelection,
   $isElementNode,
+  $isNodeSelection,
   $isRangeSelection,
   $setSelection,
+  type BaseSelection,
+  type LexicalNode,
   type PointType,
 } from 'lexical';
 
 import {$normalizeContent} from './Sync';
 import {getChildIndex, getChildren, getParent, getStoredNode} from './Topology';
 
-export interface YSelection {
+interface YRangeSelection {
   anchor: RelativePosition;
   focus: RelativePosition;
   anchorFallback?: RelativePosition[];
@@ -37,9 +41,9 @@ export interface YSelection {
   style: string;
 }
 
-export function isYSelection(value: unknown): value is YSelection {
+function isRangeData(value: unknown): value is YRangeSelection {
   if (!value || typeof value !== 'object') return false;
-  const selection = value as YSelection;
+  const selection = value as YRangeSelection;
   return (
     Number.isInteger(selection.format) &&
     typeof selection.style === 'string' &&
@@ -136,7 +140,7 @@ function $fallbacks(binding: YBinding, point: PointType): RelativePosition[] {
   return positions;
 }
 
-export function $getYSelection(binding: YBinding): YSelection | null {
+function $getRangeSelection(binding: YBinding): YRangeSelection | null {
   const selection = $getSelection();
   if (!$isRangeSelection(selection)) return null;
   const anchor = $pointToRelative(binding, selection.anchor);
@@ -205,12 +209,12 @@ function $resolvePoint(
   return null;
 }
 
-export function $resolveYSelection(
+function $resolveRangeSelection(
   binding: YBinding,
-  value: YSelection,
+  value: YRangeSelection,
   followUndoneDeletions = false,
 ) {
-  if (!isYSelection(value)) return null;
+  if (!isRangeData(value)) return null;
   const resolve = (
     position: RelativePosition,
     fallback: RelativePosition[] = [],
@@ -232,6 +236,208 @@ export function $resolveYSelection(
   return selection;
 }
 
+/** Transport envelope shared by awareness and history; codecs validate their payloads. */
+export interface YSelection {
+  kind: string;
+  data: unknown;
+  fallback?: YRangeSelection;
+}
+export interface YSelectionCodec {
+  kind: string;
+  getNodesForHighlight?(selection: BaseSelection): LexicalNode[];
+  encode(binding: YBinding, selection: BaseSelection): unknown | null;
+  resolve(
+    binding: YBinding,
+    data: unknown,
+    followUndoneDeletions: boolean,
+  ): BaseSelection | null;
+}
+export interface YNodeReference {
+  /** Stable root-store key, independent of each editor's Lexical keys. */
+  id: string;
+  start?: RelativePosition;
+  end?: RelativePosition;
+}
+export function isYSelection(value: unknown): value is YSelection {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as YSelection).kind === 'string' &&
+    'data' in value
+  );
+}
+export function isYNodeReference(value: unknown): value is YNodeReference {
+  if (!value || typeof value !== 'object') return false;
+  const ref = value as YNodeReference;
+  return (
+    typeof ref.id === 'string' &&
+    (ref.id === 'root' || ref.id.startsWith('tree:node:')) &&
+    (ref.start === undefined || isRelativePosition(ref.start)) &&
+    (ref.end === undefined || isRelativePosition(ref.end))
+  );
+}
+export function $getYNodeReference(
+  binding: YBinding,
+  node: LexicalNode,
+): YNodeReference | null {
+  const type = binding.mapping.types.get(node.getKey());
+  if (!type) return null;
+  if (type === binding.root) return {id: 'root'};
+  const id = type._item && type._item.parentSub;
+  if (typeof id !== 'string' || !id.startsWith('tree:node:')) return null;
+  const mapped = binding.mapping.nodes.get(type);
+  if (!Array.isArray(mapped)) return {id};
+  let offset = 0;
+  for (const part of mapped) {
+    if (part.getKey() === node.getKey())
+      return {
+        end: createRelativePositionFromTypeIndex(
+          type,
+          offset + part.getTextContentSize(),
+        ),
+        id,
+        start: createRelativePositionFromTypeIndex(type, offset),
+      };
+    offset += part.getTextContentSize();
+  }
+  return null;
+}
+export function $resolveYNodeReference(
+  binding: YBinding,
+  value: YNodeReference,
+  followUndoneDeletions = false,
+): LexicalNode[] {
+  if (!isYNodeReference(value)) return [];
+  const type =
+    value.id === 'root' ? binding.root : binding.root.getAttr(value.id);
+  const mapped = type && binding.mapping.nodes.get(type);
+  if (!mapped) return [];
+  if (!Array.isArray(mapped)) {
+    const node = $getNodeByKey(mapped.getKey());
+    return node && node.isAttached() ? [node] : [];
+  }
+  if (!value.start || !value.end) return [];
+  const start = createAbsolutePositionFromRelativePosition(
+    createRelativePositionFromJSON(value.start),
+    binding.doc,
+    followUndoneDeletions,
+  );
+  const end = createAbsolutePositionFromRelativePosition(
+    createRelativePositionFromJSON(value.end),
+    binding.doc,
+    followUndoneDeletions,
+  );
+  if (!start || !end || start.type !== type || end.type !== type) return [];
+  let offset = 0;
+  return mapped.flatMap(part => {
+    const node = $getNodeByKey(part.getKey());
+    const next = offset + part.getTextContentSize();
+    const selected =
+      node &&
+      node.isAttached() &&
+      (start.index === end.index
+        ? offset <= start.index && start.index <= next
+        : offset < end.index && next > start.index);
+    offset = next;
+    return selected ? [node!] : [];
+  });
+}
+export function registerYSelectionCodec(
+  binding: YBinding,
+  codec: YSelectionCodec,
+): () => void {
+  if (
+    codec.kind === 'range' ||
+    codec.kind === 'node' ||
+    binding.selectionCodecs.has(codec.kind)
+  )
+    throw new Error('@lexical/y: duplicate or reserved selection codec');
+  binding.selectionCodecs.set(codec.kind, codec);
+  return () => {
+    binding.selectionCodecs.delete(codec.kind);
+  };
+}
+function $selectionFallback(
+  binding: YBinding,
+  selection: BaseSelection,
+): YRangeSelection | undefined {
+  const first = selection.getNodes()[0];
+  const parent = first && first.getParent();
+  if (!parent) return undefined;
+  const range = $createRangeSelection();
+  range.anchor.set(parent.getKey(), first.getIndexWithinParent(), 'element');
+  const point = $pointToRelative(binding, range.anchor);
+  if (!point) return undefined;
+  const fallback = $fallbacks(binding, range.anchor);
+  return {
+    anchor: point,
+    anchorFallback: fallback,
+    focus: point,
+    focusFallback: fallback,
+    format: 0,
+    style: '',
+  };
+}
+export function $getYSelection(binding: YBinding): YSelection | null {
+  const selection = $getSelection();
+  if (!selection) return null;
+  if ($isRangeSelection(selection)) {
+    const data = $getRangeSelection(binding);
+    return data && {data, kind: 'range'};
+  }
+  if ($isNodeSelection(selection)) {
+    const nodes = selection.getNodes().flatMap(node => {
+      const ref = $getYNodeReference(binding, node);
+      return ref ? [ref] : [];
+    });
+    return {
+      data: nodes,
+      fallback: $selectionFallback(binding, selection),
+      kind: 'node',
+    };
+  }
+  for (const codec of binding.selectionCodecs.values()) {
+    const data = codec.encode(binding, selection);
+    if (data !== null)
+      return {
+        data,
+        fallback: $selectionFallback(binding, selection),
+        kind: codec.kind,
+      };
+  }
+  return null;
+}
+export function $resolveYSelection(
+  binding: YBinding,
+  value: YSelection,
+  followUndoneDeletions = false,
+): BaseSelection | null {
+  if (!isYSelection(value)) return null;
+  if (value.kind === 'range')
+    return $resolveRangeSelection(
+      binding,
+      value.data as YRangeSelection,
+      followUndoneDeletions,
+    );
+  if (value.kind === 'node') {
+    if (!Array.isArray(value.data) || !value.data.every(isYNodeReference))
+      return null;
+    const selection = $createNodeSelection();
+    for (const ref of value.data)
+      for (const node of $resolveYNodeReference(
+        binding,
+        ref,
+        followUndoneDeletions,
+      ))
+        selection.add(node.getKey());
+    return selection.getNodes().length ? selection : null;
+  }
+  const codec = binding.selectionCodecs.get(value.kind);
+  return codec
+    ? codec.resolve(binding, value.data, followUndoneDeletions)
+    : null;
+}
+
 export function $restoreYSelection(
   binding: YBinding,
   value: YSelection | null,
@@ -239,5 +445,12 @@ export function $restoreYSelection(
   if (value) {
     const selection = $resolveYSelection(binding, value, true);
     if (selection) $setSelection(selection);
+    else if (value.kind !== 'range') {
+      const fallback =
+        (value.fallback &&
+          $resolveRangeSelection(binding, value.fallback, true)) ||
+        $createRangeSelection();
+      $setSelection(fallback);
+    }
   }
 }

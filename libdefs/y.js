@@ -7,6 +7,16 @@
  * @flow strict
  */
 declare module '@y/y' {
+  declare export type Delta = {toJSON(): {[string]: unknown}, ...};
+  declare export type ContentMap = {inserts: {clients: Map<number, unknown>}, deletes: {clients: Map<number, unknown>}, ...};
+  declare export class DiffRenderer {
+    constructor(base: Doc, proposal: Doc): void;
+    suggestionMode: boolean;
+    suggestionOrigins: unknown[];
+    acceptAllChanges(): void;
+    rejectAllChanges(): void;
+    destroy(): void;
+  }
   declare export type ID = {client: number, clock: number};
   declare export type RelativePosition = {
     type: ID | null,

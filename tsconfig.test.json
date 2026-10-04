@@ -353,6 +353,7 @@
       "@lexical/text": ["./packages/lexical-text/src/index.ts"],
       "@lexical/utils": ["./packages/lexical-utils/src/index.ts"],
       "@lexical/y": ["./packages/lexical-y/src/index.ts"],
+      "@lexical/y/table": ["./packages/lexical-y/src/table.ts"],
       "@lexical/yjs": ["./packages/lexical-yjs/src/index.ts"],
       "lexical/src": ["./packages/lexical/src"],
       "lexical/src/__tests__/utils": [

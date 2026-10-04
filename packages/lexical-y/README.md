@@ -277,8 +277,9 @@ to remove the binding; the application-owned document remains alive.
   `clientID`, `presence`, the resolved selection, viewport `rects`/`caret`, and the
   fixed-position overlay `container`. Append elements there and optionally return
   cleanup, which runs before refresh and disposal. A custom mount container must
-  belong to the root's document and must not establish a transformed containing
-  block for the fixed overlay. Layout, font loading, scrolling, editor updates,
+  belong to the root's document. The overlay compensates for 2D transforms
+  (translation, scale and rotation) on its mounting ancestors. Perspective/3D
+  transforms are unsupported; singular transforms hide the overlay. Layout, font loading, scrolling, editor updates,
   and awareness changes trigger refreshes.
   It depends on awareness and requires a configured `YAwarenessExtension`.
 
@@ -294,8 +295,8 @@ workspace override are unchanged. `@y/protocols` is used only in tests; consumer
 can supply any structurally compatible awareness implementation.
 
 This initial package includes live synchronization, collaborative history,
-presence and cursors. It does not yet expose Yjs 14 renderer-based suggestions,
-attribution or snapshot-diff extensions. Its document format is experimental;
+extensible presence, cursors, proposals, attribution and historical comparison.
+Its document format is experimental;
 it neither reads nor migrates `@lexical/yjs` BindingV1/BindingV2 documents.
 
 
@@ -332,3 +333,82 @@ reusing client IDs, and it does not guarantee a particular encoded byte count.
 See `dev-examples/yjs14` for two independently connected editors, offline merging,
 undo, the three collection modes, and separate historical checkpoint/snapshot
 viewing. This example is independent of React and the playground.
+
+
+## Node, table and custom selections
+
+Selections travel in a `{kind, data, fallback?}` envelope. Range selections use
+relative positions; NodeSelections use stable stored node identities. Text node
+references include relative range boundaries, so a formatting split can resolve
+to several local TextNodes. Deleted members drop out; undo can follow restored
+identities. Local history/remote reconciliation uses a nearby range fallback if
+all members disappear. Remote presence disappears instead of inventing a caret.
+
+Import `YTableSelectionExtension` from `@lexical/y/table` for TableSelection.
+`@lexical/table` is an optional peer and is not imported by the base entry point.
+Table bookmarks keep table/cell identities, row boundaries and logical columns;
+a removed endpoint resolves to a nearby surviving cell, accounting for spans.
+The extension registers table nodes and deterministic projection repairs for
+trailing gaps from overlapping merges and spans extending past deleted rows.
+It does not install DOM table behavior: add `TableExtension` for that, or
+`registerTablePlugin` for headless table normalization. When loading a table
+before mounting, mount through an earlier extension as the dev example does.
+Concurrent deletion wins over edits to the deleted cell; overlapping merges
+follow the same node deletion policy. Concurrent operations need not produce
+exactly the table either author saw locally, but peers project the same state.
+
+`registerYSelectionCodec(binding, codec)` adds application selection kinds. Use
+`$getYNodeReference`/`$resolveYNodeReference` for stable node identities; validate
+untrusted payloads in `resolve` and return null for unavailable targets. Optional
+`getNodesForHighlight` limits the DOM nodes highlighted by `YCursorsExtension`.
+Dispose the registration with the owning extension. Unknown kinds are ignored.
+Node and table selections render highlights; carets/labels are for ranges.
+
+## Proposals, attribution and checkpoints
+
+`YVersionsExtension` exposes `capture()` returning a full encoded checkpoint and
+its root identity. Store this outside the live document. `createYDocumentView`
+restores a checkpoint into a separately owned document, including nested roots.
+`compareYCheckpoints(before, after)` uses Yjs's native `DiffRenderer` on two
+restored documents and exposes `getDelta()`. Checkpoints must come from the same
+root/document lineage. Dispose the comparison/views when finished. Comparison
+never installs a historical renderer on the live binding or writes into it.
+The returned native deep delta includes the node store and placement structure;
+applications can build review decorations without changing the persistence format.
+
+For collaborative proposals, fork the current checkpoint with
+`createYDocumentView(checkpoint, true)` and bind another editor to its root. Add
+`configExtension(YSuggestionsExtension, {base: acceptedBinding})` to that editor.
+The proposal document must have `isSuggestionDoc: true` and `gc: false`.
+Accepted-document updates automatically reach the proposal; proposal edits stay
+separate. The output exposes `getDelta()`, a reactive `revision`, and whole-proposal
+`accept()`/`reject()`. Acceptance uses the accepted binding's undo origin, so
+`YHistoryExtension` can undo it. Proposal edits also have their own collaborative
+undo. Rejection preserves concurrent accepted changes using Yjs's native rejection
+operation; it is not an additional entry in the accepted editor's local undo.
+
+Review is document-wide, including shared values and attribution metadata, not
+just the supplied editor root. Use a dedicated document per proposal/review scope.
+Whole-proposal acceptance preserves dependencies among stored nodes, placements,
+formats and shared references. Native item-range accept/reject is deliberately not
+exposed: arbitrary ranges can leave those dependencies incomplete. The application
+owns proposal transport, persistence, permissions and the lifetime of both docs.
+Dispose the proposal editor before disposing its view or accepted binding.
+
+`YAttributionExtension` takes `{storage, author}`, with an application-owned
+metadata Y.Node outside the editor root in the same document. It persists native
+Yjs content maps for local edits, shared-value transactions and local undo/redo.
+Its output exposes a mutable `author` signal, `revision`, `getAttributions()` and
+`getDelta()` using `AttributionsRenderer`. Transport these records with the document.
+Attribution is operation metadata, not authentication or a trusted authorship proof;
+applications enforce identities/permissions. Normalization and bootstrap are not
+attributed. Undo/redo is attributed to the current actor, not silently reassigned
+to the original author. Full checkpoints include the metadata root.
+
+Keep pending proposal documents uncollected until review is complete. Do not call
+manual `gcIdSet` on history needed for review. The accepted document may use normal
+GC; full checkpoints remain independent of its retention. Attribution IDs do not
+pin deleted content: displaying historical deleted text still requires retained
+content or a checkpoint taken before collection. A checkpoint cannot recover
+content already collected before capture. Metadata retention/compaction belongs
+to the application; removing attribution records loses that historical attribution.
