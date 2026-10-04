@@ -68,6 +68,7 @@ export default [
       'packages/**/npm/',
       '**/__tests__/integration/fixtures/',
       'packages/lexical-website/static/dev-examples/',
+      'packages/lexical-website/static/probe-9112/',
       '**/dist-size/',
       '**/*.js.flow',
       '**/*.d.ts',

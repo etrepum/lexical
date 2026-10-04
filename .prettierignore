@@ -29,3 +29,5 @@ pnpm-lock.yaml
 **/.next/**
 # Verbatim clipboard payloads — preserved exactly as the source app emitted.
 dev-examples/dom-import/src/fixtures/
+# Generated probe build for facebook/lexical#9112 (probe branch only).
+packages/lexical-website/static/probe-9112/
