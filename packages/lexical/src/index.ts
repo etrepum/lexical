@@ -367,12 +367,14 @@ export {
 } from './LexicalUpdates';
 export {
   $addUpdateTag,
+  $applyJSONSetters,
   $applyNodeReplacement,
   $cloneWithProperties,
   $cloneWithPropertiesEphemeral,
   $copyNode,
   $create,
   $createChildrenArray,
+  $exportNodeJSONOnce,
   $findMatchingParent,
   $getAdjacentNode,
   $getDocument,

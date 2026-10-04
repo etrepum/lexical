@@ -1657,6 +1657,37 @@ importers:
         specifier: ^5.111.1
         version: 5.111.1(@swc/core@1.16.1(@swc/helpers@0.5.21))(@swc/html@1.16.1)(clean-css@5.3.3)(cssnano@6.1.2(postcss@8.5.15))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.15)(svgo@3.3.2)
 
+  packages/lexical-y:
+    dependencies:
+      '@lexical/extension':
+        specifier: workspace:*
+        version: link:../lexical-extension
+      '@lexical/history':
+        specifier: workspace:*
+        version: link:../lexical-history
+      '@lexical/internal':
+        specifier: workspace:*
+        version: link:../lexical-internal
+      '@lexical/selection':
+        specifier: workspace:*
+        version: link:../lexical-selection
+      lexical:
+        specifier: workspace:*
+        version: link:../lexical
+      lib0:
+        specifier: ^1.0.0-rc.29
+        version: 1.0.0-rc.33
+      typescript:
+        specifier: '>=5.2'
+        version: 6.0.3
+    devDependencies:
+      '@y/protocols':
+        specifier: 1.0.6-rc.1
+        version: 1.0.6-rc.1(@y/y@14.0.0-rc.26)
+      '@y/y':
+        specifier: 14.0.0-rc.26
+        version: 14.0.0-rc.26
+
   packages/lexical-yjs:
     dependencies:
       '@lexical/internal':
@@ -6389,6 +6420,16 @@ packages:
   '@xtuc/long@4.2.2':
     resolution: {integrity: sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ==}
 
+  '@y/protocols@1.0.6-rc.1':
+    resolution: {integrity: sha512-e/qs7hXcLk/SeNitxMXv2ymozyWFTULwbJEi7cAf/K/iXw9nGwGXHrR5TNluQ/bMwOX1cwuUT0hjEojkfH0gsA==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      '@y/y': '*'
+
+  '@y/y@14.0.0-rc.26':
+    resolution: {integrity: sha512-sJ0N5qkYFtFTIdHWV77Fx+JU7bPqNXUmoFC807FscFtsxMSXp6zjPwHQ1PdUCYv8PJlNcPjsuGGyVpOT+FF5SQ==}
+    engines: {node: '>=22.0.0', npm: '>=8.0.0'}
+
   '@zag-js/accordion@1.40.0':
     resolution: {integrity: sha512-YDdyvZJ6fr92RZazyXQq+juT3ZA0ubjDISptb5YPgMoTPdnjKNiICPpMeCeVj1ncYRDkHXrOdChS/5CtuX/K6g==}
 
@@ -9553,6 +9594,11 @@ packages:
   lib0@0.2.117:
     resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==}
     engines: {node: '>=16'}
+    hasBin: true
+
+  lib0@1.0.0-rc.33:
+    resolution: {integrity: sha512-sGDqVqpIhaLK8fm8C4uZz858kBo0/Uk1OlVN8na2tlqi0CAUWmeo8IN7jN/P7lX68XaQA9BwHepj+s7Y7zTA5w==}
+    engines: {node: '>=22'}
     hasBin: true
 
   lightningcss-android-arm64@1.32.0:
@@ -19559,6 +19605,15 @@ snapshots:
 
   '@xtuc/long@4.2.2': {}
 
+  '@y/protocols@1.0.6-rc.1(@y/y@14.0.0-rc.26)':
+    dependencies:
+      '@y/y': 14.0.0-rc.26
+      lib0: 1.0.0-rc.33
+
+  '@y/y@14.0.0-rc.26':
+    dependencies:
+      lib0: 1.0.0-rc.33
+
   '@zag-js/accordion@1.40.0':
     dependencies:
       '@zag-js/anatomy': 1.40.0
@@ -23647,6 +23702,8 @@ snapshots:
   lib0@0.2.117:
     dependencies:
       isomorphic.js: 0.2.5
+
+  lib0@1.0.0-rc.33: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true

@@ -1,0 +1,94 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow strict
+ */
+import type {LexicalEditor, LexicalExtension, RangeSelection} from 'lexical';
+import type {Signal} from '@lexical/extension';
+import type {Doc, Node as YNode, RelativePosition, UndoManager} from '@y/y';
+
+export type YSelection = {
+  anchor: RelativePosition,
+  focus: RelativePosition,
+  anchorFallback?: Array<RelativePosition>,
+  focusFallback?: Array<RelativePosition>,
+  format: number,
+  style: string,
+};
+export type YBinding = {
+  readonly doc: Doc,
+  readonly error: Signal<Error | null>,
+  readonly schemaId: string,
+  readonly root: YNode,
+  readonly editor: LexicalEditor,
+  selection: YSelection | null,
+  selectionBefore: YSelection | null,
+  restoringSelection: YSelection | null | void,
+  register(): () => void,
+  read(dirty?: ReadonlySet<string>, changed?: ReadonlySet<YNode>, structural?: boolean): void,
+  bootstrap(initialize: () => void): void,
+  transact(callback: () => void): void,
+};
+export type YConfig = {
+  root: YNode | null,
+  schemaId: string,
+  disabled: boolean,
+  ready: boolean,
+  $initialState: (() => void) | null,
+};
+export type YProvider = {
+  readonly synced: boolean,
+  on(event: 'sync', listener: (synced: boolean) => void): unknown,
+  off(event: 'sync', listener: (synced: boolean) => void): unknown,
+};
+export type YProviderConfig = {provider: YProvider | null};
+export type YUser = {name: string, color: string, textColor: string};
+export type YPresence = {user: YUser, selection: YSelection | null};
+export type YAwareness = {
+  clientID: number,
+  getLocalState(): {[string]: unknown} | null,
+  getStates(): Map<number, {[string]: unknown}>,
+  setLocalStateField(field: string, value: unknown): void,
+  on(event: 'change', listener: () => void): unknown,
+  off(event: 'change', listener: () => void): unknown,
+};
+export type YAwarenessConfig = {
+  awareness: YAwareness | null,
+  field: string,
+  user: YUser,
+};
+declare export function $getYSelection(binding: YBinding): YSelection | null;
+declare export function $resolveYSelection(binding: YBinding, value: YSelection, followUndoneDeletions?: boolean): RangeSelection | null;
+declare export var YExtension: LexicalExtension<YConfig, '@lexical/y', {
+  binding: YBinding,
+  disabled: Signal<boolean>,
+  ready: Signal<boolean>,
+}, void>;
+declare export var YHistoryExtension: LexicalExtension<{captureTimeout: number}, '@lexical/y/History', {
+  canUndo: Signal<boolean>,
+  canRedo: Signal<boolean>,
+  undoManager: Signal<UndoManager | null>,
+}, void>;
+declare export var YProviderExtension: LexicalExtension<YProviderConfig, '@lexical/y/Provider', {provider: Signal<YProvider | null>, synced: Signal<boolean>}, void>;
+declare export var YAwarenessExtension: LexicalExtension<YAwarenessConfig, '@lexical/y/Awareness', {
+  user: Signal<YUser>,
+  peers: Signal<Map<number, YPresence>>,
+}, void>;
+export type YCursorContext = {
+  clientID: number,
+  presence: YPresence,
+  selection: RangeSelection,
+  rects: Array<DOMRect>,
+  caret: DOMRect | null,
+  container: HTMLElement,
+};
+export type YCursorsConfig = {
+  container: ((root: HTMLElement) => HTMLElement) | null,
+  renderCursor: ((context: YCursorContext) => void | (() => void)) | null,
+  className: string,
+  zIndex: number,
+};
+declare export var YCursorsExtension: LexicalExtension<YCursorsConfig, '@lexical/y/Cursors', void, void>;
