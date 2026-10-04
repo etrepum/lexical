@@ -209,6 +209,93 @@ describe('@lexical/y', () => {
       expect($isRangeSelection(selection) && selection.anchor.offset).toBe(1);
     });
   });
+  test.each(['automatic', 'filtered', 'manual'] as const)(
+    'deleted document nodes participate in %s Yjs collection',
+    mode => {
+      const doc = new Y.Doc({
+        gc: mode !== 'manual',
+        gcFilter: () => mode !== 'filtered',
+      });
+      const editor = create(doc.get('root'));
+      seed(editor);
+      manager(editor).clear();
+      const paragraph = storedChild(doc.get('root'));
+      const key = paragraph._item!.parentSub!;
+      update(editor, () => $getRoot().clear());
+      expect(doc.get('root').getAttr(key)).toBeUndefined();
+      expect(paragraph._item!.deleted).toBe(true);
+      // UndoManager retains deleted content until its history is cleared.
+      expect(paragraph._item!.keep).toBe(true);
+      Y.gcIdSet(doc, Y.createDeleteSetFromStructStore(doc.store));
+      expect(paragraph._item!.content.constructor.name).toBe('ContentType');
+      manager(editor).undo();
+      expect(text(editor)).toBe('hello');
+      const restored = storedChild(doc.get('root'));
+      manager(editor).redo();
+      manager(editor).clear();
+      Y.gcIdSet(doc, Y.createDeleteSetFromStructStore(doc.store));
+      const deleted = restored._item!;
+      expect(deleted.content.constructor.name).toBe(
+        mode === 'filtered' ? 'ContentType' : 'ContentDeleted',
+      );
+      doc.destroy();
+    },
+  );
+  test('a retained snapshot can render deleted nodes without changing the live document', () => {
+    const doc = new Y.Doc({gc: false});
+    const editor = create(doc.get('root'));
+    seed(editor);
+    const snapshot = Y.snapshot(doc);
+    update(editor, () => $getRoot().clear());
+    manager(editor).clear();
+    const historicalDoc = Y.createDocFromSnapshot(doc, snapshot);
+    expect(text(create(historicalDoc.get('root')))).toBe('hello');
+    expect(text(editor)).toBe('');
+  });
+  test.each([false, true])(
+    'deletion wins over a concurrent move (reverse delivery: %s)',
+    reverse => {
+      const {a, b, ea, eb} = pair();
+      update(ea, () =>
+        $getRoot().append(
+          $createParagraphNode().append($createTextNode('last')),
+        ),
+      );
+      copy(a, b);
+      manager(ea).clear();
+      update(ea, () => $getRoot().getFirstChildOrThrow().remove());
+      update(eb, () => $getRoot().append($getRoot().getFirstChildOrThrow()));
+      if (reverse) {
+        copy(b, a);
+        copy(a, b);
+      } else {
+        copy(a, b);
+        copy(b, a);
+      }
+      expect(text(ea)).toBe('last');
+      expect(content(ea)).toEqual(content(eb));
+      // The peer may already have collected deleted content; undo sends restored content.
+      Y.gcIdSet(b, Y.createDeleteSetFromStructStore(b.store));
+      manager(ea).undo();
+      copy(a, b);
+      expect(text(ea)).toContain('hello');
+      expect(content(ea)).toEqual(content(eb));
+    },
+  );
+  test('automatic collection works without a history extension', () => {
+    const doc = new Y.Doc();
+    const editor = buildEditorFromExtensions(
+      configExtension(YExtension, {root: doc.get('root')}),
+    );
+    onTestFinished(() => {
+      editor.dispose();
+      doc.destroy();
+    });
+    seed(editor);
+    const paragraph = storedChild(doc.get('root'));
+    update(editor, () => $getRoot().clear());
+    expect(paragraph._item!.content.constructor.name).toBe('ContentDeleted');
+  });
   test('moves retain shared identity and concurrent text edits', () => {
     const {a, b, ea, eb} = pair();
     update(ea, () =>

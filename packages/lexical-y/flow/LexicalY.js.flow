@@ -31,6 +31,7 @@ export type YBinding = {
   read(dirty?: ReadonlySet<string>, changed?: ReadonlySet<YNode>, structural?: boolean): void,
   bootstrap(initialize: () => void): void,
   transact(callback: () => void): void,
+  releaseSharedType(type: YNode): void,
 };
 export type YConfig = {
   root: YNode | null,

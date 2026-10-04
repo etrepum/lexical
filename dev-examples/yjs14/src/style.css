@@ -1,0 +1,67 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #18283b;
+  background: #f3f6fa;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 1100px;
+  margin: auto;
+  padding: 32px 24px;
+}
+h1 {
+  margin-bottom: 8px;
+}
+p {
+  line-height: 1.5;
+}
+.editors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+section {
+  margin: 20px 0;
+  padding: 20px;
+  background: white;
+  border: 1px solid #d3dfed;
+  border-radius: 12px;
+}
+.editor {
+  min-height: 160px;
+  padding: 16px;
+  border: 1px solid #889bb2;
+  border-radius: 6px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.editor:focus {
+  outline: 2px solid #2868bb;
+  outline-offset: 2px;
+}
+button,
+select {
+  font: inherit;
+  margin: 4px;
+  padding: 7px 10px;
+}
+button {
+  cursor: pointer;
+}
+.actions {
+  margin-top: 10px;
+}
+#status {
+  min-height: 24px;
+}
+pre {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+@media (max-width: 750px) {
+  .editors {
+    grid-template-columns: 1fr;
+  }
+}

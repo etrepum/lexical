@@ -22,10 +22,15 @@ import {
 import {Mapping} from './Mapping';
 import {type Attributes} from './Schema';
 import {$getYSelection, $restoreYSelection, type YSelection} from './Selection';
-import {isSharedTypeDeleted} from './SharedTypes';
+import {
+  hasSharedReference,
+  isSharedTypeDeleted,
+  SHARED_PREFIX,
+} from './SharedTypes';
 import {$readElement, $writeElement} from './Sync';
 import {
   changesTopology,
+  deleteRemovedNodes,
   getChildren,
   getParent,
   readTopology,
@@ -69,6 +74,28 @@ export class YBinding {
     );
     this.selectionBefore = this.selection;
     this.doc.transact(callback, this);
+  }
+
+  /** Release a binding-owned shared value after its references have been removed.
+   * This is an undoable Yjs deletion, not forced garbage collection. Applications
+   * choose when to release independently owned values; concurrent references to
+   * a released value do not resurrect it.
+   */
+  releaseSharedType(type: YNode): void {
+    const key = type._item && type._item.parentSub;
+    invariant(
+      type.parent === this.root &&
+        typeof key === 'string' &&
+        key.startsWith(SHARED_PREFIX) &&
+        this.root.getAttr(key) === type,
+      "@lexical/y: only this binding root's stored shared values can be released",
+    );
+    invariant(
+      !hasSharedReference(this, key),
+      '@lexical/y: remove shared value references before releasing it',
+    );
+    this.transact(() => this.root.deleteAttr(key));
+    this.sharedTypes.delete(type);
   }
 
   /** @internal Only schema attributes and slots participate in reconciliation. */
@@ -217,6 +244,7 @@ export class YBinding {
             try {
               this.doc.transact(
                 () => {
+                  const previous = new Set(this.parents.keys());
                   $writeElement(
                     this.root,
                     $getRoot(),
@@ -227,7 +255,10 @@ export class YBinding {
                       ...normalizedNodes,
                     ]),
                   );
-                  if (this.topologyChanged) readTopology(this);
+                  if (this.topologyChanged) {
+                    readTopology(this);
+                    if (!remote) deleteRemovedNodes(this, previous);
+                  }
                   this.selection = $getYSelection(this);
                 },
                 remote ? this.normalizationOrigin : this,

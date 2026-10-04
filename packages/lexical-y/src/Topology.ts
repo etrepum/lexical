@@ -43,6 +43,23 @@ export function placeNode(binding: YBinding, node: YNode): Placement {
   return {id: key.slice(NODE_PREFIX.length), token};
 }
 
+/** Delete locally removed nodes, letting Yjs own undo retention and collection.
+ * Only compare the local edit's previous projection: sweeping all unreachable
+ * nodes could delete content whose placement is still arriving from a peer.
+ */
+export function deleteRemovedNodes(
+  binding: YBinding,
+  previous: ReadonlySet<YNode>,
+): void {
+  for (const node of previous) {
+    if (!binding.parents.has(node)) {
+      const key = node._item && node._item.parentSub;
+      if (typeof key === 'string' && binding.root.getAttr(key) === node)
+        binding.root.deleteAttr(key);
+    }
+  }
+}
+
 /** A single winning placement per node makes concurrent moves deterministic. */
 export function getChildren(binding: YBinding, parent: YNode): YNode[] {
   if (parent !== binding.root && parent.name === null) return [];

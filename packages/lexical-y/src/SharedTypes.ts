@@ -149,3 +149,18 @@ export function decodeAttributes(
   binding.trackSharedTypes(owner, result, pending);
   return result;
 }
+
+/** Check all loaded roots, including references in text formatting and other bindings. */
+export function hasSharedReference(binding: YBinding, key: string): boolean {
+  const seen = new Set<object>();
+  const visit = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object' || seen.has(value)) return false;
+    seen.add(value);
+    if (value instanceof YNode) return visit(value.toDelta({renderer: null}));
+    const reference = value as {key?: unknown; container?: unknown};
+    if (reference.key === key && isRelativePosition(reference.container))
+      return true;
+    return Object.values(value).some(visit);
+  };
+  return [...binding.doc.share.values()].some(visit);
+}

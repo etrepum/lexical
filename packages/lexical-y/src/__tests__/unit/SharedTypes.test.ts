@@ -17,6 +17,7 @@ import {YExtension, YHistoryExtension} from '@lexical/y';
 import * as Y from '@y/y';
 import {
   $create,
+  $createParagraphNode,
   $getRoot,
   $getState,
   $setState,
@@ -425,4 +426,62 @@ test('shared-value undo and redo converge on peers across repeated cycles', () =
     expect(getValue(a.editor).toString()).toBe('replacement');
     expect(getValue(b.editor).toString()).toBe('replacement');
   }
+});
+
+test('releases unreferenced shared values through Yjs deletion and undo', () => {
+  const {binding, editor, history, doc} = create(new Y.Doc({gc: false}));
+  const value = seed(editor);
+  binding.transact(() => value.insert(0, 'retained'));
+  expect(() => binding.releaseSharedType(value)).toThrow(/references/);
+  history.clear();
+  // Group removal and release so undo restores both the reference and value.
+  update(editor, () => $getRoot().clear());
+  binding.releaseSharedType(value);
+  const key = value._item!.parentSub!;
+  expect(binding.root.getAttr(key)).toBeUndefined();
+  history.undo();
+  expect(getValue(editor).toString()).toBe('retained');
+  const restored = getValue(editor);
+  history.redo();
+  history.clear();
+  Y.gcIdSet(doc, Y.createDeleteSetFromStructStore(doc.store));
+  expect(restored._item!.content.constructor.name).toBe('ContentDeleted');
+});
+
+test('release checks references on text formats and other loaded roots', () => {
+  const {binding, editor, doc} = create();
+  const value = seed(editor);
+  update(editor, () => {
+    $getRoot().clear();
+    const node = $create(SharedText);
+    node.setTextContent('alias');
+    node.getWritable().__value = value;
+    $getRoot().append($createParagraphNode().append(node));
+  });
+  expect(() => binding.releaseSharedType(value)).toThrow(/references/);
+  // Copy the encoded reference to an application-owned root.
+  const stored = Object.entries(binding.root.getAttrs()).find(
+    ([key, item]) =>
+      key.startsWith('tree:node:') &&
+      item instanceof Y.Node &&
+      item.name === null &&
+      item.length > 0,
+  )![1] as Y.Node;
+  const op = Array.from(stored.toDelta().children)[0];
+  if (!('format' in op)) throw new Error('Expected text formatting');
+  const reference = op.format!['ref:p:value'];
+  doc.get('other').setAttr('ref:p:value', reference);
+  update(editor, () => $getRoot().clear());
+  expect(() => binding.releaseSharedType(value)).toThrow(/references/);
+  doc.get('other').deleteAttr('ref:p:value');
+  binding.releaseSharedType(value);
+  expect(value._item!.deleted).toBe(true);
+});
+
+test('release never deletes application-owned shared types', () => {
+  const {binding, doc} = create();
+  const external = new Y.Node();
+  doc.get('application').setAttr('value', external);
+  expect(() => binding.releaseSharedType(external)).toThrow(/stored shared/);
+  expect(doc.get('application').getAttr('value')).toBe(external);
 });

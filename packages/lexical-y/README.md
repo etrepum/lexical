@@ -51,11 +51,13 @@ content, so concurrent edits to that content survive the move.
 Concurrent moves of the same node use Yjs attribute conflict resolution to choose
 one placement. Concurrent reparenting can create a cycle: the visible projection
 lifts the member with the smallest storage ID to the root. This deterministic
-projection preserves content without generating repair transactions. Deleting a
-parent hides its subtree; a concurrent move of a child outside that subtree can
-survive. Stored nodes, including deleted nodes and losing placements, are retained
-for undo and concurrent references. Storage reclamation requires a coordinated
-application policy and is not automatic.
+projection preserves content without generating repair transactions. Locally
+deleting a node removes its store entry and the entries of its deleted
+subtree in the same transaction. Moves within an edit preserve the entries.
+Deletion wins over a concurrent move of a deleted node. Yjs owns retention of
+deleted content for undo and garbage collection; the binding does not override
+the document's `gc` or `gcFilter` settings. Losing concurrent placement records
+can remain as small inert references until their parent sequence is edited.
 
 Text edits use CRDT insert/delete operations, and formatting boundaries map runs
 back to Lexical TextNodes. Reconciliation skips unchanged subtrees. Ordinary text
@@ -203,10 +205,17 @@ that origin. Collaborative history covers the root and its referenced types.
 Live values are mutable: older EditorStates reference the same live objects.
 Lexical node copying also retains those references; clone explicitly for an
 independent value, or use NodeState's `resetOnCopyNode` to discard it on copy.
-Removing a reference does not destroy the value. Binding-owned values are retained
-for the document's lifetime so aliases, concurrent references and undo remain
-valid; automatic reclamation is not implemented. Disposing the editor removes its
-observers and leaves shared data intact.
+Removing a reference does not destroy the value: other properties, roots, or
+application code may still use it. After removing its references, the application
+can call `binding.releaseSharedType(value)` to delete a binding-owned value's
+storage entry. This checks references in all loaded roots of the same document,
+including text formatting, and rejects externally owned values. It is a normal
+undoable Yjs deletion, not forced garbage collection. A concurrent reference from
+an offline peer does not resurrect a released value; release only when that
+lifetime policy is appropriate. Values needed outside the editor should generally
+be integrated into application-owned storage instead.
+
+Disposing the editor removes its observers and leaves shared data intact.
 
 ## Application-owned roots and loading
 
@@ -300,3 +309,26 @@ avoids broadcasting suggestions or adding them to undo/export. `SKIP_COLLAB_TAG`
 is not an exclusion policy for persistent nodes; a later reconciliation can still
 encounter those nodes. Use relative selection bookmarks to anchor local UI across
 remote edits, and re-resolve them before accepting a suggestion.
+
+## Retention and collection
+
+The application supplies the Y.Doc and chooses native Yjs retention mechanisms:
+
+- Default `gc: true` collects eligible deleted content. `Y.UndoManager` protects
+  content needed for its undo/redo stacks.
+- A `gcFilter` can retain selected deleted items according to application policy.
+- `gc: false` retains deleted content for lightweight snapshots and historical
+  rendering. When retention ends, `Y.gcIdSet(doc, ids)` can collect selected
+  deleted ranges; it respects undo retention and the document's filter. It skips
+  live content. Clearing history alone need not collect previously deleted items.
+
+Do not collect ranges still needed by lightweight snapshots, pending suggestions,
+or historical attribution views. A separate full encoded checkpoint can preserve
+an old document independently of the live document's collection policy. Historical
+viewing must use a separate projection/document and must not write the old state
+back into the live editor. Collection does not reset CRDT identities or permit
+reusing client IDs, and it does not guarantee a particular encoded byte count.
+
+See `dev-examples/yjs14` for two independently connected editors, offline merging,
+undo, the three collection modes, and separate historical checkpoint/snapshot
+viewing. This example is independent of React and the playground.
