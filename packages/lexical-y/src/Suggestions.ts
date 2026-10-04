@@ -248,6 +248,7 @@ export function getSuggestionGroups(
     grouped.set(key, group);
   });
   return [...grouped.values()]
+    .filter(group => group.some(p => (p.insert ? !p.item.deleted : p.remove)))
     .map(group => {
       const inserted = createIdSet();
       const removed = createIdSet();
@@ -255,14 +256,15 @@ export function getSuggestionGroups(
       let deletedText = '';
       for (const p of group) {
         if (p.insert) inserted.add(p.client, p.clock, p.length);
-        if (p.remove) removed.add(p.client, p.clock, p.length);
+        if (p.remove || (p.insert && p.item.deleted))
+          removed.add(p.client, p.clock, p.length);
         if (p.item.content instanceof ContentString) {
           const value = p.item.content.str.slice(
             p.clock - p.item.id.clock,
             p.clock - p.item.id.clock + p.length,
           );
           if (p.insert && !p.item.deleted) insertedText += value;
-          if (p.remove) deletedText += value;
+          if (p.remove && !p.insert) deletedText += value;
         }
       }
       const ids = group.map(p => `${p.client}:${p.clock}`).sort();

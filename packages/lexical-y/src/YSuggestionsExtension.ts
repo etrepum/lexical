@@ -14,6 +14,7 @@ import {
   createContentAttribute,
   createContentMapFromContentIds,
   createRelativePositionFromTypeIndex,
+  diffIdMap,
   DiffRenderer,
   encodeStateAsUpdate,
   intersectUpdateWithContentIds,
@@ -104,6 +105,9 @@ export const YSuggestionsExtension = defineExtension({
           ),
         );
         const view = new DiffRenderer(base.doc, binding.doc, {attributions});
+        // Canceled proposal insertions never existed in the base and must not
+        // appear as proposed deletions, including after restoring a proposal.
+        view.deletes = diffIdMap(view.deletes, view.inserts);
         try {
           return binding.root.toDeltaDeep({renderer: view});
         } finally {

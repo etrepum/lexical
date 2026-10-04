@@ -51,8 +51,9 @@ The transport has no persistence, authentication, or server dependencies.
 
 1. Start a proposal and edit its separate editor. Alice/Bob remain unchanged.
    Edit Alice while reviewing; that accepted edit appears in the proposal too.
-2. Accept the proposal, then undo in Alice. Repeat with rejection instead of
-   acceptance; concurrent accepted edits survive rejection.
+2. Review inserted/deleted text in the inline view. Use **Accept change** or
+   **Reject change** for individual groups, or the proposal buttons for all changes.
+   Undo acceptance in Alice; concurrent accepted edits survive rejection.
 3. Expand the proposal delta inspector to inspect native insert/delete metadata.
    Expand attribution after edits and undo to inspect the persisted author records.
 4. Save a checkpoint, change the document, and compare. View the saved checkpoint
@@ -64,7 +65,6 @@ The transport has no persistence, authentication, or server dependencies.
    filtered and manual retention modes. Pending proposal documents retain history
    and are not included in the example's manual collection action.
 
-Review uses native deep delta inspectors, not an inline tracked-changes theme.
 The package browser tests cover selection overlays and transformed containers;
 manual native IME/composition testing is still useful. The example is separate
 from the playground and has no React or Yjs 13 dependencies.

@@ -536,3 +536,23 @@ test.each(['accept', 'reject'] as const)(
     expect(main.binding.error.value).toBeNull();
   },
 );
+
+test('accepting a suggestion never resurrects canceled proposal characters used as origins', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(2, 0, 'canceled'),
+  );
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(10, 0, 'kept'),
+  );
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(2, 8, ''),
+  );
+  expect(text(editor)).toBe('hekeptllo');
+  expect(JSON.stringify(suggestions.getDelta())).not.toContain('canceled');
+  for (const change of suggestions.getSuggestions())
+    suggestions.accept(change.id);
+  expect(text(main.editor)).toBe('hekeptllo');
+  expect(text(editor)).toBe('hekeptllo');
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+});
