@@ -93,6 +93,7 @@ import {ExcalidrawExtension} from './plugins/ExcalidrawExtension';
 import {FigmaExtension} from './plugins/FigmaExtension';
 import {ReactFindReplaceExtension} from './plugins/FindReplaceExtension';
 import {ImagesExtension} from './plugins/ImagesExtension';
+import IOSProbe9112Plugin, {isProbe9112Enabled} from './plugins/IOSProbe9112';
 import {LayoutExtension} from './plugins/LayoutExtension/LayoutExtension';
 import {PlaygroundMarkdownShortcutsExtension} from './plugins/MarkdownShortcutsExtension';
 import {MaxLengthExtension} from './plugins/MaxLengthPlugin';
@@ -411,6 +412,7 @@ function App(): JSX.Element {
           {isDevPlayground ? <TestRecorderPlugin /> : null}
 
           {measureTypingPerf ? <TypingPerfPlugin /> : null}
+          {isProbe9112Enabled() ? <IOSProbe9112Plugin /> : null}
         </ToolbarContext>
       </LexicalExtensionComposer>
     </LexicalCollaboration>
