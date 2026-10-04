@@ -43,10 +43,15 @@ export default function Settings(): JSX.Element {
   } = useSettings();
   const [showSettings, setShowSettings] = useState(false);
   const [isSplitScreen, search] = useMemo(() => {
-    const parentWindow = window.parent;
     const _search = windowLocation.search;
-    const _isSplitScreen =
-      parentWindow && parentWindow.location.pathname === '/split/';
+    let _isSplitScreen = false;
+    try {
+      const parentWindow = window.parent;
+      _isSplitScreen =
+        parentWindow && parentWindow.location.pathname === '/split/';
+    } catch (_error) {
+      // Embedded in a cross-origin frame, which can't be the split view.
+    }
     return [_isSplitScreen, _search];
   }, [windowLocation]);
 

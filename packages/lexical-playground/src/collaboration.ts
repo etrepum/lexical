@@ -35,9 +35,21 @@ const WEBSOCKET_ID = params.get('collabId') || '0';
  * both frames resolve the same collab room at the same time. Nested editors
  * therefore have to make the same choice the main document does.
  */
-export const skipCollaborationInit =
-  // @ts-expect-error -- `frames.right` is the named `/split/` iframe
-  window.parent != null && window.parent.frames.right === window;
+export const skipCollaborationInit = isRightSplitFrame();
+
+function isRightSplitFrame(): boolean {
+  try {
+    return (
+      window.parent != null &&
+      // @ts-expect-error -- `frames.right` is the named `/split/` iframe
+      window.parent.frames.right === window
+    );
+  } catch (_error) {
+    // Embedded in a cross-origin frame (not the `/split/` view), where
+    // reading the parent's named frames throws a SecurityError.
+    return false;
+  }
+}
 
 // parent dom -> child doc
 export function createWebsocketProvider(
