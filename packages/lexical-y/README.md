@@ -98,6 +98,34 @@ error. Unknown NodeState keys remain in NodeState; ordinary schema properties ar
 owned by the configured schema, so `schemaId` must also change when peers cannot
 safely interpret those properties.
 
+### Evolving application schemas
+
+Prefer compatible schema evolution over in-place migrations. Keep the serialized
+type and meaning of an existing property stable. For example, do not change
+`url: string` into `url: {href: string}` while clients using the old schema can
+still edit the document. Introduce a new property such as `linkTarget` instead.
+
+- Give new properties defaults that handle documents where they are absent.
+- When replacing a representation, first deploy readers that understand both
+  forms and use the old form when the new property is absent. Do not assume old
+  clients will keep both forms in sync when they edit the old property.
+- Start writing the new representation only when the supported readers can
+  consume it. Keep reading the old representation for existing documents until
+  it is no longer needed; avoid a bulk rewrite when a read fallback suffices.
+- Test mixed-version edits and export/import round trips. Unknown NodeState keys
+  are retained, but arbitrary unknown schema properties are not guaranteed to
+  survive an older client's reconciliation. Adding a field is compatible only
+  if supported clients preserve it or its loss is acceptable.
+- Adding a new node type also requires compatible readers: an older editor that
+  does not register that type cannot project it.
+
+Keep `schemaId` stable for compatible changes; it is not an application release
+number. For an intentionally incompatible change, use a new `schemaId` and
+coordinate client upgrades and access to the document through the application.
+Changing the marker does not convert stored data or stop an old offline client
+from sending updates. The binding detects incompatibility; it does not provide
+an application schema migration engine.
+
 Headless loading uses the same extension and requires no provider:
 
 ```ts
@@ -217,8 +245,9 @@ transport replacement and credential refresh. It requires neither awareness nor
 `connect`/`disconnect` methods. Applications
 with other loading APIs can set the readiness signal directly.
 
-The `disabled` output signal stops binding listeners. Re-enabling reloads the
-shared root; edits made to the disconnected editor are not published.
+The binding stays active for the editor's lifetime. Disconnecting a transport
+does not stop local synchronization or discard undo history. Dispose the editor
+to remove the binding; the application-owned document remains alive.
 
 ## Optional extensions
 

@@ -21,8 +21,6 @@ export interface YConfig {
   root: YNode | null;
   /** Application schema identifier. Different identifiers cannot edit the same root. */
   schemaId: string;
-  /** Enable synchronization. Re-enabling reads the shared document. */
-  disabled: boolean;
   /** Whether initial loading has finished. Gates optional bootstrap. */
   ready: boolean;
   /** Initialize an empty shared root after it is ready. Elect one initializer. */
@@ -42,12 +40,11 @@ export const YExtension = defineExtension({
     }
     return {
       binding: new YBinding(editor, config.root, config.schemaId),
-      ...namedSignals({disabled: config.disabled, ready: config.ready}),
+      ...namedSignals({ready: config.ready}),
     };
   },
   config: safeCast<YConfig>({
     $initialState: null,
-    disabled: false,
     ready: true,
     root: null,
     schemaId: 'default',
@@ -59,13 +56,11 @@ export const YExtension = defineExtension({
     }),
   ],
   register(_editor, config, state) {
-    const {binding, disabled, ready} = state.getOutput();
+    const {binding, ready} = state.getOutput();
     let initialized = false;
-    const unregister = effect(() =>
-      disabled.value ? undefined : binding.register(),
-    );
+    const unregister = binding.register();
     const stopBootstrap = effect(() => {
-      if (!disabled.value && ready.value && !initialized) {
+      if (ready.value && !initialized) {
         initialized = true;
         if (config.$initialState) binding.bootstrap(config.$initialState);
       }

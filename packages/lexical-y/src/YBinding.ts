@@ -57,7 +57,7 @@ export class YBinding {
   transact(callback: () => void): void {
     invariant(
       this.active,
-      '@lexical/y: cannot transact through a disabled binding',
+      '@lexical/y: cannot transact through an inactive binding',
     );
     invariant(
       !this.editor._updating,

@@ -35,7 +35,6 @@ export type YBinding = {
 export type YConfig = {
   root: YNode | null,
   schemaId: string,
-  disabled: boolean,
   ready: boolean,
   $initialState: (() => void) | null,
 };
@@ -64,7 +63,6 @@ declare export function $getYSelection(binding: YBinding): YSelection | null;
 declare export function $resolveYSelection(binding: YBinding, value: YSelection, followUndoneDeletions?: boolean): RangeSelection | null;
 declare export var YExtension: LexicalExtension<YConfig, '@lexical/y', {
   binding: YBinding,
-  disabled: Signal<boolean>,
   ready: Signal<boolean>,
 }, void>;
 declare export var YHistoryExtension: LexicalExtension<{captureTimeout: number}, '@lexical/y/History', {

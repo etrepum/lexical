@@ -79,63 +79,60 @@ export const YAwarenessExtension = defineExtension({
   register(editor, config, state) {
     const awareness = config.awareness;
     invariant(awareness !== null, '@lexical/y: configure awareness');
-    const {binding, disabled} = state.getDependency(YExtension).output;
+    const {binding} = state.getDependency(YExtension).output;
     const {user, peers} = state.getOutput();
-    return effect(() => {
-      if (disabled.value) return;
-      let focused = true;
-      const publish = (currentUser = user.peek()) =>
-        editor.read('latest', () => {
-          const value: YPresence = {
-            selection: focused ? $getYSelection(binding) : null,
-            user: currentUser,
-          };
-          const localState = awareness.getLocalState();
-          if (!equalValue(localState && localState[config.field], value))
-            awareness.setLocalStateField(config.field, value);
-        });
-      const refresh = () => {
-        const next = new Map<number, YPresence>();
-        awareness.getStates().forEach((value, id) => {
-          const presence = value[config.field];
-          if (id !== awareness.clientID && isPresence(presence))
-            next.set(id, presence);
-        });
-        peers.value = next;
-      };
-      const clear = () => {
-        awareness.setLocalStateField(config.field, null);
-      };
-      awareness.on('change', refresh);
-      const unregister = mergeRegister(
-        editor.registerUpdateListener(() => publish()),
-        editor.registerCommand(
-          FOCUS_COMMAND,
-          () => {
-            focused = true;
-            publish();
-            return false;
-          },
-          COMMAND_PRIORITY_EDITOR,
-        ),
-        editor.registerCommand(
-          BLUR_COMMAND,
-          () => {
-            focused = false;
-            clear();
-            return false;
-          },
-          COMMAND_PRIORITY_EDITOR,
-        ),
-        effect(() => publish(user.value)),
-      );
-      refresh();
-      return () => {
-        unregister();
-        awareness.off('change', refresh);
-        clear();
-        peers.value = new Map();
-      };
-    });
+    let focused = true;
+    const publish = (currentUser = user.peek()) =>
+      editor.read('latest', () => {
+        const value: YPresence = {
+          selection: focused ? $getYSelection(binding) : null,
+          user: currentUser,
+        };
+        const localState = awareness.getLocalState();
+        if (!equalValue(localState && localState[config.field], value))
+          awareness.setLocalStateField(config.field, value);
+      });
+    const refresh = () => {
+      const next = new Map<number, YPresence>();
+      awareness.getStates().forEach((value, id) => {
+        const presence = value[config.field];
+        if (id !== awareness.clientID && isPresence(presence))
+          next.set(id, presence);
+      });
+      peers.value = next;
+    };
+    const clear = () => {
+      awareness.setLocalStateField(config.field, null);
+    };
+    awareness.on('change', refresh);
+    const unregister = mergeRegister(
+      editor.registerUpdateListener(() => publish()),
+      editor.registerCommand(
+        FOCUS_COMMAND,
+        () => {
+          focused = true;
+          publish();
+          return false;
+        },
+        COMMAND_PRIORITY_EDITOR,
+      ),
+      editor.registerCommand(
+        BLUR_COMMAND,
+        () => {
+          focused = false;
+          clear();
+          return false;
+        },
+        COMMAND_PRIORITY_EDITOR,
+      ),
+      effect(() => publish(user.value)),
+    );
+    refresh();
+    return () => {
+      unregister();
+      awareness.off('change', refresh);
+      clear();
+      peers.value = new Map();
+    };
   },
 });

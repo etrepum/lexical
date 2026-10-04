@@ -780,26 +780,20 @@ describe('@lexical/y', () => {
       expect(listeners.size).toBe(0);
     },
   );
-  test('binds a subdocument and reloads shared content when re-enabled', () => {
+  test('binds a subdocument for the editor lifetime', () => {
     const parent = new Y.Doc();
     const subdoc = new Y.Doc();
     parent.get('documents').setAttr('editor', subdoc);
     const editor = create(subdoc.get('root'));
     seed(editor);
-    const {disabled} = getExtensionDependencyFromEditor(
-      editor,
-      YExtension,
-    ).output;
-    disabled.value = true;
-    update(editor, () =>
-      ($getRoot().getFirstDescendant() as TextNode).setTextContent('detached'),
-    );
+    const history = manager(editor);
     storedChild(storedChild(subdoc.get('root'))).insert(0, 'remote ');
-    expect(text(editor)).toBe('detached');
-    disabled.value = false;
     expect(text(editor)).toBe('remote hello');
-    expect(manager(editor).undoStack).toHaveLength(0);
+    expect(manager(editor)).toBe(history);
+    expect(history.undoStack).toHaveLength(1);
     editor.dispose();
+    storedChild(storedChild(subdoc.get('root'))).insert(0, 'later ');
+    expect(text(editor)).toBe('remote hello');
     parent.destroy();
   });
   test('disposing leaves application-owned data alive and stops synchronization', () => {
