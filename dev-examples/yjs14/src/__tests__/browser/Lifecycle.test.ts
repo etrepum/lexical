@@ -145,6 +145,33 @@ test('standalone example supports review, tables, comparison and collection in e
     expect(element('suggestion-list').textContent).toBe('No pending changes.');
     expect(element('tracked-changes').querySelector('del')).toBeNull();
     click('propose');
+    editor('proposal').update(() => {
+      const [first, , last] = (
+        $getRoot().getFirstDescendant() as TextNode
+      ).splitText(1, 4);
+      first.toggleFormat('bold');
+      last.toggleFormat('italic');
+    });
+    expect(element('suggestion-list').querySelectorAll('li')).toHaveLength(2);
+    const formatRows = element('suggestion-list').querySelectorAll('li');
+    (formatRows[0].querySelector('button') as HTMLButtonElement).click();
+    expect(
+      editor('alice').read('latest', () =>
+        ($getRoot().getFirstDescendant() as TextNode).hasFormat('bold'),
+      ),
+    ).toBe(true);
+    expect(element('suggestion-list').querySelectorAll('li')).toHaveLength(1);
+    (
+      element('suggestion-list').querySelectorAll(
+        'button',
+      )[1] as HTMLButtonElement
+    ).click();
+    expect(text('proposal')).toBe(text('alice'));
+    expect(element('suggestion-list').textContent).toBe('No pending changes.');
+    editor('alice').update(() =>
+      ($getRoot().getFirstDescendant() as TextNode).setFormat(0),
+    );
+    click('propose');
     append('proposal', 'rejected');
     click('reject');
     expect(text('proposal')).not.toContain('rejected');

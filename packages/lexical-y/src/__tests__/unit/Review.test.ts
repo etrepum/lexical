@@ -12,7 +12,9 @@ import {
 } from '@lexical/extension';
 import {
   $createTableNodeWithDimensions,
+  $insertTableColumnAtNode,
   $insertTableRowAtNode,
+  $mergeCells,
   registerTablePlugin,
   type TableCellNode,
   type TableNode,
@@ -466,7 +468,7 @@ test('restored CRDT content after proposal undo can be accepted without changing
   expect(suggestions.getSuggestions()).toHaveLength(0);
 });
 
-test('formatting runs with dependent boundary changes are reviewed together', () => {
+test('disjoint formatting runs in a text group can be reviewed separately', () => {
   const {main, editor, suggestions} = proposal();
   editor.update(() => {
     const [first, , last] = (
@@ -475,7 +477,7 @@ test('formatting runs with dependent boundary changes are reviewed together', ()
     first.toggleFormat('bold');
     last.toggleFormat('italic');
   });
-  expect(suggestions.getSuggestions()).toHaveLength(1);
+  expect(suggestions.getSuggestions()).toHaveLength(2);
   suggestions.accept(suggestions.getSuggestions()[0].id);
   expect(
     main.editor.read('latest', () =>
@@ -486,14 +488,16 @@ test('formatting runs with dependent boundary changes are reviewed together', ()
     main.editor.read('latest', () =>
       ($getRoot().getLastDescendant() as TextNode).hasFormat('italic'),
     ),
-  ).toBe(true);
+  ).toBe(false);
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  suggestions.reject(suggestions.getSuggestions()[0].id);
   expect(text(main.editor)).toBe('hello');
   expect(suggestions.getSuggestions()).toHaveLength(0);
   expect(main.binding.error.value).toBeNull();
 });
 
 test.each(['accept', 'reject'] as const)(
-  'table structure and dependent cell edits %s as one suggestion',
+  'table row edits %s independently from existing cell content',
   action => {
     const {main, editor, suggestions} = proposal();
     main.editor.update(() =>
@@ -521,18 +525,26 @@ test.each(['accept', 'reject'] as const)(
       );
     });
     const changes = suggestions.getSuggestions();
-    expect(changes).toHaveLength(2);
+    expect(changes).toHaveLength(3);
     suggestions[action](
-      changes.find(change => change.kind === 'structure')!.id,
+      changes.find(
+        change => change.kind === 'structure' && change.insertedText === '',
+      )!.id,
     );
     expect(
       main.editor.read('latest', () =>
         $getRoot().getLastChildOrThrow<TableNode>().getChildrenSize(),
       ),
     ).toBe(action === 'accept' ? 3 : 2);
-    expect(text(main.editor).includes('cell change')).toBe(action === 'accept');
+    expect(text(main.editor)).not.toContain('cell change');
     expect(text(main.editor)).not.toContain('unrelated');
-    expect(suggestions.getSuggestions()).toHaveLength(1);
+    expect(suggestions.getSuggestions()).toHaveLength(2);
+    suggestions.accept(
+      suggestions
+        .getSuggestions()
+        .find(change => change.insertedText === 'cell change')!.id,
+    );
+    expect(text(main.editor)).toContain('cell change');
     expect(main.binding.error.value).toBeNull();
   },
 );
@@ -556,3 +568,253 @@ test('accepting a suggestion never resurrects canceled proposal characters used 
   expect(text(editor)).toBe('hekeptllo');
   expect(suggestions.getSuggestions()).toHaveLength(0);
 });
+
+test.each(['accept', 'reject'] as const)(
+  'disjoint format replacements %s independently against non-default base formatting',
+  action => {
+    const {main, editor, suggestions} = proposal();
+    main.editor.update(() =>
+      ($getRoot().getFirstDescendant() as TextNode).setFormat('bold'),
+    );
+    editor.update(() => {
+      const [first, , last] = (
+        $getRoot().getFirstDescendant() as TextNode
+      ).splitText(1, 4);
+      first.setFormat('italic');
+      last.setFormat('underline');
+    });
+    expect(suggestions.getSuggestions()).toHaveLength(2);
+    const first = suggestions.getSuggestions()[0];
+    suggestions[action](first.id);
+    expect(
+      main.editor.read('latest', () =>
+        ($getRoot().getFirstDescendant() as TextNode).hasFormat(
+          action === 'accept' ? 'italic' : 'bold',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      main.editor.read('latest', () =>
+        ($getRoot().getLastDescendant() as TextNode).hasFormat('bold'),
+      ),
+    ).toBe(true);
+    expect(suggestions.getSuggestions()).toHaveLength(1);
+    suggestions.accept(suggestions.getSuggestions()[0].id);
+    expect(
+      main.editor.read('latest', () =>
+        ($getRoot().getLastDescendant() as TextNode).hasFormat('underline'),
+      ),
+    ).toBe(true);
+    expect(text(main.editor)).toBe('hello');
+  },
+);
+
+test.each(['column', 'merge'] as const)(
+  'table %s geometry excludes unrelated cell text and properties',
+  operation => {
+    const {main, editor, suggestions} = proposal();
+    main.editor.update(() =>
+      $getRoot().append($createTableNodeWithDimensions(2, 2)),
+    );
+    editor.update(() => {
+      const row = $getRoot()
+        .getLastChildOrThrow<TableNode>()
+        .getFirstChildOrThrow<TableRowNode>();
+      if (operation === 'column')
+        $insertTableColumnAtNode(
+          row.getFirstChildOrThrow<TableCellNode>(),
+          true,
+        );
+      else $mergeCells(row.getChildren<TableCellNode>());
+    });
+    editor.update(() => {
+      const cell = $getRoot()
+        .getLastChildOrThrow<TableNode>()
+        .getLastChildOrThrow<TableRowNode>()
+        .getLastChildOrThrow<TableCellNode>();
+      cell
+        .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+        .append($createTextNode('independent'));
+      cell.setBackgroundColor('red');
+    });
+    const changes = suggestions.getSuggestions();
+    expect(changes).toHaveLength(3);
+    const content = changes.find(
+      change => change.insertedText === 'independent',
+    )!;
+    suggestions.accept(content.id);
+    expect(text(main.editor)).toContain('independent');
+    expect(
+      main.editor.read('latest', () =>
+        $getRoot()
+          .getLastChildOrThrow<TableNode>()
+          .getFirstChildOrThrow<TableRowNode>()
+          .getChildrenSize(),
+      ),
+    ).toBe(2);
+    const property = suggestions
+      .getSuggestions()
+      .find(change => change.kind === 'property')!;
+    suggestions.reject(property.id);
+    expect(suggestions.getSuggestions()).toHaveLength(1);
+    suggestions.accept(suggestions.getSuggestions()[0].id);
+    expect(
+      main.editor.read('latest', () =>
+        $getRoot()
+          .getLastChildOrThrow<TableNode>()
+          .getFirstChildOrThrow<TableRowNode>()
+          .getChildrenSize(),
+      ),
+    ).toBe(operation === 'column' ? 3 : 1);
+    expect(text(main.editor)).toContain('independent');
+    expect(main.binding.error.value).toBeNull();
+  },
+);
+
+test('separate complete table rows can be reviewed out of order with undo and redo', () => {
+  const {main, editor, suggestions} = proposal();
+  main.editor.update(() =>
+    $getRoot().append($createTableNodeWithDimensions(2, 2)),
+  );
+  main.history.clear();
+  editor.update(() => {
+    const table = $getRoot().getLastChildOrThrow<TableNode>();
+    $insertTableRowAtNode(
+      table
+        .getFirstChildOrThrow<TableRowNode>()
+        .getFirstChildOrThrow<TableCellNode>(),
+      false,
+    );
+    table
+      .getFirstChildOrThrow<TableRowNode>()
+      .getFirstChildOrThrow<TableCellNode>()
+      .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+      .append($createTextNode('first row'));
+  });
+  editor.update(() => {
+    const table = $getRoot().getLastChildOrThrow<TableNode>();
+    $insertTableRowAtNode(
+      table
+        .getLastChildOrThrow<TableRowNode>()
+        .getFirstChildOrThrow<TableCellNode>(),
+      true,
+    );
+    table
+      .getLastChildOrThrow<TableRowNode>()
+      .getFirstChildOrThrow<TableCellNode>()
+      .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+      .append($createTextNode('last row'));
+  });
+  expect(suggestions.getSuggestions()).toHaveLength(2);
+  suggestions.accept(
+    suggestions
+      .getSuggestions()
+      .find(change => change.insertedText === 'last row')!.id,
+  );
+  expect(text(main.editor)).toContain('last row');
+  expect(text(main.editor)).not.toContain('first row');
+  main.history.undo();
+  expect(text(main.editor)).not.toContain('last row');
+  main.history.redo();
+  expect(text(main.editor)).toContain('last row');
+  suggestions.reject(suggestions.getSuggestions()[0].id);
+  expect(text(editor)).not.toContain('first row');
+  expect(text(editor)).toBe(text(main.editor));
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+});
+
+test('cell content in a new row stays with that row while old cell content remains independent', () => {
+  const {main, editor, suggestions} = proposal();
+  main.editor.update(() =>
+    $getRoot().append($createTableNodeWithDimensions(2, 2)),
+  );
+  editor.update(() => {
+    const table = $getRoot().getLastChildOrThrow<TableNode>();
+    $insertTableRowAtNode(
+      table
+        .getFirstChildOrThrow<TableRowNode>()
+        .getFirstChildOrThrow<TableCellNode>(),
+      false,
+    );
+  });
+  editor.update(() => {
+    const table = $getRoot().getLastChildOrThrow<TableNode>();
+    for (const [row, content] of [
+      [table.getFirstChildOrThrow<TableRowNode>(), 'new row'],
+      [table.getLastChildOrThrow<TableRowNode>(), 'existing row'],
+    ] as const) {
+      row
+        .getFirstChildOrThrow<TableCellNode>()
+        .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+        .append($createTextNode(content));
+    }
+  });
+  expect(suggestions.getSuggestions()).toHaveLength(2);
+  suggestions.reject(
+    suggestions
+      .getSuggestions()
+      .find(change => change.insertedText === 'new row')!.id,
+  );
+  expect(text(editor)).not.toContain('new row');
+  expect(text(editor)).toContain('existing row');
+  suggestions.accept(suggestions.getSuggestions()[0].id);
+  expect(text(main.editor)).toContain('existing row');
+  expect(main.binding.error.value).toBeNull();
+});
+
+test.each(['accept', 'reject'] as const)(
+  'row insertion through a proposed rowspan keeps its geometry atomic on %s',
+  action => {
+    const {main, editor, suggestions} = proposal();
+    main.editor.update(() =>
+      $getRoot().append($createTableNodeWithDimensions(2, 2)),
+    );
+    editor.update(() => {
+      const table = $getRoot().getLastChildOrThrow<TableNode>();
+      $mergeCells([
+        table
+          .getFirstChildOrThrow<TableRowNode>()
+          .getFirstChildOrThrow<TableCellNode>(),
+        table
+          .getLastChildOrThrow<TableRowNode>()
+          .getFirstChildOrThrow<TableCellNode>(),
+      ]);
+      $insertTableRowAtNode(
+        table
+          .getFirstChildOrThrow<TableRowNode>()
+          .getLastChildOrThrow<TableCellNode>(),
+        true,
+      );
+    });
+    editor.update(() =>
+      $getRoot()
+        .getLastChildOrThrow<TableNode>()
+        .getLastChildOrThrow<TableRowNode>()
+        .getLastChildOrThrow<TableCellNode>()
+        .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+        .append($createTextNode('separate cell')),
+    );
+    expect(suggestions.getSuggestions()).toHaveLength(2);
+    suggestions[action](
+      suggestions.getSuggestions().find(change => !change.insertedText)!.id,
+    );
+    expect(
+      main.editor.read('latest', () =>
+        $getRoot().getLastChildOrThrow<TableNode>().getChildrenSize(),
+      ),
+    ).toBe(action === 'accept' ? 3 : 2);
+    expect(
+      main.editor.read('latest', () =>
+        $getRoot()
+          .getLastChildOrThrow<TableNode>()
+          .getFirstChildOrThrow<TableRowNode>()
+          .getFirstChildOrThrow<TableCellNode>()
+          .getRowSpan(),
+      ),
+    ).toBe(action === 'accept' ? 3 : 1);
+    suggestions.accept(suggestions.getSuggestions()[0].id);
+    expect(text(main.editor)).toContain('separate cell');
+    expect(text(editor)).toBe(text(main.editor));
+    expect(main.binding.error.value).toBeNull();
+  },
+);

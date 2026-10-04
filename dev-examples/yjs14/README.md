@@ -73,5 +73,6 @@ The proposal editor has a separate inline tracked-changes view: green underlined
 insertions, red struck-through deletions, and highlighted formatting changes.
 Each pending group has Accept change and Reject change controls; focus or hover
 its row to highlight the corresponding inline content. Structural dependencies
-are reviewed together. Whole-proposal buttons remain available. Shared-value and
+are reviewed together, while existing cell content/properties and disjoint text
+formatting runs can be reviewed separately. Whole-proposal buttons remain available. Shared-value and
 custom-property changes appear in the review list and attributed delta.

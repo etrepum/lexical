@@ -396,9 +396,12 @@ show that as a replacement even when the displayed text matches the base.
 A suggestion describes its `id`, `kind`, `insertedText`, and `deletedText`.
 Groups are reconstructed from CRDT operations, including after reload: related
 origins, formatting boundaries, node storage/placements, and shared references
-stay together. Structural or span changes to a table include all its pending
-changes, to avoid accepting an invalid intermediate table. Unrelated edits can
-be reviewed separately and in either order. IDs identify the current groups;
+stay together. Table grid changes keep their geometry operations together, but
+existing cell text, formatting and presentation properties remain independently
+reviewable. Complete row insertions with no span dependencies can be reviewed
+separately; content inside a new row stays with that row. Disjoint formatting
+runs are separate even within one grouped text node, including runs that restore
+a non-default base format. Unrelated edits can be reviewed in either order. IDs identify the current groups;
 re-read them after `revision` changes, since subsequent edits can join groups.
 An ID that no longer identifies a pending group throws.
 

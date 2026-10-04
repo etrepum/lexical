@@ -22,6 +22,8 @@ import {
   Node as YNode,
 } from '@y/y';
 
+import {equalValue} from './Schema';
+
 export interface YSuggestion {
   /** Stable identity of a connected set of pending CRDT operations. */
   id: string;
@@ -161,15 +163,41 @@ export function getSuggestionGroups(
       p.item.content instanceof ContentType ? p.item.content.type : p.parent,
     ),
   );
-  const structuralTables = new Set(
-    parts.flatMap((p, i) =>
-      tables[i] &&
-      (structural(p) ||
-        p.item.parentSub === 'p:colSpan' ||
-        p.item.parentSub === 'p:rowSpan')
+  // Geometry changes can span several rows, but unrelated cell content and
+  // presentation properties do not participate in the table's shape.
+  const geometry = (p: Part): boolean => {
+    const {item, parent} = p;
+    if (item.content instanceof ContentType)
+      return ['table', 'tablerow', 'tablecell'].includes(
+        item.content.type.name || '',
+      );
+    if (item.parentSub === null)
+      return parent.name === 'table' || parent.name === 'tablerow';
+    if (item.parentSub === 'tree:placement')
+      return ['table', 'tablerow', 'tablecell'].includes(parent.name || '');
+    return (
+      item.parentSub === 'p:colSpan' ||
+      item.parentSub === 'p:rowSpan' ||
+      (parent.name === 'table' && item.parentSub === 'p:colWidths')
+    );
+  };
+  const coupledTables = new Set(
+    parts.flatMap((p, i) => {
+      if (!tables[i]) return [];
+      // Existing row/cell geometry changes need a consistent grid. A complete
+      // new row brings its own children and can be reviewed independently.
+      const parentItem = p.parent._item;
+      const existingParent =
+        !parentItem ||
+        (!inserts.hasId(parentItem.id) && !deletes.hasId(parentItem.id));
+      return existingParent &&
+        ((p.parent.name === 'tablerow' && p.item.parentSub === null) ||
+          p.item.parentSub === 'p:colSpan' ||
+          p.item.parentSub === 'p:rowSpan' ||
+          (p.parent.name === 'table' && p.item.parentSub === 'p:colWidths'))
         ? [tables[i]!]
-        : [],
-    ),
+        : [];
+    }),
   );
   parts.forEach((p, i) => {
     const {item, parent} = p;
@@ -195,7 +223,7 @@ export function getSuggestionGroups(
         tag(i, `storage:${parent._item.parentSub}`);
     }
 
-    if (tables[i] && structuralTables.has(tables[i]!))
+    if (tables[i] && coupledTables.has(tables[i]!) && geometry(p))
       tag(i, `table:${tables[i]}`);
     const references = (value: unknown): void => {
       if (!value || typeof value !== 'object' || value instanceof YNode) return;
@@ -221,23 +249,35 @@ export function getSuggestionGroups(
     if (item.content instanceof ContentFormat) references(item.content.value);
     else item.content.getContent().forEach(references);
   });
-  // Pair boundaries per formatting run rather than merging every edit in a text node.
+  // Follow the base and proposed formats in document order. A review run ends
+  // when they agree again, even when restoring a non-default base format.
   for (const type of new Set(
     parts
       .filter(p => p.item.content instanceof ContentFormat)
       .map(p => p.parent),
   )) {
-    const opened = new Map<string, number>();
+    const formats = new Map<
+      string,
+      {base: unknown; proposed: unknown; open: number}
+    >();
     for (let item = type._start; item; item = item.right) {
       if (!(item.content instanceof ContentFormat)) continue;
-      const index = byID(item.id);
-      if (index < 0) continue;
       const {key, value} = item.content;
-      const previous = opened.get(key);
-      if (previous !== undefined) {
-        join(previous, index);
-        opened.delete(key);
-      } else if (value !== null) opened.set(key, index);
+      // Boundaries distinguish adjacent Lexical nodes; they are not style runs.
+      if (key === 'boundary') continue;
+      const state = formats.get(key) || {base: null, open: -1, proposed: null};
+      const differed = !equalValue(state.base, state.proposed);
+      if (!inserts.hasId(item.id) && (!item.deleted || deletes.hasId(item.id)))
+        state.base = value;
+      if (!item.deleted) state.proposed = value;
+      const differs = !equalValue(state.base, state.proposed);
+      const index = byID(item.id);
+      if (index >= 0 && (differed || differs)) {
+        if (state.open >= 0) join(state.open, index);
+        else state.open = index;
+      }
+      if (!differs) state.open = -1;
+      formats.set(key, state);
     }
   }
   const grouped = new Map<number, Part[]>();
