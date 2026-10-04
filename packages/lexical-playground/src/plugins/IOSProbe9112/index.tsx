@@ -37,6 +37,7 @@ export type ProbeMode =
   | 'baseline'
   | 'no-focus'
   | 'no-focus+blur'
+  | 'no-focus+reveal'
   | 'blur'
   | 'inputmode-none'
   | 'focus-prevent-scroll'
@@ -59,6 +60,12 @@ const MODES: readonly {mode: ProbeMode; label: string; detail: string}[] = [
       'No focus, and if the editor already has focus, blur it when the NodeSelection commits.',
     label: 'No focus + blur',
     mode: 'no-focus+blur',
+  },
+  {
+    detail:
+      'No focus, and when the keyboard resizes the visual viewport while the editor has a caret, scroll the caret above the keyboard.',
+    label: 'No focus + reveal caret',
+    mode: 'no-focus+reveal',
   },
   {
     detail:
@@ -497,6 +504,65 @@ function registerApiTracing(log: ProbeLog): () => void {
   };
 }
 
+// Room left between the caret and the top of the keyboard. It also clears the
+// probe's own bar, which sits just above the keyboard.
+const REVEAL_MARGIN = 72;
+
+function getCaretClientRect(range: Range): DOMRect | null {
+  const rects = range.getClientRects();
+  if (rects.length > 0) {
+    return rects[rects.length - 1];
+  }
+  const rect = range.getBoundingClientRect();
+  if (rect.height > 0) {
+    return rect;
+  }
+  // A collapsed range in an empty block has no rects; use the block.
+  const node = range.startContainer;
+  const element =
+    node.nodeType === Node.ELEMENT_NODE
+      ? (node as Element)
+      : node.parentElement;
+  return element !== null ? element.getBoundingClientRect() : null;
+}
+
+function revealCaretAboveKeyboard(root: HTMLElement, log: ProbeLog): void {
+  const vv = window.visualViewport;
+  if (vv === null || document.activeElement !== root) {
+    return;
+  }
+  const domSelection = getDOMSelection(window);
+  if (
+    domSelection === null ||
+    domSelection.rangeCount === 0 ||
+    !domSelection.isCollapsed ||
+    !root.contains(domSelection.anchorNode)
+  ) {
+    return;
+  }
+  const rect = getCaretClientRect(domSelection.getRangeAt(0));
+  if (rect === null) {
+    return;
+  }
+  // getBoundingClientRect is in layout-viewport coordinates; the keyboard only
+  // shrinks the visual viewport.
+  const visibleTop = vv.offsetTop;
+  const visibleBottom = vv.offsetTop + vv.height - REVEAL_MARGIN;
+  let diff = 0;
+  if (rect.bottom > visibleBottom) {
+    diff = rect.bottom - visibleBottom;
+  } else if (rect.top < visibleTop) {
+    diff = rect.top - visibleTop;
+  }
+  if (diff !== 0) {
+    window.scrollBy(0, diff);
+    log.add(
+      'fix',
+      `revealed caret: scrollBy ${Math.round(diff)} (caret bottom ${Math.round(rect.bottom)}, visible bottom ${Math.round(visibleBottom)})`,
+    );
+  }
+}
+
 function registerCandidateFixes(
   editor: LexicalEditor,
   log: ProbeLog,
@@ -539,7 +605,11 @@ function registerCandidateFixes(
         if (getDecoratorTarget(event.target, root) === null) {
           return;
         }
-        if (mode === 'no-focus' || mode === 'no-focus+blur') {
+        if (
+          mode === 'no-focus' ||
+          mode === 'no-focus+blur' ||
+          mode === 'no-focus+reveal'
+        ) {
           event.preventDefault();
           log.add('fix', 'mousedown prevented (no focus)');
         } else if (mode === 'focus-prevent-scroll') {
@@ -596,6 +666,13 @@ function registerCandidateFixes(
           passive: true,
         }),
         () => clearInputMode(root),
+        window.visualViewport
+          ? registerEventListener(window.visualViewport, 'resize', () => {
+              if (getMode() === 'no-focus+reveal') {
+                revealCaretAboveKeyboard(root, log);
+              }
+            })
+          : () => {},
       );
     }),
     editor.registerUpdateListener(({editorState}) => {
