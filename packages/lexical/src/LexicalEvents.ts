@@ -565,7 +565,16 @@ function onClick(event: PointerEvent, editor: LexicalEditor): void {
           domSelection.removeAllRanges();
           selection.dirty = true;
         }
-      } else if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      } else if (
+        event.pointerType === 'touch' ||
+        event.pointerType === 'pen' ||
+        // iOS reports the click that follows a tap with pointerType 'mouse',
+        // and fires it before the selectionchange for the caret the tap just
+        // placed. Without this, the NodeSelection survives into CLICK_COMMAND,
+        // where rich text clears it and the reconciler removes that caret, so
+        // the keyboard opens with no caret to reveal and the page jumps.
+        IS_IOS
+      ) {
         // This is used to update the selection on touch devices (including Apple Pencil) when the user clicks on text after a
         // node selection. See isSelectionChangeFromMouseDown for the inverse
         const domSelectionPoints = getDOMSelectionPoints(
