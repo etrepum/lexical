@@ -11,14 +11,23 @@ import {namedSignals} from '@lexical/extension';
 import invariant from '@lexical/internal/invariant';
 import {
   applyUpdate,
+  createContentAttribute,
+  createContentMapFromContentIds,
   createRelativePositionFromTypeIndex,
   DiffRenderer,
   encodeStateAsUpdate,
+  intersectUpdateWithContentIds,
+  mergeContentMaps,
   type Node as YNode,
+  UndoManager,
 } from '@y/y';
 import {defineExtension, safeCast} from 'lexical';
 
+import {getSuggestionGroups} from './Suggestions';
+import {acceptYAttributions} from './YAttributionExtension';
 import {YExtension} from './YExtension';
+
+export type {YSuggestion} from './Suggestions';
 
 export interface YSuggestionsConfig {
   /** The accepted document's binding. The extension's own binding edits a fork. */
@@ -56,14 +65,53 @@ export const YSuggestionsExtension = defineExtension({
       );
       return renderer;
     };
+    const groups = () => getSuggestionGroups(binding, base, current());
+    const groupByID = (id: string) => {
+      const group = groups().find(candidate => candidate.suggestion.id === id);
+      invariant(
+        group !== undefined,
+        '@lexical/y: suggestion is no longer pending',
+      );
+      return group;
+    };
     return {
       ...output,
-      /** Accept the entire proposal atomically, including structural dependencies. */
-      accept() {
-        base.transact(() => current().acceptAllChanges());
+      /** Accept one dependency group, or the entire proposal when no ID is supplied. */
+      accept(id?: string) {
+        if (id === undefined) {
+          base.transact(() => current().acceptAllChanges());
+          return;
+        }
+        const group = groupByID(id);
+        const update = intersectUpdateWithContentIds(
+          encodeStateAsUpdate(binding.doc),
+          group,
+        );
+        base.transact(() => {
+          applyUpdate(base.doc, update);
+          acceptYAttributions(binding, base, group);
+        });
       },
 
-      getDelta: () => binding.root.toDeltaDeep({renderer: current()}),
+      getDelta() {
+        const attributions = mergeContentMaps(
+          groups().map(group =>
+            createContentMapFromContentIds(
+              group,
+              [createContentAttribute('suggestion', group.suggestion.id)],
+              [createContentAttribute('suggestion', group.suggestion.id)],
+            ),
+          ),
+        );
+        const view = new DiffRenderer(base.doc, binding.doc, {attributions});
+        try {
+          return binding.root.toDeltaDeep({renderer: view});
+        } finally {
+          view.destroy();
+        }
+      },
+
+      getSuggestions: () => groups().map(group => group.suggestion),
 
       /** @internal */
       register() {
@@ -84,8 +132,26 @@ export const YSuggestionsExtension = defineExtension({
       },
 
       /** Reject through Yjs so concurrent base changes remain present in the fork. */
-      reject() {
-        current().rejectAllChanges();
+      reject(id?: string) {
+        if (id === undefined) {
+          current().rejectAllChanges();
+          return;
+        }
+        const group = groupByID(id);
+        const update = intersectUpdateWithContentIds(
+          encodeStateAsUpdate(binding.doc),
+          group,
+        );
+        base.doc.transact(() => {
+          applyUpdate(base.doc, update);
+          const undo = new UndoManager(base.doc);
+          try {
+            undo.undoStack.push({...group, meta: new Map()});
+            undo.undo();
+          } finally {
+            undo.destroy();
+          }
+        });
       },
     };
   },

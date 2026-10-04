@@ -115,3 +115,60 @@ details pre {
 .table-selection *::selection {
   background: transparent;
 }
+
+.tracked-changes {
+  padding: 1rem;
+  border: 1px solid #ccd2dc;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.tracked-changes p {
+  margin: 0 0 0.5rem;
+}
+.tracked-changes table {
+  border-collapse: collapse;
+}
+.tracked-changes td {
+  border: 1px solid #b9c2cf;
+  min-width: 3rem;
+  padding: 0.4rem;
+}
+.review-inserted {
+  background: #dcfce7;
+  color: #14532d;
+  text-decoration: underline;
+}
+.review-deleted {
+  background: #fee2e2;
+  color: #991b1b;
+  text-decoration: line-through;
+}
+.review-formatted,
+.review-property {
+  background: #fef3c7;
+  border-bottom: 2px dotted #92400e;
+}
+.review-property {
+  font-size: 0.8rem;
+  margin: 0 0.3rem;
+}
+.review-focused {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.suggestion-list {
+  list-style: none;
+  padding: 0;
+}
+.suggestion-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+}
+.suggestion-list li > span {
+  flex: 1;
+  min-width: 12rem;
+  white-space: pre-wrap;
+}

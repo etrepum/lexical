@@ -11,6 +11,14 @@ import {
   getExtensionDependencyFromEditor,
 } from '@lexical/extension';
 import {
+  $createTableNodeWithDimensions,
+  $insertTableRowAtNode,
+  registerTablePlugin,
+  type TableCellNode,
+  type TableNode,
+  type TableRowNode,
+} from '@lexical/table';
+import {
   compareYCheckpoints,
   createYDocumentView,
   YAttributionExtension,
@@ -19,6 +27,7 @@ import {
   YSuggestionsExtension,
   YVersionsExtension,
 } from '@lexical/y';
+import {YTableSelectionExtension} from '@lexical/y/table';
 import * as Y from '@y/y';
 import {
   $createParagraphNode,
@@ -43,6 +52,7 @@ function base(gc = false) {
       dependencies: [
         configExtension(YExtension, {root: doc.get('root')}),
         YHistoryExtension,
+        YTableSelectionExtension,
         YVersionsExtension,
         configExtension(YAttributionExtension, {
           author: 'Alice',
@@ -50,6 +60,7 @@ function base(gc = false) {
         }),
       ],
       name: 'review-base',
+      register: tableEditor => registerTablePlugin(tableEditor),
     }),
   );
   onTestFinished(() => {
@@ -82,9 +93,15 @@ function proposal(gc = false) {
       dependencies: [
         configExtension(YExtension, {root: view.root}),
         configExtension(YSuggestionsExtension, {base: main.binding}),
+        configExtension(YAttributionExtension, {
+          author: 'Reviewer',
+          storage: view.doc.get('authors'),
+        }),
         YHistoryExtension,
+        YTableSelectionExtension,
       ],
       name: 'proposal',
+      register: tableEditor => registerTablePlugin(tableEditor),
     }),
   );
   onTestFinished(() => {
@@ -221,6 +238,10 @@ test('resumed proposals include accepted edits missed while offline and detach o
       dependencies: [
         configExtension(YExtension, {root: view.root}),
         configExtension(YSuggestionsExtension, {base: main.binding}),
+        configExtension(YAttributionExtension, {
+          author: 'Reviewer',
+          storage: view.doc.get('authors'),
+        }),
       ],
       name: 'resumed-proposal',
     }),
@@ -233,3 +254,285 @@ test('resumed proposals include accepted edits missed while offline and detach o
   expect(Y.encodeStateAsUpdate(view.doc)).toEqual(saved);
   view.dispose();
 });
+
+test('individual text suggestions accept out of order, reject independently, and undo acceptance', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 0, 'first '),
+  );
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(11, 0, ' last'),
+  );
+  const changes = suggestions.getSuggestions();
+  expect(changes).toHaveLength(2);
+  suggestions.accept(
+    changes.find(change => change.insertedText === ' last')!.id,
+  );
+  expect(text(main.editor)).toBe('hello last');
+  expect(text(editor)).toBe('first hello last');
+  suggestions.reject(suggestions.getSuggestions()[0].id);
+  expect(text(editor)).toBe('hello last');
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+  main.history.undo();
+  expect(text(main.editor)).toBe('hello');
+});
+
+test('individual structural suggestions include node stores, placements and shared references', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() =>
+    $getRoot().append(
+      $createParagraphNode().append($createTextNode('new paragraph')),
+    ),
+  );
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(
+      0,
+      0,
+      'unrelated ',
+    ),
+  );
+  const structural = suggestions
+    .getSuggestions()
+    .find(change => change.kind === 'structure')!;
+  suggestions.accept(structural.id);
+  expect(text(main.editor)).toBe('hello\n\nnew paragraph');
+  expect(text(editor)).toBe('unrelated hello\n\nnew paragraph');
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  expect(main.binding.error.value).toBeNull();
+});
+
+test('inline delta identifies pending insertions and deletions by suggestion', () => {
+  const {editor, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 2, 'HE'),
+  );
+  const delta = JSON.stringify(suggestions.getDelta());
+  expect(delta).toContain('suggestion');
+  expect(delta).toContain('delete');
+  expect(delta).toContain('insert');
+  for (const suggestion of suggestions.getSuggestions())
+    expect(delta).toContain(suggestion.id);
+});
+
+test.each(['accept', 'reject'] as const)(
+  'individual replacement %s preserves unrelated edits',
+  action => {
+    const {main, editor, suggestions} = proposal();
+    editor.update(() =>
+      ($getRoot().getFirstDescendant() as TextNode).spliceText(1, 2, 'EE'),
+    );
+    editor.update(() =>
+      $getRoot().append(
+        $createParagraphNode().append($createTextNode('separate')),
+      ),
+    );
+    const replacement = suggestions
+      .getSuggestions()
+      .find(change => change.insertedText === 'EE')!;
+    expect(replacement.deletedText).toBe('el');
+    suggestions[action](replacement.id);
+    expect(text(main.editor)).toBe(action === 'accept' ? 'hEElo' : 'hello');
+    expect(text(editor)).toBe(
+      (action === 'accept' ? 'hEElo' : 'hello') + '\n\nseparate',
+    );
+    expect(suggestions.getSuggestions()).toHaveLength(1);
+  },
+);
+
+test('individual formatting changes preserve independent text and survive a concurrent base edit', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).toggleFormat('bold'),
+  );
+  editor.update(() =>
+    $getRoot().append(
+      $createParagraphNode().append($createTextNode('separate')),
+    ),
+  );
+  main.editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(5, 0, '!'),
+  );
+  const format = suggestions
+    .getSuggestions()
+    .find(change => change.kind === 'format')!;
+  suggestions.accept(format.id);
+  expect(
+    main.editor.read('latest', () =>
+      ($getRoot().getFirstDescendant() as TextNode).hasFormat('bold'),
+    ),
+  ).toBe(true);
+  expect(text(main.editor)).toBe('hello!');
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  expect(() => suggestions.accept(format.id)).toThrow('no longer pending');
+});
+
+test('individual acceptance retains proposal authorship without accepting other content', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 0, 'reviewed '),
+  );
+  editor.update(() =>
+    $getRoot().append(
+      $createParagraphNode().append($createTextNode('pending')),
+    ),
+  );
+  suggestions.accept(
+    suggestions
+      .getSuggestions()
+      .find(change => change.insertedText === 'reviewed ')!.id,
+  );
+  expect(text(main.editor)).toBe('reviewed hello');
+  expect(JSON.stringify(main.attribution.getDelta())).toContain('Reviewer');
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+});
+
+test('individual shared NodeState references include owned storage and survive acceptance undo', () => {
+  const {main, editor, suggestions} = proposal();
+  const state = createState('review-shared', {
+    parse: (value: unknown) => (value instanceof Y.Node ? value : null),
+  });
+  const shared = new Y.Node();
+  shared.insert(0, 'shared value');
+  editor.update(() => {
+    const paragraph = $createParagraphNode().append(
+      $createTextNode('with state'),
+    );
+    $setState(paragraph, state, shared);
+    $getRoot().append(paragraph);
+  });
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 0, 'pending '),
+  );
+  suggestions.accept(
+    suggestions.getSuggestions().find(change => change.kind === 'structure')!
+      .id,
+  );
+  main.editor.read('latest', () =>
+    expect($getState($getRoot().getLastChildOrThrow(), state)!.toString()).toBe(
+      'shared value',
+    ),
+  );
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  expect(main.binding.error.value).toBeNull();
+  main.history.undo();
+  expect(text(main.editor)).toBe('hello');
+  main.history.redo();
+  expect(text(main.editor)).toBe('hello\n\nwith state');
+});
+
+test('pending suggestions reconstruct from persisted proposal operations', () => {
+  const {main, editor, suggestions, view} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 0, 'first '),
+  );
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(11, 0, ' last'),
+  );
+  const expected = suggestions.getSuggestions();
+  const doc = new Y.Doc({gc: false, isSuggestionDoc: true});
+  Y.applyUpdate(doc, Y.encodeStateAsUpdate(view.doc));
+  const resumed = buildEditorFromExtensions(
+    configExtension(YExtension, {root: doc.get('root')}),
+    configExtension(YSuggestionsExtension, {base: main.binding}),
+  );
+  onTestFinished(() => {
+    resumed.dispose();
+    doc.destroy();
+  });
+  const review = getExtensionDependencyFromEditor(
+    resumed,
+    YSuggestionsExtension,
+  ).output;
+  expect(review.getSuggestions()).toEqual(expected);
+  review.accept(expected.find(change => change.insertedText === ' last')!.id);
+  expect(text(main.editor)).toBe('hello last');
+  expect(text(resumed)).toBe('first hello last');
+});
+
+test('restored CRDT content after proposal undo can be accepted without changing text', () => {
+  const {editor, history, suggestions} = proposal();
+  editor.update(() =>
+    ($getRoot().getFirstDescendant() as TextNode).spliceText(
+      1,
+      2,
+      'replacement',
+    ),
+  );
+  history.undo();
+  expect(text(editor)).toBe('hello');
+  for (const change of suggestions.getSuggestions())
+    suggestions.accept(change.id);
+  expect(text(editor)).toBe('hello');
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+});
+
+test('formatting runs with dependent boundary changes are reviewed together', () => {
+  const {main, editor, suggestions} = proposal();
+  editor.update(() => {
+    const [first, , last] = (
+      $getRoot().getFirstDescendant() as TextNode
+    ).splitText(1, 4);
+    first.toggleFormat('bold');
+    last.toggleFormat('italic');
+  });
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  suggestions.accept(suggestions.getSuggestions()[0].id);
+  expect(
+    main.editor.read('latest', () =>
+      ($getRoot().getFirstDescendant() as TextNode).hasFormat('bold'),
+    ),
+  ).toBe(true);
+  expect(
+    main.editor.read('latest', () =>
+      ($getRoot().getLastDescendant() as TextNode).hasFormat('italic'),
+    ),
+  ).toBe(true);
+  expect(text(main.editor)).toBe('hello');
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+  expect(main.binding.error.value).toBeNull();
+});
+
+test.each(['accept', 'reject'] as const)(
+  'table structure and dependent cell edits %s as one suggestion',
+  action => {
+    const {main, editor, suggestions} = proposal();
+    main.editor.update(() =>
+      $getRoot().append($createTableNodeWithDimensions(2, 2)),
+    );
+    editor.update(() => {
+      const table = $getRoot().getLastChildOrThrow<TableNode>();
+      const cell = table
+        .getFirstChildOrThrow<TableRowNode>()
+        .getFirstChildOrThrow<TableCellNode>();
+      $insertTableRowAtNode(cell, true);
+    });
+    editor.update(() => {
+      const table = $getRoot().getLastChildOrThrow<TableNode>();
+      const cell = table
+        .getLastChildOrThrow<TableRowNode>()
+        .getLastChildOrThrow<TableCellNode>();
+      cell
+        .getFirstChildOrThrow<import('lexical').ParagraphNode>()
+        .append($createTextNode('cell change'));
+      ($getRoot().getFirstDescendant() as TextNode).spliceText(
+        0,
+        0,
+        'unrelated ',
+      );
+    });
+    const changes = suggestions.getSuggestions();
+    expect(changes).toHaveLength(2);
+    suggestions[action](
+      changes.find(change => change.kind === 'structure')!.id,
+    );
+    expect(
+      main.editor.read('latest', () =>
+        $getRoot().getLastChildOrThrow<TableNode>().getChildrenSize(),
+      ),
+    ).toBe(action === 'accept' ? 3 : 2);
+    expect(text(main.editor).includes('cell change')).toBe(action === 'accept');
+    expect(text(main.editor)).not.toContain('unrelated');
+    expect(suggestions.getSuggestions()).toHaveLength(1);
+    expect(main.binding.error.value).toBeNull();
+  },
+);

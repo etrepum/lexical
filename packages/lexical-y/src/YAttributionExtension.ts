@@ -5,15 +5,19 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import type {YBinding} from './YBinding';
+
 import {namedSignals} from '@lexical/extension';
 import invariant from '@lexical/internal/invariant';
 import {
   AttributionsRenderer,
+  type ContentIds,
   type ContentMap,
   createContentAttribute,
   createContentMapFromContentIds,
   decodeContentMap,
   encodeContentMap,
+  intersectContentMap,
   mergeContentMaps,
   Node as YNode,
   type Transaction,
@@ -22,6 +26,36 @@ import {
 import {defineExtension, safeCast} from 'lexical';
 
 import {YExtension} from './YExtension';
+
+const attributionStorage = new WeakMap<YBinding, YNode>();
+
+/** @internal Copy only accepted operations' author records to the base. */
+export function acceptYAttributions(
+  proposal: YBinding,
+  base: YBinding,
+  changes: ContentIds,
+): void {
+  const source = attributionStorage.get(proposal);
+  const target = attributionStorage.get(base);
+  if (!source || !target) return;
+  const mask = createContentMapFromContentIds(changes, [], []);
+  const content = intersectContentMap(
+    mergeContentMaps(
+      Object.values(source.getAttrs()).map(value => {
+        invariant(
+          value instanceof Uint8Array,
+          '@lexical/y: invalid attribution record',
+        );
+        return decodeContentMap(value);
+      }),
+    ),
+    mask,
+  );
+  if (content.inserts.clients.size || content.deletes.clients.size) {
+    const key = `${base.doc.clientID}:${base.doc.store.getClock(base.doc.clientID)}`;
+    target.setAttr(key, encodeContentMap(content));
+  }
+}
 
 export interface YAttributionConfig {
   /** Application-owned metadata root, outside the editor root in the same Doc. */
@@ -102,7 +136,11 @@ export const YAttributionExtension = defineExtension({
       )
         output.revision.value++;
     };
+    attributionStorage.set(binding, storage);
     binding.doc.on('afterTransaction', record);
-    return () => binding.doc.off('afterTransaction', record);
+    return () => {
+      attributionStorage.delete(binding);
+      binding.doc.off('afterTransaction', record);
+    };
   },
 });

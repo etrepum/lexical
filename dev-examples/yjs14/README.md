@@ -68,3 +68,10 @@ Review uses native deep delta inspectors, not an inline tracked-changes theme.
 The package browser tests cover selection overlays and transformed containers;
 manual native IME/composition testing is still useful. The example is separate
 from the playground and has no React or Yjs 13 dependencies.
+
+The proposal editor has a separate inline tracked-changes view: green underlined
+insertions, red struck-through deletions, and highlighted formatting changes.
+Each pending group has Accept change and Reject change controls; focus or hover
+its row to highlight the corresponding inline content. Structural dependencies
+are reviewed together. Whole-proposal buttons remain available. Shared-value and
+custom-property changes appear in the review list and attributed delta.

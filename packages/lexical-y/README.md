@@ -383,19 +383,40 @@ For collaborative proposals, fork the current checkpoint with
 `configExtension(YSuggestionsExtension, {base: acceptedBinding})` to that editor.
 The proposal document must have `isSuggestionDoc: true` and `gc: false`.
 Accepted-document updates automatically reach the proposal; proposal edits stay
-separate. The output exposes `getDelta()`, a reactive `revision`, and whole-proposal
-`accept()`/`reject()`. Acceptance uses the accepted binding's undo origin, so
-`YHistoryExtension` can undo it. Proposal edits also have their own collaborative
-undo. Rejection preserves concurrent accepted changes using Yjs's native rejection
-operation; it is not an additional entry in the accepted editor's local undo.
+separate. The output exposes a reactive `revision`, `getSuggestions()`, and
+`getDelta()`. Review one pending group with `accept(id)` / `reject(id)`, or the
+entire proposal with `accept()` / `reject()`. Acceptance uses the accepted
+binding's undo origin, so `YHistoryExtension` can undo it. Proposal edits also
+have their own collaborative undo. Rejection preserves concurrent accepted
+changes and does not add an entry to the accepted editor's local undo.
 
-Review is document-wide, including shared values and attribution metadata, not
-just the supplied editor root. Use a dedicated document per proposal/review scope.
-Whole-proposal acceptance preserves dependencies among stored nodes, placements,
-formats and shared references. Native item-range accept/reject is deliberately not
-exposed: arbitrary ranges can leave those dependencies incomplete. The application
-owns proposal transport, persistence, permissions and the lifetime of both docs.
-Dispose the proposal editor before disposing its view or accepted binding.
+Undo can restore deleted content under new CRDT identities; native review may
+show that as a replacement even when the displayed text matches the base.
+
+A suggestion describes its `id`, `kind`, `insertedText`, and `deletedText`.
+Groups are reconstructed from CRDT operations, including after reload: related
+origins, formatting boundaries, node storage/placements, and shared references
+stay together. Structural or span changes to a table include all its pending
+changes, to avoid accepting an invalid intermediate table. Unrelated edits can
+be reviewed separately and in either order. IDs identify the current groups;
+re-read them after `revision` changes, since subsequent edits can join groups.
+An ID that no longer identifies a pending group throws.
+
+`getDelta()` includes native insertion, deletion and formatting attributions,
+plus `attribution.suggestion` identifying the corresponding review group.
+Render these in a separate review surface, or with decorations that do not write
+deleted text into the live editor. The standalone example shows inline inserted
+and deleted text, formatting highlights, and individual review buttons. Node
+properties and live shared values can use application-specific renderers.
+
+Whole-proposal review is document-wide, including shared values and metadata;
+use a dedicated document per proposal/review scope. Individual groups cover the
+binding root and its referenced shared types. When both bindings register
+`YAttributionExtension`, individual acceptance also copies the original authors'
+records for the accepted operations. Native arbitrary item ranges are not exposed:
+they can separate the flattened node store from its placements or references.
+The application owns proposal transport, persistence, permissions and both docs'
+lifetimes. Dispose the proposal editor before its view or accepted binding.
 
 `YAttributionExtension` takes `{storage, author}`, with an application-owned
 metadata Y.Node outside the editor root in the same document. It persists native

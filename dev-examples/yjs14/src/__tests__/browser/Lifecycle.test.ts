@@ -19,6 +19,7 @@ import {
   $setSelection,
   getEditorPropertyFromDOMNode,
   type LexicalEditor,
+  type TextNode,
 } from 'lexical';
 import {expect, onTestFinished, test} from 'vitest';
 
@@ -118,6 +119,31 @@ test('standalone example supports review, tables, comparison and collection in e
     action('alice-actions', 'Undo');
     expect(text('alice')).not.toContain('proposed');
     expect(text('alice')).toContain('accepted concurrently');
+    click('propose');
+    const beforeIndividual = text('alice');
+    editor('proposal').update(() =>
+      ($getRoot().getFirstDescendant() as TextNode).spliceText(0, 2, 'REVIEW'),
+    );
+    append('proposal', 'individual insertion');
+    expect(
+      element('tracked-changes').querySelector('ins')!.textContent,
+    ).toContain('REVIEW');
+    expect(element('tracked-changes').querySelector('del')!.textContent).toBe(
+      beforeIndividual.slice(0, 2),
+    );
+    const rows = [...element('suggestion-list').querySelectorAll('li')];
+    const insertion = rows.find(row =>
+      row.textContent!.includes('individual insertion'),
+    )!;
+    (insertion.querySelector('button') as HTMLButtonElement).click();
+    expect(text('alice')).toBe(beforeIndividual + '\n\nindividual insertion');
+    const replacement = [
+      ...element('suggestion-list').querySelectorAll('li'),
+    ].find(row => row.textContent!.includes('REVIEW'))!;
+    (replacement.querySelectorAll('button')[1] as HTMLButtonElement).click();
+    expect(text('proposal')).toBe(text('alice'));
+    expect(element('suggestion-list').textContent).toBe('No pending changes.');
+    expect(element('tracked-changes').querySelector('del')).toBeNull();
     click('propose');
     append('proposal', 'rejected');
     click('reject');

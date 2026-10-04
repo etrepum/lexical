@@ -47,6 +47,7 @@ export {
   YProviderExtension,
 } from './YProviderExtension';
 export {
+  type YSuggestion,
   type YSuggestionsConfig,
   YSuggestionsExtension,
 } from './YSuggestionsExtension';

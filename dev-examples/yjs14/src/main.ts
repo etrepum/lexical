@@ -48,6 +48,8 @@ import {
   UNDO_COMMAND,
 } from 'lexical';
 
+import {renderReview} from './review';
+
 const element = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 const mode = element<HTMLSelectElement>('mode');
@@ -140,6 +142,15 @@ function textChange(before: string, after: string) {
 
 function startSession() {
   disposeSession();
+  for (const id of [
+    'proposal',
+    'tracked-changes',
+    'suggestion-list',
+    'proposal-delta',
+    'historical',
+    'comparison',
+  ])
+    element(id).replaceChildren();
   allowGC.checked = false;
   const selectedMode = mode.value;
   const docs = [0, 1].map(
@@ -438,10 +449,18 @@ function startSession() {
     ).output;
     stopReview = effect(() => {
       void review.revision.value;
-      element('proposal-delta').textContent = JSON.stringify(
-        review.getDelta(),
-        null,
-        2,
+      const delta = review.getDelta();
+      element('proposal-delta').textContent = JSON.stringify(delta, null, 2);
+      renderReview(
+        element('tracked-changes'),
+        element('suggestion-list'),
+        delta,
+        review.getSuggestions(),
+        (id, accept) => {
+          histories[0].stopCapturing();
+          if (accept) review.accept(id);
+          else review.reject(id);
+        },
       );
     });
     action('accept', () => {

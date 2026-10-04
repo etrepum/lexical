@@ -109,6 +109,7 @@ declare export function registerYSelectionCodec(binding: YBinding, codec: YSelec
 export type YCheckpoint = {update: Uint8Array, root: RelativePosition};
 export type YDocumentView = {doc: Doc, root: YNode, dispose(): void};
 export type YAttributionConfig = {storage: YNode | null, author: string};
+export type YSuggestion = {id: string, kind: 'text' | 'format' | 'property' | 'structure', insertedText: string, deletedText: string};
 export type YSuggestionsConfig = {base: YBinding | null};
 declare export function createYDocumentView(checkpoint: YCheckpoint, suggestion?: boolean): YDocumentView;
 declare export function compareYCheckpoints(before: YCheckpoint, after: YCheckpoint): {
@@ -117,7 +118,7 @@ declare export function compareYCheckpoints(before: YCheckpoint, after: YCheckpo
 };
 declare export var YVersionsExtension: LexicalExtension<{}, '@lexical/y/Versions', {capture(): YCheckpoint}, void>;
 declare export var YSuggestionsExtension: LexicalExtension<YSuggestionsConfig, '@lexical/y/Suggestions', {
-  revision: Signal<number>, accept(): void, reject(): void, getDelta(): Delta, register(): () => void,
+  revision: Signal<number>, accept(id?: string): void, reject(id?: string): void, getSuggestions(): YSuggestion[], getDelta(): Delta, register(): () => void,
 }, void>;
 declare export var YAttributionExtension: LexicalExtension<YAttributionConfig, '@lexical/y/Attribution', {
   author: Signal<string>, revision: Signal<number>, getAttributions(): ContentMap, getDelta(): Delta,

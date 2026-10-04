@@ -101,8 +101,10 @@
         <button id="accept">Accept proposal</button>
         <button id="reject">Reject proposal</button>
         <p>
-          Base edits continue to reach the proposal. Accept/reject applies to
-          the entire proposal, including table structure and shared values.
+          Edit the proposal, then review individual changes below. Related
+          structure is reviewed together to keep tables, nodes and shared values
+          valid. Base edits continue to reach the proposal. The buttons above
+          review the entire proposal.
         </p>
         <div
           class="editor"
@@ -110,6 +112,19 @@
           role="textbox"
           aria-label="Proposal editor"
           aria-multiline="true"></div>
+        <h3>Inline tracked changes</h3>
+        <p>
+          Insertions are green and underlined; deletions are red and struck
+          through. Formatting changes are highlighted.
+        </p>
+        <div
+          class="tracked-changes"
+          id="tracked-changes"
+          aria-label="Tracked changes"></div>
+        <ol
+          class="suggestion-list"
+          id="suggestion-list"
+          aria-label="Pending changes"></ol>
         <details>
           <summary>Yjs attributed proposal delta</summary>
           <pre id="proposal-delta"></pre>
