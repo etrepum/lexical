@@ -1702,6 +1702,9 @@ importers:
       '@lexical/selection':
         specifier: workspace:*
         version: link:../lexical-selection
+      '@lexical/table':
+        specifier: workspace:*
+        version: link:../lexical-table
       lexical:
         specifier: workspace:*
         version: link:../lexical
@@ -1712,9 +1715,6 @@ importers:
         specifier: '>=5.2'
         version: 6.0.3
     devDependencies:
-      '@lexical/table':
-        specifier: workspace:*
-        version: link:../lexical-table
       '@y/protocols':
         specifier: 1.0.6-rc.1
         version: 1.0.6-rc.1(@y/y@14.0.0-rc.26)

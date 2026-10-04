@@ -74,6 +74,7 @@ function createEditor(
         defineExtension({
           name: 'yjs14-example/mount',
           register: mountedEditor => {
+            mount.contentEditable = String(editable);
             mountedEditor.setEditable(editable);
             mountedEditor.setRootElement(mount);
             return () => mountedEditor.setRootElement(null);
@@ -412,4 +413,7 @@ function start() {
 }
 element('reset').onclick = start;
 start();
-if (import.meta.hot) import.meta.hot.dispose(() => disposeSession());
+export function disposeExample() {
+  disposeSession();
+}
+if (import.meta.hot) import.meta.hot.dispose(disposeExample);

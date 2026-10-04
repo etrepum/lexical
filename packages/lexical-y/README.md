@@ -345,7 +345,8 @@ identities. Local history/remote reconciliation uses a nearby range fallback if
 all members disappear. Remote presence disappears instead of inventing a caret.
 
 Import `YTableSelectionExtension` from `@lexical/y/table` for TableSelection.
-`@lexical/table` is an optional peer and is not imported by the base entry point.
+`@lexical/table` follows the monorepo's matching-version dependency convention;
+its code is not imported by the base entry point.
 Table bookmarks keep table/cell identities, row boundaries and logical columns;
 a removed endpoint resolves to a nearby surviving cell, accounting for spans.
 The extension registers table nodes and deterministic projection repairs for
