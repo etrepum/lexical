@@ -1166,6 +1166,8 @@ export class LexicalEditor {
   /** @internal */
   _cascadeCount: number;
   /** @internal */
+  _synchronousUpdates: number;
+  /** @internal */
   _listeners: Listeners;
   /** @internal */
   _commands: Commands;
@@ -1253,6 +1255,7 @@ export class LexicalEditor {
     this._updates = [];
     this._updating = false;
     this._cascadeCount = 0;
+    this._synchronousUpdates = 0;
     // Listeners
     this._listeners = {
       decorator: new Map(),
@@ -1309,10 +1312,29 @@ export class LexicalEditor {
    * each time the editor goes through an update (via {@link LexicalEditor.update}) until the
    * teardown function is called.
    *
+   * With `synchronous: true`, updates commit before returning while the listener
+   * is registered, including updates that skip transforms. Nested updates still
+   * join their containing update. This disables microtask batching.
+   *
    * @returns a teardown function that can be used to cleanup the listener.
    */
-  registerUpdateListener(listener: UpdateListener): () => void {
-    return registerListener(this._listeners.update, listener);
+  registerUpdateListener(
+    listener: UpdateListener,
+    options?: {synchronous?: boolean},
+  ): () => void {
+    const unregister = registerListener(this._listeners.update, listener);
+    if (!options || !options.synchronous) return unregister;
+    // External mutable models must observe each completed update before
+    // another synchronous event can change their source of truth.
+    this._synchronousUpdates++;
+    let active = true;
+    return () => {
+      if (active) {
+        active = false;
+        this._synchronousUpdates--;
+        unregister();
+      }
+    };
   }
   /**
    * Registers a listener for when the editor changes between editable and non-editable states.

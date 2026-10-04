@@ -216,3 +216,23 @@ describe('LexicalEditor listeners', () => {
     });
   });
 });
+
+test('synchronous update subscriptions compose and restore batching after cleanup', () => {
+  using editor = buildEditorFromExtensions({name: 'sync-listener-test'});
+  const first = vi.fn();
+  const second = vi.fn();
+  const offFirst = editor.registerUpdateListener(first, {synchronous: true});
+  const offSecond = editor.registerUpdateListener(second, {synchronous: true});
+  editor.update(() => $getRoot().clear().append($createParagraphNode()));
+  expect(first).toHaveBeenCalledTimes(1);
+  offFirst();
+  offFirst();
+  editor.update(() => $getRoot().append($createParagraphNode()), {
+    skipTransforms: true,
+  });
+  expect(second).toHaveBeenCalledTimes(2);
+  offSecond();
+  editor.update(() => $getRoot().append($createParagraphNode()));
+  expect(editor.read('latest', () => $getRoot().getChildrenSize())).toBe(2);
+  expect(editor.read(() => $getRoot().getChildrenSize())).toBe(3);
+});
