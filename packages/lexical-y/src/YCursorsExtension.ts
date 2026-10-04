@@ -183,17 +183,21 @@ export const YCursorsExtension = defineExtension({
               });
               overlay.append(highlight);
             }
-            if (!caretRect || caretRect.height === 0) continue;
+            const labelRect =
+              caretRect && caretRect.height > 0 ? caretRect : rects[0];
+            if (!labelRect) continue;
             const caret = doc.createElement('div');
-            caret.className = 'lexical-y-caret';
+            caret.className = caretRect
+              ? 'lexical-y-caret'
+              : 'lexical-y-selection-label';
             caret.dataset.clientId = String(id);
             Object.assign(caret.style, {
               backgroundColor: presence.user.color,
-              height: `${caretRect.height}px`,
-              left: `${caretRect.left}px`,
+              height: `${caretRect ? labelRect.height : 0}px`,
+              left: `${labelRect.left}px`,
               position: 'absolute',
-              top: `${caretRect.top}px`,
-              width: '2px',
+              top: `${labelRect.top}px`,
+              width: caretRect ? '2px' : '0',
             });
             const label = doc.createElement('span');
             label.className = 'lexical-y-label';

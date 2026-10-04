@@ -342,6 +342,9 @@ test.each(['node', 'table'])(
     expect(document.querySelectorAll('.lexical-y-highlight')).toHaveLength(
       kind === 'node' ? 1 : 4,
     );
+    expect(
+      document.querySelector('.lexical-y-selection-label')!.textContent,
+    ).toBe('Peer');
     for (const highlight of document.querySelectorAll('.lexical-y-highlight'))
       expect(highlight.getBoundingClientRect().width).toBeGreaterThan(0);
     editor.update(() => $getRoot().clear());

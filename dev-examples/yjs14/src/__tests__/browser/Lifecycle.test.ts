@@ -7,9 +7,16 @@
  */
 
 import {
+  $createTableSelectionFrom,
+  type TableCellNode,
+  type TableNode,
+  type TableRowNode,
+} from '@lexical/table';
+import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $setSelection,
   getEditorPropertyFromDOMNode,
   type LexicalEditor,
 } from 'lexical';
@@ -46,8 +53,60 @@ test('standalone example supports review, tables, comparison and collection in e
     expect(element('alice').isContentEditable).toBe(true);
     expect(element('bob').isContentEditable).toBe(true);
     expect(text('alice')).toBe(text('bob'));
+    const aliceValue = element('alice-shared-value') as HTMLTextAreaElement;
+    const bobValue = element('bob-shared-value') as HTMLTextAreaElement;
+    const editValue = (input: HTMLTextAreaElement, value: string) => {
+      input.value = value;
+      input.dispatchEvent(
+        new InputEvent('input', {bubbles: true, inputType: 'insertText'}),
+      );
+    };
+    expect(aliceValue.disabled).toBe(true);
+    action('alice-actions', 'Add shared value');
+    expect(aliceValue.value).toBe('Shared text');
+    expect(bobValue.value).toBe('Shared text');
+    expect(bobValue.disabled).toBe(false);
+    editValue(aliceValue, 'Shared text!');
+    expect(bobValue.value).toBe('Shared text!');
+    action('alice-actions', 'Undo');
+    expect(aliceValue.value).toBe('Shared text');
+    expect(bobValue.value).toBe('Shared text');
+    action('alice-actions', 'Redo');
+    expect(bobValue.value).toBe('Shared text!');
+    click('connection');
+    editValue(aliceValue, 'Alice Shared text!');
+    editValue(bobValue, 'Shared text! Bob');
+    expect(aliceValue.value).toBe('Alice Shared text!');
+    click('connection');
+    expect(aliceValue.value).toBe('Alice Shared text! Bob');
+    expect(bobValue.value).toBe(aliceValue.value);
+    action('alice-actions', 'Release shared value');
+    expect(aliceValue.disabled).toBe(true);
+    expect(bobValue.value).toBe('');
+    action('alice-actions', 'Undo');
+    expect(bobValue.disabled).toBe(false);
+    expect(bobValue.value).toBe('Alice Shared text! Bob');
     action('alice-actions', 'Insert table');
     expect(element('bob').querySelector('table')).not.toBeNull();
+    editor('alice').update(() => {
+      const table = $getRoot().getLastChildOrThrow<TableNode>();
+      const first = table
+        .getFirstChildOrThrow<TableRowNode>()
+        .getFirstChildOrThrow<TableCellNode>();
+      const last = table
+        .getLastChildOrThrow<TableRowNode>()
+        .getLastChildOrThrow<TableCellNode>();
+      $setSelection($createTableSelectionFrom(table, first, last));
+    });
+    expect(
+      element('alice').querySelectorAll('.table-cell-selected'),
+    ).toHaveLength(9);
+    const selectedCell = element('alice').querySelector(
+      '.table-cell-selected',
+    )!;
+    expect(getComputedStyle(selectedCell).backgroundColor).toBe(
+      'rgb(199, 221, 255)',
+    );
     click('propose');
     expect(element('proposal').querySelector('table')).not.toBeNull();
     append('proposal', 'proposed');

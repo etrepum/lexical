@@ -363,7 +363,8 @@ exactly the table either author saw locally, but peers project the same state.
 untrusted payloads in `resolve` and return null for unavailable targets. Optional
 `getNodesForHighlight` limits the DOM nodes highlighted by `YCursorsExtension`.
 Dispose the registration with the owning extension. Unknown kinds are ignored.
-Node and table selections render highlights; carets/labels are for ranges.
+Node and table selections render highlights and a name label at the first highlighted
+node. Range selections render a caret with their name label.
 
 ## Proposals, attribution and checkpoints
 

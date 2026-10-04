@@ -106,12 +106,39 @@ function createEditor(
           : []),
       ],
       name: 'yjs14-dev-example',
+      theme: {
+        tableCellSelected: 'table-cell-selected',
+        tableScrollableWrapper: 'table-scroll',
+        tableSelection: 'table-selection',
+      },
     }),
   );
   return editor;
 }
 
-function start() {
+/** Apply the changed span so independent edits keep their CRDT identities. */
+function textChange(before: string, after: string) {
+  let start = 0;
+  while (
+    start < before.length &&
+    start < after.length &&
+    before[start] === after[start]
+  )
+    start++;
+  let end = before.length;
+  let nextEnd = after.length;
+  while (
+    end > start &&
+    nextEnd > start &&
+    before[end - 1] === after[nextEnd - 1]
+  ) {
+    end--;
+    nextEnd--;
+  }
+  return {end, insert: after.slice(start, nextEnd), start};
+}
+
+function startSession() {
   disposeSession();
   allowGC.checked = false;
   const selectedMode = mode.value;
@@ -239,6 +266,7 @@ function start() {
   const action = (id: string, callback: () => void) => {
     element(id).onclick = () => report(callback);
   };
+  const sharedValueCleanups: (() => void)[] = [];
   editors.forEach((editor, i) => {
     const binding = getExtensionDependencyFromEditor(editor, YExtension).output
       .binding;
@@ -257,25 +285,65 @@ function start() {
         $getRoot().append($createTableNodeWithDimensions(3, 3)),
       ),
     );
-    button('Add shared note', () => {
+    const peer = i === 0 ? 'alice' : 'bob';
+    const input = element<HTMLTextAreaElement>(`${peer}-shared-value`);
+    const sharedStatus = element(`${peer}-shared-status`);
+    const renderSharedValue = () => {
+      const value = getNote();
+      input.disabled = !value;
+      const text = value ? value.toString() : '';
+      if (input.value !== text) {
+        const {start, end, insert} = textChange(input.value, text);
+        input.setRangeText(insert, start, end, 'preserve');
+      }
+      sharedStatus.textContent = value
+        ? 'Live shared text. Edits synchronize with the other peer; Undo and Redo apply here too.'
+        : 'No shared value attached.';
+    };
+    input.oninput = () =>
+      report(() => {
+        const value = getNote();
+        if (!value) return;
+        const {start, end, insert} = textChange(value.toString(), input.value);
+        binding.transact(() => {
+          if (end > start) value.delete(start, end - start);
+          if (insert) value.insert(start, insert);
+        });
+      });
+    input.onfocus = input.onblur = () => histories[i].stopCapturing();
+    input.onkeydown = event => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      event.preventDefault();
+      editor.dispatchCommand(
+        key === 'y' || event.shiftKey ? REDO_COMMAND : UNDO_COMMAND,
+        undefined,
+      );
+    };
+    sharedValueCleanups.push(
+      editor.registerUpdateListener(renderSharedValue),
+      () => {
+        input.oninput = input.onfocus = input.onblur = input.onkeydown = null;
+      },
+    );
+    renderSharedValue();
+    button('Add shared value', () => {
       if (getNote())
-        throw new Error('This document already has a shared note.');
+        throw new Error('This document already has a shared value.');
+      histories[i].stopCapturing();
       const value = new Y.Node();
-      value.insert(0, 'Shared note');
+      value.insert(0, 'Shared text');
       editor.update(() => $setState($getRoot(), noteState, value));
+      histories[i].stopCapturing();
     });
-    button('Edit shared note', () => {
+    button('Release shared value', () => {
       const value = getNote();
-      if (!value) throw new Error('Add a shared note first.');
-      binding.transact(() => value.insert(value.length, '!'));
-      status.textContent = value.toString();
-    });
-    button('Release shared note', () => {
-      const value = getNote();
-      if (!value) throw new Error('Add a shared note first.');
+      if (!value) throw new Error('Add a shared value first.');
       histories[i].stopCapturing();
       editor.update(() => $setState($getRoot(), noteState, undefined));
       binding.releaseSharedType(value);
+      histories[i].stopCapturing();
       status.textContent =
         'Reference removed and shared value released. Undo restores both.';
     });
@@ -396,6 +464,7 @@ function start() {
   element('connection').textContent = 'Disconnect peers';
   refresh();
   disposeSession = () => {
+    sharedValueCleanups.forEach(cleanup => cleanup());
     stopAttribution();
     stopReview();
     if (proposalEditor) proposalEditor.dispose();
@@ -411,8 +480,8 @@ function start() {
     docs.forEach(doc => doc.destroy());
   };
 }
-element('reset').onclick = start;
-start();
+element('reset').onclick = startSession;
+startSession();
 export function disposeExample() {
   disposeSession();
 }

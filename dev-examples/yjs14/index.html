@@ -32,6 +32,18 @@
             role="textbox"
             aria-label="Alice editor"
             aria-multiline="true"></div>
+          <label class="shared-value" for="alice-shared-value">
+            Shared value
+            <textarea
+              id="alice-shared-value"
+              disabled
+              placeholder="Add a shared value to edit it here."
+              rows="3"></textarea>
+          </label>
+          <p
+            class="shared-status"
+            id="alice-shared-status"
+            aria-live="polite"></p>
           <div class="actions" id="alice-actions"></div>
         </section>
         <section>
@@ -42,6 +54,18 @@
             role="textbox"
             aria-label="Bob editor"
             aria-multiline="true"></div>
+          <label class="shared-value" for="bob-shared-value">
+            Shared value
+            <textarea
+              id="bob-shared-value"
+              disabled
+              placeholder="Add a shared value to edit it here."
+              rows="3"></textarea>
+          </label>
+          <p
+            class="shared-status"
+            id="bob-shared-status"
+            aria-live="polite"></p>
           <div class="actions" id="bob-actions"></div>
         </section>
       </div>

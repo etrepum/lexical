@@ -35,9 +35,12 @@ pnpm --dir dev-examples/yjs14 build
    source content and may be incomplete/unavailable after collection; full
    checkpoints do not depend on the live document retaining that content.
 
-Each editor also has shared-note actions. Add a live Y.Node in root NodeState,
-mutate it, then remove its reference and release its binding-owned storage. Undo
-restores the reference and value together. The storage readout shows live shared
+Each peer has a visible **Shared value** text area. Click **Add shared value**,
+then edit either text area and observe the other peer update. Disconnect and edit
+different parts before reconnecting to see the text merge. Undo/Redo also apply
+to these edits. **Release shared value** removes its root NodeState reference and
+binding-owned storage; both text areas become disabled. Undo restores the reference
+and contents together. The storage readout shows live shared
 values separately from document nodes.
 
 Changing the retention dropdown takes effect when starting a fresh session.
