@@ -264,7 +264,15 @@ export function getSuggestionGroups(
       if (!(item.content instanceof ContentFormat)) continue;
       const {key, value} = item.content;
       // Boundaries distinguish adjacent Lexical nodes; they are not style runs.
-      if (key === 'boundary') continue;
+      if (
+        key === 'boundary' &&
+        type.name === null &&
+        type._item &&
+        type._item.parent === binding.root &&
+        typeof type._item.parentSub === 'string' &&
+        type._item.parentSub.startsWith('tree:node:')
+      )
+        continue;
       const state = formats.get(key) || {base: null, open: -1, proposed: null};
       const differed = !equalValue(state.base, state.proposed);
       if (!inserts.hasId(item.id) && (!item.deleted || deletes.hasId(item.id)))

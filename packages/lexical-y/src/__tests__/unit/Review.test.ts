@@ -818,3 +818,21 @@ test.each(['accept', 'reject'] as const)(
     expect(main.binding.error.value).toBeNull();
   },
 );
+
+test('application shared-text boundary formatting remains a complete review run', () => {
+  const {main, editor, suggestions} = proposal();
+  const state = createState('custom-formatted-shared', {
+    parse: (value: unknown) => (value instanceof Y.Node ? value : null),
+  });
+  const shared = new Y.Node();
+  shared.insert(0, 'hello');
+  main.editor.update(() => $setState($getRoot(), state, shared));
+  const value = editor.read('latest', () => $getState($getRoot(), state)!);
+  const binding = getExtensionDependencyFromEditor(editor, YExtension).output
+    .binding;
+  binding.transact(() => value.format(1, 2, {boundary: 'emphasis'}));
+  expect(suggestions.getSuggestions()).toHaveLength(1);
+  suggestions.accept(suggestions.getSuggestions()[0].id);
+  expect(shared.toDelta()).toEqual(value.toDelta());
+  expect(suggestions.getSuggestions()).toHaveLength(0);
+});
