@@ -114,6 +114,7 @@ import {
   $getAdjacentNode,
   $getDOMTextNode,
   $getNodeByKey,
+  $isEventFromEmbeddedInput,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $setSelection,
@@ -1895,7 +1896,13 @@ function buildKeyDownShortcuts(): KeyDownShortcut[] {
     modifiers: CONTROL_OR_META,
     onMatch: (event, editor) => {
       const prevSelection = editor._editorState._selection;
-      if (prevSelection !== null && !$isRangeSelection(prevSelection)) {
+      // A copy or cut in an input embedded in a node's DOM is the input's.
+      // Preventing the keydown would stop the browser from firing it at all.
+      if (
+        prevSelection !== null &&
+        !$isRangeSelection(prevSelection) &&
+        !$isEventFromEmbeddedInput(event)
+      ) {
         event.preventDefault();
         dispatchCommand(editor, command, event);
       }
