@@ -40,6 +40,7 @@ export type ProbeMode =
   | 'no-focus+reveal'
   | 'blur'
   | 'inputmode-none'
+  | 'quiet-focus'
   | 'focus-prevent-scroll'
   | 'restore-scroll';
 
@@ -78,6 +79,12 @@ const MODES: readonly {mode: ProbeMode; label: string; detail: string}[] = [
       'Set inputmode="none" on the root before the tap focuses it, so no keyboard shows; cleared when a RangeSelection returns.',
     label: 'inputmode=none',
     mode: 'inputmode-none',
+  },
+  {
+    detail:
+      'No focus jump: cancel the mousedown, set inputmode="none", then focus the root with preventScroll, so keys reach the editor with no software keyboard. Tapping text clears inputmode.',
+    label: 'Quiet focus',
+    mode: 'quiet-focus',
   },
   {
     detail:
@@ -347,7 +354,7 @@ function registerInstrumentation(
       type,
       `${targetOf(e)}${e.defaultPrevented ? ' (prevented)' : ''}${
         'pointerType' in e ? ` ${(e as PointerEvent).pointerType}` : ''
-      }`,
+      }${'key' in e ? ` key=${(e as KeyboardEvent).key}` : ''}`,
     );
   const unregisterEvents = mergeRegister(
     registerEventListener(doc, 'touchstart', onTapStart, {
@@ -376,6 +383,7 @@ function registerInstrumentation(
         'focusin',
         'focusout',
         'beforeinput',
+        'keydown',
       ] as const
     ).map(type =>
       // Bubble phase on window so defaultPrevented reflects every handler.
@@ -599,7 +607,13 @@ function registerCandidateFixes(
       };
       const onMouseDown = (event: MouseEvent) => {
         const mode = getMode();
-        if (mode !== 'inputmode-none') {
+        if (mode !== 'inputmode-none' && mode !== 'quiet-focus') {
+          clearInputMode(root);
+        }
+        if (
+          mode === 'quiet-focus' &&
+          getDecoratorTarget(event.target, root) === null
+        ) {
           clearInputMode(root);
         }
         if (getDecoratorTarget(event.target, root) === null) {
@@ -618,6 +632,14 @@ function registerCandidateFixes(
             root.focus({preventScroll: true});
           }
           log.add('fix', 'mousedown prevented, root.focus({preventScroll})');
+        } else if (mode === 'quiet-focus') {
+          event.preventDefault();
+          root.setAttribute('inputmode', 'none');
+          inputModeSet = true;
+          if (document.activeElement !== root) {
+            root.focus({preventScroll: true});
+          }
+          log.add('fix', 'mousedown prevented, inputmode=none, quiet focus');
         } else if (mode === 'inputmode-none') {
           root.setAttribute('inputmode', 'none');
           inputModeSet = true;
