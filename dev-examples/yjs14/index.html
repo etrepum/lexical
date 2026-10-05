@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lexical · Yjs 14 lifecycle</title>
+  </head>
+  <body>
+    <main>
+      <h1>Yjs 14 lifecycle</h1>
+      <p>
+        Two independent documents, connected by an in-memory transport. No React
+        or playground dependencies.
+      </p>
+      <label>
+        Retention
+        <select id="mode">
+          <option value="automatic">Automatic Yjs GC</option>
+          <option value="filtered">Filtered retention</option>
+          <option value="manual">Manual collection (gc: false)</option>
+        </select>
+      </label>
+      <button id="reset">Start a fresh session</button>
+      <button id="connection">Disconnect peers</button>
+      <p id="status" role="status"></p>
+      <div class="editors">
+        <section>
+          <h2>Alice</h2>
+          <div
+            class="editor"
+            id="alice"
+            role="textbox"
+            aria-label="Alice editor"
+            aria-multiline="true"></div>
+          <label class="shared-value" for="alice-shared-value">
+            Shared value
+            <textarea
+              id="alice-shared-value"
+              disabled
+              placeholder="Add a shared value to edit it here."
+              rows="3"></textarea>
+          </label>
+          <p
+            class="shared-status"
+            id="alice-shared-status"
+            aria-live="polite"></p>
+          <div class="actions" id="alice-actions"></div>
+        </section>
+        <section>
+          <h2>Bob</h2>
+          <div
+            class="editor"
+            id="bob"
+            role="textbox"
+            aria-label="Bob editor"
+            aria-multiline="true"></div>
+          <label class="shared-value" for="bob-shared-value">
+            Shared value
+            <textarea
+              id="bob-shared-value"
+              disabled
+              placeholder="Add a shared value to edit it here."
+              rows="3"></textarea>
+          </label>
+          <p
+            class="shared-status"
+            id="bob-shared-status"
+            aria-live="polite"></p>
+          <div class="actions" id="bob-actions"></div>
+        </section>
+      </div>
+      <section>
+        <h2>Historical view</h2>
+        <button id="compare">Compare checkpoint with current</button>
+        <details>
+          <summary>Attributed comparison</summary>
+          <pre id="comparison"></pre>
+        </details>
+        <button id="capture">Save checkpoint</button>
+        <button id="show">View checkpoint</button>
+        <button id="clear-history">Clear undo history</button>
+        <button id="collect">Collect eligible deleted content</button>
+        <label>
+          <input id="allow-gc" type="checkbox" />
+          Allow collection through the filter
+        </label>
+        <p>
+          A checkpoint stores a full Yjs update separately. It survives
+          collection in the live documents. Manual mode also captures a
+          lightweight Yjs snapshot for comparison.
+        </p>
+        <button id="snapshot">View lightweight snapshot</button>
+        <div
+          class="editor"
+          id="historical"
+          aria-label="Historical editor"></div>
+      </section>
+      <section>
+        <h2>Suggestions</h2>
+        <button id="propose">Start a proposal from Alice</button>
+        <button id="accept">Accept proposal</button>
+        <button id="reject">Reject proposal</button>
+        <p>
+          Edit the proposal, then review individual changes below. Related
+          structure is reviewed together to keep tables, nodes and shared values
+          valid. Base edits continue to reach the proposal. The buttons above
+          review the entire proposal.
+        </p>
+        <div
+          class="editor"
+          id="proposal"
+          role="textbox"
+          aria-label="Proposal editor"
+          aria-multiline="true"></div>
+        <h3>Inline tracked changes</h3>
+        <p>
+          Insertions are green and underlined; deletions are red and struck
+          through. Formatting changes are highlighted.
+        </p>
+        <div
+          class="tracked-changes"
+          id="tracked-changes"
+          aria-label="Tracked changes"></div>
+        <ol
+          class="suggestion-list"
+          id="suggestion-list"
+          aria-label="Pending changes"></ol>
+        <details>
+          <summary>Yjs attributed proposal delta</summary>
+          <pre id="proposal-delta"></pre>
+        </details>
+      </section>
+      <section>
+        <h2>Attribution</h2>
+        <p>
+          Authorship is persisted separately from presence, keyed to CRDT
+          operations. Inspect text, formatting, properties, and structural
+          changes below.
+        </p>
+        <details>
+          <summary>Alice's attributed document</summary>
+          <pre id="attribution"></pre>
+        </details>
+      </section>
+      <section>
+        <h2>Storage</h2>
+        <pre id="storage"></pre>
+        <p>
+          Encoded bytes include CRDT metadata, so collection need not reduce
+          every measurement. Undo may keep deleted content alive. Removing a
+          node and undoing that removal should work until history is cleared.
+        </p>
+      </section>
+    </main>
+    <script src="/src/main.ts" type="module"></script>
+  </body>
+</html>
