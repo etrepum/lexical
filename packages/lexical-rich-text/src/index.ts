@@ -57,7 +57,7 @@ import {
   $insertNodes,
   $isDecoratorNode,
   $isElementNode,
-  $isEventFromDecoratorInput,
+  $isEventFromEmbeddedInput,
   $isNodeSelection,
   $isRangeSelection,
   $isRootNode,
@@ -1979,10 +1979,10 @@ export function registerRichText(
     editor.registerCommand(
       COPY_COMMAND,
       event => {
-        // A copy in a decorator's own input is the input's, as are a cut and a
-        // paste below: the editor's selection is still the one it had before
-        // the input took the focus.
-        if ($isEventFromDecoratorInput(event)) {
+        // A copy in an input embedded in a node's DOM, such as a decorator's,
+        // is the input's, as are a cut and a paste below: the editor's
+        // selection is still the one it had before the input took the focus.
+        if ($isEventFromEmbeddedInput(event)) {
           return false;
         }
         copyToClipboard(
@@ -1996,7 +1996,7 @@ export function registerRichText(
     editor.registerCommand(
       CUT_COMMAND,
       event => {
-        if ($isEventFromDecoratorInput(event)) {
+        if ($isEventFromEmbeddedInput(event)) {
           return false;
         }
         onCutForRichText(event, editor);
@@ -2016,7 +2016,7 @@ export function registerRichText(
         }
 
         // if inputs then paste within the input ignore creating a new node on paste event
-        if ($isEventFromDecoratorInput(event)) {
+        if ($isEventFromEmbeddedInput(event)) {
           return false;
         }
 

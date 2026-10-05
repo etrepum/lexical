@@ -25,7 +25,7 @@ import {objectKlassEquals} from '@lexical/utils';
 import {
   $getSelection,
   $getSlotFrame,
-  $isEventFromDecoratorInput,
+  $isEventFromEmbeddedInput,
   $isRangeSelection,
   $selectAll,
   CAN_USE_BEFORE_INPUT,
@@ -387,10 +387,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (
-          !$isRangeSelection(selection) ||
-          $isEventFromDecoratorInput(event)
-        ) {
+        if (!$isRangeSelection(selection) || $isEventFromEmbeddedInput(event)) {
           return false;
         }
 
@@ -404,10 +401,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (
-          !$isRangeSelection(selection) ||
-          $isEventFromDecoratorInput(event)
-        ) {
+        if (!$isRangeSelection(selection) || $isEventFromEmbeddedInput(event)) {
           return false;
         }
 
@@ -421,10 +415,7 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (
-          !$isRangeSelection(selection) ||
-          $isEventFromDecoratorInput(event)
-        ) {
+        if (!$isRangeSelection(selection) || $isEventFromEmbeddedInput(event)) {
           return false;
         }
 
