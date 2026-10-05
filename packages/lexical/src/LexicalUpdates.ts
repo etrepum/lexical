@@ -1251,6 +1251,7 @@ function $beginUpdate(
   const currentEditorState = editor._editorState;
   let pendingEditorState = editor._pendingEditorState;
   let editorStateWasCloned = false;
+  const previousNotifiedSelection = editor._lastNotifiedSelection;
 
   if (pendingEditorState === null || pendingEditorState._readOnly) {
     pendingEditorState = editor._pendingEditorState = cloneEditorState(
@@ -1400,6 +1401,9 @@ function $beginUpdate(
       updateTags.clear();
       editor._deferred = [];
       editor._pendingEditorState = null;
+      // A notification in the dropped update described a selection that is
+      // never committed, so it must not suppress the next one.
+      editor._lastNotifiedSelection = previousNotifiedSelection;
     }
   }
 }

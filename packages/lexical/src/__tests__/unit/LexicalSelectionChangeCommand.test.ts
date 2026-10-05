@@ -1083,4 +1083,41 @@ describe('SELECTION_CHANGE_COMMAND', () => {
     editor.read(() => {});
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
   });
+
+  test('keeps a listener restatement that matches the committed selection', async () => {
+    using editor = buildEditorFromExtensions();
+    mountEditor(editor);
+    const listener = vi.fn(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+        selection.format = 1;
+      }
+      return false;
+    });
+    editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      listener,
+      COMMAND_PRIORITY_LOW,
+    );
+    editor.update(
+      () => {
+        const text = $createTextNode('hello');
+        $getRoot().clear().append($createParagraphNode().append(text));
+        text.select(0, 5);
+      },
+      {discrete: true},
+    );
+    const readFormat = () =>
+      editor.read(() => {
+        const selection = $getSelection();
+        assert($isRangeSelection(selection));
+        return selection.format;
+      });
+    expect(readFormat()).toBe(1);
+    for (let i = 0; i < 3; i++) {
+      document.dispatchEvent(new Event('selectionchange'));
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(readFormat()).toBe(1);
+    }
+  });
 });
