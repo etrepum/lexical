@@ -25,8 +25,8 @@ import {objectKlassEquals} from '@lexical/utils';
 import {
   $getSelection,
   $getSlotFrame,
+  $isEventFromDecoratorInput,
   $isRangeSelection,
-  $isSelectionCapturedInDecoratorInput,
   $selectAll,
   CAN_USE_BEFORE_INPUT,
   COMMAND_PRIORITY_EDITOR,
@@ -41,13 +41,11 @@ import {
   DELETE_WORD_COMMAND,
   DRAGSTART_COMMAND,
   DROP_COMMAND,
-  getComposedEventTarget,
   INSERT_LINE_BREAK_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
   IS_APPLE_WEBKIT,
   IS_IOS,
   IS_SAFARI,
-  isDOMNode,
   KEY_ARROW_LEFT_COMMAND,
   KEY_ARROW_RIGHT_COMMAND,
   KEY_BACKSPACE_COMMAND,
@@ -60,17 +58,6 @@ import {
   REMOVE_TEXT_COMMAND,
   SELECT_ALL_COMMAND,
 } from 'lexical';
-
-/**
- * Whether a clipboard event comes from a decorator's own input, such as an
- * `<input>` in its DOM. The copy, cut or paste there belongs to the input,
- * while the editor's selection is still the one it had before the input took
- * the focus.
- */
-function $isFromDecoratorInput(event: Event | null): boolean {
-  const target = event === null ? null : getComposedEventTarget(event);
-  return isDOMNode(target) && $isSelectionCapturedInDecoratorInput(target);
-}
 
 function onCopyForPlainText(
   event: CommandPayloadType<typeof COPY_COMMAND>,
@@ -400,7 +387,10 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (!$isRangeSelection(selection) || $isFromDecoratorInput(event)) {
+        if (
+          !$isRangeSelection(selection) ||
+          $isEventFromDecoratorInput(event)
+        ) {
           return false;
         }
 
@@ -414,7 +404,10 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (!$isRangeSelection(selection) || $isFromDecoratorInput(event)) {
+        if (
+          !$isRangeSelection(selection) ||
+          $isEventFromDecoratorInput(event)
+        ) {
           return false;
         }
 
@@ -428,7 +421,10 @@ export function registerPlainText(editor: LexicalEditor): () => void {
       event => {
         const selection = $getSelection();
 
-        if (!$isRangeSelection(selection) || $isFromDecoratorInput(event)) {
+        if (
+          !$isRangeSelection(selection) ||
+          $isEventFromDecoratorInput(event)
+        ) {
           return false;
         }
 

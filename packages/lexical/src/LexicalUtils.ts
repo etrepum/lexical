@@ -254,6 +254,19 @@ export function $isSelectionCapturedInDecoratorInput(
         getEditorPropertyFromDOMNode(activeElement) == null))
   );
 }
+/**
+ * Returns true if an event comes from a decorator's own input (see
+ * {@link $isSelectionCapturedInDecoratorInput}), read from its composed target.
+ * The editor's selection is then still the one it had before the input took
+ * the focus, so a copy, cut or paste there belongs to the input: a
+ * `COPY_COMMAND`, `CUT_COMMAND` or `PASTE_COMMAND` handler
+ * that acts on the editor's selection should return false for it.
+ */
+export function $isEventFromDecoratorInput(event: Event | null): boolean {
+  const target = event === null ? null : getComposedEventTarget(event);
+  return isDOMNode(target) && $isSelectionCapturedInDecoratorInput(target);
+}
+
 /** @deprecated renamed to {@link $isSelectionCapturedInDecoratorInput} by @lexical/eslint-plugin rules-of-lexical */
 export const isSelectionCapturedInDecoratorInput =
   $isSelectionCapturedInDecoratorInput;

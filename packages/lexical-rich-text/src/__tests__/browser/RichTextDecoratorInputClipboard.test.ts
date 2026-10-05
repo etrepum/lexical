@@ -9,10 +9,12 @@
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
+  $createNodeSelection,
   $createParagraphNode,
   $createTextNode,
   $getRoot,
   $getSelection,
+  $setSelection,
   DecoratorNode,
   type LexicalEditor,
   type TextNode,
@@ -168,5 +170,41 @@ describe('RichTextExtension clipboard in a decorator input', () => {
       written: 'hello',
     });
     await vi.waitFor(() => expect(readEditor(editor).text).toBe(' world '));
+  });
+});
+
+/** Selects the decorator itself, as clicking a selectable decorator does. */
+function selectDecorator(editor: LexicalEditor) {
+  editor.update(
+    () => {
+      const selection = $createNodeSelection();
+      selection.add(
+        $getRoot().getFirstDescendant()!.getNextSibling()!.getKey(),
+      );
+      $setSelection(selection);
+    },
+    {discrete: true},
+  );
+}
+
+describe('RichTextExtension clipboard in the input of a node-selected decorator', () => {
+  test('copy in the input is left to the input', async () => {
+    const {editor, input} = mountEditor();
+    selectDecorator(editor);
+    await selectInInput(input);
+    expect(await pressShortcut('c')).toEqual(LEFT_TO_THE_BROWSER);
+    expect(readEditor(editor).text).toBe('hello world ');
+  });
+
+  test('cut in the input is left to the input', async () => {
+    const {editor, input} = mountEditor();
+    selectDecorator(editor);
+    await selectInInput(input);
+    expect(await pressShortcut('x')).toEqual(LEFT_TO_THE_BROWSER);
+    await vi.waitFor(() => expect(input.value).toBe(' text'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    // The decorator, and the input with it, is still in the editor.
+    expect(editor.getRootElement()!.contains(input)).toBe(true);
+    expect(readEditor(editor).text).toBe('hello world ');
   });
 });

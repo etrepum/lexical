@@ -113,6 +113,7 @@ import {
   $getAdjacentNode,
   $getDOMTextNode,
   $getNodeByKey,
+  $isEventFromDecoratorInput,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $setSelection,
@@ -1714,7 +1715,13 @@ function buildKeyDownShortcuts(): KeyDownShortcut[] {
     modifiers: CONTROL_OR_META,
     onMatch: (event, editor) => {
       const prevSelection = editor._editorState._selection;
-      if (prevSelection !== null && !$isRangeSelection(prevSelection)) {
+      // A copy or cut in a decorator's own input is the input's. Preventing
+      // the keydown would stop the browser from firing it at all.
+      if (
+        prevSelection !== null &&
+        !$isRangeSelection(prevSelection) &&
+        !$isEventFromDecoratorInput(event)
+      ) {
         event.preventDefault();
         dispatchCommand(editor, command, event);
       }

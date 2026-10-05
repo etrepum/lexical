@@ -57,11 +57,11 @@ import {
   $insertNodes,
   $isDecoratorNode,
   $isElementNode,
+  $isEventFromDecoratorInput,
   $isNodeSelection,
   $isRangeSelection,
   $isRootNode,
   $isRootOrShadowRoot,
-  $isSelectionCapturedInDecoratorInput,
   $isShadowRootNode,
   $isSiblingCaret,
   $isTextNode,
@@ -102,7 +102,6 @@ import {
   enumValue,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
-  getComposedEventTarget,
   getDOMSelection,
   INDENT_CONTENT_COMMAND,
   INSERT_LINE_BREAK_COMMAND,
@@ -112,7 +111,6 @@ import {
   IS_APPLE_WEBKIT,
   IS_IOS,
   IS_SAFARI,
-  isDOMNode,
   isHTMLElement,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_LEFT_COMMAND,
@@ -1981,6 +1979,12 @@ export function registerRichText(
     editor.registerCommand(
       COPY_COMMAND,
       event => {
+        // A copy in a decorator's own input is the input's, as are a cut and a
+        // paste below: the editor's selection is still the one it had before
+        // the input took the focus.
+        if ($isEventFromDecoratorInput(event)) {
+          return false;
+        }
         copyToClipboard(
           editor,
           objectKlassEquals(event, ClipboardEvent) ? event : null,
@@ -1992,11 +1996,7 @@ export function registerRichText(
     editor.registerCommand(
       CUT_COMMAND,
       event => {
-        // A cut in a decorator's own input is the input's, as a paste is below:
-        // the editor's selection is still the one it had before the input took
-        // the focus.
-        const target = event === null ? null : getComposedEventTarget(event);
-        if (isDOMNode(target) && $isSelectionCapturedInDecoratorInput(target)) {
+        if ($isEventFromDecoratorInput(event)) {
           return false;
         }
         onCutForRichText(event, editor);
@@ -2016,10 +2016,7 @@ export function registerRichText(
         }
 
         // if inputs then paste within the input ignore creating a new node on paste event
-        if (
-          isDOMNode(event.target) &&
-          $isSelectionCapturedInDecoratorInput(event.target)
-        ) {
+        if ($isEventFromDecoratorInput(event)) {
           return false;
         }
 

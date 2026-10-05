@@ -389,6 +389,7 @@ export {
   $hasAncestor,
   $hasUpdateTag,
   $isElementDOMSlot,
+  $isEventFromDecoratorInput,
   $isInlineElementOrDecoratorNode,
   $isLeafNode,
   $isRootOrShadowRoot,
