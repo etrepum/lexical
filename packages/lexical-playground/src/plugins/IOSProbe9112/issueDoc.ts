@@ -12,6 +12,9 @@ import yellowFlower from '../../images/yellow-flower.jpg';
 
 // The document from the playground link in the facebook/lexical#9112
 // discussion: the welcome content with ten empty paragraphs above the image.
+// Bump with each probe build, so a stale cached page is easy to spot.
+export const PROBE_VERSION = 3;
+
 const doc = {
   editorState: {
     root: {
@@ -23,7 +26,7 @@ const doc = {
               format: 0,
               mode: 'normal',
               style: '',
-              text: 'Welcome to the playground',
+              text: `Probe v${PROBE_VERSION}: Welcome to the playground`,
               type: 'text',
               version: 1,
             },

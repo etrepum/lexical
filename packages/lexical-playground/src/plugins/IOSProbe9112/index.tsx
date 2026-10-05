@@ -31,7 +31,7 @@ import {
 } from 'lexical';
 import {useCallback, useEffect, useRef, useState} from 'react';
 
-import {ISSUE_9112_DOC} from './issueDoc';
+import {ISSUE_9112_DOC, PROBE_VERSION} from './issueDoc';
 
 export type ProbeMode =
   | 'baseline'
@@ -82,7 +82,7 @@ const MODES: readonly {mode: ProbeMode; label: string; detail: string}[] = [
   },
   {
     detail:
-      'No focus jump: cancel the mousedown, set inputmode="none", then focus the root with preventScroll, so keys reach the editor with no software keyboard. Tapping text blurs and clears inputmode, so the tap focuses afresh.',
+      'No focus jump: cancel the mousedown, set inputmode="none", then focus the root with preventScroll, so keys reach the editor with no software keyboard. Tapping text blurs at touchend and clears inputmode, so the tap focuses afresh.',
     label: 'Quiet focus',
     mode: 'quiet-focus',
   },
@@ -303,7 +303,7 @@ class ProbeLog {
   text(): string {
     const nav = navigator as Navigator & {standalone?: boolean};
     const header = [
-      `lexical#9112 probe, ${new Date().toISOString()}`,
+      `lexical#9112 probe v${PROBE_VERSION}, ${new Date().toISOString()}`,
       `UA: ${navigator.userAgent}`,
       `IS_IOS=${IS_IOS} standalone=${String(nav.standalone)} inIframe=${String(
         window.top !== window,
@@ -614,12 +614,6 @@ function registerCandidateFixes(
           mode === 'quiet-focus' &&
           getDecoratorTarget(event.target, root) === null
         ) {
-          if (inputModeSet && document.activeElement === root) {
-            // Let the tap focus the editor afresh, so iOS opens the keyboard
-            // and reveals the caret the way it does for an unfocused editor.
-            root.blur();
-            log.add('fix', 'blurred so the tap focuses afresh');
-          }
           clearInputMode(root);
         }
         if (getDecoratorTarget(event.target, root) === null) {
@@ -673,6 +667,38 @@ function registerCandidateFixes(
           }
         }
       };
+      // Quiet focus: a tap (not a drag) on anything but a decorator blurs
+      // the editor at touchend, before iOS handles the tap, so the tap
+      // focuses it afresh and iOS opens the keyboard with the caret in view.
+      let tapStart: {x: number; y: number} | null = null;
+      const onTouchStartQuiet = (event: TouchEvent) => {
+        const touch = event.touches[0];
+        tapStart =
+          event.touches.length === 1 && touch
+            ? {x: touch.clientX, y: touch.clientY}
+            : null;
+      };
+      const onTouchEndQuiet = (event: TouchEvent) => {
+        const start = tapStart;
+        tapStart = null;
+        const touch = event.changedTouches[0];
+        if (
+          getMode() !== 'quiet-focus' ||
+          !inputModeSet ||
+          start === null ||
+          !touch ||
+          Math.abs(touch.clientX - start.x) > 10 ||
+          Math.abs(touch.clientY - start.y) > 10 ||
+          getDecoratorTarget(event.target, root) !== null
+        ) {
+          return;
+        }
+        if (document.activeElement === root) {
+          root.blur();
+          log.add('fix', 'blurred at touchend so the tap focuses afresh');
+        }
+        clearInputMode(root);
+      };
       const cancelRestore = () => {
         // A drag is the user scrolling on purpose.
         restore = null;
@@ -682,6 +708,14 @@ function registerCandidateFixes(
           capture: true,
         }),
         registerEventListener(root, 'touchstart', onPointerish, {
+          capture: true,
+          passive: true,
+        }),
+        registerEventListener(root, 'touchstart', onTouchStartQuiet, {
+          capture: true,
+          passive: true,
+        }),
+        registerEventListener(root, 'touchend', onTouchEndQuiet, {
           capture: true,
           passive: true,
         }),
