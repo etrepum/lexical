@@ -82,7 +82,7 @@ const MODES: readonly {mode: ProbeMode; label: string; detail: string}[] = [
   },
   {
     detail:
-      'No focus jump: cancel the mousedown, set inputmode="none", then focus the root with preventScroll, so keys reach the editor with no software keyboard. Tapping text clears inputmode.',
+      'No focus jump: cancel the mousedown, set inputmode="none", then focus the root with preventScroll, so keys reach the editor with no software keyboard. Tapping text blurs and clears inputmode, so the tap focuses afresh.',
     label: 'Quiet focus',
     mode: 'quiet-focus',
   },
@@ -614,6 +614,12 @@ function registerCandidateFixes(
           mode === 'quiet-focus' &&
           getDecoratorTarget(event.target, root) === null
         ) {
+          if (inputModeSet && document.activeElement === root) {
+            // Let the tap focus the editor afresh, so iOS opens the keyboard
+            // and reveals the caret the way it does for an unfocused editor.
+            root.blur();
+            log.add('fix', 'blurred so the tap focuses afresh');
+          }
           clearInputMode(root);
         }
         if (getDecoratorTarget(event.target, root) === null) {
