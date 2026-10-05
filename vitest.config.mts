@@ -11,7 +11,7 @@ import {playwright} from '@vitest/browser-playwright';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {defineConfig} from 'vitest/config';
+import {configDefaults, defineConfig} from 'vitest/config';
 
 // Resolve monorepo imports to TypeScript source from the test tsconfig's
 // `paths`. This includes the cross-package and deep `*/src/__tests__/utils`
@@ -58,6 +58,17 @@ const browserInstances = (process.env.VITEST_BROWSER || 'chromium')
   )
   .map(browser => ({browser}));
 
+const compilerUnitTests =
+  'packages/lexical-compiler/**/__tests__/unit/**/*.test{.ts,.tsx,.js,.jsx}';
+
+// jsdom's dependencies use require(esm), which VM pools only support on
+// Node 24.9+. Older Node versions also lack disposal symbols in VM contexts.
+const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+const unitPool =
+  nodeMajor > 24 || (nodeMajor === 24 && nodeMinor >= 9)
+    ? 'vmThreads'
+    : 'forks';
+
 export default defineConfig({
   resolve: {
     alias: tsconfigTestAliases(),
@@ -81,12 +92,16 @@ export default defineConfig({
             ),
           },
           environment: 'jsdom',
+          exclude: [...configDefaults.exclude, compilerUnitTests],
           include: [
             'packages/**/__tests__/unit/**/*.test{.ts,.tsx,.js,.jsx}',
             'dev-examples/**/__tests__/unit/**/*.test{.ts,.tsx,.js,.jsx}',
           ],
           name: 'unit',
-          setupFiles: ['./vitest.setup.mts'],
+          // Reuse jsdom's implementation while keeping each file's window and
+          // module graph isolated (platform mocks depend on that isolation).
+          pool: unitPool,
+          setupFiles: ['./vitest.setup.mts', './vitest.setup.node.mts'],
           typecheck: {
             tsconfig: './tsconfig.test.json',
           },
@@ -115,6 +130,31 @@ export default defineConfig({
         test: {
           api: {port: 8315},
           browser: {
+            commands: {
+              // Vitest's keyboard descriptor parser splits non-BMP text into
+              // UTF-16 code units. Native Playwright typing preserves code
+              // points, matching the E2E driver's input behavior. Bound each
+              // code point so long input can make progress on a busy runner,
+              // and stop if the fixture is removed. Keep the loop in one
+              // command to avoid a Vitest RPC round trip for every character.
+              typeText: async ({frame}, text: string, selector: string) => {
+                // Capture the element once: type() fails immediately if it
+                // detaches, instead of resolving another fixture's editor.
+                const target = await (await frame())
+                  .locator(selector)
+                  .elementHandle({timeout: 5000});
+                if (target === null) {
+                  throw new Error('typeText target was removed');
+                }
+                try {
+                  for (const character of text) {
+                    await target.type(character, {timeout: 5000});
+                  }
+                } finally {
+                  await target.dispose();
+                }
+              },
+            },
             // Vitest's default browser server port (63315) is in the
             // ephemeral range, and Windows reserves randomized blocks of
             // that range (Hyper-V excluded port ranges), so on Windows CI
@@ -150,7 +190,12 @@ export default defineConfig({
         extends: true,
         test: {
           environment: 'node',
-          include: ['scripts/**/__tests__/unit/**/*.test.ts'],
+          // Compiler tests exercise native build tools whose realm-sensitive
+          // arguments (such as RegExp) cannot cross a VM context boundary.
+          include: [
+            'scripts/**/__tests__/unit/**/*.test.ts',
+            compilerUnitTests,
+          ],
           name: 'scripts-unit',
         },
       },
@@ -201,5 +246,8 @@ export default defineConfig({
         },
       },
     ],
+    // VM contexts retain modules until their worker is recycled. Keep the
+    // limit at the root: Vitest's pool reads it from the global config.
+    vmMemoryLimit: '512MB',
   },
 });

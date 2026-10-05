@@ -991,6 +991,8 @@ export class RangeSelection implements BaseSelection {
       if (anchorNode.isSegmented() && offset !== 0 && offset !== anchorSize) {
         if ($getCompositionKey() !== null) {
           anchorNode.setMode('normal').setFormat(format).setStyle(style);
+          getActiveEditor()._inputState.composedSegmentedKey =
+            anchorNode.getKey();
         } else {
           const replacement = $createTextNode(anchorNode.getTextContent());
           replacement.setFormat(format);
@@ -2080,6 +2082,9 @@ function $deleteTextByGranularity(
       return;
     }
     $extendSelectionForDeletion(selection, isBackward, granularity);
+    if (granularity === 'lineboundary') {
+      $stopLineDeletionAtLineBreak(selection);
+    }
   }
   // Line deletion must remain in one block; word deletion may cross blocks.
   if (
@@ -2099,6 +2104,25 @@ function $deleteTextByGranularity(
       INTERNAL_$expandSelectionToWholeDocument(selection);
     }
     selection.removeText();
+  }
+}
+
+/**
+ * Pulls a line deletion's focus back to the anchor's side of the first
+ * LineBreakNode between them, since a line ends at a hard break. The native
+ * measurement can land past one when a line begins with an inline decorator:
+ * Chromium may have no caret position between it and the <br> (#6916), and
+ * then measures the line's start on the line before. From the start of a line
+ * the selection ends up collapsed, and deleteCharacter removes the break.
+ */
+function $stopLineDeletionAtLineBreak(selection: RangeSelection): void {
+  for (const caret of $caretRangeFromSelection(selection).iterNodeCarets(
+    'shadowRoot',
+  )) {
+    if ($isSiblingCaret(caret) && $isLineBreakNode(caret.origin)) {
+      $setPointFromCaret(selection.focus, $rewindSiblingCaret(caret));
+      return;
+    }
   }
 }
 
@@ -2465,7 +2489,7 @@ function $shrinkSelectionToRoot(
  * boundary, and the `[original .. landed]` range is constructed in the
  * model only. `applyDOMRange` reads just the range's boundary points (it
  * never touches the DOM selection), giving the same point resolution,
- * decorator pre/post handling, shadow-root shrink validation and
+ * decorator endpoint normalization, shadow-root shrink validation and
  * anchor/focus orientation as a native selection extension would, while
  * the DOM selection is only ever collapsed.
  *
@@ -2656,15 +2680,6 @@ function $extendSelectionForDeletion(
     // applyDOMRange set anchor = range start (the landed point); the deletion
     // anchor must stay at the original caret, so restore that orientation.
     $swapPoints(selection);
-  }
-  if (granularity === 'lineboundary') {
-    $modifySelectionAroundDecoratorsAndBlocks(
-      selection,
-      'extend',
-      isBackward,
-      granularity,
-      'decorators',
-    );
   }
 }
 
@@ -3471,6 +3486,18 @@ export function $createRangeSelectionFromDom(
   return $internalCreateRangeSelection(null, domSelection, editor, null);
 }
 
+// Keys whose keydown handlers move the caret or edit at it themselves.
+const SELECTION_KEYS = /* @__PURE__ */ new Set([
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'Backspace',
+  'Delete',
+  'Enter',
+  'Tab',
+]);
+
 export function $internalCreateRangeSelection(
   lastSelection: null | BaseSelection,
   domSelection: Selection | null,
@@ -3498,9 +3525,17 @@ export function $internalCreateRangeSelection(
   const windowEvent = event || windowObj.event;
   const eventType = windowEvent ? windowEvent.type : undefined;
   const isSelectionChange = eventType === 'selectionchange';
+  // Chromium coalesces selectionchange events, so a caret move made natively
+  // by one arrow key can still be unreported when the next keydown arrives
+  // (key repeat, or a busy main thread). Reading the DOM here keeps that
+  // keydown from acting on the caret from before the native move.
+  const isSelectionKeyDown =
+    eventType === 'keydown' &&
+    SELECTION_KEYS.has((windowEvent as KeyboardEvent).key);
   const useDOMSelection =
     !getIsProcessingMutations() &&
     (isSelectionChange ||
+      isSelectionKeyDown ||
       eventType === 'beforeinput' ||
       eventType === 'compositionstart' ||
       eventType === 'compositionend' ||
@@ -3521,7 +3556,7 @@ export function $internalCreateRangeSelection(
     anchorOffset = points.anchorOffset;
     focusOffset = points.focusOffset;
     if (
-      (isSelectionChange || eventType === undefined) &&
+      (isSelectionChange || isSelectionKeyDown || eventType === undefined) &&
       $isRangeSelection(lastSelection) &&
       !isSelectionWithinEditor(editor, anchorDOM, focusDOM)
     ) {
