@@ -869,19 +869,26 @@ function triggerMutationListeners(
 ): void {
   const listeners = Array.from(editor._listeners.mutation);
   const listenersLength = listeners.length;
-
-  for (let i = 0; i < listenersLength; i++) {
-    const [listener, klassSet] = listeners[i];
-    for (const klass of klassSet) {
-      const mutatedNodesByType = mutatedNodes.get(klass);
-      if (mutatedNodesByType !== undefined) {
-        listener(mutatedNodesByType, {
-          dirtyLeaves,
-          prevEditorState,
-          updateTags,
-        });
+  // Like the other commit listeners, enqueue updates started by a mutation
+  // listener so that they begin after every listener of this commit has run.
+  const previouslyUpdating = editor._updating;
+  editor._updating = true;
+  try {
+    for (let i = 0; i < listenersLength; i++) {
+      const [listener, klassSet] = listeners[i];
+      for (const klass of klassSet) {
+        const mutatedNodesByType = mutatedNodes.get(klass);
+        if (mutatedNodesByType !== undefined) {
+          listener(mutatedNodesByType, {
+            dirtyLeaves,
+            prevEditorState,
+            updateTags,
+          });
+        }
       }
     }
+  } finally {
+    editor._updating = previouslyUpdating;
   }
 }
 
