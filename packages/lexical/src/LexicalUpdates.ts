@@ -867,21 +867,27 @@ function triggerMutationListeners(
   dirtyLeaves: Set<string>,
   prevEditorState: EditorState,
 ): void {
-  const listeners = Array.from(editor._listeners.mutation);
-  const listenersLength = listeners.length;
+  const previouslyUpdating = editor._updating;
+  editor._updating = true;
+  try {
+    const listeners = Array.from(editor._listeners.mutation);
+    const listenersLength = listeners.length;
 
-  for (let i = 0; i < listenersLength; i++) {
-    const [listener, klassSet] = listeners[i];
-    for (const klass of klassSet) {
-      const mutatedNodesByType = mutatedNodes.get(klass);
-      if (mutatedNodesByType !== undefined) {
-        listener(mutatedNodesByType, {
-          dirtyLeaves,
-          prevEditorState,
-          updateTags,
-        });
+    for (let i = 0; i < listenersLength; i++) {
+      const [listener, klassSet] = listeners[i];
+      for (const klass of klassSet) {
+        const mutatedNodesByType = mutatedNodes.get(klass);
+        if (mutatedNodesByType !== undefined) {
+          listener(mutatedNodesByType, {
+            dirtyLeaves,
+            prevEditorState,
+            updateTags,
+          });
+        }
       }
     }
+  } finally {
+    editor._updating = previouslyUpdating;
   }
 }
 
@@ -1258,7 +1264,7 @@ function $beginUpdate(
     );
     editorStateWasCloned = true;
   }
-  pendingEditorState._flushSync = discrete;
+  pendingEditorState._flushSync = discrete || editor._synchronousUpdates > 0;
 
   const previousActiveEditorState = activeEditorState;
   const previousReadOnlyMode = isReadOnlyMode;

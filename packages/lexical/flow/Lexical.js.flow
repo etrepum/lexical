@@ -276,7 +276,7 @@ declare export class LexicalEditor {
   _editable: boolean;
   _headless: boolean;
   isComposing(): boolean;
-  registerUpdateListener(listener: UpdateListener): () => void;
+  registerUpdateListener(listener: UpdateListener, options?: {synchronous?: boolean}): () => void;
   registerRootListener(listener: RootListener): () => void;
   registerDecoratorListener(listener: DecoratorListener): () => void;
   registerTextContentListener(listener: TextContentListener): () => void;
@@ -2211,6 +2211,9 @@ export type LexicalSchemaInput<out T> = {[string]: unknown};
 declare export function declaredAccepts(
   schema: AnySerializationSchema,
 ): void | ((value: unknown) => boolean);
+
+declare export function $exportNodeJSONOnce(node: LexicalNode, compact: boolean): {[string]: unknown};
+declare export function $applyJSONSetters<T extends LexicalNode>(node: T, serializedNode: {readonly [string]: unknown}): T;
 
 declare export function getComposedSchemaFields(
   klass: Class<LexicalNode>,
