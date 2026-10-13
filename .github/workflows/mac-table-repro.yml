@@ -1,9 +1,11 @@
 name: Mac table e2e repro
 
 # Scratch workflow for a draft PR that is never merged: runs the table e2e
-# specs on macOS Chromium, as the upstream mac-rich job does, for the PR head
-# and for the upstream main it merges, with no retries, and prints an event
-# log for every failure.
+# specs on macOS Chromium, as the upstream mac-rich job does, for the PR head,
+# for the head before the fix of the press flag (prefix) and for the upstream
+# main it merges, with no retries and twice CI's workers so that a press's
+# selectionchange can come after its release, and prints an event log for
+# every failure.
 
 on:
   pull_request:
@@ -22,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        source: [head, main]
+        source: [prefix, head, main]
     runs-on: macos-latest
     env:
       CI: true
@@ -30,10 +32,12 @@ jobs:
       E2E_PORT: 4000
       # upstream facebook/lexical main, merged into the head
       MAIN_SHA: 80b6fb25c40378f010a3bde70bf2be104aaae4ba
+      # the head before the fix of the press flag
+      PREFIX_SHA: 6a654b816929b6cc9dec973a369e0eb18f4da24a
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ matrix.source == 'main' && env.MAIN_SHA || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ matrix.source == 'main' && env.MAIN_SHA || matrix.source == 'prefix' && env.PREFIX_SHA || github.event.pull_request.head.sha || github.sha }}
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -54,11 +58,12 @@ jobs:
           node-version: 24.x
       - name: Run table specs
         run: >
-          pnpm run test-e2e-chromium --retries=0 --repeat-each=3
+          pnpm run test-e2e-chromium --retries=0 --repeat-each=3 --workers=8
           --trace=retain-on-failure --reporter=list
           packages/lexical-playground/__tests__/e2e/Tables.spec.mjs
           packages/lexical-playground/__tests__/e2e/CopyAndPaste/html/TablesHTMLCopyAndPaste.spec.mjs
           packages/lexical-playground/__tests__/regression/4661-insert-column-selection.spec.mjs
+          packages/lexical-playground/__tests__/regression/4872-full-row-span-cell-merge.spec.mjs
           packages/lexical-playground/__tests__/regression/7266-column-header-merged-cells.spec.mjs
       - name: Upload results
         if: ${{ !cancelled() }}
