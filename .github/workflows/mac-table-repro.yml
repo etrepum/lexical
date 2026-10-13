@@ -1,0 +1,70 @@
+name: Mac table e2e repro
+
+# Scratch workflow for a draft PR that is never merged: runs the table e2e
+# specs on macOS Chromium, as the upstream mac-rich job does, for the PR head
+# and for the upstream main it merges, with no retries, and prints an event
+# log for every failure.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tables:
+    strategy:
+      fail-fast: false
+      matrix:
+        source: [head, main]
+    runs-on: macos-latest
+    env:
+      CI: true
+      E2E_EDITOR_MODE: rich-text
+      E2E_PORT: 4000
+      # upstream facebook/lexical main, merged into the head
+      MAIN_SHA: 80b6fb25c40378f010a3bde70bf2be104aaae4ba
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.source == 'main' && env.MAIN_SHA || github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: repro
+          sparse-checkout: .github/mac-repro
+      - name: Instrument
+        run: |
+          node repro/.github/mac-repro/apply.mjs
+          rm -rf repro
+          git log --oneline -1
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          node-version: 24.x
+      - name: Build playground
+        run: pnpm run prepare-ci
+      - uses: ./.github/actions/setup-playwright
+        with:
+          node-version: 24.x
+      - name: Run table specs
+        run: >
+          pnpm run test-e2e-chromium --retries=0 --repeat-each=3
+          --trace=retain-on-failure --reporter=list
+          packages/lexical-playground/__tests__/e2e/Tables.spec.mjs
+          packages/lexical-playground/__tests__/e2e/CopyAndPaste/html/TablesHTMLCopyAndPaste.spec.mjs
+          packages/lexical-playground/__tests__/regression/4661-insert-column-selection.spec.mjs
+          packages/lexical-playground/__tests__/regression/7266-column-header-merged-cells.spec.mjs
+      - name: Upload results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-table-repro-${{ matrix.source }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

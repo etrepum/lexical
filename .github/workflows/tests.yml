@@ -7,8 +7,7 @@ on:
     paths-ignore:
       - 'examples/**'
       - 'packages/lexical-website/**'
-  pull_request:
-    types: [opened, synchronize, reopened]
+  # Off on the scratch Mac repro branch, which runs mac-table-repro.yml.
   merge_group:
 
 permissions: {}
