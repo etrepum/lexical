@@ -812,7 +812,11 @@ function $createNode(key: NodeKey, slot: DOMSlot | null): HTMLElement {
     }
     if (!node.isInline()) {
       $reconcileElementTerminatingLineBreak(null, node, dom);
-      $reconcileDecoratorBoundaryAnchors(node, dom);
+      $reconcileDecoratorBoundaryAnchors(
+        node,
+        $getDOMSlot(node, dom, activeEditor),
+        activeNextNodeMap,
+      );
     }
   } else {
     const text = node.getTextContent();
@@ -922,6 +926,12 @@ function $createChildren(
 }
 
 type LastChildState = 'line-break' | 'decorator' | 'empty';
+/**
+ * What ends `element`'s last line, for its managed line break: a
+ * LineBreakNode, an inline DecoratorNode (also at the end of an inline
+ * element that ends the line, such as a link around an image, which leaves
+ * the browser no editable position after it either), or nothing at all.
+ */
 function $isLastChildLineBreakOrDecorator(
   element: null | ElementNode,
   nodeMap: NodeMap,
@@ -929,7 +939,14 @@ function $isLastChildLineBreakOrDecorator(
   if (element) {
     const lastKey = element.__last;
     if (lastKey) {
-      const node = nodeMap.get(lastKey);
+      let node = nodeMap.get(lastKey);
+      while ($isElementNode(node) && node.isInline() && node.__last) {
+        const last = nodeMap.get(node.__last);
+        if (!$isDecoratorNode(last) && !$isElementNode(last)) {
+          break;
+        }
+        node = last;
+      }
       if (node) {
         return $isLineBreakNode(node)
           ? 'line-break'
@@ -962,19 +979,22 @@ function $isBlockDecoratorChild(
  * out-of-flow anchor parked outside each such boundary child so the browser has
  * an editable inline box to resolve the boundary position against. Interior
  * decorators are unaffected, so only the first / last child is considered.
+ *
+ * Also called by `flushMutations`, outside a reconcile, to put back an anchor
+ * that something else removed from or added to the DOM.
  */
-function $reconcileDecoratorBoundaryAnchors(
+export function $reconcileDecoratorBoundaryAnchors(
   nextElement: ElementNode,
-  dom: HTMLElement & LexicalPrivateDOM,
+  slot: ElementDOMSlot,
+  nodeMap: NodeMap,
 ): void {
-  const slot = $getDOMSlot(nextElement, dom, activeEditor);
   slot.setDecoratorBoundaryAnchor(
     'leading',
-    $isBlockDecoratorChild(nextElement.__first, activeNextNodeMap),
+    $isBlockDecoratorChild(nextElement.__first, nodeMap),
   );
   slot.setDecoratorBoundaryAnchor(
     'trailing',
-    $isBlockDecoratorChild(nextElement.__last, activeNextNodeMap),
+    $isBlockDecoratorChild(nextElement.__last, nodeMap),
   );
 }
 
@@ -1841,7 +1861,11 @@ function $reconcileNode(
         // Unlike the terminating line break this applies to the root too — a
         // leading / trailing block decorator at the top level is exactly the
         // shape that breaks select-all.
-        $reconcileDecoratorBoundaryAnchors(nextNode, dom);
+        $reconcileDecoratorBoundaryAnchors(
+          nextNode,
+          $getDOMSlot(nextNode, dom, activeEditor),
+          activeNextNodeMap,
+        );
       }
       // Fold slot text slots-first, ahead of the child text the children
       // reconcile just wrote, matching `ElementNode.getTextContent` and the

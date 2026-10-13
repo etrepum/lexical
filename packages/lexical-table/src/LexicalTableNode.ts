@@ -273,20 +273,30 @@ export function attachStickyScrollbarListeners(
     scrollable.style.scrollbarWidth = 'auto';
     return () => {};
   }
-  const onWrapperScroll = () => {
-    if (scrollbar.scrollLeft !== scrollable.scrollLeft) {
-      scrollbar.scrollLeft = scrollable.scrollLeft;
+  // A scroll event is dispatched on the frame after its scroll, so the event
+  // for the position one listener copies onto the other element arrives a
+  // frame late. By then the element it was copied from may have moved on —
+  // drag auto-scroll moves the wrapper every frame, and so does dragging the
+  // proxy's thumb — and copying that stale position back would undo the newer
+  // scroll, which halved the speed of drag auto-scroll. So each listener skips
+  // an event that only reports the position its element was last synced to.
+  let syncedWrapperLeft = scrollable.scrollLeft;
+  let syncedScrollbarLeft = scrollbar.scrollLeft;
+  const onScroll = (event: Event) => {
+    const fromWrapper = event.target === scrollable;
+    const source = fromWrapper ? scrollable : scrollbar;
+    const target = fromWrapper ? scrollbar : scrollable;
+    if (
+      source.scrollLeft !==
+      (fromWrapper ? syncedWrapperLeft : syncedScrollbarLeft)
+    ) {
+      target.scrollLeft = source.scrollLeft;
+      syncedWrapperLeft = scrollable.scrollLeft;
+      syncedScrollbarLeft = scrollbar.scrollLeft;
     }
   };
-  const onScrollbarScroll = () => {
-    if (scrollable.scrollLeft !== scrollbar.scrollLeft) {
-      scrollable.scrollLeft = scrollbar.scrollLeft;
-    }
-  };
-  scrollable.addEventListener('scroll', onWrapperScroll, {
-    passive: true,
-  });
-  scrollbar.addEventListener('scroll', onScrollbarScroll, {passive: true});
+  scrollable.addEventListener('scroll', onScroll, {passive: true});
+  scrollbar.addEventListener('scroll', onScroll, {passive: true});
   let resizeObserver: ResizeObserver | null = null;
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
@@ -296,8 +306,8 @@ export function attachStickyScrollbarListeners(
     resizeObserver.observe(tableElement);
   }
   const cleanup = () => {
-    scrollable.removeEventListener('scroll', onWrapperScroll);
-    scrollbar.removeEventListener('scroll', onScrollbarScroll);
+    scrollable.removeEventListener('scroll', onScroll);
+    scrollbar.removeEventListener('scroll', onScroll);
     if (resizeObserver) {
       resizeObserver.disconnect();
     }

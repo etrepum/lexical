@@ -11,8 +11,23 @@ import type {ElementNode} from './nodes/LexicalElementNode';
 
 import invariant from '@lexical/internal/invariant';
 
-import {IS_APPLE_WEBKIT, IS_IOS, IS_SAFARI} from './environment';
-import {$getDocument, $getEditor} from './LexicalUtils';
+import {
+  IS_ANDROID,
+  IS_APPLE_WEBKIT,
+  IS_CHROME,
+  IS_IOS,
+  IS_SAFARI,
+} from './environment';
+import {
+  DATA_LEXICAL_DECORATOR_BOUNDARY,
+  DATA_LEXICAL_MANAGED_LINEBREAK,
+} from './LexicalConstants';
+import {
+  $getDocument,
+  $getEditor,
+  isHTMLElement,
+  isManagedLineBreakDOM,
+} from './LexicalUtils';
 
 /**
  * The editor has at most one block cursor element
@@ -46,6 +61,19 @@ function isSlotContainerDOM(
 const IS_WEBKIT_BROWSER = IS_APPLE_WEBKIT || IS_IOS || IS_SAFARI;
 
 /**
+ * @internal
+ *
+ * Engines that need an editable inline box after an inline DecoratorNode that
+ * ends a line, the `<img>` of the managed line break. WebKit has needed it for
+ * its caret all along. Without it, a desktop Chromium mouse drag that starts
+ * past the end of such a line can put its focus back at the end of the line
+ * while the pointer is over the line's other decorators and text (#7158).
+ * Android is left alone: its IME is sensitive to the DOM around the caret.
+ */
+export const NEEDS_INLINE_DECORATOR_EDGE_BOX: boolean =
+  IS_WEBKIT_BROWSER || (IS_CHROME && !IS_ANDROID);
+
+/**
  * Browsers drop the selection highlight for a range whose endpoint is an
  * element-boundary DOM position (`(element, 0)` or
  * `(element, childNodes.length)`) sitting immediately next to a block-level
@@ -67,19 +95,8 @@ const IS_WEBKIT_BROWSER = IS_APPLE_WEBKIT || IS_IOS || IS_SAFARI;
  * would add a stray blank line here).
  */
 function $createDecoratorBoundaryAnchor(): HTMLImageElement {
-  const img = $getDocument().createElement('img');
-  img.setAttribute('data-lexical-decorator-boundary', 'true');
-  img.alt = '';
-  for (const [property, value] of [
-    ['position', 'absolute'],
-    ['width', '0px'],
-    ['height', '0px'],
-    ['border', '0px'],
-    ['margin', '0px'],
-    ['padding', '0px'],
-  ]) {
-    img.style.setProperty(property, value, 'important');
-  }
+  const img = $createZeroImg(DATA_LEXICAL_DECORATOR_BOUNDARY);
+  img.style.setProperty('position', 'absolute', 'important');
   return img;
 }
 
@@ -96,10 +113,18 @@ export function isDecoratorBoundaryAnchorDOM(
   node: Node | null,
 ): node is Element & {[DecoratorBoundaryAnchorDOMBrand]: never} {
   return (
-    node !== null &&
-    node.nodeType === 1 &&
-    (node as Element).hasAttribute('data-lexical-decorator-boundary')
+    isHTMLElement(node) && node.hasAttribute(DATA_LEXICAL_DECORATOR_BOUNDARY)
   );
+}
+
+/**
+ * Whether a managed line break of `kind` gets an `<img>` before its `<br>`,
+ * the editable inline box after a line's last inline decorator.
+ */
+function needsEdgeImg(
+  kind: LexicalPrivateDOM['__lexicalLastChildKind'],
+): boolean {
+  return kind === 'decorator' && NEEDS_INLINE_DECORATOR_EDGE_BOX;
 }
 
 /** Which boundaries of an ElementNode's DOM carry a decorator anchor. */
@@ -288,6 +313,33 @@ function $topLevelChildOf(parent: HTMLElement, descendant: Node): Node | null {
   return node;
 }
 
+function $createZeroImg(
+  attr:
+    | typeof DATA_LEXICAL_MANAGED_LINEBREAK
+    | typeof DATA_LEXICAL_DECORATOR_BOUNDARY,
+): HTMLImageElement {
+  const img = $getDocument().createElement('img');
+  img.setAttribute(attr, 'true');
+  img.alt = '';
+  for (const property of [
+    'border',
+    'display',
+    'height',
+    'margin',
+    'min-height',
+    'min-width',
+    'padding',
+    'width',
+  ]) {
+    img.style.setProperty(
+      property,
+      property === 'display' ? 'inline' : '0px',
+      'important',
+    );
+  }
+  return img;
+}
+
 /**
  * A utility class for managing the DOM children of an ElementNode.
  *
@@ -447,8 +499,30 @@ export class ElementDOMSlot<
     if (nextLineBreakType === null) {
       this.removeManagedLineBreak();
     } else {
-      const webkitHack = nextLineBreakType === 'decorator' && IS_WEBKIT_BROWSER;
-      this.insertManagedLineBreak(webkitHack);
+      this.insertManagedLineBreak(needsEdgeImg(nextLineBreakType));
+    }
+  }
+
+  /**
+   * @internal
+   *
+   * Rebuild the managed line break after something outside the reconciler
+   * (native editing, an IME, an extension) removed part of it. The `<img>` of
+   * the img+br pair is the tracked node, so a lone `<br>` or `<img>` left
+   * behind is dropped and the pair is inserted again in its usual place,
+   * inside the trailing boundary.
+   */
+  restoreManagedLineBreak(): void {
+    const element: HTMLElement & LexicalPrivateDOM = this.element;
+    for (const child of Array.from(element.childNodes)) {
+      if (isManagedLineBreakDOM(child)) {
+        element.removeChild(child);
+      }
+    }
+    element.__lexicalLineBreak = undefined;
+    const kind = element.__lexicalLastChildKind;
+    if (kind != null) {
+      this.insertManagedLineBreak(needsEdgeImg(kind));
     }
   }
 
@@ -466,33 +540,31 @@ export class ElementDOMSlot<
     }
   }
   /** @internal */
-  insertManagedLineBreak(webkitHack: boolean): void {
-    const prevBreak = this.getManagedLineBreak();
-    if (prevBreak) {
-      if (webkitHack === (prevBreak.nodeName === 'IMG')) {
-        return;
-      }
-      this.removeManagedLineBreak();
-    }
+  insertManagedLineBreak(withEdgeImg: boolean): void {
     const element: HTMLElement & LexicalPrivateDOM = this.element;
-    // Stay inside the trailing decorator boundary anchor, which marks the very
-    // end of the managed range.
-    const before = this.before || this.getDecoratorBoundaryAnchor('trailing');
-    const br = $getDocument().createElement('br');
-    br.setAttribute('data-lexical-managed-linebreak', 'true');
-    element.insertBefore(br, before);
-    if (webkitHack) {
-      const img = $getDocument().createElement('img');
-      img.setAttribute('data-lexical-managed-linebreak', 'true');
-      img.style.setProperty('display', 'inline', 'important');
-      img.style.setProperty('border', '0px', 'important');
-      img.style.setProperty('margin', '0px', 'important');
-      img.alt = '';
-      element.insertBefore(img, br);
-      element.__lexicalLineBreak = img;
-    } else {
-      element.__lexicalLineBreak = br;
+    let br = this.getManagedLineBreak();
+    if (br && br.nodeName === 'IMG') {
+      if (withEdgeImg) return;
+      const img = br;
+      br = img.nextSibling as HTMLBRElement | null;
+      img.remove();
     }
+    // Keep an existing br: replacing it can pin Chromium's caret to a
+    // fixed DOM offset, preventing insertion from focusing the editor.
+    if (!br) {
+      br = $getDocument().createElement('br');
+      br.setAttribute(DATA_LEXICAL_MANAGED_LINEBREAK, 'true');
+      element.insertBefore(
+        br,
+        this.before || this.getDecoratorBoundaryAnchor('trailing'),
+      );
+    }
+    if (withEdgeImg) {
+      const img = $createZeroImg(DATA_LEXICAL_MANAGED_LINEBREAK);
+      element.insertBefore(img, br);
+      br = img;
+    }
+    element.__lexicalLineBreak = br;
   }
 
   /**

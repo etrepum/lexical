@@ -7,38 +7,45 @@
  */
 
 import {
+  $getDOMSlot,
   $getEditor,
+  $isElementNode,
   $isRootNode,
   $isTextNode,
   type ElementNode,
+  getDOMTextNode,
   getRootOwnerDocument,
   getStyleObjectFromCSS,
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
 
-function getDOMTextNode(element: Node | null): Text | null {
-  let node = element;
-
-  while (node != null) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return node as Text;
+/**
+ * Resolve either end of a range, including text descendants and element
+ * slots with editor-managed DOM ahead of their children.
+ */
+function getDOMPoint(
+  editor: LexicalEditor,
+  node: LexicalNode,
+  offset: number,
+): [Node | null, number] {
+  let dom: Node | null = editor.getElementByKey(node.getKey());
+  if (dom !== null) {
+    if ($isTextNode(node)) {
+      dom = getDOMTextNode(dom);
+    } else if ($isElementNode(node)) {
+      return editor.read('latest', () => {
+        const slot = $getDOMSlot(node, dom as HTMLElement, editor);
+        return [slot.element, offset + slot.getFirstChildOffset()];
+      });
+    } else if (dom.nodeName === 'BR') {
+      const parent = dom.parentNode;
+      if (parent === null) throw new Error('Should never happen');
+      offset = Array.from(parent.childNodes).indexOf(dom as ChildNode);
+      dom = parent;
     }
-
-    node = node.firstChild;
   }
-
-  return null;
-}
-
-function getDOMIndexWithinParent(node: ChildNode): [ParentNode, number] {
-  const parent = node.parentNode;
-
-  if (parent == null) {
-    throw new Error('Should never happen');
-  }
-
-  return [parent, Array.from(parent.childNodes).indexOf(node)];
+  return [dom, offset];
 }
 
 /**
@@ -62,35 +69,18 @@ export function createDOMRange(
   // Resolve through the editor's own document so iframe / shadow-mounted
   // editors don't end up with a Range bound to the wrong realm.
   const range = getRootOwnerDocument(editor.getRootElement()).createRange();
-  let anchorDOM: Node | Text | null = editor.getElementByKey(anchorKey);
-  let focusDOM: Node | Text | null = editor.getElementByKey(focusKey);
-  let anchorOffset = _anchorOffset;
-  let focusOffset = _focusOffset;
-
-  if ($isTextNode(anchorNode)) {
-    anchorDOM = getDOMTextNode(anchorDOM);
-  }
-
-  if ($isTextNode(focusNode)) {
-    focusDOM = getDOMTextNode(focusDOM);
-  }
-
-  if (
-    anchorNode === undefined ||
-    focusNode === undefined ||
-    anchorDOM === null ||
-    focusDOM === null
-  ) {
-    return null;
-  }
-
-  if (anchorDOM.nodeName === 'BR') {
-    [anchorDOM, anchorOffset] = getDOMIndexWithinParent(anchorDOM as ChildNode);
-  }
-
-  if (focusDOM.nodeName === 'BR') {
-    [focusDOM, focusOffset] = getDOMIndexWithinParent(focusDOM as ChildNode);
-  }
+  const [anchorDOM, anchorOffset] = getDOMPoint(
+    editor,
+    anchorNode,
+    _anchorOffset,
+  );
+  const [focusDOM, initialFocusOffset] = getDOMPoint(
+    editor,
+    focusNode,
+    _focusOffset,
+  );
+  let focusOffset = initialFocusOffset;
+  if (anchorDOM === null || focusDOM === null) return null;
 
   const firstChild = anchorDOM.firstChild;
 

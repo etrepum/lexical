@@ -303,6 +303,13 @@ export interface InputState {
     focusOffset: number;
   };
   isSelectionChangeFromMouseDown: boolean;
+  /** A mouse press and the listeners following its selection until release. */
+  mouseDrag: null | {
+    anchor: null | [Node, number, Node | string | null];
+    hasExtended: boolean;
+    stop: () => void;
+    update: (record?: boolean) => Selection | null;
+  };
   /**
    * The pointerType of the latest pointerdown in the root element ('touch',
    * 'pen' or 'mouse'), so the compatibility mousedown and click that follow a
@@ -348,6 +355,7 @@ export function createInputState(): InputState {
     lastKeyCode: null,
     lastKeyDownTimeStamp: 0,
     lastPointerType: '',
+    mouseDrag: null,
     postDeleteSelectionToRestore: null,
     savedInputMode: undefined,
     selectionChangeFromDOMUpdatePoints: null,

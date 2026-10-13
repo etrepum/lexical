@@ -61,6 +61,7 @@ import {DOM_TEXT_TYPE, TEXT_TYPE_TO_FORMAT} from './LexicalConstants';
 import {
   markCollapsedSelectionFormat,
   markSelectionChangeFromDOMUpdate,
+  setMouseSelectionDragAnchor,
 } from './LexicalEvents';
 import {getIsProcessingMutations} from './LexicalMutations';
 import {insertRangeAfter, type LexicalNode, type NodeKey} from './LexicalNode';
@@ -101,6 +102,7 @@ import {
   getActiveElement,
   getActiveElementDeep,
   getCaretRect,
+  getComposedEventTarget,
   getComposedStaticRange,
   getDOMSelection,
   getDOMSelectionPoints,
@@ -112,9 +114,11 @@ import {
   INTERNAL_$isBlock,
   isDOMCapturingSelection,
   isDOMDocumentNode,
+  isDOMNode,
   isDOMShadowRoot,
   isDOMTextNode,
   isHTMLElement,
+  isMouseSelectionDragging,
   isSelectionWithinEditor,
   removeDOMBlockCursorElement,
   scrollIntoViewIfNeeded,
@@ -3486,17 +3490,39 @@ export function $createRangeSelectionFromDom(
   return $internalCreateRangeSelection(null, domSelection, editor, null);
 }
 
-// Keys whose keydown handlers move the caret or edit at it themselves.
+// Keys whose keydown handlers move the caret or edit at it themselves. Their
+// shortcuts with Control or Meta do too (Control+H deletes backward on Apple
+// platforms, Control or Meta+B formats), as can a paste, cut or copy that
+// follows the keydown, so a keydown with either modifier counts as well.
 const SELECTION_KEYS = /* @__PURE__ */ new Set([
+  ' ',
   'ArrowDown',
   'ArrowLeft',
   'ArrowRight',
   'ArrowUp',
   'Backspace',
   'Delete',
+  'End',
   'Enter',
+  'Home',
   'Tab',
 ]);
+
+function isSelectionKeyDownEvent(event: Event, editor: LexicalEditor): boolean {
+  if (event.type !== 'keydown') {
+    return false;
+  }
+  const {ctrlKey, key, metaKey} = event as KeyboardEvent;
+  if (!ctrlKey && !metaKey && !SELECTION_KEYS.has(key)) {
+    return false;
+  }
+  // Only a keydown sent to this editor can follow a native caret move in it
+  // that the browser has not reported yet. A shortcut handled elsewhere (a
+  // toolbar, a dialog, a global hotkey) that updates this editor acts at the
+  // editor's own selection, not at a DOM selection left behind in its root.
+  const target = getComposedEventTarget(event);
+  return isDOMNode(target) && getNearestEditorFromDOMNode(target) === editor;
+}
 
 export function $internalCreateRangeSelection(
   lastSelection: null | BaseSelection,
@@ -3530,8 +3556,7 @@ export function $internalCreateRangeSelection(
   // (key repeat, or a busy main thread). Reading the DOM here keeps that
   // keydown from acting on the caret from before the native move.
   const isSelectionKeyDown =
-    eventType === 'keydown' &&
-    SELECTION_KEYS.has((windowEvent as KeyboardEvent).key);
+    windowEvent != null && isSelectionKeyDownEvent(windowEvent, editor);
   const useDOMSelection =
     !getIsProcessingMutations() &&
     (isSelectionChange ||
@@ -3850,17 +3875,23 @@ function setDOMSelectionBaseAndExtent(
   }
 }
 
-function $getElementAndOffsetForPoint(
+function $getDOMPointForSelection(
   editor: LexicalEditor,
-  node: LexicalNode,
-  offset: number,
-): [HTMLElement, number] {
+  point: PointType,
+): [HTMLElement | Text | null, number] {
+  const node = point.getNode();
   const element = getElementByKeyOrThrow(editor, node.getKey());
+  if (point.type === 'text') {
+    return [
+      $isTextNode(node) ? $getDOMTextNode(node, element, editor) : null,
+      point.offset,
+    ];
+  }
   if ($isElementNode(node)) {
     const slot = $getDOMSlot(node, element, editor);
-    return [slot.element, offset + slot.getFirstChildOffset()];
+    return [slot.element, point.offset + slot.getFirstChildOffset()];
   }
-  return [element, offset];
+  return [element, point.offset];
 }
 
 /**
@@ -3886,6 +3917,20 @@ function $getElementPointScrollTarget(
   return node !== null && !$isElementNode(node)
     ? $getDOMSlot(node, child, editor).element
     : child;
+}
+
+/** Whether the DOM point at `offset` in `node` resolves to `point`. */
+function $isDOMPointAt(
+  node: Node | null,
+  offset: number,
+  point: PointType,
+  editor: LexicalEditor,
+): boolean {
+  const resolved =
+    node !== null
+      ? $internalResolveSelectionPoint(node, offset, null, editor)
+      : null;
+  return resolved !== null && resolved[0].is(point);
 }
 
 /** @internal */
@@ -3942,8 +3987,15 @@ export function $updateDOMSelection(
     // of editor.setRootElement(). If this occurs on init when the
     // editor is already focused, then this can cause the editor to
     // lose focus.
+    // During a mouse selection drag, the browser's selection is the drag in
+    // progress, and removing it would restart the drag from wherever the
+    // pointer moves next. nextSelection is null here when a drag point lands
+    // inside a decorator, which the next pointermove moves out. A click still
+    // removes it: Firefox relies on that to place a click between block
+    // decorators.
     if (
       prevSelection !== null &&
+      !isMouseSelectionDragging(editor) &&
       isSelectionWithinEditor(
         editor,
         currentPoints.anchorNode,
@@ -3965,43 +4017,23 @@ export function $updateDOMSelection(
   const anchor = nextSelection.anchor;
   const focus = nextSelection.focus;
   const anchorNode = anchor.getNode();
-  const focusNode = focus.getNode();
-  const [anchorDOM, nextAnchorOffset] = $getElementAndOffsetForPoint(
+  const [nextAnchorNode, nextAnchorOffset] = $getDOMPointForSelection(
     editor,
-    anchorNode,
-    anchor.offset,
+    anchor,
   );
-  const [focusDOM, nextFocusOffset] = $getElementAndOffsetForPoint(
+  const [nextFocusNode, nextFocusOffset] = $getDOMPointForSelection(
     editor,
-    focusNode,
-    focus.offset,
+    focus,
   );
   const nextFormat = nextSelection.format;
   const nextStyle = nextSelection.style;
   const isCollapsed = nextSelection.isCollapsed();
-  let nextAnchorNode: HTMLElement | Text | null = anchorDOM;
-  let nextFocusNode: HTMLElement | Text | null = focusDOM;
-  let anchorFormatOrStyleChanged = false;
-
-  if (anchor.type === 'text') {
-    nextAnchorNode = $isTextNode(anchorNode)
-      ? $getDOMTextNode(anchorNode, anchorDOM, editor)
-      : null;
-    anchorFormatOrStyleChanged =
-      anchorNode.getFormat() !== nextFormat ||
-      anchorNode.getStyle() !== nextStyle;
-  } else if (
-    $isRangeSelection(prevSelection) &&
-    prevSelection.anchor.type === 'text'
-  ) {
-    anchorFormatOrStyleChanged = true;
-  }
-
-  if (focus.type === 'text') {
-    nextFocusNode = $isTextNode(focusNode)
-      ? $getDOMTextNode(focusNode, focusDOM, editor)
-      : null;
-  }
+  const anchorFormatOrStyleChanged =
+    anchor.type === 'text'
+      ? anchorNode.getFormat() !== nextFormat ||
+        anchorNode.getStyle() !== nextStyle
+      : $isRangeSelection(prevSelection) &&
+        prevSelection.anchor.type === 'text';
 
   // If we can't get an underlying text node for selection, then
   // we should avoid setting selection to something incorrect.
@@ -4021,7 +4053,10 @@ export function $updateDOMSelection(
       editor,
       nextFormat,
       nextStyle,
-      nextAnchorOffset,
+      // The Lexical offset, which onSelectionChange compares, rather than
+      // the DOM one, which also counts the DOM the editor renders between
+      // an element's children.
+      anchor.offset,
       anchor.key,
       performance.now(),
     );
@@ -4058,6 +4093,29 @@ export function $updateDOMSelection(
     }
     if (anchor.type !== 'element') {
       return;
+    }
+  }
+
+  if (isMouseSelectionDragging(editor)) {
+    const sameAnchor = $isDOMPointAt(
+      currentPoints.anchorNode,
+      currentPoints.anchorOffset,
+      anchor,
+      editor,
+    );
+    if (
+      sameAnchor &&
+      $isDOMPointAt(
+        currentPoints.focusNode,
+        currentPoints.focusOffset,
+        focus,
+        editor,
+      )
+    ) {
+      return;
+    }
+    if (!sameAnchor) {
+      setMouseSelectionDragAnchor(editor, nextAnchorNode, nextAnchorOffset);
     }
   }
 

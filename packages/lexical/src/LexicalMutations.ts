@@ -6,6 +6,7 @@
  *
  */
 
+import type {ElementDOMSlot} from './LexicalDOMSlot';
 import type {LexicalEditor} from './LexicalEditor';
 import type {EditorState} from './LexicalEditorState';
 import type {LexicalPrivateDOM} from './LexicalNode';
@@ -14,16 +15,20 @@ import type {BaseSelection} from './LexicalSelection';
 import {
   $getSelection,
   $isDecoratorNode,
+  $isElementNode,
   $isRangeSelection,
   $isTextNode,
   $setSelection,
+  type ElementNode,
   type LexicalNode,
   type TextNode,
 } from '.';
 import {IS_FIREFOX} from './environment';
 import {isDecoratorBoundaryAnchorDOM} from './LexicalDOMSlot';
+import {$reconcileDecoratorBoundaryAnchors} from './LexicalReconciler';
 import {updateEditorSync} from './LexicalUpdates';
 import {
+  $getDOMSlot,
   $getNodeByKey,
   $getNodeFromDOMNode,
   $updateTextNodeFromDOMContent,
@@ -36,6 +41,7 @@ import {
   isDOMUnmanaged,
   isFirefoxClipboardEvents,
   isHTMLElement,
+  isManagedLineBreakDOM,
 } from './LexicalUtils';
 // The time between a text entry event and the mutation observer firing.
 const TEXT_MUTATION_VARIANCE = 100;
@@ -144,6 +150,24 @@ function $getNearestManagedNodePairFromDOMNode(
   }
 }
 
+/**
+ * The DOM slot of an element whose DOM an edit outside the reconciler has
+ * changed, for putting back the element's own scaffolding. The edit can have
+ * removed the slot's `before` boundary too, and the scaffolding then goes at
+ * the end of the element.
+ */
+function $getMutatedDOMSlot(
+  node: ElementNode,
+  dom: HTMLElement,
+  editor: LexicalEditor,
+): ElementDOMSlot {
+  const slot = $getDOMSlot(node, dom, editor);
+  const {before} = slot;
+  return before !== null && before.parentNode !== slot.element
+    ? slot.withBefore(null)
+    : slot;
+}
+
 function flushMutations(
   editor: LexicalEditor,
   mutations: MutationRecord[],
@@ -193,6 +217,18 @@ function flushMutations(
           }
         } else if (type === 'childList') {
           shouldRevertSelection = true;
+          // The zero-size selection anchors the reconciler parks outside a
+          // leading / trailing block decorator (#8922) have a fixed place in
+          // their element's DOM. When one is added or removed here, the
+          // element's anchors are rebuilt in place below.
+          let restoreAnchors = false;
+          // The element's own scaffolding (the managed line break inside the
+          // trailing boundary, with its img first; a boundary anchor on the
+          // edge it belongs to) has a fixed place in its DOM, so it is rebuilt
+          // in place below rather than re-appended at the end.
+          const elementSlot = $isElementNode(targetNode)
+            ? $getMutatedDOMSlot(targetNode, nodeDOM, editor)
+            : null;
           // We attempt to "undo" any changes that have occurred outside
           // of Lexical. We want Lexical's editor state to be source of truth.
           // To the user, these will look like no-ops.
@@ -203,16 +239,19 @@ function flushMutations(
             const node = $getNodeFromDOMNode(addedDOM);
             const parentDOM = addedDOM.parentNode;
 
-            if (
+            if (isDecoratorBoundaryAnchorDOM(addedDOM)) {
+              // Lexical only adds anchors while it isn't observing, so this
+              // one was moved or copied by something else (native editing,
+              // an extension), possibly to where it shifts DOM offsets.
+              if (parentDOM !== null) {
+                parentDOM.removeChild(addedDOM);
+              }
+              restoreAnchors = true;
+            } else if (
               parentDOM != null &&
               addedDOM !== blockCursorElement &&
               node === null &&
               !isEditorManagedLineBreak(addedDOM, parentDOM, editor) &&
-              // The zero-size selection anchors the reconciler parks outside
-              // a leading / trailing block decorator (#8922) are keyless
-              // scaffolding, like the managed line break — don't evict them
-              // as foreign DOM.
-              !isDecoratorBoundaryAnchorDOM(addedDOM) &&
               // @experimental named-slots. Slot containers are keyless
               // reconciler scaffolding: a flush that observes one being
               // parked in its host or relocated by an explicit mount must
@@ -248,27 +287,49 @@ function flushMutations(
 
           if (removedDOMsLength > 0) {
             let unremovedBRs = 0;
+            const slot =
+              elementSlot !== null && elementSlot.element === targetDOM
+                ? elementSlot
+                : null;
+            let restoreLineBreak = false;
 
             for (let s = 0; s < removedDOMsLength; s++) {
               const removedDOM = removedDOMs[s];
 
-              if (
+              if (slot !== null && isManagedLineBreakDOM(removedDOM)) {
+                restoreLineBreak = true;
+                unremovedBRs++;
+              } else if (
                 isEditorManagedLineBreak(removedDOM, targetDOM, editor) ||
                 blockCursorElement === removedDOM
               ) {
                 targetDOM.appendChild(removedDOM);
                 unremovedBRs++;
               } else if (isDecoratorBoundaryAnchorDOM(removedDOM)) {
-                // Position matters for these (leading vs trailing), so don't
-                // blindly re-append — the next reconcile of this element puts
-                // a fresh anchor on the right edge.
+                restoreAnchors = true;
                 unremovedBRs++;
               }
+            }
+            if (slot !== null && restoreLineBreak) {
+              slot.restoreManagedLineBreak();
             }
 
             if (removedDOMsLength !== unremovedBRs) {
               badDOMTargets.set(nodeDOM, targetNode);
             }
+          }
+          // The reconciler only gives non-inline elements anchors.
+          if (
+            restoreAnchors &&
+            elementSlot !== null &&
+            $isElementNode(targetNode) &&
+            !targetNode.isInline()
+          ) {
+            $reconcileDecoratorBoundaryAnchors(
+              targetNode,
+              elementSlot,
+              currentEditorState._nodeMap,
+            );
           }
         }
       }

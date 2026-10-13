@@ -6,7 +6,12 @@
  *
  */
 
-import type {InputState, LexicalCommand, LexicalEditor} from './LexicalEditor';
+import type {
+  AnyLexicalCommand,
+  InputState,
+  LexicalCommand,
+  LexicalEditor,
+} from './LexicalEditor';
 import type {KeyboardShortcutMatch} from './LexicalKeyboardShortcuts';
 import type {NodeKey} from './LexicalNode';
 import type {ElementNode} from './nodes/LexicalElementNode';
@@ -92,6 +97,7 @@ import {
   DOUBLE_LINE_BREAK,
   IS_ALL_FORMATTING,
 } from './LexicalConstants';
+import {NEEDS_INLINE_DECORATOR_EDGE_BOX} from './LexicalDOMSlot';
 import {
   compileKeyboardShortcuts,
   CONTROL_OR_ALT,
@@ -99,6 +105,7 @@ import {
 } from './LexicalKeyboardShortcuts';
 import {createRefCountedRegistry} from './LexicalRefCountedRegistry';
 import {
+  $createRangeSelectionFromDom,
   $internalCreateRangeSelection,
   type RangeSelection,
 } from './LexicalSelection';
@@ -113,7 +120,9 @@ import {
   $flushMutations,
   $getAdjacentNode,
   $getDOMTextNode,
+  $getNearestNodeFromDOMNode,
   $getNodeByKey,
+  $getNodeFromDOMNode,
   $isTokenOrSegmented,
   $isTokenOrTab,
   $setSelection,
@@ -130,6 +139,7 @@ import {
   getDOMSelection,
   getDOMSelectionFromTarget,
   getDOMSelectionPoints,
+  getDOMSelectionRange,
   getEditorPropertyFromDOMNode,
   getEditorsToPropagate,
   getNearestEditorFromDOMNode,
@@ -149,14 +159,34 @@ import {
 } from './LexicalUtils';
 import {mergeRegister} from './utils/mergeRegister';
 import {registerEventListener} from './utils/registerEventListener';
+import {registerEventListeners} from './utils/registerEventListeners';
+
+/**
+ * Whether this engine's mouse drags are extended across inline decorators by
+ * the pointer move listener. Firefox needs no edge boxes, but its drags do not
+ * cross an inline decorator whose content is `user-select: none` either. This
+ * is not a module constant because the modules here import each other, so
+ * this one can be evaluated before the one that defines
+ * {@link NEEDS_INLINE_DECORATOR_EDGE_BOX}.
+ */
+function tracksMouseSelectionDrag(): boolean {
+  return NEEDS_INLINE_DECORATOR_EDGE_BOX || IS_FIREFOX;
+}
 
 type RootElementRemoveHandles = (() => void)[];
 type RootElementEvents = [
-  string,
-  Record<string, unknown> | ((event: Event, editor: LexicalEditor) => void),
+  keyof HTMLElementEventMap,
+  (
+    | AnyLexicalCommand
+    | {handle(event: Event, editor: LexicalEditor): void}['handle']
+  ),
 ][];
-const PASS_THROUGH_COMMAND = /* @__PURE__ */ Object.freeze({});
 const ANDROID_COMPOSITION_LATENCY = 30;
+// How far a mouse press moves before the move listener treats it as a selection
+// drag rather than a click whose hand moved, and records the drag's anchor.
+// Every engine extends a press's selection from its first move, so this only
+// needs to be larger than that jitter and smaller than an inline decorator.
+const DRAG_THRESHOLD_PX = 4;
 let rootElementEvents: RootElementEvents | undefined;
 
 function getRootElementEvents(): RootElementEvents {
@@ -170,15 +200,15 @@ function getRootElementEvents(): RootElementEvents {
     ['compositionend', onCompositionEnd],
     ['input', onInput],
     ['click', onClick],
-    ['cut', PASS_THROUGH_COMMAND],
-    ['copy', PASS_THROUGH_COMMAND],
-    ['dragstart', PASS_THROUGH_COMMAND],
-    ['dragover', PASS_THROUGH_COMMAND],
-    ['dragend', PASS_THROUGH_COMMAND],
-    ['paste', PASS_THROUGH_COMMAND],
-    ['focus', PASS_THROUGH_COMMAND],
-    ['blur', PASS_THROUGH_COMMAND],
-    ['drop', PASS_THROUGH_COMMAND],
+    ['cut', CUT_COMMAND],
+    ['copy', COPY_COMMAND],
+    ['dragstart', DRAGSTART_COMMAND],
+    ['dragover', DRAGOVER_COMMAND],
+    ['dragend', DRAGEND_COMMAND],
+    ['paste', PASTE_COMMAND],
+    ['focus', FOCUS_COMMAND],
+    ['blur', BLUR_COMMAND],
+    ['drop', DROP_COMMAND],
   ];
   if (CAN_USE_BEFORE_INPUT) {
     events.push([
@@ -223,6 +253,8 @@ const documentSelectionChange = createRefCountedRegistry((doc: Document) => {
   return () =>
     doc.removeEventListener('selectionchange', onDocumentSelectionChange);
 });
+
+type MouseSelectionDrag = NonNullable<InputState['mouseDrag']>;
 
 // This function is used to determine if Lexical should attempt to override
 // the default browser behavior for insertion of text and use its own internal
@@ -815,6 +847,8 @@ function onPointerDown(event: PointerEvent, editor: LexicalEditor) {
   // outer shadow host the engine retargets to.
   const target = getComposedEventTarget(event);
   const pointerType = event.pointerType;
+  const isCapturingSelection =
+    isDOMNode(target) && isDOMCapturingSelection(target, editor);
   if (
     isDOMNode(target) &&
     pointerType !== 'touch' &&
@@ -824,11 +858,373 @@ function onPointerDown(event: PointerEvent, editor: LexicalEditor) {
     updateEditorSync(editor, () => {
       // Drag & drop should not recompute selection until mouse up; otherwise the initially
       // selected content is lost.
-      if (!isDOMCapturingSelection(target, editor)) {
+      if (!isCapturingSelection) {
         editor._inputState.isSelectionChangeFromMouseDown = true;
       }
     });
   }
+  if (tracksMouseSelectionDrag()) {
+    const prevDrag = editor._inputState.mouseDrag;
+    if (prevDrag) prevDrag.stop();
+    const rootElement = editor.getRootElement();
+    if (
+      isDOMNode(target) &&
+      rootElement !== null &&
+      pointerType === 'mouse' &&
+      event.button === 0 &&
+      !event.defaultPrevented &&
+      !isCapturingSelection &&
+      // A press on a non-collapsed selection drags it, except that Chromium
+      // and WebKit extend the selection to a Shift press instead (Firefox
+      // drags the selection then too).
+      ((event.shiftKey && !IS_FIREFOX) ||
+        !isPointOverDOMSelection(
+          getDOMSelectionFromTarget(target),
+          rootElement,
+          target,
+          event.clientX,
+          event.clientY,
+        ))
+    ) {
+      editor._inputState.mouseDrag = trackMouseSelection(
+        editor,
+        rootElement,
+        event,
+        target,
+      );
+    }
+  }
+}
+
+/**
+ * Whether the point at (`clientX`, `clientY`) on `target` is over the
+ * non-collapsed DOM selection, where a press drags the selection rather than
+ * starting a new one. Only the part of the selection inside `target` is
+ * measured, so that a press after selecting a long document stays cheap.
+ */
+function isPointOverDOMSelection(
+  domSelection: Selection | null,
+  rootElement: HTMLElement,
+  target: Node,
+  clientX: number,
+  clientY: number,
+): boolean {
+  const range =
+    domSelection !== null && domSelection.rangeCount > 0
+      ? getDOMSelectionRange(domSelection, rootElement)
+      : null;
+  if (
+    range === null ||
+    range.collapsed ||
+    target === rootElement ||
+    !range.intersectsNode(target)
+  ) {
+    return false;
+  }
+  const part = range.cloneRange();
+  part.selectNodeContents(target);
+  if (target.contains(range.startContainer)) {
+    part.setStart(range.startContainer, range.startOffset);
+  }
+  if (target.contains(range.endContainer)) {
+    part.setEnd(range.endContainer, range.endOffset);
+  }
+  const rects = part.getClientRects();
+  for (let i = 0; i < rects.length; i++) {
+    const rect = rects[i];
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Follow one press only; remove the document listeners when it ends. */
+function trackMouseSelection(
+  editor: LexicalEditor,
+  root: HTMLElement,
+  press: PointerEvent,
+  target: Node,
+): MouseSelectionDrag {
+  let down: MouseEvent | null = null;
+  let move: PointerEvent | null = null;
+  const cancelled = () =>
+    press.defaultPrevented || (down !== null && down.defaultPrevented);
+  const drag: MouseSelectionDrag = {
+    anchor: null,
+    hasExtended: false,
+    stop: () => {
+      unregister();
+      editor._inputState.mouseDrag = null;
+    },
+    update: (record = false) =>
+      editor.read('latest', () => {
+        const currentMove = move;
+        move = null;
+        const anchor = drag.anchor;
+        if (
+          editor._inputState.mouseDrag !== drag ||
+          (anchor !== null && currentMove === null) ||
+          cancelled()
+        ) {
+          return null;
+        }
+        const selection = getDOMSelectionFromTarget(target);
+        if (selection === null || selection.rangeCount === 0) {
+          if (anchor !== null) drag.stop();
+          return null;
+        }
+        const points = getDOMSelectionPoints(selection, root);
+        let {anchorNode, anchorOffset, focusNode, focusOffset} = points;
+        if (anchorNode === null || focusNode === null) {
+          return null;
+        }
+        if (anchor === null) {
+          if (getNearestEditorFromDOMNode(anchorNode) !== editor) {
+            drag.stop();
+            return null;
+          }
+          if (record) {
+            focusNode = anchorNode;
+            focusOffset = anchorOffset;
+          } else if (
+            press.shiftKey ||
+            !selection.isCollapsed ||
+            $getInlineDecoratorDOM(editor, target)
+          ) {
+            return null;
+          }
+        } else {
+          [anchorNode, anchorOffset] = anchor;
+          if (
+            !anchorNode.isConnected ||
+            getDOMPointContext(anchorNode, anchorOffset) !== anchor[2] ||
+            ($getSelection() !== null && !$isRangeSelection($getSelection()))
+          ) {
+            drag.stop();
+            return null;
+          }
+        }
+        const pointer = currentMove || press;
+        if (!record || !press.shiftKey) {
+          [focusNode, focusOffset] = $getMouseDOMPoint(
+            editor,
+            focusNode,
+            focusOffset,
+            pointer.clientX,
+            pointer.clientY,
+          );
+        }
+        if (record) {
+          drag.anchor = [
+            focusNode,
+            focusOffset,
+            getDOMPointContext(focusNode, focusOffset),
+          ];
+          return null;
+        }
+        if (anchor === null) {
+          anchorNode = focusNode;
+          anchorOffset = focusOffset;
+        }
+        if (
+          anchorNode !== points.anchorNode ||
+          anchorOffset !== points.anchorOffset
+        ) {
+          selection.setBaseAndExtent(
+            anchorNode,
+            anchorOffset,
+            focusNode,
+            focusOffset,
+          );
+        } else if (
+          focusNode !== points.focusNode ||
+          focusOffset !== points.focusOffset
+        ) {
+          selection.extend(focusNode, focusOffset);
+        } else {
+          return null;
+        }
+        drag.hasExtended = anchor !== null;
+        return selection;
+      }),
+  };
+  const unregister = mergeRegister(
+    registerEventListeners(
+      root.ownerDocument,
+      {
+        mousedown: event => {
+          if (down === null) {
+            down = event;
+            if (event.detail > 1) drag.stop();
+          }
+        },
+        pointercancel: drag.stop,
+        pointerdown: drag.stop,
+        pointermove: event => {
+          if (event.pointerType !== 'mouse') return;
+          if (!(event.buttons & 1) || !editor.isEditable() || cancelled()) {
+            drag.stop();
+            return;
+          }
+          if (!event.composedPath().includes(root)) return;
+          if (drag.anchor === null) {
+            if (
+              Math.max(
+                Math.abs(event.clientX - press.clientX),
+                Math.abs(event.clientY - press.clientY),
+              ) <= DRAG_THRESHOLD_PX
+            )
+              return;
+            drag.update(true);
+          } else {
+            if (move === null) setTimeout(drag.update, 0);
+            move = event;
+          }
+        },
+        pointerup: () => {
+          const selection = drag.update();
+          if (selection && drag.anchor === null) {
+            // WebKit can omit selectionchange for equivalent caret positions.
+            updateEditorSync(editor, () => {
+              const previous = $getSelection();
+              const next = $createRangeSelectionFromDom(selection, editor);
+              if (next) {
+                if ($isRangeSelection(previous)) next.format = previous.format;
+                $setSelection(next);
+                $dispatchSelectionChangeCommand(editor, next);
+              }
+            });
+          }
+          drag.stop();
+        },
+      },
+      true,
+    ),
+    registerEventListener(getWindow(editor), 'blur', drag.stop),
+  );
+  return drag;
+}
+
+/** Native text positions compete with the inline decorators on this line. */
+function $getMouseDOMPoint(
+  editor: LexicalEditor,
+  node: Node,
+  offset: number,
+  clientX: number,
+  clientY: number,
+): [Node, number] {
+  const current = $getNearestNodeFromDOMNode(node);
+  const root = editor.getRootElement()!;
+  const hit = (root.getRootNode() as Document | ShadowRoot).elementFromPoint(
+    clientX,
+    clientY,
+  );
+  const hitNode = hit && root.contains(hit) && $getNearestNodeFromDOMNode(hit);
+  const start = hitNode && !$isRootNode(hitNode) ? hitNode : current;
+  const block = start && $findMatchingParent(start, $isBlockElementNode);
+  const dom = block && editor.getElementByKey(block.getKey());
+  let point: [Node, number] = [node, offset];
+  let distance = Infinity;
+  if (dom) {
+    for (const element of dom.querySelectorAll<HTMLElement>(
+      '[data-lexical-decorator], [data-lexical-text]',
+    )) {
+      const lexicalNode = $getNodeFromDOMNode(element);
+      if (!lexicalNode || !lexicalNode.isInline()) continue;
+      const decorator = $isDecoratorNode(lexicalNode);
+      const range = element.ownerDocument.createRange();
+      range.selectNodeContents(element);
+      const rects = decorator
+        ? [element.getBoundingClientRect(), ...range.getClientRects()]
+        : range.getClientRects();
+      for (const rect of rects) {
+        const onLine = clientY >= rect.top && clientY <= rect.bottom;
+        if (!onLine && !(decorator && lexicalNode === current)) continue;
+        const dx = Math.max(rect.left - clientX, clientX - rect.right, 0);
+        const nextDistance = onLine ? dx : Number.MAX_VALUE;
+        if (nextDistance >= distance) continue;
+        distance = nextDistance;
+        const parent = element.parentNode!;
+        point = decorator
+          ? [
+              parent,
+              Array.prototype.indexOf.call(parent.childNodes, element) +
+                Number(
+                  clientX > (rect.left + rect.right) / 2 !==
+                    (getWindow(editor).getComputedStyle(element).direction ===
+                      'rtl'),
+                ),
+            ]
+          : [node, offset];
+      }
+    }
+  }
+  return point;
+}
+
+function $getInlineDecoratorDOM(
+  editor: LexicalEditor,
+  dom: Node,
+): HTMLElement | null {
+  const node = $getNearestNodeFromDOMNode(dom);
+  return $isDecoratorNode(node) && node.isInline()
+    ? editor.getElementByKey(node.getKey())
+    : null;
+}
+
+/**
+ * Cancels the drag and drop that a press would otherwise start once
+ * the pointer move listener has extended its selection over the mousedown point,
+ * so the press keeps selecting. Returns true when it did. Any other drag and
+ * drop ends the press's selection drag.
+ */
+function onSelectionDragStart(event: DragEvent, editor: LexicalEditor) {
+  const drag = editor._inputState.mouseDrag;
+  if (drag === null) {
+    return false;
+  }
+  if (!drag.hasExtended) {
+    drag.stop();
+    return false;
+  }
+  event.preventDefault();
+  return true;
+}
+
+/**
+ * @internal
+ *
+ * Makes the DOM point at `offset` in `node`, where Lexical is about to put
+ * the DOM selection's anchor, the anchor of the mouse selection drag in
+ * progress, so that the drag carries on from there instead of restoring the
+ * anchor it had. Lexical only moves the anchor of a drag when something moved
+ * the selection's anchor on purpose, such as a table that a drag leaves
+ * selecting itself whole.
+ */
+export function setMouseSelectionDragAnchor(
+  editor: LexicalEditor,
+  node: Node,
+  offset: number,
+): void {
+  const drag = editor._inputState.mouseDrag;
+  if (drag !== null && drag.anchor !== null) {
+    drag.anchor = [node, offset, getDOMPointContext(node, offset)];
+  }
+}
+
+/**
+ * What the DOM point at `offset` in `node` is next to: the text of a text
+ * node, or the child before the point, so that a point recorded earlier can
+ * be checked against later changes to the DOM.
+ */
+function getDOMPointContext(node: Node, offset: number): Node | string | null {
+  return isDOMTextNode(node) ? node.data : node.childNodes[offset - 1] || null;
 }
 
 function getTargetRange(event: InputEvent): null | StaticRange {
@@ -2157,6 +2553,11 @@ function onDocumentSelectionChange(event: Event): void {
     return;
   }
 
+  const drag = nextActiveEditor._inputState.mouseDrag;
+  if (drag !== null && drag.update()) {
+    resolvedAnchorNode = null;
+  }
+
   if (nextActiveEditor._inputState.isSelectionChangeFromMouseDown) {
     // Clear the flag on all editors registered on this document — a
     // pointerdown inside a nested editor bubbles to the parent, setting
@@ -2254,92 +2655,37 @@ export function addRootElementEvents(
   // Reference-counted shared `selectionchange` listener; the disposer is run
   // with this root element's other listeners in removeRootElementEvents.
   removeHandles.push(documentSelectionChange.register(doc));
+  removeHandles.push(() => {
+    const drag = editor._inputState.mouseDrag;
+    if (drag) drag.stop();
+  });
 
   const events = getRootElementEvents();
   for (let i = 0; i < events.length; i++) {
     const [eventName, onEvent] = events[i];
-    const eventHandler =
-      typeof onEvent === 'function'
-        ? (event: Event) => {
-            if (hasStoppedLexicalPropagation(event)) {
-              return;
-            }
-            stopLexicalPropagation(event);
-            if (editor.isEditable() || eventName === 'click') {
-              onEvent(event, editor);
-            }
-          }
-        : (event: Event) => {
-            if (hasStoppedLexicalPropagation(event)) {
-              return;
-            }
-            stopLexicalPropagation(event);
-            const isEditable = editor.isEditable();
-            switch (eventName) {
-              case 'cut':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, CUT_COMMAND, event as ClipboardEvent)
-                );
-
-              case 'copy':
-                return dispatchCommand(
-                  editor,
-                  COPY_COMMAND,
-                  event as ClipboardEvent,
-                );
-
-              case 'paste':
-                return (
-                  isEditable &&
-                  dispatchCommand(
-                    editor,
-                    PASTE_COMMAND,
-                    event as ClipboardEvent,
-                  )
-                );
-
-              case 'dragstart':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, DRAGSTART_COMMAND, event as DragEvent)
-                );
-
-              case 'dragover':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, DRAGOVER_COMMAND, event as DragEvent)
-                );
-
-              case 'dragend':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, DRAGEND_COMMAND, event as DragEvent)
-                );
-
-              case 'focus':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, FOCUS_COMMAND, event as FocusEvent)
-                );
-
-              case 'blur': {
-                restoreInputModeIOS(editor, rootElement);
-                editor._inputState.isShiftKeyDown = false;
-                editor._inputState.isInsertLineBreak = false;
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, BLUR_COMMAND, event as FocusEvent)
-                );
-              }
-
-              case 'drop':
-                return (
-                  isEditable &&
-                  dispatchCommand(editor, DROP_COMMAND, event as DragEvent)
-                );
-            }
-          };
+    const eventHandler = (event: Event) => {
+      if (hasStoppedLexicalPropagation(event)) return;
+      stopLexicalPropagation(event);
+      const isEditable = editor.isEditable();
+      if (typeof onEvent === 'function') {
+        if (isEditable || eventName === 'click') onEvent(event, editor);
+      } else {
+        if (
+          eventName === 'dragstart' &&
+          onSelectionDragStart(event as DragEvent, editor)
+        ) {
+          return;
+        }
+        if (eventName === 'blur') {
+          restoreInputModeIOS(editor, rootElement);
+          editor._inputState.isShiftKeyDown = false;
+          editor._inputState.isInsertLineBreak = false;
+        }
+        if (isEditable || eventName === 'copy') {
+          dispatchCommand(editor, onEvent, event);
+        }
+      }
+    };
     removeHandles.push(
       registerEventListener(rootElement, eventName, eventHandler),
     );
