@@ -156,6 +156,13 @@ function installEventLog() {
 
 export async function evlogPage({page}, use, testInfo) {
   await page.addInitScript(installEventLog);
+  // Slows the renderer, as a loaded CI runner does, so that a click's
+  // selectionchange can come after its release.
+  const rate = Number(process.env.CPU_THROTTLE || 0);
+  if (rate > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', {rate});
+  }
   await use(page);
   if (
     testInfo.status !== testInfo.expectedStatus ||
