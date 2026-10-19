@@ -232,25 +232,27 @@ export function $writeElement(
     if (next.length !== old.length || next.some((child, i) => child !== old[i]))
       binding.topologyChanged = true;
     let index = 0;
+    // Stored children in sequence order, kept in step with type's edits.
+    const stored = type.toArray().map(value => getStoredNode(binding, value));
+    const nextIndex = new Map(next.map((child, i) => [child, i]));
     for (const child of next) {
-      const values = type.toArray();
-      if (getStoredNode(binding, values[index]) !== child) {
-        const later = values.findIndex(
-          (value, i) => i >= index && getStoredNode(binding, value) === child,
-        );
+      if (stored[index] !== child) {
+        const later = stored.indexOf(child, index);
         if (
           later >= 0 &&
-          values
+          stored
             .slice(index, later)
-            .every(
-              value =>
-                !next.slice(index + 1).includes(getStoredNode(binding, value)!),
-            )
+            .every(value => !value || (nextIndex.get(value) ?? -1) <= index)
         ) {
           type.delete(index, later - index);
+          stored.splice(index, later - index);
         } else {
-          if (later >= 0) type.delete(later, 1);
+          if (later >= 0) {
+            type.delete(later, 1);
+            stored.splice(later, 1);
+          }
           type.insert(index, [placeNode(binding, child)]);
+          stored.splice(index, 0, child);
         }
       }
       binding.parents.set(child, type);
