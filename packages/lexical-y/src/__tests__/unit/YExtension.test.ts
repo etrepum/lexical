@@ -357,6 +357,19 @@ describe('@lexical/y', () => {
     expect(text(ea)).toContain('last');
     expect(content(ea)).toEqual(content(eb));
   });
+  test('undoing first content preserves concurrently inserted peer nodes in the shared store', () => {
+    const {a, b, ea, eb} = pair();
+    update(eb, () => {
+      $getRoot().append($createParagraphNode().append($createTextNode('peer')));
+      $getRoot().append($getRoot().getFirstChildOrThrow());
+    });
+    manager(ea).undo();
+    copy(a, b);
+    expect(text(eb)).toBe('peer');
+    const binding = getExtensionDependencyFromEditor(eb, YExtension).output
+      .binding;
+    expect(binding.parents.size).toBe(2);
+  });
   test('independent first edits retain both client stores and remain undoable', () => {
     const a = new Y.Doc();
     const b = new Y.Doc();

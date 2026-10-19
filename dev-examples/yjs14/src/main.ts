@@ -251,8 +251,17 @@ function startSession() {
   const refresh = () => {
     element('storage').textContent = docs
       .map((doc, i) => {
-        const attrs = Object.keys(doc.get('root').getAttrs());
-        return `${i === 0 ? 'Alice' : 'Bob'}: ${Y.encodeStateAsUpdate(doc).length} encoded bytes; ${attrs.filter(key => key.startsWith('tree:node:')).length} live stored nodes; ${attrs.filter(key => key.startsWith('shared:')).length} live shared values; ${histories[i].undoStack.length} undo entries`;
+        const values = doc.get('root').getAttrs();
+        const attrs = Object.keys(values);
+        const storedNodes = Object.entries(values).reduce(
+          (count, [key, value]) =>
+            count +
+            (key.startsWith('tree:nodes:') && value instanceof Y.Node
+              ? value.length
+              : 0),
+          0,
+        );
+        return `${i === 0 ? 'Alice' : 'Bob'}: ${Y.encodeStateAsUpdate(doc).length} encoded bytes; ${storedNodes} live stored nodes; ${attrs.filter(key => key.startsWith('shared:')).length} live shared values; ${histories[i].undoStack.length} undo entries`;
       })
       .join('\n');
   };

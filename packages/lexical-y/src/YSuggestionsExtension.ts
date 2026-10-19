@@ -25,6 +25,7 @@ import {
 import {defineExtension, safeCast} from 'lexical';
 
 import {getSuggestionGroups} from './Suggestions';
+import {NODE_STORE} from './Topology';
 import {acceptYAttributions} from './YAttributionExtension';
 import {YExtension} from './YExtension';
 
@@ -148,7 +149,14 @@ export const YSuggestionsExtension = defineExtension({
         );
         base.doc.transact(() => {
           applyUpdate(base.doc, update);
-          const undo = new UndoManager(base.doc);
+          const undo = new UndoManager(base.doc, {
+            deleteFilter: item =>
+              !(
+                item.parent === base.root &&
+                typeof item.parentSub === 'string' &&
+                item.parentSub.startsWith(NODE_STORE)
+              ),
+          });
           try {
             undo.undoStack.push({...group, meta: new Map()});
             undo.undo();

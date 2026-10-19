@@ -524,3 +524,11 @@ use its item internals. Install one compatible `lib0` copy shared with `@y/y`;
 its selection codec and projection transform. The core binding uses Lexical's
 experimental `getNodeSchemaCodec(editor)` contract for schema export, application,
 registry access and validation; custom JSON overrides produce a DEV warning.
+
+
+Node store allocations are permanent infrastructure. `YHistoryExtension` and
+individual suggestion rejection exclude their allocation items from deletion
+while undoing the content items inside them. A custom native Yjs UndoManager
+must likewise use `deleteFilter` to retain root attributes whose keys start with
+`tree:nodes:`; otherwise undoing the first edit could delete later peer content
+stored in the same sequence.

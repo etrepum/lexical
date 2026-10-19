@@ -23,7 +23,7 @@ interface ReviewDelta {
   name?: string;
   attrs?: Record<string, Attribute>;
   children?: {
-    insert?: string | {id: string; token: string}[];
+    insert?: string | (ReviewDelta | {id: string; token: string})[];
     format?: Record<string, unknown>;
     attribution?: Attribution;
   }[];
@@ -47,7 +47,28 @@ export function renderReview(
   decide: (id: string, accept: boolean) => void,
 ): void {
   const root = JSON.parse(JSON.stringify(delta)) as ReviewDelta;
-  const stores = root.attrs || {};
+  const stores = new Map<
+    string,
+    {value: ReviewDelta; attribution?: Attribution}[]
+  >();
+  for (const [key, attribute] of Object.entries(root.attrs || {})) {
+    if (!key.startsWith('tree:nodes:') || !attribute.value) continue;
+    const store = attribute.value as ReviewDelta;
+    for (const operation of store.children || []) {
+      if (!Array.isArray(operation.insert)) continue;
+      for (const value of operation.insert) {
+        if ('id' in value) continue;
+        const id = value.attrs && value.attrs['tree:id'];
+        if (!id || typeof id.value !== 'string') continue;
+        const versions = stores.get(id.value) || [];
+        versions.push({
+          attribution: operation.attribution || attribute.attribution,
+          value,
+        });
+        stores.set(id.value, versions);
+      }
+    }
+  }
   const fragment = document.createDocumentFragment();
   const decorate = (element: HTMLElement, attribution?: Attribution) => {
     if (!attribution) return;
@@ -87,9 +108,16 @@ export function renderReview(
         text.textContent = operation.insert;
         decorate(text, attribution);
         const rawFormat = operation.format && operation.format['p:format'];
-        const format = Array.isArray(rawFormat)
+        let format = Array.isArray(rawFormat)
           ? Number(rawFormat[0])
           : Number(rawFormat || 0);
+        for (const [key, raw] of Object.entries(operation.format || {})) {
+          if (!key.startsWith('p:format:')) continue;
+          const bit = Number(key.slice('p:format:'.length));
+          const enabled = Array.isArray(raw) ? raw[0] : raw;
+          if (enabled) format |= bit;
+          else format &= ~bit;
+        }
         if (format & 1) text.style.fontWeight = 'bold';
         if (format & 2) text.style.fontStyle = 'italic';
         if (format & 8)
@@ -100,8 +128,14 @@ export function renderReview(
         target.append(text);
       } else if (Array.isArray(operation.insert)) {
         for (const reference of operation.insert) {
-          const stored = stores[`tree:node:${reference.id}`];
-          if (!stored || !stored.value || ancestors.has(reference.id)) continue;
+          if (!('id' in reference) || ancestors.has(reference.id)) continue;
+          const versions = stores.get(reference.id) || [];
+          const stored =
+            versions.find(({value}) => {
+              const placement = value.attrs && value.attrs['tree:placement'];
+              return placement && placement.value === reference.token;
+            }) || versions[0];
+          if (!stored) continue;
           const child = stored.value as ReviewDelta;
           const placement = child.attrs && child.attrs['tree:placement'];
           if (

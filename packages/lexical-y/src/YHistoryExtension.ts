@@ -20,6 +20,7 @@ import {
 } from 'lexical';
 
 import {type YSelection} from './Selection';
+import {NODE_STORE} from './Topology';
 import {YExtension} from './YExtension';
 
 /** Collaborative history for local edits to the root and referenced shared types. */
@@ -39,6 +40,14 @@ export const YHistoryExtension = defineExtension({
     const output = state.getOutput();
     const manager = new UndoManager(binding.root, {
       captureTimeout: config.captureTimeout,
+      // The storage container is infrastructure shared by subsequent writers.
+      // Undo node items, never its allocation (which would delete peer nodes).
+      deleteFilter: item =>
+        !(
+          item.parent === binding.root &&
+          typeof item.parentSub === 'string' &&
+          item.parentSub.startsWith(NODE_STORE)
+        ),
       trackedOrigins: new Set([binding]),
     });
     output.undoManager.value = manager;
