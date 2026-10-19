@@ -39,6 +39,7 @@ import {
   addRootElementEvents,
   registerDefaultCommandHandlers,
   removeRootElementEvents,
+  restoreInputModeIOS,
 } from './LexicalEvents';
 import {GenMap} from './LexicalGenMap';
 import {flushRootMutations, initMutationObserver} from './LexicalMutations';
@@ -302,6 +303,22 @@ export interface InputState {
     focusOffset: number;
   };
   isSelectionChangeFromMouseDown: boolean;
+  /** A mouse press that may start a selection drag, then its latest move. */
+  mouseDrag: MouseEvent | null;
+  /**
+   * The pointerType of the latest pointerdown in the root element ('touch',
+   * 'pen' or 'mouse'; '' until the first), on every platform. The
+   * compatibility mousedown and click that follow a tap on iOS tell it from an
+   * iPadOS trackpad or mouse press by it, and a mousedown starts a mouseDrag
+   * only after a 'mouse' one.
+   */
+  lastPointerType: '' | PointerEvent['pointerType'];
+  /**
+   * iOS only. The root element's own `inputmode` attribute (null when it had
+   * none), saved while Lexical holds it at "none" after a tap on a decorator
+   * focused the editor; undefined otherwise.
+   */
+  savedInputMode: string | null | undefined;
   isInsertLineBreak: boolean;
   /** Explicit Shift state, excluding iOS automatic capitalization. */
   isShiftKeyDown: boolean;
@@ -333,7 +350,10 @@ export function createInputState(): InputState {
     lastBeforeInputInsertTextTimeStamp: 0,
     lastKeyCode: null,
     lastKeyDownTimeStamp: 0,
+    lastPointerType: '',
+    mouseDrag: null,
     postDeleteSelectionToRestore: null,
+    savedInputMode: undefined,
     selectionChangeFromDOMUpdatePoints: null,
     unprocessedBeforeInputData: null,
   };
@@ -833,6 +853,9 @@ export function resetEditor(
   if (editor._inputState.handledSelectionCommandTimeoutId !== null) {
     clearTimeout(editor._inputState.handledSelectionCommandTimeoutId);
   }
+  if (prevRootElement !== null) {
+    restoreInputModeIOS(editor, prevRootElement);
+  }
   editor._inputState = createInputState();
 
   const observer = editor._observer;
@@ -1145,6 +1168,11 @@ export class LexicalEditor {
 
   /** @internal */
   _headless: boolean;
+  /**
+   * @internal Enabled by the v1 Yjs binding to distinguish moved nodes from
+   * shifted siblings. Once enabled, persists for the lifetime of this editor.
+   */
+  _recordNodeMoves: boolean;
   /** @internal */
   _parentEditor: null | LexicalEditor;
   /** @internal */
@@ -1291,6 +1319,7 @@ export class LexicalEditor {
     this._htmlConversions = htmlConversions;
     this._editable = editable;
     this._headless = parentEditor !== null && parentEditor._headless;
+    this._recordNodeMoves = false;
     this._window = null;
     this._blockCursorElement = null;
     this._slotsUsed = false;

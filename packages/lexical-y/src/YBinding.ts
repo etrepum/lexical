@@ -44,6 +44,11 @@ import {
 /** One editor bound to one integrated subtree, independent of its transport. */
 export class YBinding {
   readonly doc: Doc;
+  private readonly inlineTypes = new Set<string>();
+
+  get inlineFormatTypes(): ReadonlySet<string> {
+    return this.inlineTypes;
+  }
   readonly error = signal<Error | null>(null);
   readonly mapping = new Mapping();
   private readonly projectionTransforms = new Set<() => void>();
@@ -51,19 +56,40 @@ export class YBinding {
   readonly parents = new Map<YNode, YNode>();
   readonly recovered = new Set<YNode>();
   topologyChanged = false;
+  /** @internal Reproject protected content removed from the local view. */
+  restoreOpaque = false;
   readonly normalizationOrigin = {};
   readonly bootstrapOrigin = {};
   selection: YSelection | null = null;
   selectionBefore: YSelection | null = null;
   restoringSelection: YSelection | null | undefined;
   private readonly attributeCache = new Map<YNode, Attributes>();
-  private reading = false;
   private active = false;
+  private formatKnown = false;
   private writing = false;
   private readonly sharedOwners = new Map<string, Set<YNode>>();
   private readonly sharedTypes = new Set<YNode>();
   private readonly pendingSharedOwners = new Map<string, Attributes>();
   private readonly sharedTypeListeners = new Set<(type: YNode) => void>();
+  private readonly warnedUnknownTypes = new Set<string>();
+
+  /** @internal Missing node types are recoverable opaque projections. */
+  warnUnknownType(name: string): void {
+    if (this.warnedUnknownTypes.has(name)) return;
+    this.warnedUnknownTypes.add(name);
+    try {
+      this.editor._onWarn(
+        new Error(
+          '@lexical/y: node type ' +
+            name +
+            ' is not registered; preserving its shared content as an opaque placeholder',
+        ),
+      );
+    } catch {
+      // The default development warning handler throws. This warning must not
+      // abort an otherwise valid update or suspend supported content's writes.
+    }
+  }
 
   /** Register deterministic, local projection repair for a schema integration. */
   registerProjectionTransform(transform: () => void): () => void {
@@ -88,6 +114,7 @@ export class YBinding {
       !this.error.peek(),
       '@lexical/y: cannot transact while the binding has a schema error',
     );
+    this.assertFormat(true);
     this.selectionBefore = this.selection;
     this.doc.transact(callback, this);
   }
@@ -174,12 +201,14 @@ export class YBinding {
     readonly editor: LexicalEditor,
     readonly root: YNode,
     readonly schemaId = 'default',
+    inlineFormatTypes: readonly string[] = ['link', 'autolink', 'mark'],
   ) {
     invariant(
       root.doc !== null,
       '@lexical/y: root must be integrated into a Y.Doc',
     );
     this.doc = root.doc;
+    inlineFormatTypes.forEach(type => this.inlineTypes.add(type));
   }
 
   /** Register synchronization; disposing the binding never destroys its document. */
@@ -229,6 +258,17 @@ export class YBinding {
           }
           for (const key of dirty) {
             let type = this.mapping.types.get(key);
+            if (!type) {
+              // Attribute-only wrappers have no Y.Node of their own. Reading
+              // their nearest mapped ancestor also re-resolves wrapper refs.
+              this.editor.getEditorState().read(() => {
+                let node = $getNodeByKey(key);
+                while (node && !type) {
+                  type = this.mapping.types.get(node.getKey());
+                  node = node.getParent();
+                }
+              });
+            }
             while (type) {
               changed.add(type);
               type = getParent(this, type) ?? undefined;
@@ -248,14 +288,14 @@ export class YBinding {
       ({editorState, normalizedNodes, dirtyElements, dirtyLeaves, tags}) => {
         if (!this.active || this.error.peek() || tags.has(SKIP_COLLAB_TAG))
           return;
-        const remote =
-          this.reading || tags.has(COLLABORATION_TAG) || tags.has(HISTORIC_TAG);
+        const remote = tags.has(COLLABORATION_TAG) || tags.has(HISTORIC_TAG);
         editorState.read(() => {
           this.selectionBefore = this.selection;
           if (
             (!remote && (dirtyElements.size > 0 || dirtyLeaves.size > 0)) ||
             normalizedNodes.size > 0
           ) {
+            this.assertFormat(true);
             this.writing = true;
             try {
               this.doc.transact(
@@ -285,6 +325,10 @@ export class YBinding {
           } else this.selection = $getYSelection(this);
         });
         this.pruneMapping();
+        if (this.restoreOpaque) {
+          this.restoreOpaque = false;
+          this.read();
+        }
       },
       {synchronous: true},
     );
@@ -318,56 +362,75 @@ export class YBinding {
       this.restoringSelection === undefined
         ? this.selection
         : this.restoringSelection;
-    this.reading = true;
-    try {
-      this.editor.update(
-        () => {
-          try {
-            this.assertFormat();
-            if (structural) readTopology(this);
-            $readElement(this.root, this, changed);
-            for (const transform of this.projectionTransforms) transform();
-            this.error.value = null;
-          } catch (error) {
-            this.mapping.clear();
-            this.attributeCache.clear();
-            this.parents.clear();
-            this.error.value =
-              error instanceof Error ? error : new Error(String(error));
-            throw error;
-          }
-          for (const key of dirty) {
-            const node = $getNodeByKey(key);
-            if (node) node.markDirty();
-          }
-          $restoreYSelection(this, selection);
-        },
-        {
-          discrete: true,
-          skipTransforms: true,
-          tag: [COLLABORATION_TAG, SKIP_SCROLL_INTO_VIEW_TAG],
-        },
-      );
-    } finally {
-      this.reading = false;
-    }
+    this.editor.update(
+      () => {
+        try {
+          this.assertFormat();
+          if (structural) readTopology(this);
+          $readElement(this.root, this, changed);
+          for (const transform of this.projectionTransforms) transform();
+          this.error.value = null;
+        } catch (error) {
+          this.mapping.clear();
+          this.attributeCache.clear();
+          this.parents.clear();
+          this.error.value =
+            error instanceof Error ? error : new Error(String(error));
+          throw error;
+        }
+        for (const key of dirty) {
+          const node = $getNodeByKey(key);
+          if (node) node.markDirty();
+        }
+        $restoreYSelection(this, selection);
+      },
+      {
+        discrete: true,
+        skipTransforms: true,
+        tag: [COLLABORATION_TAG, SKIP_SCROLL_INTO_VIEW_TAG],
+      },
+    );
     this.pruneMapping();
   }
 
-  private assertFormat(): void {
+  private assertFormat(write = false): void {
     const format = this.root.getAttr('tree:format');
     if (format === undefined) {
       invariant(this.root.length === 0, '@lexical/y: missing document format');
+      // Binding an empty, loading document must not compete with the existing
+      // document's layout marker. Only an actual local write elects a layout.
+      if (!write) return;
+      this.formatKnown = true;
       this.doc.transact(
         () =>
-          this.root.setAttr('tree:format', {schema: this.schemaId, version: 1}),
+          this.root.setAttr('tree:format', {
+            inlineFormatTypes: [...this.inlineTypes].sort(),
+            schema: this.schemaId,
+            version: 2,
+          }),
         this.bootstrapOrigin,
       );
     } else {
       invariant(
-        format && format.version === 1 && format.schema === this.schemaId,
+        format &&
+          format.version === 2 &&
+          format.schema === this.schemaId &&
+          Array.isArray(format.inlineFormatTypes) &&
+          format.inlineFormatTypes.every(
+            (type: unknown) => typeof type === 'string',
+          ),
         '@lexical/y: incompatible document format or application schema',
       );
+      const types = new Set<string>(format.inlineFormatTypes);
+      invariant(
+        !this.formatKnown ||
+          (types.size === this.inlineTypes.size &&
+            [...types].every(type => this.inlineTypes.has(type))),
+        '@lexical/y: the document inline layout cannot change while an editor is bound',
+      );
+      this.inlineTypes.clear();
+      types.forEach(type => this.inlineTypes.add(type));
+      this.formatKnown = true;
     }
   }
 
@@ -381,6 +444,7 @@ export class YBinding {
       {discrete: true, tag: SKIP_COLLAB_TAG},
     );
     this.editor.read('latest', () => {
+      this.assertFormat(true);
       this.doc.transact(() => {
         $writeElement(this.root, $getRoot(), this);
         readTopology(this);
@@ -390,11 +454,14 @@ export class YBinding {
   }
 
   private pruneMapping(): void {
+    const nodes = this.editor.getEditorState()._nodeMap;
     for (const key of this.pendingSharedOwners.keys()) {
-      if (!this.mapping.types.has(key)) this.pendingSharedOwners.delete(key);
+      if (!this.mapping.types.has(key) && !nodes.has(key))
+        this.pendingSharedOwners.delete(key);
     }
     for (const key of this.sharedOwners.keys()) {
-      if (!this.mapping.types.has(key)) this.sharedOwners.delete(key);
+      if (!this.mapping.types.has(key) && !nodes.has(key))
+        this.sharedOwners.delete(key);
     }
     for (const type of this.mapping.nodes.keys()) {
       if (type !== this.root && !this.parents.has(type)) {

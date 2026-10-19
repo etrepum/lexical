@@ -441,19 +441,22 @@ describe('@lexical/y', () => {
     copy(source, target);
     expect(text(create(target.get('root')))).toBe('hello!');
   });
-  test('unknown remote node types suspend writes without deleting their shared data', () => {
+  test('unknown remote node types preserve their shared data while supported content stays writable', () => {
     const source = new Y.Doc();
     const target = new Y.Doc();
     const writer = create(source.get('root'), {}, [CardNode]);
     const reader = create(target.get('root'));
     update(writer, () => $getRoot().append($create(CardNode)));
-    expect(() => copy(source, target)).toThrow(/not registered/);
+    copy(source, target);
     const binding = getExtensionDependencyFromEditor(reader, YExtension).output
       .binding;
-    expect(binding.error.value).not.toBeNull();
-    const before = Y.encodeStateAsUpdate(target);
-    seed(reader, 'cannot replace unknown content');
-    expect(Y.encodeStateAsUpdate(target)).toEqual(before);
+    expect(binding.error.value).toBeNull();
+    seed(reader, 'supported content');
+    copy(target, source);
+    expect(text(writer)).toBe('\n\nsupported content');
+    writer.read('latest', () =>
+      expect($getRoot().getFirstChildOrThrow()).toBeInstanceOf(CardNode),
+    );
     expect(content(create(target.get('root'), {}, [CardNode]))).toEqual(
       content(writer),
     );

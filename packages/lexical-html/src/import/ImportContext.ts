@@ -20,7 +20,6 @@ import {
   isBlockDomNode,
   isDOMTextNode,
   isHTMLElement,
-  isInlineDomNode,
   type LexicalEditor,
 } from 'lexical';
 
@@ -164,10 +163,9 @@ export type IsPreserveWhitespaceDom = (node: Node) => boolean;
 /**
  * Determines whether a given DOM node sits on the same visual line as its
  * adjacent text siblings, governing whether leading/trailing whitespace in
- * a `#text` is collapsed against neighbors. The default consults
- * {@link isInlineDomNode} from `lexical` (style.display or a fixed inline
- * tag-name set) and additionally treats elements with an explicit
- * non-inline `display` style as block.
+ * a `#text` is collapsed against neighbors. The default treats known block
+ * tags and elements with an explicit non-inline `display` style as block;
+ * other elements and text nodes are inline.
  *
  * @experimental
  */
@@ -208,7 +206,8 @@ export function defaultPreservesWhitespace(node: Node): boolean {
 /**
  * Default {@link WhitespaceImportConfig.isInline}: treats an element as
  * inline iff its inline `display` style is `inline*` OR (no explicit
- * non-inline display) its nodeName is a known inline tag (`isInlineDomNode`).
+ * non-inline display) it is not a known block tag. Unknown elements default
+ * to inline, matching the browser's default display for custom elements.
  * Text nodes are always inline; comments and other non-elements are not.
  *
  * @experimental
@@ -227,7 +226,7 @@ export function defaultIsInline(node: Node): boolean {
   if (isBlockDomNode(node)) {
     return false;
   }
-  return isInlineDomNode(node);
+  return true;
 }
 
 /**

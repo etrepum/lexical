@@ -1,0 +1,53 @@
+name: Yjs 14 browser regressions
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/yjs14-browser-tests.yml'
+      - 'packages/lexical-y/**'
+      - 'packages/lexical/src/**'
+      - 'dev-examples/yjs14/**'
+      - 'pnpm-lock.yaml'
+
+permissions: {}
+
+concurrency:
+  group: yjs14-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            browser: firefox
+          - os: macos-latest
+            browser: webkit
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: true
+      VITEST_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          node-version: '24.x'
+      - uses: ./.github/actions/setup-playwright
+        with:
+          node-version: '24.x'
+          browsers: ${{ matrix.browser }}
+      - name: Run Yjs 14 browser regressions
+        run: pnpm exec vitest run --project browser packages/lexical-y/src
+      - name: Upload failures
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Yjs14-${{ matrix.os }}-${{ matrix.browser }}
+          path: |
+            .vitest/attachments/
+            .vitest-attachments/
+            packages/lexical-y/src/__tests__/browser/**/__screenshots__/
+          if-no-files-found: ignore
+          retention-days: 7

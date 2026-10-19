@@ -30,6 +30,7 @@ export type YBinding = {
   readonly doc: Doc,
   readonly error: Signal<Error | null>,
   readonly schemaId: string,
+  readonly inlineFormatTypes: ReadonlySet<string>,
   readonly root: YNode,
   readonly editor: LexicalEditor,
   selection: YSelection | null,
@@ -46,6 +47,7 @@ export type YBinding = {
 export type YConfig = {
   root: YNode | null,
   schemaId: string,
+  inlineFormatTypes: ReadonlyArray<string>,
   ready: boolean,
   $initialState: (() => void) | null,
 };

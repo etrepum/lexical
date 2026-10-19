@@ -42,7 +42,7 @@ and nested editor instances stored as properties are unsupported.
 
 The binding keeps BindingV2's one-to-one non-text mapping and grouped text runs,
 but stores nodes independently from their positions. Each non-text node has a
-named `Y.Node`; adjacent TextNodes share an unnamed text run. The root's
+named `Y.Node`; adjacent TextNodes and line breaks share an unnamed text run. The root's
 `tree:node:` attributes retain these nodes. Child sequences and named slots hold
 `{id, token}` placements; a node's `tree:placement` attribute selects its current
 placement. Moving a node changes its placement without deleting its shared
@@ -60,10 +60,33 @@ the document's `gc` or `gcFilter` settings. Losing concurrent placement records
 can remain as small inert references until their parent sequence is edited.
 
 Text edits use CRDT insert/delete operations, and formatting boundaries map runs
-back to Lexical TextNodes. Reconciliation skips unchanged subtrees. Ordinary text
+back to Lexical leaves. Line breaks are newline characters in the same run, and
+each text-format bit is an independent attribute. The writer changes only the
+attributes and character ranges that differ; typing does not reassert existing
+formatting or remove fields from newer writers.
+
+Links, autolinks and marks annotate those characters instead of owning another
+text container. Adding, removing or undoing a wrapper preserves the characters'
+CRDT identities and a peer's concurrent typing. Each wrapper property and mark ID
+has its own attribute, so concurrent properties and overlapping marks merge
+independently. Configure `inlineFormatTypes` when creating a document to opt
+other schema-based inline element types into this representation. Only opt in
+attribute-only wrappers: their identity and empty instances are not persisted.
+All bindings follow the layout recorded in the document, including bindings
+created without that option. Types absent from that layout remain structural.
+
+Reconciliation skips unchanged subtrees. Ordinary text
 and property transactions do not rebuild the topology; structural transactions
 rebuild its projection. Selection bookmarks include ancestor positions so removal
 of a selected container falls back to a nearby surviving boundary.
+
+There are still correctness gaps when an operation moves only part of a text
+run into another structural container. A concurrent paragraph split or inline
+decorator insertion can move a peer's typing to the wrong side of the new
+boundary. Joining paragraphs can lose typing concurrently added in the removed
+paragraph. `Inline.test.ts` retains three expected-failure reproductions. These
+operations need source-run fragment identities rather than copying substrings
+between runs; the inline-wrapper fixes do not solve them.
 
 While active, the binding requests synchronous Lexical commits through
 `registerUpdateListener(listener, {synchronous: true})`. Each completed update
@@ -90,12 +113,24 @@ Every root has a `tree:format` marker containing the format version and applicat
 root. Change it when deploying incompatible node schemas; the binding rejects a
 mismatch before editing. It does not migrate Yjs 13 data or infer application
 schema compatibility. Coordinate migrations and offline-client upgrades outside
-the binding.
+the binding. The current experimental layout is version 2. Documents created
+with this PR's earlier version 1 layout are rejected; there is no in-place
+conversion. To replace an old experimental document, export it using its original
+binding, import its Lexical JSON into a new document, and retire the old document
+and offline clients together. This starts new CRDT identities and history.
 
-An unknown node type or invalid remote schema is reported through Lexical's error
-handler and `binding.error`. Outgoing writes are suspended after a failed read so
-an incomplete local projection cannot overwrite shared content. Fix the shared
-data or rebuild the editor with the required schema. A successful read clears the
+An unavailable node type appears as an isolated, labeled placeholder. Its shared
+payload, descendants and formatting remain intact while supported content stays
+editable. A text run containing an unavailable TextNode type is kept opaque as a
+whole so formatting and adjacent text cannot accidentally overwrite it. Rebuild
+the editor with the missing node registered to edit that content. Persist the Yjs
+document to retain these payloads; Lexical JSON only exports the placeholder.
+The binding reports each unavailable type once through Lexical's warning handler.
+
+An invalid remote schema is reported through Lexical's error handler and
+`binding.error`. Outgoing writes are suspended after a failed read so an
+incomplete local projection cannot overwrite shared content. Fix the shared data
+or rebuild the editor with the required schema. A successful read clears the
 error. Unknown NodeState keys remain in NodeState; ordinary schema properties are
 owned by the configured schema, so `schemaId` must also change when peers cannot
 safely interpret those properties.
@@ -344,13 +379,19 @@ to several local TextNodes. Deleted members drop out; undo can follow restored
 identities. Local history/remote reconciliation uses a nearby range fallback if
 all members disappear. Remote presence disappears instead of inventing a caret.
 
-Import `YTableSelectionExtension` from `@lexical/y/table` for TableSelection.
+Install `YTableSelectionExtension` from `@lexical/y/table` for table collaboration,
+including its deterministic geometry repair and TableSelection support.
 `@lexical/table` follows the monorepo's matching-version dependency convention;
 its code is not imported by the base entry point.
 Table bookmarks keep table/cell identities, row boundaries and logical columns;
 a removed endpoint resolves to a nearby surviving cell, accounting for spans.
 The extension registers table nodes and deterministic projection repairs for
-trailing gaps from overlapping merges and spans extending past deleted rows.
+ragged rows, internal holes, overlapping merges and spans extending past deleted
+rows. Repairs extend existing adjacent cells instead of allocating new cells on
+each peer. If overlapping spans cannot be resolved that way, the malformed table
+loses its rowspans and existing cells fill a rectangular grid. Cell identities
+and content survive; valid merged tables are unchanged. Reading does not write
+repair transactions into Yjs.
 It does not install DOM table behavior: add `TableExtension` for that, or
 `registerTablePlugin` for headless table normalization. When loading a table
 before mounting, mount through an earlier extension as the dev example does.
@@ -438,3 +479,20 @@ pin deleted content: displaying historical deleted text still requires retained
 content or a checkpoint taken before collection. A checkpoint cannot recover
 content already collected before capture. Metadata retention/compaction belongs
 to the application; removing attribution records loses that historical attribution.
+
+## Collaboration regression audit
+
+The October 2026 Yjs 13 draft PRs are reference cases; their legacy binding
+implementations are not imported or modified by this package.
+
+| Cases | Coverage in this package |
+| --- | --- |
+| Inline wrapping, concurrent comments, unlink/undo, replacement and line breaks (#9377, #9378, #9380, #9383; report W1–W6/B2) | `Inline.test.ts`, `TextAttributes.test.ts`, `InlineSelections.test.ts`, `ReviewInline.test.ts` |
+| Look-alike siblings and ragged/concurrently merged tables (#9374, #9375; T1–T2) | `Tables.test.ts`, including sequential and concurrent three-peer stress cases |
+| Named slots, unavailable types, and local edits triggered by incoming updates (#9376, #9379; B1/B3/B4) | `BindingRegressions.test.ts` |
+| Changed attributes, independent format bits and unknown fields (#9381, #9383) | `TextAttributes.test.ts`, `IndependentAudit.test.ts` |
+
+The report's shared serialization issues also have regressions in `@lexical/html`,
+`@lexical/list`, `@lexical/table` and core TextNode import tests. Structural
+text-movement limitations are documented above and remain expected failures;
+passing regression coverage is not a claim of arbitrary collaboration correctness.

@@ -17,18 +17,36 @@ import {
   $getSlot,
   $getSlotNames,
   $isElementNode,
+  $isLineBreakNode,
   $isRangeSelection,
   $isSlotHost,
   $isTextNode,
   $removeSlot,
   $setSlot,
   type ElementNode,
+  getComposedSchemaFields,
   type LexicalNode,
-  type TextNode,
+  LineBreakNode,
 } from 'lexical';
 import * as delta from 'lib0/delta';
+import {uuidv4} from 'lib0/random';
 
-import {type Content} from './Mapping';
+import {
+  $inlineFormats,
+  $isInlineWrapper,
+  $readInlineChildren,
+  INLINE_PREFIX,
+  type InlineContent,
+  isInlineFormatKey,
+} from './Inline';
+import {type Content, type TextLeaf} from './Mapping';
+import {
+  $isOpaqueNode,
+  $readOpaqueNode,
+  containsUnknownType,
+  hasUnknownType,
+  preserveOpaqueChildren,
+} from './Opaque';
 import {
   $applyAttributes,
   $attributesFromNode,
@@ -37,21 +55,32 @@ import {
   equalValue,
   SLOT_PREFIX,
 } from './Schema';
-import {decodeAttributes, encodeAttributes, SHARED_PREFIX} from './SharedTypes';
+import {decodeAttributes, encodeAttributes} from './SharedTypes';
 import simpleDiffWithCursor from './simpleDiffWithCursor';
-import {getChildren, getStoredNode, placeNode, TREE_PREFIX} from './Topology';
+import {
+  decodeTextFormats,
+  encodeTextFormats,
+  isTextFormatKey,
+} from './TextFormats';
+import {getChildren, getStoredNode, placeNode} from './Topology';
 
-export function $normalizeContent(node: LexicalNode): Content[] {
+export function $normalizeContent(
+  node: LexicalNode,
+  binding?: YBinding,
+): Content[] {
   const content: Content[] = [];
-  if ($isElementNode(node)) {
-    for (const child of node.getChildren()) {
-      const last = content[content.length - 1];
-      if ($isTextNode(child)) {
-        if (Array.isArray(last)) last.push(child);
-        else content.push([child]);
-      } else content.push(child);
+  const append = (child: LexicalNode) => {
+    if ($isInlineWrapper(child, binding)) {
+      child.getChildren().forEach(append);
+      return;
     }
-  }
+    const last = content[content.length - 1];
+    if ($isTextNode(child) || $isLineBreakNode(child)) {
+      if (Array.isArray(last)) last.push(child);
+      else content.push([child]);
+    } else content.push(child);
+  };
+  if ($isElementNode(node)) node.getChildren().forEach(append);
   return content;
 }
 
@@ -66,7 +95,9 @@ function sameContent(a: Content | undefined, b: Content): boolean {
 }
 
 function matches(type: YNode, content: Content): boolean {
-  return type.name === (Array.isArray(content) ? null : content.getType());
+  return !Array.isArray(content) && $isOpaqueNode(content)
+    ? true
+    : type.name === (Array.isArray(content) ? null : content.getType());
 }
 
 function $createType(content: Content): YNode {
@@ -77,7 +108,7 @@ function $createType(content: Content): YNode {
 
 export function $writeText(
   type: YNode,
-  nodes: TextNode[],
+  nodes: TextLeaf[],
   binding: YBinding,
 ): void {
   const previous = readText(type);
@@ -96,29 +127,109 @@ export function $writeText(
     }
   }
   const diff = simpleDiffWithCursor(str, next, cursor);
-  if (diff.remove) type.delete(diff.index, diff.remove);
-  if (diff.insert) type.insert(diff.index, diff.insert);
-  const clear: Record<string, null> = {};
-  for (const part of readText(type))
-    for (const key of Object.keys(part.formats)) clear[key] = null;
-  let offset = 0;
-  nodes.forEach((node, index) => {
-    const attrs = encodeAttributes(
-      binding,
-      node.getKey(),
-      $attributesFromNode(node),
-    );
-    const formats: Attributes = {
-      ...clear,
-      boundary: index,
-      type: node.getType(),
+  const mapped = binding.mapping.nodes.get(type);
+  const boundaries = new Map<string, unknown>();
+  if (Array.isArray(mapped)) {
+    let position = 0;
+    let partStart = 0;
+    let index = 0;
+    for (const node of mapped) {
+      while (
+        index < previous.length &&
+        position >= partStart + previous[index].text.length
+      ) {
+        partStart += previous[index++].text.length;
+      }
+      const boundary = previous[index] && previous[index].formats.boundary;
+      if (boundary !== undefined) boundaries.set(node.getKey(), boundary);
+      // Mapping holds the previous immutable leaves. getLatest() would read
+      // new lengths and shift boundaries when an earlier leaf was edited.
+      position += $isTextNode(node) ? node.__text.length : 1;
+    }
+  }
+  const propertyKeys = new Set<string>();
+  const desired = nodes.map(node => {
+    const entry = binding.editor._nodes.get(node.getType())!;
+    for (const key of Object.keys(getComposedSchemaFields(entry.klass)))
+      propertyKeys.add('p:' + key);
+    const attrs = {
+      ...encodeTextFormats(
+        encodeAttributes(binding, node.getKey(), $attributesFromNode(node)),
+      ),
+      ...$inlineFormats(node, binding),
     };
-    // A null format removes a mark. Wrapping JSON values preserves a real
-    // null (as well as arrays and objects) without string serialization.
+    const formats: Attributes = {type: node.getType()};
+    // Token and explicitly unmergeable nodes need stable separators even when
+    // their schema fields agree. Normal text can merge without ordinal markers.
+    if (
+      $isTextNode(node) &&
+      (node.getMode() !== 'normal' || node.isUnmergeable())
+    ) {
+      formats.boundary = boundaries.get(node.getKey()) ?? uuidv4();
+    }
+    // Null removes a format. Wrapping preserves real nulls and JSON values.
     for (const [key, value] of Object.entries(attrs)) formats[key] = [value];
-    type.format(offset, node.getTextContentSize(), formats);
-    offset += node.getTextContentSize();
+    return {formats, text: node.getTextContent()};
   });
+  const owns = (key: string) =>
+    key === 'type' ||
+    key === 'boundary' ||
+    key.startsWith('s:') ||
+    key.startsWith('ref:s:') ||
+    propertyKeys.has(key.startsWith('ref:') ? key.slice(4) : key) ||
+    isTextFormatKey(key) ||
+    isInlineFormatKey(key, binding);
+  if (diff.remove) type.delete(diff.index, diff.remove);
+  // Insert with the final formats. Inheriting and then formatting the new text
+  // leaves restore markers that can resurrect a concurrently changed value.
+  if (diff.insert) {
+    let offset = 0;
+    for (const part of desired) {
+      const start = Math.max(offset, diff.index);
+      const end = Math.min(
+        offset + part.text.length,
+        diff.index + diff.insert.length,
+      );
+      if (start < end)
+        type.insert(
+          start,
+          part.text.slice(start - offset, end - offset),
+          part.formats,
+        );
+      offset += part.text.length;
+    }
+  }
+  // Re-applying equal Yjs formats replaces boundary items and can spread stale
+  // values over a peer's concurrent edits. Only write keys/ranges that differ.
+  const current = readText(type);
+  let ci = 0;
+  let di = 0;
+  let co = 0;
+  let dO = 0;
+  let offset = 0;
+  while (ci < current.length && di < desired.length) {
+    const c = current[ci];
+    const d = desired[di];
+    const length = Math.min(c.text.length - co, d.text.length - dO);
+    const changed: Attributes = {};
+    for (const key of Object.keys(c.formats))
+      if (owns(key) && !(key in d.formats)) changed[key] = null;
+    for (const [key, value] of Object.entries(d.formats))
+      if (!equalValue(c.formats[key], value)) changed[key] = value;
+    if (length > 0 && Object.keys(changed).length)
+      type.format(offset, length, changed);
+    offset += length;
+    co += length;
+    dO += length;
+    if (co === c.text.length) {
+      ci++;
+      co = 0;
+    }
+    if (dO === d.text.length) {
+      di++;
+      dO = 0;
+    }
+  }
   binding.mapping.set(type, nodes);
 }
 
@@ -134,6 +245,19 @@ export function readText(type: YNode): {text: string; formats: Attributes}[] {
   return result;
 }
 
+function hasDirtyWrapper(
+  node: LexicalNode,
+  dirty: Set<string>,
+  binding: YBinding,
+): boolean {
+  let parent = node.getParent();
+  while (parent && $isInlineWrapper(parent, binding)) {
+    if (dirty.has(parent.getKey())) return true;
+    parent = parent.getParent();
+  }
+  return false;
+}
+
 function $writeContent(
   type: YNode,
   content: Content,
@@ -144,8 +268,12 @@ function $writeContent(
     dirty &&
     sameContent(binding.mapping.nodes.get(type), content) &&
     (Array.isArray(content)
-      ? content.every(node => !dirty.has(node.getKey()))
-      : !dirty.has(content.getKey()))
+      ? content.every(
+          node =>
+            !dirty.has(node.getKey()) && !hasDirtyWrapper(node, dirty, binding),
+        )
+      : !dirty.has(content.getKey()) &&
+        !hasDirtyWrapper(content, dirty, binding))
   )
     return;
   if (Array.isArray(content)) $writeText(type, content, binding);
@@ -158,30 +286,42 @@ export function $writeElement(
   binding: YBinding,
   dirty?: Set<string>,
 ): void {
-  const attrs = encodeAttributes(
-    binding,
-    node.getKey(),
-    $attributesFromNode(node),
-  );
+  // A placeholder has no authority to rewrite an unavailable node's schema,
+  // descendants, shared references, or text formatting.
+  if ($isOpaqueNode(node)) return;
+  const attrs = {
+    ...encodeAttributes(binding, node.getKey(), $attributesFromNode(node)),
+    ...$inlineFormats(node, binding),
+  };
   const oldAttrs = binding.getAttributes(type);
+  const fields = getComposedSchemaFields(
+    binding.editor._nodes.get(node.getType())!.klass,
+  );
+  const owns = (key: string) => {
+    const property = key.startsWith('ref:') ? key.slice(4) : key;
+    return (
+      property.startsWith('s:') ||
+      (property.startsWith('p:') &&
+        Object.prototype.hasOwnProperty.call(fields, property.slice(2))) ||
+      isInlineFormatKey(key, binding)
+    );
+  };
   for (const [key, value] of Object.entries(attrs)) {
     if (!equalValue(oldAttrs[key], value)) type.setAttr(key, value);
   }
   for (const key of Object.keys(oldAttrs)) {
-    if (
-      !key.startsWith(TREE_PREFIX) &&
-      !key.startsWith(SLOT_PREFIX) &&
-      !key.startsWith(SHARED_PREFIX) &&
-      !(key in attrs)
-    )
-      type.deleteAttr(key);
+    if (owns(key) && !(key in attrs)) type.deleteAttr(key);
   }
   const names = new Set($getSlotNames(node));
   for (const name of names) {
     const child = $getSlot(node, name)!;
     const oldSlot = getStoredNode(binding, type.getAttr(SLOT_PREFIX + name));
     let slot = binding.mapping.types.get(child.getKey());
-    if (!slot || slot.name !== child.getType())
+    if (oldSlot && slot !== oldSlot && containsUnknownType(oldSlot, binding)) {
+      binding.restoreOpaque = true;
+      continue;
+    }
+    if (!slot || (!$isOpaqueNode(child) && slot.name !== child.getType()))
       slot = new YNode(child.getType());
     if (slot !== oldSlot)
       type.setAttr(SLOT_PREFIX + name, placeNode(binding, slot));
@@ -193,11 +333,17 @@ export function $writeElement(
       key.startsWith(SLOT_PREFIX) &&
       !names.has(key.slice(SLOT_PREFIX.length))
     ) {
+      const slot = getStoredNode(binding, oldAttrs[key]);
+      if (slot && containsUnknownType(slot, binding)) {
+        names.add(key.slice(SLOT_PREFIX.length));
+        binding.restoreOpaque = true;
+        continue;
+      }
       type.deleteAttr(key);
       binding.topologyChanged = true;
     }
   }
-  const children = $normalizeContent(node);
+  const children = $normalizeContent(node, binding);
   const old = getChildren(binding, type);
   // Resolve by Lexical identity. A moved node keeps its stored Y.Node and text.
   const used = new Set<YNode>();
@@ -218,6 +364,8 @@ export function $writeElement(
     used.add(candidate);
     return candidate;
   });
+  const contentByType = new Map(next.map((child, i) => [child, children[i]]));
+  preserveOpaqueChildren(old, next, binding);
   for (const previous of old) {
     if (binding.recovered.has(previous) && !next.includes(previous)) {
       previous.deleteAttr('tree:placement');
@@ -232,36 +380,46 @@ export function $writeElement(
     if (next.length !== old.length || next.some((child, i) => child !== old[i]))
       binding.topologyChanged = true;
     let index = 0;
+    // Stored children in sequence order, kept in step with type's edits.
+    const stored = type.toArray().map(value => getStoredNode(binding, value));
+    const nextIndex = new Map(next.map((child, i) => [child, i]));
     for (const child of next) {
-      const values = type.toArray();
-      if (getStoredNode(binding, values[index]) !== child) {
-        const later = values.findIndex(
-          (value, i) => i >= index && getStoredNode(binding, value) === child,
-        );
+      if (stored[index] !== child) {
+        const later = stored.indexOf(child, index);
         if (
           later >= 0 &&
-          values
+          stored
             .slice(index, later)
-            .every(
-              value =>
-                !next.slice(index + 1).includes(getStoredNode(binding, value)!),
-            )
+            .every(value => !value || (nextIndex.get(value) ?? -1) <= index)
         ) {
           type.delete(index, later - index);
+          stored.splice(index, later - index);
         } else {
-          if (later >= 0) type.delete(later, 1);
+          if (later >= 0) {
+            type.delete(later, 1);
+            stored.splice(later, 1);
+          }
           type.insert(index, [placeNode(binding, child)]);
+          stored.splice(index, 0, child);
         }
       }
       binding.parents.set(child, type);
       index++;
     }
     if (type.length > index) type.delete(index, type.length - index);
-    next.forEach((child, i) =>
-      $writeContent(child, children[i], binding, dirty),
-    );
+    next.forEach(child => {
+      const content = contentByType.get(child);
+      if (content) $writeContent(child, content, binding, dirty);
+    });
   }
-  const cached = {...attrs};
+  const cached = {
+    ...Object.fromEntries(
+      Object.entries(oldAttrs).filter(
+        ([key]) => !owns(key) && !key.startsWith(SLOT_PREFIX),
+      ),
+    ),
+    ...attrs,
+  };
   for (const name of names)
     cached[SLOT_PREFIX + name] = type.getAttr(SLOT_PREFIX + name);
   binding.cacheAttributes(type, cached);
@@ -272,13 +430,22 @@ function $readText(
   type: YNode,
   binding: YBinding,
   changed?: ReadonlySet<YNode>,
-): TextNode[] {
-  const mapped = binding.mapping.nodes.get(type);
-  if (changed && !changed.has(type) && Array.isArray(mapped))
-    return mapped.map(node => node.getLatest());
-  const parts = readText(type);
+): InlineContent[] {
+  if (hasUnknownType(type, binding))
+    return [{attributes: {}, node: $readOpaqueNode(type, binding)}];
+  const parts = readText(type).flatMap(part => {
+    const entry =
+      typeof part.formats.type === 'string' &&
+      binding.editor._nodes.get(part.formats.type);
+    return entry &&
+      (entry.klass === LineBreakNode ||
+        entry.klass.prototype instanceof LineBreakNode)
+      ? Array.from(part.text, text => ({formats: part.formats, text}))
+      : [part];
+  });
   const previous = binding.mapping.nodes.get(type);
-  const nodes: TextNode[] = [];
+  const nodes: TextLeaf[] = [];
+  const content: InlineContent[] = [];
   for (let i = 0; i < parts.length; i++) {
     const {text, formats} = parts[i];
     const name = typeof formats.type === 'string' ? formats.type : 'text';
@@ -287,24 +454,30 @@ function $readText(
     if (!node || node.getType() !== name)
       node = $createNode(binding.editor, name);
     invariant(
-      $isTextNode(node),
-      '@lexical/y: text run type %s must be a TextNode',
+      $isTextNode(node) || $isLineBreakNode(node),
+      '@lexical/y: text run type %s must be text or a line break',
       name,
     );
     const attrs: Attributes = {};
-    for (const [key, value] of Object.entries(formats)) {
+    for (const [key, value] of Object.entries(formats))
       if (Array.isArray(value) && value.length === 1) attrs[key] = value[0];
-    }
-    const decoded = decodeAttributes(binding, node.getKey(), attrs);
+    const schemaAttrs = Object.fromEntries(
+      Object.entries(attrs).filter(([key]) => !key.startsWith(INLINE_PREFIX)),
+    );
+    const attributes = decodeAttributes(binding, node.getKey(), schemaAttrs);
+    const decoded = $isTextNode(node)
+      ? decodeTextFormats(attributes)
+      : attributes;
     if (
       !equalValue($attributesFromNode(node), decoded) ||
       node.getTextContent() !== text
     )
-      $applyAttributes(node, decoded, text);
+      $applyAttributes(node, decoded, $isTextNode(node) ? text : undefined);
     nodes.push(node.getLatest());
+    content.push({attributes: attrs, node: node.getLatest()});
   }
   binding.mapping.set(type, nodes);
-  return nodes;
+  return content;
 }
 
 export function $readElement(
@@ -312,6 +485,8 @@ export function $readElement(
   binding: YBinding,
   changed?: ReadonlySet<YNode>,
 ): LexicalNode {
+  if (type !== binding.root && hasUnknownType(type, binding))
+    return $readOpaqueNode(type, binding);
   const prev = binding.mapping.nodes.get(type);
   let node =
     type === binding.root
@@ -332,7 +507,7 @@ export function $readElement(
   if (!equalValue($attributesFromNode(node), properties))
     $applyAttributes(node, properties);
   if ($isElementNode(node)) {
-    const children: LexicalNode[] = [];
+    const children: InlineContent[] = [];
     for (const child of getChildren(binding, type)) {
       invariant(
         child instanceof YNode,
@@ -340,9 +515,13 @@ export function $readElement(
       );
       if (child.name === null)
         children.push(...$readText(child, binding, changed));
-      else children.push($readElement(child, binding, changed));
+      else
+        children.push({
+          attributes: binding.getAttributes(child),
+          node: $readElement(child, binding, changed),
+        });
     }
-    $spliceChildren(node, children);
+    $spliceChildren(node, $readInlineChildren(children, binding));
   }
   const names = new Set<string>();
   for (const [key, value] of Object.entries(attrs)) {

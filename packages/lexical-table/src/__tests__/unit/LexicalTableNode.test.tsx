@@ -310,10 +310,12 @@ describe('LexicalTableNode tests', () => {
                             vertical-align: top;
                             text-align: start;
                             background-color: rgb(242, 243, 245);
-                          ">
+                          "
+                            data-lexical-header-state="3">
                             <p><span style="white-space: pre-wrap">0</span></p>
                           </th>
                           <th
+                            scope="col"
                             style="
                             border: 1px solid black;
                             width: 75px;
@@ -326,6 +328,7 @@ describe('LexicalTableNode tests', () => {
                         </tr>
                         <tr>
                           <th
+                            scope="row"
                             style="
                             border: 1px solid black;
                             width: 75px;
@@ -384,6 +387,7 @@ describe('LexicalTableNode tests', () => {
                       <tbody>
                         <tr>
                           <th
+                            scope="col"
                             style="
                             border: 1px solid black;
                             width: 75px;

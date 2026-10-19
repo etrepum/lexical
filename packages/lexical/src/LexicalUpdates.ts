@@ -48,7 +48,7 @@ import {
   $garbageCollectDetachedDecorators,
   $garbageCollectDetachedNodes,
 } from './LexicalGC';
-import {initMutationObserver} from './LexicalMutations';
+import {flushRootMutations, initMutationObserver} from './LexicalMutations';
 import {$normalizeTextNode} from './LexicalNormalization';
 import {$reconcileRoot} from './LexicalReconciler';
 import {
@@ -597,6 +597,13 @@ export function $commitPendingUpdates(
   editor: LexicalEditor,
   recoveryEditorState?: EditorState,
 ): void {
+  // Not in the recovery from a failed update, which commits inside it, where
+  // the flush would run against the failed editor state.
+  if (editor._pendingEditorState !== null && activeEditor !== editor) {
+    // The commit disconnects the observer, which drops the DOM changes it has
+    // recorded but not reported yet, so they are reverted first.
+    flushRootMutations(editor, false, true);
+  }
   // Save and restore rather than set and clear because the reconciler error
   // recovery path re-enters $commitPendingUpdates, and the enqueued update
   // pump at the tail of a commit can commit discrete updates synchronously.
@@ -867,12 +874,13 @@ function triggerMutationListeners(
   dirtyLeaves: Set<string>,
   prevEditorState: EditorState,
 ): void {
+  const listeners = Array.from(editor._listeners.mutation);
+  const listenersLength = listeners.length;
+  // Like the other commit listeners, enqueue updates started by a mutation
+  // listener so that they begin after every listener of this commit has run.
   const previouslyUpdating = editor._updating;
   editor._updating = true;
   try {
-    const listeners = Array.from(editor._listeners.mutation);
-    const listenersLength = listeners.length;
-
     for (let i = 0; i < listenersLength; i++) {
       const [listener, klassSet] = listeners[i];
       for (const klass of klassSet) {
@@ -1270,6 +1278,7 @@ function $beginUpdate(
   const previousReadOnlyMode = isReadOnlyMode;
   const previousActiveEditor = activeEditor;
   const previouslyUpdating = editor._updating;
+  const previouslyNotifiedSelection = editor._lastNotifiedSelection;
   activeEditorState = pendingEditorState;
   isReadOnlyMode = false;
   editor._updating = true;
@@ -1406,6 +1415,10 @@ function $beginUpdate(
       updateTags.clear();
       editor._deferred = [];
       editor._pendingEditorState = null;
+      // A notification in the dropped update recorded a selection that never
+      // commits. Left in place, it would suppress the next notification of
+      // that selection, so a listener that restated it would never run again.
+      editor._lastNotifiedSelection = previouslyNotifiedSelection;
     }
   }
 }

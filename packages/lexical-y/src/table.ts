@@ -120,10 +120,14 @@ function $resolveCell(
   return entry ? entry.cell : null;
 }
 
-/** Repair trailing gaps after overlapping merges without allocating shared identities. */
+/** Repair merged table geometry without allocating peer-specific shared identities. */
 function $normalizeTableProjection(): void {
   for (const table of $nodesOfType(TableNode)) {
-    const rows = table.getChildren();
+    const rows = table.getChildren<TableRowNode>();
+    if (rows.every(row => row.getChildrenSize() === 0)) {
+      table.remove();
+      continue;
+    }
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       if (!$isTableRowNode(row)) continue;
@@ -133,17 +137,80 @@ function $normalizeTableProjection(): void {
     }
     const [map] = $computeTableMapSkipCellCheck(table, null, null);
     const width = Math.max(0, ...map.map(row => row.length));
+    let malformed = false;
+    // A rectangular map can still hide overlapping spans: the table map's
+    // later writes overwrite the earlier cell's covered positions.
+    const coverage = new Map<string, number>();
+    for (const row of map)
+      for (const entry of row)
+        if (entry) {
+          const key = entry.cell.getKey();
+          coverage.set(key, (coverage.get(key) || 0) + 1);
+        }
+    for (const row of rows)
+      for (const cell of row.getChildren<TableCellNode>())
+        if (
+          coverage.get(cell.getKey()) !==
+          cell.getRowSpan() * cell.getColSpan()
+        )
+          malformed = true;
+    // Extend adjacent existing cells into holes where their rectangles fit.
+    // This also fills holes on either side of cells spanning from above.
     for (let i = 0; i < map.length; i++) {
-      const row = map[i];
-      if (row.length >= width || !row.length) continue;
-      const last = row[row.length - 1];
-      if (last && last.startRow === i && last.cell.getRowSpan() === 1)
-        last.cell.setColSpan(last.cell.getColSpan() + width - row.length);
+      for (let j = 0; j < width; j++) {
+        if (map[i][j]) continue;
+        const left = map[i][j - 1];
+        const above = i > 0 ? map[i - 1][j] : undefined;
+        if (left && left.startRow === i && left.cell.getRowSpan() === 1) {
+          left.cell.setColSpan(left.cell.getColSpan() + 1);
+          map[i][j] = left;
+        } else if (
+          above &&
+          above.startRow + above.cell.getRowSpan() === i &&
+          Array.from(
+            {length: above.cell.getColSpan()},
+            (_, offset) => map[i][above.startColumn + offset],
+          ).every(value => !value)
+        ) {
+          above.cell.setRowSpan(above.cell.getRowSpan() + 1);
+          for (let c = 0; c < above.cell.getColSpan(); c++)
+            map[i][above.startColumn + c] = above;
+        } else {
+          malformed = true;
+          continue;
+        }
+      }
+    }
+    if (!malformed) continue;
+    // Some concurrent merges cannot coexist as rectangles. Retain every cell
+    // and its content, and resolve those span conflicts in document order.
+    // Keeping this a projection avoids concurrent padding inserts growing the
+    // table whenever independently repaired documents are synchronized.
+    for (const row of rows)
+      for (const cell of row.getChildren<TableCellNode>()) cell.setRowSpan(1);
+    const firstPopulatedRow = rows.find(row => row.getChildrenSize() > 0);
+    if (!firstPopulatedRow) {
+      table.remove();
+      continue;
+    }
+    if (firstPopulatedRow !== rows[0])
+      rows[0].append(...firstPopulatedRow.getChildren());
+    let previous: TableCellNode[] = [];
+    for (const row of rows) {
+      const cells = row.getChildren<TableCellNode>();
+      if (cells.length) {
+        const size = cells.reduce((sum, cell) => sum + cell.getColSpan(), 0);
+        const last = cells[cells.length - 1];
+        if (size < width) last.setColSpan(last.getColSpan() + width - size);
+        previous = cells;
+      } else {
+        for (const cell of previous) cell.setRowSpan(cell.getRowSpan() + 1);
+      }
     }
   }
 }
 
-/** Optional table selection codec. Import from @lexical/y/table. */
+/** Table collaboration projection and selection codec. Import from @lexical/y/table. */
 export const YTableSelectionExtension = defineExtension({
   dependencies: [YExtension],
   name: '@lexical/y/TableSelection',

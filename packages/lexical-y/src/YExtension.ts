@@ -13,6 +13,8 @@ import invariant from '@lexical/internal/invariant';
 import {Node as YNode} from '@y/y';
 import {declarePeerDependency, defineExtension, safeCast} from 'lexical';
 
+import {registerInlineTransforms} from './Inline';
+import {YOpaqueNode} from './Opaque';
 import {assertSchema} from './Schema';
 import {YBinding} from './YBinding';
 
@@ -21,6 +23,8 @@ export interface YConfig {
   root: YNode | null;
   /** Application schema identifier. Different identifiers cannot edit the same root. */
   schemaId: string;
+  /** Property-only inline wrapper types represented as annotations on shared text. */
+  inlineFormatTypes: readonly string[];
   /** Whether initial loading has finished. Gates optional bootstrap. */
   ready: boolean;
   /** Initialize an empty shared root after it is ready. Elect one initializer. */
@@ -39,17 +43,24 @@ export const YExtension = defineExtension({
       if (klass.getType() !== 'artificial') assertSchema(klass);
     }
     return {
-      binding: new YBinding(editor, config.root, config.schemaId),
+      binding: new YBinding(
+        editor,
+        config.root,
+        config.schemaId,
+        config.inlineFormatTypes,
+      ),
       ...namedSignals({ready: config.ready}),
     };
   },
   config: safeCast<YConfig>({
     $initialState: null,
+    inlineFormatTypes: ['link', 'autolink', 'mark'],
     ready: true,
     root: null,
     schemaId: 'default',
   }),
   name: '@lexical/y',
+  nodes: () => [YOpaqueNode],
   peerDependencies: [
     declarePeerDependency<typeof HistoryExtension>('@lexical/history/History', {
       disabled: true,
@@ -59,6 +70,7 @@ export const YExtension = defineExtension({
     const {binding, ready} = state.getOutput();
     let initialized = false;
     const unregister = binding.register();
+    const unregisterInline = registerInlineTransforms(binding);
     const stopBootstrap = effect(() => {
       if (ready.value && !initialized) {
         initialized = true;
@@ -67,6 +79,7 @@ export const YExtension = defineExtension({
     });
     return () => {
       stopBootstrap();
+      unregisterInline();
       unregister();
     };
   },

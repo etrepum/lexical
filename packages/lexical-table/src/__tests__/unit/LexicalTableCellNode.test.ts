@@ -298,7 +298,7 @@ describe('LexicalTableCellNode tests', () => {
       return node;
     };
 
-    test('DOM Conversion: <th> with scope="col" becomes COLUMN header', async () => {
+    test('DOM Conversion: <th> with scope="col" becomes ROW header', async () => {
       const {editor} = testEnv;
 
       await editor.update(() => {
@@ -309,11 +309,11 @@ describe('LexicalTableCellNode tests', () => {
 
         const node = expectTableCellNode(result);
 
-        expect(node.getHeaderStyles()).toBe(TableCellHeaderStates.COLUMN);
+        expect(node.getHeaderStyles()).toBe(TableCellHeaderStates.ROW);
       });
     });
 
-    test('DOM Conversion: <th> with scope="row" becomes ROW header', async () => {
+    test('DOM Conversion: <th> with scope="row" becomes COLUMN header', async () => {
       const {editor} = testEnv;
 
       await editor.update(() => {
@@ -324,7 +324,7 @@ describe('LexicalTableCellNode tests', () => {
 
         const node = expectTableCellNode(result);
 
-        expect(node.getHeaderStyles()).toBe(TableCellHeaderStates.ROW);
+        expect(node.getHeaderStyles()).toBe(TableCellHeaderStates.COLUMN);
       });
     });
 

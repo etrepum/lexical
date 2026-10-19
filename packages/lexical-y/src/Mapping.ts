@@ -7,9 +7,10 @@
  */
 
 import type {Node as YNode} from '@y/y';
-import type {LexicalNode, NodeKey, TextNode} from 'lexical';
+import type {LexicalNode, LineBreakNode, NodeKey, TextNode} from 'lexical';
 
-export type Content = LexicalNode | TextNode[];
+export type TextLeaf = TextNode | LineBreakNode;
+export type Content = LexicalNode | TextLeaf[];
 
 /** BindingV2's one-to-one elements and one-to-many text-run mapping. */
 export class Mapping {

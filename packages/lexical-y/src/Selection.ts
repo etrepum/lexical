@@ -23,14 +23,16 @@ import {
   $isElementNode,
   $isNodeSelection,
   $isRangeSelection,
+  $isTextNode,
   $setSelection,
   type BaseSelection,
+  type ElementNode,
   type LexicalNode,
   type PointType,
 } from 'lexical';
 
-import {$normalizeContent} from './Sync';
-import {getChildIndex, getChildren, getParent, getStoredNode} from './Topology';
+import {$isInlineWrapper} from './Inline';
+import {getChildIndex, getParent, getStoredNode} from './Topology';
 
 interface YRangeSelection {
   anchor: RelativePosition;
@@ -78,56 +80,115 @@ export function isRelativePosition(value: unknown): boolean {
   );
 }
 
-function $pointToRelative(
+function $mappedEdge(
   binding: YBinding,
-  point: PointType,
-): RelativePosition | null {
-  const type = binding.mapping.types.get(point.key);
-  if (!type) return null;
-  const mapped = binding.mapping.nodes.get(type);
-  if (point.type === 'text' && Array.isArray(mapped)) {
-    let index = point.offset;
-    for (const n of mapped) {
-      if (n.getKey() === point.key)
-        return createRelativePositionFromTypeIndex(type, index);
-      index += n.getTextContentSize();
-    }
-  } else if (point.type === 'element') {
-    const node = point.getNode();
-    if ($isElementNode(node)) {
-      let offset = 0;
-      let index = 0;
-      for (const child of $normalizeContent(node)) {
-        const count = Array.isArray(child) ? child.length : 1;
-        if (offset + count > point.offset && Array.isArray(child)) {
-          const textType = binding.mapping.types.get(child[0].getKey());
-          if (textType) {
-            const textOffset = child
-              .slice(0, point.offset - offset)
-              .reduce((n, text) => n + text.getTextContentSize(), 0);
-            return createRelativePositionFromTypeIndex(textType, textOffset);
-          }
-        }
-        if (offset >= point.offset) break;
-        offset += count;
-        index++;
-      }
-      const child = getChildren(binding, type)[index];
-      const rawIndex = child
-        ? getChildIndex(binding, type, child)
-        : type.length;
-      return createRelativePositionFromTypeIndex(
-        type,
-        rawIndex < 0 ? type.length : rawIndex,
-      );
+  node: LexicalNode | null,
+  end: boolean,
+): LexicalNode | null {
+  if (!node) return null;
+  if (binding.mapping.types.has(node.getKey())) return node;
+  if ($isInlineWrapper(node, binding)) {
+    const children = node.getChildren();
+    if (end) children.reverse();
+    for (const child of children) {
+      const edge = $mappedEdge(binding, child, end);
+      if (edge) return edge;
     }
   }
   return null;
 }
 
+function $leafToRelative(
+  binding: YBinding,
+  node: LexicalNode,
+  offset: number,
+): RelativePosition | null {
+  const type = binding.mapping.types.get(node.getKey());
+  const mapped = type && binding.mapping.nodes.get(type);
+  if (!type || !Array.isArray(mapped)) return null;
+  let index = offset;
+  for (const leaf of mapped) {
+    if (leaf.getKey() === node.getKey())
+      return createRelativePositionFromTypeIndex(type, index);
+    index += leaf.getTextContentSize();
+  }
+  return null;
+}
+
+function $elementToRelative(
+  binding: YBinding,
+  node: ElementNode,
+  offset: number,
+): RelativePosition | null {
+  const children = node.getChildren();
+  const after = children
+    .slice(offset)
+    .map(child => $mappedEdge(binding, child, false))
+    .find(child => child !== null);
+  const before = children
+    .slice(0, offset)
+    .reverse()
+    .map(child => $mappedEdge(binding, child, true))
+    .find(child => child !== null);
+  for (const [edge, end] of [
+    [after, false],
+    [before, true],
+  ] as const) {
+    if (!edge) continue;
+    const relative = $leafToRelative(
+      binding,
+      edge,
+      end ? edge.getTextContentSize() : 0,
+    );
+    if (relative) return relative;
+    const type = binding.mapping.types.get(edge.getKey());
+    const parent = type && getParent(binding, type);
+    if (type && parent) {
+      const index = getChildIndex(binding, parent, type);
+      if (index >= 0)
+        return createRelativePositionFromTypeIndex(
+          parent,
+          index + (end ? 1 : 0),
+        );
+    }
+  }
+  const type = binding.mapping.types.get(node.getKey());
+  if (type)
+    return createRelativePositionFromTypeIndex(
+      type,
+      offset === 0 ? 0 : type.length,
+    );
+  const parent = node.getParent();
+  return parent
+    ? $elementToRelative(
+        binding,
+        parent,
+        node.getIndexWithinParent() + (offset === 0 ? 0 : 1),
+      )
+    : null;
+}
+
+function $pointToRelative(
+  binding: YBinding,
+  point: PointType,
+): RelativePosition | null {
+  const node = point.getNode();
+  return point.type === 'text'
+    ? $leafToRelative(binding, node, point.offset)
+    : $isElementNode(node)
+      ? $elementToRelative(binding, node, point.offset)
+      : null;
+}
+
 function $fallbacks(binding: YBinding, point: PointType): RelativePosition[] {
   const positions: RelativePosition[] = [];
-  let type = binding.mapping.types.get(point.key);
+  let node: LexicalNode | null = point.getNode();
+  const edge = $mappedEdge(binding, node, false);
+  let type = binding.mapping.types.get(edge ? edge.getKey() : point.key);
+  while (!type && node) {
+    node = node.getParent();
+    type = node ? binding.mapping.types.get(node.getKey()) : undefined;
+  }
   while (type && type !== binding.root) {
     const parent = getParent(binding, type);
     if (!parent) break;
@@ -182,28 +243,57 @@ function $resolvePoint(
       const node = $getNodeByKey(mapped[i].getKey());
       if (!node || !node.isAttached()) continue;
       const size = node.getTextContentSize();
-      if (index <= size || i === mapped.length - 1)
-        return [node.getKey(), Math.min(index, size), 'text'];
+      if (index <= size || i === mapped.length - 1) {
+        if ($isTextNode(node))
+          return [node.getKey(), Math.min(index, size), 'text'];
+        const parent = node.getParent();
+        return parent
+          ? [
+              parent.getKey(),
+              node.getIndexWithinParent() + (index === 0 ? 0 : 1),
+              'element',
+            ]
+          : null;
+      }
       index -= size;
     }
   } else {
     const node = $getNodeByKey(mapped.getKey());
     if ($isElementNode(node) && node.isAttached()) {
-      const offset = absolute.type
-        .toArray()
-        .slice(0, absolute.index)
-        .reduce((sum: number, child: YNode) => {
-          const stored = getStoredNode(binding, child);
-          const content = stored && binding.mapping.nodes.get(stored);
-          return (
-            sum + (Array.isArray(content) ? content.length : content ? 1 : 0)
-          );
-        }, 0);
-      return [
-        node.getKey(),
-        Math.min(offset, node.getChildrenSize()),
-        'element',
-      ];
+      const children = absolute.type.toArray();
+      // A text run can contain several wrappers and leaves. Count its direct
+      // Lexical children, rather than treating every leaf as a child here.
+      const edge = (value: unknown, end: boolean): LexicalNode | null => {
+        const stored = getStoredNode(binding, value);
+        const content = stored && binding.mapping.nodes.get(stored);
+        const parts = Array.isArray(content)
+          ? [...content]
+          : content
+            ? [content]
+            : [];
+        if (end) parts.reverse();
+        for (const part of parts) {
+          let child = $getNodeByKey(part.getKey());
+          while (child) {
+            const parent = child.getParent();
+            if (parent && parent.getKey() === node.getKey()) break;
+            child = parent;
+          }
+          if (child && child.isAttached()) return child;
+        }
+        return null;
+      };
+      for (let i = absolute.index - 1; i >= 0; i--) {
+        const child = edge(children[i], true);
+        if (child)
+          return [node.getKey(), child.getIndexWithinParent() + 1, 'element'];
+      }
+      for (let i = absolute.index; i < children.length; i++) {
+        const child = edge(children[i], false);
+        if (child)
+          return [node.getKey(), child.getIndexWithinParent(), 'element'];
+      }
+      return [node.getKey(), 0, 'element'];
     }
   }
   return null;
@@ -328,16 +418,13 @@ export function $resolveYNodeReference(
     followUndoneDeletions,
   );
   if (!start || !end || start.type !== type || end.type !== type) return [];
+  if (start.index === end.index) return [];
   let offset = 0;
   return mapped.flatMap(part => {
     const node = $getNodeByKey(part.getKey());
     const next = offset + part.getTextContentSize();
     const selected =
-      node &&
-      node.isAttached() &&
-      (start.index === end.index
-        ? offset <= start.index && start.index <= next
-        : offset < end.index && next > start.index);
+      node && node.isAttached() && offset < end.index && next > start.index;
     offset = next;
     return selected ? [node!] : [];
   });

@@ -94,7 +94,6 @@ export {
   defineOverlayRules,
   type DOMImportConfig,
   DOMImportExtension,
-  HorizontalRuleImportExtension,
   HorizontalRuleImportRules,
   ImportOverlays,
   ImportSource,
@@ -404,7 +403,7 @@ function $appendNodesToHTML(
       // already-drained fragment and never reach the output.
       if (after) {
         const newElement = after.call(target, element);
-        if (newElement) {
+        if (newElement && newElement !== element) {
           element.replaceChildren(newElement);
         }
       }
@@ -415,7 +414,7 @@ function $appendNodesToHTML(
       parentElementAppend(element);
       if (after) {
         const newElement = after.call(target, element);
-        if (newElement) {
+        if (newElement && newElement !== element) {
           element.replaceWith(newElement);
         }
       }

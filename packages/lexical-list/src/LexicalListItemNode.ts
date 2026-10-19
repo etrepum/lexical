@@ -10,6 +10,7 @@ import invariant from '@lexical/internal/invariant';
 import {
   $applyNodeReplacement,
   $copyNode,
+  $createLineBreakNode,
   $createParagraphNode,
   $getDocument,
   $getSelection,
@@ -282,6 +283,9 @@ export class ListItemNode extends ElementNode {
 
       if ($isElementNode(node) && this.canMergeWith(node)) {
         const children = node.getChildren();
+        if ($isParagraphNode(node) && !this.isEmpty()) {
+          super.append($createLineBreakNode());
+        }
         this.append(...children);
         node.remove();
       } else {
