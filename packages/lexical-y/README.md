@@ -514,8 +514,11 @@ the entire editor while registered, including updates from other extensions. It
 disables microtask batching so each local commit reaches Yjs before remote work.
 The binding writes only explicitly dirty subtrees. Structural transactions update
 the topology index for touched containers; cycle repair rebuilds the projection.
-Table geometry repair restores canonical table properties before each structural
-projection, so table integrations can still require a complete projection read.
+Table geometry repair restores only its previously projected table subtrees;
+unrelated paragraphs remain cached even when the table integration is enabled.
+Custom projection transforms can provide the same subtree scopes through
+`registerProjectionTransform`; unscoped transforms conservatively read the full
+projection.
 
 `@y/y` is pinned to `14.0.0-rc.26` because topology, review and the unordered store
 use its item internals. Install one compatible `lib0` copy shared with `@y/y`;

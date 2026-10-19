@@ -8,7 +8,9 @@
 // @vitest-environment node
 
 import {buildEditorFromExtensions} from '@lexical/extension';
+import {$createTableNodeWithDimensions} from '@lexical/table';
 import {YExtension} from '@lexical/y';
+import {YTableSelectionExtension} from '@lexical/y/table';
 import * as Y from '@y/y';
 import {
   $createParagraphNode,
@@ -16,6 +18,7 @@ import {
   $getRoot,
   configExtension,
   defineExtension,
+  getNodeSchemaCodec,
   type ParagraphNode,
   type TextNode,
 } from 'lexical';
@@ -27,7 +30,10 @@ function create(doc = new Y.Doc()) {
   const root = doc.get('root');
   const editor = buildEditorFromExtensions(
     defineExtension({
-      dependencies: [configExtension(YExtension, {root})],
+      dependencies: [
+        configExtension(YExtension, {root}),
+        YTableSelectionExtension,
+      ],
       name: 'scale-test',
     }),
   );
@@ -72,10 +78,17 @@ test('remote Enter updates touched containers without reading unrelated attribut
         $createParagraphNode().append($createTextNode('para ' + i)),
       );
   });
+  a.editor.update(() =>
+    $getRoot()
+      .getFirstChildOrThrow()
+      .insertBefore($createTableNodeWithDimensions(2, 2)),
+  );
   const b = create();
   Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc));
-  const last = getNodeByID(b.root, b.root.get(b.root.length - 1).id)!;
-  const attrs = vi.spyOn(last, 'getAttrs');
+  const lastKey = b.editor.read('latest', () =>
+    $getRoot().getLastChildOrThrow().getKey(),
+  );
+  const schemaExports = vi.spyOn(getNodeSchemaCodec(b.editor), '$export');
   const scan = vi.spyOn(getNodeStore(b.root)!, 'toArray');
   onTestFinished(() => {
     vi.restoreAllMocks();
@@ -88,7 +101,9 @@ test('remote Enter updates touched containers without reading unrelated attribut
   expect(b.editor.getEditorState().toJSON()).toEqual(
     a.editor.getEditorState().toJSON(),
   );
-  expect(attrs).not.toHaveBeenCalled();
+  expect(
+    schemaExports.mock.calls.some(([node]) => node.getKey() === lastKey),
+  ).toBe(false);
   expect(scan).not.toHaveBeenCalled();
 });
 

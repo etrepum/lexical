@@ -524,3 +524,16 @@ test('export rejects a newly assigned raw value even before the binding commit l
     expect(() => $exportNodeJSON(node)).toThrow(/live external values/);
   });
 });
+
+test('a new root-level shared reference resolves without an unrelated structural edit', () => {
+  const {a, b} = pair();
+  const value = new Y.Node();
+  value.insert(0, 'root state');
+  update(a.editor, () => $setState($getRoot(), live, value));
+  send(a.doc, b.doc);
+  b.editor.read('latest', () => {
+    const received = $getState($getRoot(), live);
+    expect(received).toBeInstanceOf(Y.Node);
+    expect(received!.toString()).toBe('root state');
+  });
+});

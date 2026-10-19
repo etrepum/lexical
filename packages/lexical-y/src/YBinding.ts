@@ -59,7 +59,10 @@ export class YBinding {
   }
   readonly error = signal<Error | null>(null);
   readonly mapping = new Mapping();
-  private readonly projectionTransforms = new Set<() => void>();
+  private readonly projectionTransforms = new Map<
+    () => void,
+    (() => Iterable<YNode>) | undefined
+  >();
   readonly selectionCodecs = new Map<string, YSelectionCodec>();
   readonly parents = new Map<YNode, YNode>();
   readonly recovered = new Set<YNode>();
@@ -109,9 +112,16 @@ export class YBinding {
     };
   }
 
-  /** Register deterministic, local projection repair for a schema integration. */
-  registerProjectionTransform(transform: () => void): () => void {
-    this.projectionTransforms.add(transform);
+  /**
+   * Register deterministic local projection repair. An optional scope provider
+   * identifies previously repaired roots to restore from canonical data before
+   * each repair; omitting it conservatively restores the entire projection.
+   */
+  registerProjectionTransform(
+    transform: () => void,
+    getRoots?: () => Iterable<YNode>,
+  ): () => void {
+    this.projectionTransforms.set(transform, getRoots);
     this.read();
     return () => {
       this.projectionTransforms.delete(transform);
@@ -446,13 +456,30 @@ export class YBinding {
         try {
           this.assertFormat();
           if (structural) readTopology(this, topologyTransaction, invalidated);
-          // Projection repair may have changed untouched siblings' attributes.
-          // Reapply their canonical values before running the repair again.
+          // Restore only the integration's repaired subtrees, not unrelated
+          // top-level blocks. Legacy unscoped transforms retain a full read.
+          let fullProjection = false;
+          const restored = new Set<YNode>();
+          for (const getRoots of this.projectionTransforms.values()) {
+            if (!getRoots) {
+              fullProjection = true;
+              continue;
+            }
+            for (const type of getRoots()) {
+              if (
+                !restored.has(type) &&
+                (type === this.root || this.parents.has(type))
+              ) {
+                restored.add(type);
+                $readElement(type, this);
+              }
+            }
+          }
           if (
             !structural &&
             topologyTransaction &&
             invalidated &&
-            !this.projectionTransforms.size
+            !fullProjection
           ) {
             const roots = new Set<YNode>();
             const add = (type: YNode | null | undefined) => {
@@ -465,7 +492,11 @@ export class YBinding {
               if (
                 type !== this.root ||
                 [...keys].some(
-                  key => key && (key.startsWith('p:') || key.startsWith('s:')),
+                  key =>
+                    key &&
+                    (key.startsWith('p:') ||
+                      key.startsWith('s:') ||
+                      key.startsWith('ref:')),
                 )
               )
                 add(type);
@@ -486,9 +517,9 @@ export class YBinding {
             $readElement(
               this.root,
               this,
-              this.projectionTransforms.size ? undefined : invalidated,
+              fullProjection ? undefined : invalidated,
             );
-          for (const transform of this.projectionTransforms) transform();
+          for (const transform of this.projectionTransforms.keys()) transform();
           this.error.value = null;
         } catch (error) {
           this.mapping.clear();

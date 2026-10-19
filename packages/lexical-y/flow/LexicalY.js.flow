@@ -41,7 +41,7 @@ export type YBinding = {
   selectionBefore: YSelection | null,
   restoringSelection: YSelection | null | void,
   register(): () => void,
-  registerProjectionTransform(transform: () => void): () => void,
+  registerProjectionTransform(transform: () => void, getRoots?: () => Iterable<YNode>): () => void,
   registerSuggestionGrouping(hook: YSuggestionGrouping): () => void,
   readonly selectionCodecs: Map<string, YSelectionCodec>,
   read(dirty?: ReadonlySet<string>, changed?: ReadonlySet<YNode>, structural?: boolean): void,

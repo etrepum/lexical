@@ -276,8 +276,19 @@ export const YTableSelectionExtension = defineExtension({
   nodes: () => [TableNode, TableRowNode, TableCellNode],
   register(_editor, _config, state) {
     const {binding} = state.getDependency(YExtension).output;
+    const roots = new Set<import('@y/y').Node>();
     return mergeRegister(
-      binding.registerProjectionTransform($normalizeTableProjection),
+      binding.registerProjectionTransform(
+        () => {
+          $normalizeTableProjection();
+          roots.clear();
+          for (const table of $nodesOfType(TableNode)) {
+            const type = binding.mapping.types.get(table.getKey());
+            if (type) roots.add(type);
+          }
+        },
+        () => roots,
+      ),
       binding.registerSuggestionGrouping(groupTableSuggestions),
       registerYSelectionCodec(binding, {
         encode(_binding, selection) {
