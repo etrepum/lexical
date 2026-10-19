@@ -8,13 +8,13 @@
 
 import type {YBinding} from './YBinding';
 
+import {getNodeSchemaCodec} from 'lexical';
 import {
   $getRoot,
   $isElementNode,
   COMMAND_PRIORITY_LOW,
   COMPOSITION_END_COMMAND,
   ElementNode,
-  getComposedSchemaFields,
   type LexicalNode,
 } from 'lexical';
 
@@ -93,10 +93,11 @@ export function isInlineFormatKey(key: string, binding: YBinding): boolean {
   if (!key.startsWith(INLINE_PREFIX)) return false;
   if (key.startsWith(MARK_ID))
     return (
-      binding.inlineFormatTypes.has('mark') && binding.editor._nodes.has('mark')
+      binding.inlineFormatTypes.has('mark') &&
+      getNodeSchemaCodec(binding.editor).nodes.has('mark')
     );
   for (const type of binding.inlineFormatTypes) {
-    const entry = binding.editor._nodes.get(type);
+    const entry = getNodeSchemaCodec(binding.editor).nodes.get(type);
     if (!entry) continue;
     if (key === INLINE_PREFIX + encodeURIComponent(type)) return true;
     const prefix = INLINE_PREFIX + encodeURIComponent(type) + ':attr:';
@@ -107,7 +108,7 @@ export function isInlineFormatKey(key: string, binding: YBinding): boolean {
       if (attr.startsWith('s:')) return true;
       if (attr.startsWith('p:'))
         return Object.prototype.hasOwnProperty.call(
-          getComposedSchemaFields(entry.klass),
+          getNodeSchemaCodec(binding.editor).fields(entry.klass),
           attr.slice(2),
         );
     }
@@ -140,7 +141,7 @@ function wrappers(attributes: Attributes, binding: YBinding): Wrapper[] {
         : attributes[INLINE_PREFIX + encodeURIComponent(type)] === true)
     )
       continue;
-    if (!binding.editor._nodes.has(type)) continue;
+    if (!getNodeSchemaCodec(binding.editor).nodes.has(type)) continue;
     const prefix = INLINE_PREFIX + encodeURIComponent(type) + ':attr:';
     const attrs: Attributes = {};
     for (const [key, value] of Object.entries(attributes)) {
@@ -284,8 +285,13 @@ export function registerInlineTransforms(binding: YBinding): () => void {
     )
       node.splice(0, previous.length, next);
   };
-  const removeTransforms = Array.from(binding.editor._nodes.values())
-    .filter(({klass}) => klass.prototype instanceof ElementNode)
+  const removeTransforms = Array.from(
+    getNodeSchemaCodec(binding.editor).nodes.values(),
+  )
+    .filter(
+      ({klass}) =>
+        klass.getType() !== 'root' && klass.prototype instanceof ElementNode,
+    )
     .map(({klass}) =>
       binding.editor.registerNodeTransform(klass, node => {
         if ($isElementNode(node)) $canonicalize(node);

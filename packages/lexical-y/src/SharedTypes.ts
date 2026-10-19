@@ -16,6 +16,7 @@ import {
   Node as YNode,
   relativePositionToJSON,
 } from '@y/y';
+import {getNodeSchemaCodec} from 'lexical';
 import {uuidv4} from 'lib0/random';
 
 import {type Attributes, PROPERTY_PREFIX, STATE_PREFIX} from './Schema';
@@ -58,6 +59,7 @@ export function encodeAttributes(
   // Validate ownership before integrating any of this node's values.
   for (const value of Object.values(attributes)) {
     if (value instanceof YNode) {
+      getNodeSchemaCodec(binding.editor).markUnserializable(value);
       invariant(
         value.doc === null || value.doc === binding.doc,
         '@lexical/y: shared values must belong to the binding document; clone cross-document values explicitly',
@@ -71,6 +73,7 @@ export function encodeAttributes(
   for (const [key, value] of Object.entries(attributes)) {
     delete pending[REFERENCE_PREFIX + key];
     if (value instanceof YNode) {
+      getNodeSchemaCodec(binding.editor).markUnserializable(value);
       if (value.doc === null)
         binding.root.setAttr(SHARED_PREFIX + uuidv4(), value);
       // Storage keys survive recreation by undo on every peer. End positions
@@ -134,9 +137,10 @@ export function decodeAttributes(
             ? position.type
             : position.type.getAttr(stored!.key as string)
           : null;
-      if (target instanceof YNode && !isSharedTypeDeleted(target))
+      if (target instanceof YNode && !isSharedTypeDeleted(target)) {
+        getNodeSchemaCodec(binding.editor).markUnserializable(target);
         result[name] = target;
-      else if (
+      } else if (
         reference !== value ||
         (relative.type &&
           binding.doc.store.getClock(relative.type.client) <=

@@ -10,6 +10,7 @@ import type {YBinding} from './YBinding';
 
 import invariant from '@lexical/internal/invariant';
 import {Node as YNode} from '@y/y';
+import {getNodeSchemaCodec} from 'lexical';
 import {
   $getNodeByKey,
   $getRoot,
@@ -24,7 +25,6 @@ import {
   $removeSlot,
   $setSlot,
   type ElementNode,
-  getComposedSchemaFields,
   type LexicalNode,
   LineBreakNode,
 } from 'lexical';
@@ -149,8 +149,10 @@ export function $writeText(
   }
   const propertyKeys = new Set<string>();
   const desired = nodes.map(node => {
-    const entry = binding.editor._nodes.get(node.getType())!;
-    for (const key of Object.keys(getComposedSchemaFields(entry.klass)))
+    const entry = getNodeSchemaCodec(binding.editor).nodes.get(node.getType())!;
+    for (const key of Object.keys(
+      getNodeSchemaCodec(binding.editor).fields(entry.klass),
+    ))
       propertyKeys.add('p:' + key);
     const attrs = {
       ...encodeTextFormats(
@@ -258,6 +260,67 @@ function hasDirtyWrapper(
   return false;
 }
 
+/** Synchronize only explicitly edited subtrees; ancestor dirtiness is not a child-list edit. */
+export function $writeDirty(
+  binding: YBinding,
+  dirty: Set<string>,
+  changed = dirty,
+  skipRootChildren = false,
+): void {
+  const selected = new Map<YNode, LexicalNode>();
+  for (const key of changed) {
+    let node = $getNodeByKey(key);
+    let type: YNode | undefined;
+    while (node) {
+      type = binding.mapping.types.get(node.getKey());
+      if (type && (type === binding.root || type.name !== null)) break;
+      node = node.getParent();
+    }
+    if (node && type) selected.set(type, node);
+  }
+  if (skipRootChildren && selected.has(binding.root)) {
+    $writeElement(
+      binding.root,
+      selected.get(binding.root)!,
+      binding,
+      dirty,
+      true,
+    );
+    selected.delete(binding.root);
+  }
+  for (const [type, node] of selected) {
+    let parent = binding.parents.get(type);
+    while (parent && !selected.has(parent))
+      parent = binding.parents.get(parent);
+    if (!parent) $writeElement(type, node, binding, dirty);
+  }
+}
+
+/** Canonical text normalization must never rewrite projection-only placements. */
+export function $writeNormalizedText(
+  binding: YBinding,
+  normalized: ReadonlySet<string>,
+): void {
+  const types = new Set<YNode>();
+  for (const key of normalized) {
+    const type = binding.mapping.types.get(key);
+    if (type && type.name === null && type !== binding.root) types.add(type);
+  }
+  for (const type of types) {
+    const previous = binding.mapping.nodes.get(type);
+    if (!Array.isArray(previous)) continue;
+    const nodes = previous.flatMap(node => {
+      const latest = $getNodeByKey(node.getKey());
+      return latest &&
+        latest.isAttached() &&
+        ($isTextNode(latest) || $isLineBreakNode(latest))
+        ? [latest]
+        : [];
+    });
+    $writeText(type, nodes, binding);
+  }
+}
+
 function $writeContent(
   type: YNode,
   content: Content,
@@ -285,6 +348,7 @@ export function $writeElement(
   node: LexicalNode,
   binding: YBinding,
   dirty?: Set<string>,
+  skipChildren = false,
 ): void {
   // A placeholder has no authority to rewrite an unavailable node's schema,
   // descendants, shared references, or text formatting.
@@ -294,8 +358,8 @@ export function $writeElement(
     ...$inlineFormats(node, binding),
   };
   const oldAttrs = binding.getAttributes(type);
-  const fields = getComposedSchemaFields(
-    binding.editor._nodes.get(node.getType())!.klass,
+  const fields = getNodeSchemaCodec(binding.editor).fields(
+    getNodeSchemaCodec(binding.editor).nodes.get(node.getType())!.klass,
   );
   const owns = (key: string) => {
     const property = key.startsWith('ref:') ? key.slice(4) : key;
@@ -343,74 +407,82 @@ export function $writeElement(
       binding.topologyChanged = true;
     }
   }
-  const children = $normalizeContent(node, binding);
-  const old = getChildren(binding, type);
-  // Resolve by Lexical identity. A moved node keeps its stored Y.Node and text.
-  const used = new Set<YNode>();
-  const next = children.map((content, i) => {
-    const first = Array.isArray(content) ? content[0] : content;
-    const mapped = binding.mapping.types.get(first.getKey());
-    const empty = old[i];
-    const candidate =
-      mapped && matches(mapped, content) && !used.has(mapped)
-        ? mapped
-        : Array.isArray(content) &&
-            empty &&
-            empty.name === null &&
-            empty.length === 0 &&
-            !used.has(empty)
-          ? empty
-          : $createType(content);
-    used.add(candidate);
-    return candidate;
-  });
-  const contentByType = new Map(next.map((child, i) => [child, children[i]]));
-  preserveOpaqueChildren(old, next, binding);
-  for (const previous of old) {
-    if (binding.recovered.has(previous) && !next.includes(previous)) {
-      previous.deleteAttr('tree:placement');
-      binding.topologyChanged = true;
-    }
-  }
-  // An empty text run remains available for concurrent insertions.
-  if (next.length === 0 && old.length === 1 && old[0].name === null) {
-    old[0].delete(0, old[0].length);
-    binding.mapping.set(old[0], []);
-  } else {
-    if (next.length !== old.length || next.some((child, i) => child !== old[i]))
-      binding.topologyChanged = true;
-    let index = 0;
-    // Stored children in sequence order, kept in step with type's edits.
-    const stored = type.toArray().map(value => getStoredNode(binding, value));
-    const nextIndex = new Map(next.map((child, i) => [child, i]));
-    for (const child of next) {
-      if (stored[index] !== child) {
-        const later = stored.indexOf(child, index);
-        if (
-          later >= 0 &&
-          stored
-            .slice(index, later)
-            .every(value => !value || (nextIndex.get(value) ?? -1) <= index)
-        ) {
-          type.delete(index, later - index);
-          stored.splice(index, later - index);
-        } else {
-          if (later >= 0) {
-            type.delete(later, 1);
-            stored.splice(later, 1);
-          }
-          type.insert(index, [placeNode(binding, child)]);
-          stored.splice(index, 0, child);
-        }
-      }
-      binding.parents.set(child, type);
-      index++;
-    }
-    if (type.length > index) type.delete(index, type.length - index);
-    next.forEach(child => {
-      const content = contentByType.get(child);
-      if (content) $writeContent(child, content, binding, dirty);
+  if (!skipChildren) {
+    const children = $normalizeContent(node, binding);
+    const old = getChildren(binding, type);
+    // Resolve by Lexical identity. A moved node keeps its stored Y.Node and text.
+    const used = new Set<YNode>();
+    const next = children.map((content, i) => {
+      const first = Array.isArray(content) ? content[0] : content;
+      const mapped = binding.mapping.types.get(first.getKey());
+      const empty = old[i];
+      const candidate =
+        mapped && matches(mapped, content) && !used.has(mapped)
+          ? mapped
+          : Array.isArray(content) &&
+              empty &&
+              empty.name === null &&
+              empty.length === 0 &&
+              !used.has(empty)
+            ? empty
+            : $createType(content);
+      used.add(candidate);
+      return candidate;
     });
+    const contentByType = new Map(next.map((child, i) => [child, children[i]]));
+    preserveOpaqueChildren(old, next, binding);
+    for (const previous of old) {
+      if (binding.recovered.has(previous) && !next.includes(previous)) {
+        previous.deleteAttr('tree:placement');
+        binding.topologyChanged = true;
+      }
+    }
+    // An empty text run remains available for concurrent insertions.
+    if (next.length === 0 && old.length === 1 && old[0].name === null) {
+      old[0].delete(0, old[0].length);
+      binding.mapping.set(old[0], []);
+    } else {
+      if (
+        next.length !== old.length ||
+        next.some((child, i) => child !== old[i])
+      ) {
+        binding.topologyChanged = true;
+        let index = 0;
+        // Stored children in sequence order, kept in step with type's edits.
+        const stored = type
+          .toArray()
+          .map(value => getStoredNode(binding, value));
+        const nextIndex = new Map(next.map((child, i) => [child, i]));
+        for (const child of next) {
+          if (stored[index] !== child) {
+            const later = stored.indexOf(child, index);
+            if (
+              later >= 0 &&
+              stored
+                .slice(index, later)
+                .every(value => !value || (nextIndex.get(value) ?? -1) <= index)
+            ) {
+              type.delete(index, later - index);
+              stored.splice(index, later - index);
+            } else {
+              if (later >= 0) {
+                type.delete(later, 1);
+                stored.splice(later, 1);
+              }
+              type.insert(index, [placeNode(binding, child)]);
+              stored.splice(index, 0, child);
+            }
+          }
+          binding.parents.set(child, type);
+          index++;
+        }
+        if (type.length > index) type.delete(index, type.length - index);
+      }
+      next.forEach(child => {
+        const content = contentByType.get(child);
+        if (content) $writeContent(child, content, binding, dirty);
+      });
+    }
   }
   const cached = {
     ...Object.fromEntries(
@@ -436,7 +508,7 @@ function $readText(
   const parts = readText(type).flatMap(part => {
     const entry =
       typeof part.formats.type === 'string' &&
-      binding.editor._nodes.get(part.formats.type);
+      getNodeSchemaCodec(binding.editor).nodes.get(part.formats.type);
     return entry &&
       (entry.klass === LineBreakNode ||
         entry.klass.prototype instanceof LineBreakNode)

@@ -20,17 +20,19 @@
     "@lexical/history": "workspace:*",
     "@lexical/internal": "workspace:*",
     "@lexical/selection": "workspace:*",
-    "lexical": "workspace:*",
-    "lib0": "^1.0.0-rc.29",
-    "@lexical/table": "workspace:*"
+    "lexical": "workspace:*"
   },
   "devDependencies": {
     "@y/protocols": "1.0.6-rc.1",
-    "@y/y": "14.0.0-rc.26"
+    "@y/y": "14.0.0-rc.26",
+    "@lexical/table": "workspace:*",
+    "lib0": "^1.0.0-rc.29"
   },
   "peerDependencies": {
-    "@y/y": "^14.0.0-rc.26",
-    "typescript": ">=5.2"
+    "@y/y": "14.0.0-rc.26",
+    "typescript": ">=5.2",
+    "@lexical/table": "workspace:*",
+    "lib0": "^1.0.0-rc.29"
   },
   "repository": {
     "type": "git",
@@ -78,6 +80,9 @@
   },
   "peerDependenciesMeta": {
     "typescript": {
+      "optional": true
+    },
+    "@lexical/table": {
       "optional": true
     }
   },

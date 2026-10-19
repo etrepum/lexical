@@ -9,12 +9,10 @@
 import invariant from '@lexical/internal/invariant';
 import {Node as YNode} from '@y/y';
 import {
-  $applyJSONSetters,
   $create,
-  $exportNodeJSONOnce,
-  $getWritableNodeState,
+  $getEditor,
   $isTextNode,
-  getStaticNodeConfig,
+  getNodeSchemaCodec,
   type Klass,
   type LexicalEditor,
   type LexicalNode,
@@ -25,39 +23,20 @@ export const PROPERTY_PREFIX = 'p:';
 export const STATE_PREFIX = 's:';
 export const SLOT_PREFIX = 'slot:';
 
-export function assertSchema(klass: Klass<LexicalNode>): void {
-  invariant(
-    getStaticNodeConfig(klass).declaresOwnConfig,
-    '@lexical/y: %s must declare $config() and describe its properties with a JSON serialization schema',
-    klass.name,
-  );
+export function assertSchema(
+  klass: Klass<LexicalNode>,
+  editor: LexicalEditor,
+): void {
+  getNodeSchemaCodec(editor).validate(klass);
 }
 
 // The schema owns the wire representation, including defaults and accessors.
 // Custom exportJSON/updateFromJSON overrides are deliberately not involved.
 export function $attributesFromNode(node: LexicalNode): Attributes {
-  const latest = node.getLatest();
-  const json = {
-    ...$exportNodeJSONOnce(latest, true),
-  };
-  const nodeState = latest.__state;
-  if (nodeState) {
-    const [unknown, known] = nodeState.getInternalState();
-    const state: Attributes = {...unknown};
-    for (const [config, value] of known) {
-      if (config.isEqual(value, config.defaultValue)) delete state[config.key];
-      else
-        state[config.key] =
-          value instanceof YNode ? value : config.unparse(value);
-    }
-    for (const key of nodeState.sharedNodeState.flatKeys) {
-      if (key in state) {
-        json[key] = state[key];
-        delete state[key];
-      }
-    }
-    json.$ = state;
-  }
+  const json = getNodeSchemaCodec($getEditor()).$export(
+    node,
+    value => value instanceof YNode,
+  );
   const attributes: Attributes = {};
   for (const [key, value] of Object.entries(json)) {
     if (key === '$') {
@@ -105,18 +84,17 @@ export function $applyAttributes(
     json.text = text;
   }
   // Also reset flat state whose attribute was deleted remotely.
-  $getWritableNodeState(node).updateFromJSON(state);
-  $applyJSONSetters(node.getWritable(), json);
+  getNodeSchemaCodec($getEditor()).$apply(node, json);
 }
 
 export function $createNode(editor: LexicalEditor, type: string): LexicalNode {
-  const entry = editor._nodes.get(type);
+  const entry = getNodeSchemaCodec(editor).nodes.get(type);
   invariant(
     entry !== undefined,
     '@lexical/y: node type %s is not registered',
     type,
   );
-  assertSchema(entry.klass);
+  assertSchema(entry.klass, editor);
   return $create(entry.klass);
 }
 

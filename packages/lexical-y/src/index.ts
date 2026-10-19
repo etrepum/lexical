@@ -39,6 +39,7 @@ export {
 } from './YCursorsExtension';
 
 export {YExtension};
+export type {YSuggestionGrouping} from './Suggestions';
 export {type YConfig} from './YExtension';
 export {YHistoryExtension} from './YHistoryExtension';
 export {

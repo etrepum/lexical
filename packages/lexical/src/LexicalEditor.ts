@@ -1349,7 +1349,14 @@ export class LexicalEditor {
    */
   registerUpdateListener(
     listener: UpdateListener,
-    options?: {synchronous?: boolean},
+    options?: {
+      /**
+       * @experimental Changes update behavior for the entire editor while registered,
+       * including updates from other extensions. Disables microtask batching and
+       * commits each update before returning (nested updates join their parent).
+       */
+      synchronous?: boolean;
+    },
   ): () => void {
     const unregister = registerListener(this._listeners.update, listener);
     if (!options || !options.synchronous) return unregister;

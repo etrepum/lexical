@@ -277,7 +277,10 @@ declare export class LexicalEditor {
   _headless: boolean;
   _recordNodeMoves: boolean;
   isComposing(): boolean;
-  registerUpdateListener(listener: UpdateListener, options?: {synchronous?: boolean}): () => void;
+  registerUpdateListener(listener: UpdateListener, options?: {
+    /** @experimental Changes batching and synchronous commit behavior for the entire editor, including other extensions. */
+    synchronous?: boolean,
+  }): () => void;
   registerRootListener(listener: RootListener): () => void;
   registerDecoratorListener(listener: DecoratorListener): () => void;
   registerTextContentListener(listener: TextContentListener): () => void;
@@ -2220,8 +2223,18 @@ declare export function declaredAccepts(
   schema: AnySerializationSchema,
 ): void | ((value: unknown) => boolean);
 
-declare export function $exportNodeJSONOnce(node: LexicalNode, compact: boolean): {[string]: unknown};
-declare export function $applyJSONSetters<T extends LexicalNode>(node: T, serializedNode: {readonly [string]: unknown}): T;
+/** Experimental schema integration contract; $ methods require an active context. */
+export interface NodeSchemaCodec {
+  readonly nodes: ReadonlyMap<string, {readonly klass: Class<LexicalNode>}>;
+  fields(klass: Class<LexicalNode>): {[string]: AnySerializationSchema};
+  validate(klass: Class<LexicalNode>): void;
+  $export(node: LexicalNode, preserveStateValue?: (value: unknown) => boolean): {[string]: unknown};
+  $apply(node: LexicalNode, json: {readonly [string]: unknown}): void;
+  markUnserializable(value: interface {}): void;
+  registerUnserializableType(isExternal: (value: interface {}) => boolean): () => void;
+}
+/** @experimental */
+declare export function getNodeSchemaCodec(editor: LexicalEditor): NodeSchemaCodec;
 
 declare export function getComposedSchemaFields(
   klass: Class<LexicalNode>,

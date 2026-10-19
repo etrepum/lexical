@@ -26,6 +26,8 @@ import {
 } from 'lexical';
 import {describe, expect, onTestFinished, test} from 'vitest';
 
+import {getNodeByID} from '../../Topology';
+
 const c1 = createState('mark:c1', {parse: v => v === true});
 const c2 = createState('mark:c2', {parse: v => v === true});
 const NETWORK = {};
@@ -252,8 +254,8 @@ describe('text attribute concurrency (#9381, #9383)', () => {
     } = peers([1], true);
     a.editor.update(() => $format(8, 17, 'bold'), {discrete: true});
     const root = a.doc.get('root');
-    const paragraph = root.getAttr('tree:node:' + root.get(0).id) as Y.Node;
-    const run = root.getAttr('tree:node:' + paragraph.get(0).id) as Y.Node;
+    const paragraph = getNodeByID(root, root.get(0).id) as Y.Node;
+    const run = getNodeByID(root, paragraph.get(0).id) as Y.Node;
     run.format(8, 9, {
       'future:annotation': ['value'],
       'p:new-property': ['preserve'],

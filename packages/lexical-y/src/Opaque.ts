@@ -15,6 +15,7 @@ import {
   $getNodeByKey,
   booleanValue,
   DecoratorNode,
+  getNodeSchemaCodec,
   nodeSchema,
   stringValue,
   withField,
@@ -75,14 +76,15 @@ export function $isOpaqueNode(node: LexicalNode): node is YOpaqueNode {
 
 /** Text runs are indivisible while any of their node types is unavailable. */
 export function hasUnknownType(type: YNode, binding: YBinding): boolean {
-  if (type.name !== null) return !binding.editor._nodes.has(type.name);
+  if (type.name !== null)
+    return !getNodeSchemaCodec(binding.editor).nodes.has(type.name);
   return unknownTextTypes(type, binding).size > 0;
 }
 
 function unknownTextTypes(type: YNode, binding: YBinding): Set<string> {
   const names = new Set<string>();
   const missingWrappers = [...binding.inlineFormatTypes].filter(
-    name => !binding.editor._nodes.has(name),
+    name => !getNodeSchemaCodec(binding.editor).nodes.has(name),
   );
   const isTrue = (value: unknown) =>
     value === true ||
@@ -91,7 +93,10 @@ function unknownTextTypes(type: YNode, binding: YBinding): Set<string> {
     if (!delta.$textOp.check(op)) continue;
     const formats = op.format || {};
     const name = formats.type;
-    if (typeof name === 'string' && !binding.editor._nodes.has(name))
+    if (
+      typeof name === 'string' &&
+      !getNodeSchemaCodec(binding.editor).nodes.has(name)
+    )
       names.add(name);
     for (const wrapper of missingWrappers) {
       if (

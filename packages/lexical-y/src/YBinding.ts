@@ -6,6 +6,8 @@
  *
  */
 
+import type {YSuggestionGrouping} from './Suggestions';
+
 import {signal} from '@lexical/extension';
 import invariant from '@lexical/internal/invariant';
 import {type Doc, Node as YNode, type Transaction} from '@y/y';
@@ -13,6 +15,7 @@ import {
   $getNodeByKey,
   $getRoot,
   COLLABORATION_TAG,
+  getNodeSchemaCodec,
   HISTORIC_TAG,
   type LexicalEditor,
   SKIP_COLLAB_TAG,
@@ -32,7 +35,12 @@ import {
   isSharedTypeDeleted,
   SHARED_PREFIX,
 } from './SharedTypes';
-import {$readElement, $writeElement} from './Sync';
+import {
+  $readElement,
+  $writeDirty,
+  $writeElement,
+  $writeNormalizedText,
+} from './Sync';
 import {
   changesTopology,
   deleteRemovedNodes,
@@ -89,6 +97,16 @@ export class YBinding {
       // The default development warning handler throws. This warning must not
       // abort an otherwise valid update or suspend supported content's writes.
     }
+  }
+
+  readonly suggestionGroupers = new Set<YSuggestionGrouping>();
+
+  /** @experimental Register schema-specific dependencies for individual review. */
+  registerSuggestionGrouping(hook: YSuggestionGrouping): () => void {
+    this.suggestionGroupers.add(hook);
+    return () => {
+      this.suggestionGroupers.delete(hook);
+    };
   }
 
   /** Register deterministic, local projection repair for a schema integration. */
@@ -216,6 +234,9 @@ export class YBinding {
     invariant(!this.active, '@lexical/y: binding is already registered');
     this.assertFormat();
     this.active = true;
+    const removeSerializationGuard = getNodeSchemaCodec(
+      this.editor,
+    ).registerUnserializableType(value => value instanceof YNode);
     const onChange = (transaction: Transaction) => {
       for (const [type, keys] of transaction.changed) {
         if (
@@ -277,54 +298,109 @@ export class YBinding {
           const structural = changesTopology(this, transaction.changed);
           this.read(
             dirty,
-            this.pendingSharedOwners.size || structural ? undefined : changed,
+            this.pendingSharedOwners.size ? undefined : changed,
             structural,
+            transaction,
           );
         }
       }
     };
     this.doc.on('afterTransaction', onChange);
     const removeListener = this.editor.registerUpdateListener(
-      ({editorState, normalizedNodes, dirtyElements, dirtyLeaves, tags}) => {
+      ({
+        editorState,
+        prevEditorState,
+        normalizedNodes,
+        dirtyElements,
+        dirtyLeaves,
+        tags,
+      }) => {
         if (!this.active || this.error.peek() || tags.has(SKIP_COLLAB_TAG))
           return;
         const remote = tags.has(COLLABORATION_TAG) || tags.has(HISTORIC_TAG);
-        editorState.read(() => {
-          this.selectionBefore = this.selection;
-          if (
-            (!remote && (dirtyElements.size > 0 || dirtyLeaves.size > 0)) ||
-            normalizedNodes.size > 0
-          ) {
-            this.assertFormat(true);
-            this.writing = true;
-            try {
-              this.doc.transact(
-                () => {
-                  const previous = new Set(this.parents.keys());
-                  $writeElement(
-                    this.root,
-                    $getRoot(),
-                    this,
-                    new Set([
-                      ...dirtyElements.keys(),
-                      ...dirtyLeaves,
-                      ...normalizedNodes,
-                    ]),
-                  );
-                  if (this.topologyChanged) {
-                    readTopology(this);
-                    if (!remote) deleteRemovedNodes(this, previous);
-                  }
-                  this.selection = $getYSelection(this);
-                },
-                remote ? this.normalizationOrigin : this,
+        // Root transforms intentionally dirty the root on every edit. Compare
+        // only changed nodes' sibling links, never walk the whole child list.
+        const keys = new Set([
+          ...dirtyElements.keys(),
+          ...dirtyLeaves,
+          ...normalizedNodes,
+        ]);
+        const structure = () => {
+          const root = $getRoot();
+          const links = [
+            root.getChildrenSize(),
+            root.getFirstChild() && root.getFirstChild()!.getKey(),
+            root.getLastChild() && root.getLastChild()!.getKey(),
+          ];
+          for (const key of keys) {
+            if (key === 'root') continue;
+            const node = $getNodeByKey(key);
+            if (node && node.getParent() === root)
+              links.push(
+                key,
+                node.getPreviousSibling() &&
+                  node.getPreviousSibling()!.getKey(),
+                node.getNextSibling() && node.getNextSibling()!.getKey(),
               );
-            } finally {
-              this.writing = false;
-            }
-          } else this.selection = $getYSelection(this);
+          }
+          return JSON.stringify(links);
+        };
+        const previousStructure = prevEditorState.read(structure, {
+          editor: this.editor,
         });
-        this.pruneMapping();
+        let structuralCommit = false;
+        editorState.read(
+          () => {
+            this.selectionBefore = this.selection;
+            if (
+              (!remote && (dirtyElements.size > 0 || dirtyLeaves.size > 0)) ||
+              normalizedNodes.size > 0
+            ) {
+              this.assertFormat(true);
+              this.writing = true;
+              try {
+                this.doc.transact(
+                  transaction => {
+                    const explicit = [...dirtyElements]
+                      .filter(([, value]) => value)
+                      .map(([key]) => key);
+                    if (remote) $writeNormalizedText(this, normalizedNodes);
+                    else
+                      $writeDirty(
+                        this,
+                        new Set([
+                          ...dirtyElements.keys(),
+                          ...dirtyLeaves,
+                          ...normalizedNodes,
+                        ]),
+                        new Set(
+                          remote
+                            ? normalizedNodes
+                            : [...explicit, ...dirtyLeaves, ...normalizedNodes],
+                        ),
+                        previousStructure === structure(),
+                      );
+                    if (this.topologyChanged) {
+                      structuralCommit = true;
+                      const previous = new Set(this.parents.keys());
+                      readTopology(this, transaction);
+                      if (!remote) {
+                        deleteRemovedNodes(this, previous);
+                        readTopology(this, transaction);
+                      }
+                    }
+                    this.selection = $getYSelection(this);
+                  },
+                  remote ? this.normalizationOrigin : this,
+                );
+              } finally {
+                this.writing = false;
+              }
+            } else this.selection = $getYSelection(this);
+          },
+          {editor: this.editor},
+        );
+        this.pruneMapping(structuralCommit);
         if (this.restoreOpaque) {
           this.restoreOpaque = false;
           this.read();
@@ -336,6 +412,7 @@ export class YBinding {
       this.active = false;
       this.doc.off('afterTransaction', onChange);
       removeListener();
+      removeSerializationGuard();
       this.mapping.clear();
       this.attributeCache.clear();
       this.parents.clear();
@@ -357,7 +434,9 @@ export class YBinding {
     dirty: ReadonlySet<string> = new Set(),
     changed?: ReadonlySet<YNode>,
     structural = true,
+    topologyTransaction?: Transaction,
   ): void {
+    const invalidated = changed && new Set(changed);
     const selection =
       this.restoringSelection === undefined
         ? this.selection
@@ -366,8 +445,49 @@ export class YBinding {
       () => {
         try {
           this.assertFormat();
-          if (structural) readTopology(this);
-          $readElement(this.root, this, changed);
+          if (structural) readTopology(this, topologyTransaction, invalidated);
+          // Projection repair may have changed untouched siblings' attributes.
+          // Reapply their canonical values before running the repair again.
+          if (
+            !structural &&
+            topologyTransaction &&
+            invalidated &&
+            !this.projectionTransforms.size
+          ) {
+            const roots = new Set<YNode>();
+            const add = (type: YNode | null | undefined) => {
+              if (!type || !this.mapping.nodes.has(type)) return;
+              while (type && type !== this.root && type.name === null)
+                type = getParent(this, type);
+              if (type) roots.add(type);
+            };
+            for (const [type, keys] of topologyTransaction.changed) {
+              if (
+                type !== this.root ||
+                [...keys].some(
+                  key => key && (key.startsWith('p:') || key.startsWith('s:')),
+                )
+              )
+                add(type);
+            }
+            for (const key of dirty) {
+              let node = $getNodeByKey(key);
+              while (node && !this.mapping.types.has(node.getKey()))
+                node = node.getParent();
+              if (node) add(this.mapping.types.get(node.getKey()));
+            }
+            for (const type of roots) {
+              let parent = getParent(this, type);
+              while (parent && !roots.has(parent))
+                parent = getParent(this, parent);
+              if (!parent) $readElement(type, this, invalidated);
+            }
+          } else
+            $readElement(
+              this.root,
+              this,
+              this.projectionTransforms.size ? undefined : invalidated,
+            );
           for (const transform of this.projectionTransforms) transform();
           this.error.value = null;
         } catch (error) {
@@ -390,7 +510,7 @@ export class YBinding {
         tag: [COLLABORATION_TAG, SKIP_SCROLL_INTO_VIEW_TAG],
       },
     );
-    this.pruneMapping();
+    this.pruneMapping(structural);
   }
 
   private assertFormat(write = false): void {
@@ -406,14 +526,14 @@ export class YBinding {
           this.root.setAttr('tree:format', {
             inlineFormatTypes: [...this.inlineTypes].sort(),
             schema: this.schemaId,
-            version: 2,
+            version: 3,
           }),
         this.bootstrapOrigin,
       );
     } else {
       invariant(
         format &&
-          format.version === 2 &&
+          format.version === 3 &&
           format.schema === this.schemaId &&
           Array.isArray(format.inlineFormatTypes) &&
           format.inlineFormatTypes.every(
@@ -453,7 +573,7 @@ export class YBinding {
     });
   }
 
-  private pruneMapping(): void {
+  private pruneMapping(structural = true): void {
     const nodes = this.editor.getEditorState()._nodeMap;
     for (const key of this.pendingSharedOwners.keys()) {
       if (!this.mapping.types.has(key) && !nodes.has(key))
@@ -463,6 +583,7 @@ export class YBinding {
       if (!this.mapping.types.has(key) && !nodes.has(key))
         this.sharedOwners.delete(key);
     }
+    if (!structural) return;
     for (const type of this.mapping.nodes.keys()) {
       if (type !== this.root && !this.parents.has(type)) {
         this.mapping.delete(type);

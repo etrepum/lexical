@@ -368,14 +368,12 @@ export {
 } from './LexicalUpdates';
 export {
   $addUpdateTag,
-  $applyJSONSetters,
   $applyNodeReplacement,
   $cloneWithProperties,
   $cloneWithPropertiesEphemeral,
   $copyNode,
   $create,
   $createChildrenArray,
-  $exportNodeJSONOnce,
   $findMatchingParent,
   $getAdjacentNode,
   $getDocument,
@@ -571,6 +569,7 @@ export {
   safeCast,
   shallowMergeConfig,
 } from './extension-core';
+export {getNodeSchemaCodec, type NodeSchemaCodec} from './LexicalSchemaCodec';
 export {
   addClassNamesToElement,
   normalizeClassNames,

@@ -40,6 +40,7 @@ import {
 import {describe, expect, onTestFinished, test} from 'vitest';
 
 import {readText} from '../../Sync';
+import {getNodeByID} from '../../Topology';
 
 const ORIGINAL = 'Revenue grew 4% in Q3.';
 function create(
@@ -156,9 +157,9 @@ function wrappers(editor: LexicalEditor) {
 function run(doc: Y.Doc) {
   const root = doc.get('root');
   const p = root.get(0) as {id: string};
-  const paragraph = root.getAttr('tree:node:' + p.id) as Y.Node;
+  const paragraph = getNodeByID(root, p.id) as Y.Node;
   const edge = paragraph.get(0) as {id: string};
-  return root.getAttr('tree:node:' + edge.id) as Y.Node;
+  return getNodeByID(root, edge.id) as Y.Node;
 }
 function characters(type: Y.Node) {
   const result: string[] = [];

@@ -33,6 +33,8 @@ import {
 } from 'lexical';
 import {expect, onTestFinished, test, vi} from 'vitest';
 
+import {getNodeByID} from '../../Topology';
+
 class CalloutNode extends ElementNode {
   $config() {
     return this.config('binding-regression-callout', {extends: ElementNode});
@@ -670,7 +672,7 @@ test('edits preserve unknown element schema fields and shared references', () =>
   const {a, b, ea, eb} = pair();
   const root = b.get('root');
   const edge = root.get(0) as {id: string};
-  const paragraph = root.getAttr('tree:node:' + edge.id) as Y.Node;
+  const paragraph = getNodeByID(root, edge.id) as Y.Node;
   const shared = new Y.Node();
   b.transact(() => {
     root.setAttr('shared:future', shared);

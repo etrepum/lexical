@@ -26,6 +26,10 @@ export type YSelectionCodec = {
   encode(binding: YBinding, selection: BaseSelection): unknown | null,
   resolve(binding: YBinding, data: unknown, followUndoneDeletions: boolean): BaseSelection | null,
 };
+export type YSuggestionGrouping = (context: {
+  binding: YBinding, base: YBinding,
+  changes: ReadonlyArray<{attribute: string | null, created: YNode | null, parent: YNode, parentIsNew: boolean, format: boolean}>,
+}) => ReadonlyArray<ReadonlyArray<number>>;
 export type YBinding = {
   readonly doc: Doc,
   readonly error: Signal<Error | null>,
@@ -38,6 +42,7 @@ export type YBinding = {
   restoringSelection: YSelection | null | void,
   register(): () => void,
   registerProjectionTransform(transform: () => void): () => void,
+  registerSuggestionGrouping(hook: YSuggestionGrouping): () => void,
   readonly selectionCodecs: Map<string, YSelectionCodec>,
   read(dirty?: ReadonlySet<string>, changed?: ReadonlySet<YNode>, structural?: boolean): void,
   bootstrap(initialize: () => void): void,

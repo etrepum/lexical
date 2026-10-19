@@ -32,7 +32,13 @@ import {
 } from 'lexical';
 
 import {$isInlineWrapper} from './Inline';
-import {getChildIndex, getParent, getStoredNode} from './Topology';
+import {
+  getChildIndex,
+  getNodeByID,
+  getNodeID,
+  getParent,
+  getStoredNode,
+} from './Topology';
 
 interface YRangeSelection {
   anchor: RelativePosition;
@@ -343,7 +349,7 @@ export interface YSelectionCodec {
   ): BaseSelection | null;
 }
 export interface YNodeReference {
-  /** Stable root-store key, independent of each editor's Lexical keys. */
+  /** Stable Yjs item identity, independent of each editor's Lexical keys. */
   id: string;
   start?: RelativePosition;
   end?: RelativePosition;
@@ -361,7 +367,7 @@ export function isYNodeReference(value: unknown): value is YNodeReference {
   const ref = value as YNodeReference;
   return (
     typeof ref.id === 'string' &&
-    (ref.id === 'root' || ref.id.startsWith('tree:node:')) &&
+    (ref.id === 'root' || /^[0-9a-z]+:[0-9a-z]+$/.test(ref.id)) &&
     (ref.start === undefined || isRelativePosition(ref.start)) &&
     (ref.end === undefined || isRelativePosition(ref.end))
   );
@@ -373,8 +379,7 @@ export function $getYNodeReference(
   const type = binding.mapping.types.get(node.getKey());
   if (!type) return null;
   if (type === binding.root) return {id: 'root'};
-  const id = type._item && type._item.parentSub;
-  if (typeof id !== 'string' || !id.startsWith('tree:node:')) return null;
+  const id = getNodeID(type);
   const mapped = binding.mapping.nodes.get(type);
   if (!Array.isArray(mapped)) return {id};
   let offset = 0;
@@ -399,7 +404,7 @@ export function $resolveYNodeReference(
 ): LexicalNode[] {
   if (!isYNodeReference(value)) return [];
   const type =
-    value.id === 'root' ? binding.root : binding.root.getAttr(value.id);
+    value.id === 'root' ? binding.root : getNodeByID(binding.root, value.id);
   const mapped = type && binding.mapping.nodes.get(type);
   if (!mapped) return [];
   if (!Array.isArray(mapped)) {

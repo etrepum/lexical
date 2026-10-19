@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import type {YSuggestionGrouping} from './Suggestions';
 import type {YBinding} from './YBinding';
 
 import {
@@ -40,7 +41,7 @@ import {
   registerYSelectionCodec,
   type YNodeReference,
 } from './Selection';
-import {getChildIndex, getStoredNode} from './Topology';
+import {getChildIndex, getNodeByID, getNodeID, getStoredNode} from './Topology';
 
 interface CellBookmark {
   cell: YNodeReference;
@@ -210,6 +211,64 @@ function $normalizeTableProjection(): void {
   }
 }
 
+const groupTableSuggestions: YSuggestionGrouping = ({
+  binding,
+  base,
+  changes,
+}) => {
+  const tableOf = (type: import('@y/y').Node): string | null => {
+    for (const owner of [binding, base]) {
+      const key = type._item && getNodeID(type);
+      let node =
+        owner === binding
+          ? type
+          : typeof key === 'string'
+            ? getNodeByID(owner.root, key)
+            : null;
+      const seen = new Set<import('@y/y').Node>();
+      while (node && !seen.has(node)) {
+        if (node.name === 'table') return getNodeID(node);
+        seen.add(node);
+        node = owner.parents.get(node) || null;
+      }
+    }
+    return null;
+  };
+  const tables = changes.map(p => tableOf(p.created || p.parent));
+  const coupled = new Set(
+    changes.flatMap((p, i) =>
+      tables[i] &&
+      !p.parentIsNew &&
+      ((p.parent.name === 'tablerow' && p.attribute === null) ||
+        p.attribute === 'p:colSpan' ||
+        p.attribute === 'p:rowSpan' ||
+        (p.parent.name === 'table' && p.attribute === 'p:colWidths'))
+        ? [tables[i]!]
+        : [],
+    ),
+  );
+  const groups = new Map<string, number[]>();
+  changes.forEach((p, i) => {
+    const table = tables[i];
+    if (!table || !coupled.has(table)) return;
+    const geometry = p.created
+      ? ['table', 'tablerow', 'tablecell'].includes(p.created.name || '')
+      : p.attribute === null
+        ? p.parent.name === 'table' || p.parent.name === 'tablerow'
+        : p.attribute === 'tree:placement'
+          ? ['table', 'tablerow', 'tablecell'].includes(p.parent.name || '')
+          : p.attribute === 'p:colSpan' ||
+            p.attribute === 'p:rowSpan' ||
+            (p.parent.name === 'table' && p.attribute === 'p:colWidths');
+    if (geometry) {
+      const group = groups.get(table) || [];
+      group.push(i);
+      groups.set(table, group);
+    }
+  });
+  return [...groups.values()];
+};
+
 /** Table collaboration projection and selection codec. Import from @lexical/y/table. */
 export const YTableSelectionExtension = defineExtension({
   dependencies: [YExtension],
@@ -219,6 +278,7 @@ export const YTableSelectionExtension = defineExtension({
     const {binding} = state.getDependency(YExtension).output;
     return mergeRegister(
       binding.registerProjectionTransform($normalizeTableProjection),
+      binding.registerSuggestionGrouping(groupTableSuggestions),
       registerYSelectionCodec(binding, {
         encode(_binding, selection) {
           if (!$isTableSelection(selection)) return null;

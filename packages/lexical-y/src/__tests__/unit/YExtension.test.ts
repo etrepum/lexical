@@ -58,10 +58,12 @@ import {
 } from 'lexical';
 import {describe, expect, onTestFinished, test, vi} from 'vitest';
 
+import {getNodeByID} from '../../Topology';
+
 function storedChild(parent: Y.Node, index = 0): Y.Node {
   const edge = parent.get(index) as {id: string};
   const root = parent.doc!.get('root');
-  return root.getAttr('tree:node:' + edge.id);
+  return getNodeByID(root, edge.id)!;
 }
 const metadata = createState('metadata', {parse: (v: unknown) => v});
 const other = createState('other', {parse: (v: unknown) => v});
@@ -220,9 +222,15 @@ describe('@lexical/y', () => {
       seed(editor);
       manager(editor).clear();
       const paragraph = storedChild(doc.get('root'));
-      const key = paragraph._item!.parentSub!;
       update(editor, () => $getRoot().clear());
-      expect(doc.get('root').getAttr(key)).toBeUndefined();
+      expect(
+        getNodeByID(
+          doc.get('root'),
+          paragraph._item!.id.client.toString(36) +
+            ':' +
+            paragraph._item!.id.clock.toString(36),
+        ),
+      ).toBeNull();
       expect(paragraph._item!.deleted).toBe(true);
       // UndoManager retains deleted content until its history is cleared.
       expect(paragraph._item!.keep).toBe(true);
@@ -335,7 +343,9 @@ describe('@lexical/y', () => {
     expect(content(ea)).toEqual(content(eb));
     expect(text(ea)).toContain('hello');
     expect(text(ea)).toContain('last');
+    const encodedCycle = Y.encodeStateAsUpdate(a);
     expect(content(create(a.get('root')))).toEqual(content(ea));
+    expect(Y.encodeStateAsUpdate(a)).toEqual(encodedCycle);
     manager(ea).clear();
     update(ea, () => $getRoot().clear());
     copy(a, b);
@@ -346,6 +356,51 @@ describe('@lexical/y', () => {
     expect(text(ea)).toContain('hello');
     expect(text(ea)).toContain('last');
     expect(content(ea)).toEqual(content(eb));
+  });
+  test('independent first edits retain both client stores and remain undoable', () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    const ea = create(a.get('root'));
+    const eb = create(b.get('root'));
+    update(ea, () =>
+      $getRoot().append($createParagraphNode().append($createTextNode('a'))),
+    );
+    update(eb, () =>
+      $getRoot().append($createParagraphNode().append($createTextNode('b'))),
+    );
+    copy(a, b);
+    copy(b, a);
+    expect(content(ea)).toEqual(content(eb));
+    expect(text(ea)).toContain('a');
+    expect(text(ea)).toContain('b');
+    expect(content(create(a.get('root')))).toEqual(content(ea));
+    manager(ea).undo();
+    copy(a, b);
+    expect(text(ea)).toBe('b');
+    expect(content(ea)).toEqual(content(eb));
+    manager(ea).redo();
+    copy(a, b);
+    expect(content(ea)).toEqual(content(eb));
+    expect(content(create(b.get('root')))).toEqual(content(ea));
+  });
+  test('concurrent deletion undo converges and reloads with one logical copy', () => {
+    const {a, b, ea, eb} = pair();
+    manager(ea).clear();
+    manager(eb).clear();
+    update(ea, () => $getRoot().clear());
+    update(eb, () => $getRoot().clear());
+    copy(a, b);
+    copy(b, a);
+    manager(ea).undo();
+    manager(eb).undo();
+    copy(a, b);
+    copy(b, a);
+    expect(content(ea)).toEqual(content(eb));
+    expect(text(ea)).toBe('hello');
+    expect(content(create(a.get('root')))).toEqual(content(ea));
+    const reload = new Y.Doc();
+    copy(a, reload);
+    expect(content(create(reload.get('root')))).toEqual(content(ea));
   });
   test('undoing list indentation restores text selection (#7493)', () => {
     const doc = new Y.Doc();

@@ -33,6 +33,8 @@ import {
 } from 'lexical';
 import {expect, onTestFinished, test} from 'vitest';
 
+import {getNodeByID} from '../../Topology';
+
 const live = createState('independent-audit-shared', {
   parse: (value: unknown) => value,
 });
@@ -68,7 +70,7 @@ function create(
 
 function child(doc: Y.Doc, parent: Y.Node, index = 0): Y.Node {
   const edge = parent.get(index) as {id: string};
-  return doc.get('root').getAttr('tree:node:' + edge.id);
+  return getNodeByID(doc.get('root'), edge.id)!;
 }
 
 test('unrelated text edits retain token boundaries after adjacent line breaks', () => {

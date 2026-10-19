@@ -23,6 +23,20 @@ import {
 } from '@y/y';
 
 import {equalValue} from './Schema';
+import {getNodeID, isNodeStore} from './Topology';
+
+/** @experimental Integration-specific dependencies between pending review changes. */
+export type YSuggestionGrouping = (context: {
+  binding: YBinding;
+  base: YBinding;
+  changes: readonly {
+    attribute: string | null;
+    created: YNode | null;
+    parent: YNode;
+    parentIsNew: boolean;
+    format: boolean;
+  }[];
+}) => readonly (readonly number[])[];
 
 export interface YSuggestion {
   /** Stable identity of a connected set of pending CRDT operations. */
@@ -139,92 +153,51 @@ export function getSuggestionGroups(
     (p.item.parentSub === null &&
       p.parent.name !== null &&
       !(p.item.content instanceof ContentFormat));
-  const tableOf = (type: YNode): string | null => {
-    for (const owner of [binding, base]) {
-      const key = type._item && type._item.parentSub;
-      let node =
-        owner === binding
-          ? type
-          : typeof key === 'string'
-            ? owner.root.getAttr(key)
-            : null;
-      const seen = new Set<YNode>();
-      while (node instanceof YNode && !seen.has(node)) {
-        if (node.name === 'table')
-          return String(node._item && node._item.parentSub);
-        seen.add(node);
-        node = owner.parents.get(node);
-      }
-    }
-    return null;
-  };
-  const tables = parts.map(p =>
-    tableOf(
-      p.item.content instanceof ContentType ? p.item.content.type : p.parent,
-    ),
-  );
-  // Geometry changes can span several rows, but unrelated cell content and
-  // presentation properties do not participate in the table's shape.
-  const geometry = (p: Part): boolean => {
-    const {item, parent} = p;
-    if (item.content instanceof ContentType)
-      return ['table', 'tablerow', 'tablecell'].includes(
-        item.content.type.name || '',
+  const changes = parts.map(p => ({
+    attribute: p.item.parentSub,
+    created: p.item.content instanceof ContentType ? p.item.content.type : null,
+    format: p.item.content instanceof ContentFormat,
+    parent: p.parent,
+    parentIsNew:
+      !!p.parent._item &&
+      (inserts.hasId(p.parent._item.id) || deletes.hasId(p.parent._item.id)),
+  }));
+  for (const hook of binding.suggestionGroupers) {
+    for (const group of hook({base, binding, changes})) {
+      const indices = group.filter(
+        i => Number.isInteger(i) && i >= 0 && i < parts.length,
       );
-    if (item.parentSub === null)
-      return parent.name === 'table' || parent.name === 'tablerow';
-    if (item.parentSub === 'tree:placement')
-      return ['table', 'tablerow', 'tablecell'].includes(parent.name || '');
-    return (
-      item.parentSub === 'p:colSpan' ||
-      item.parentSub === 'p:rowSpan' ||
-      (parent.name === 'table' && item.parentSub === 'p:colWidths')
-    );
-  };
-  const coupledTables = new Set(
-    parts.flatMap((p, i) => {
-      if (!tables[i]) return [];
-      // Existing row/cell geometry changes need a consistent grid. A complete
-      // new row brings its own children and can be reviewed independently.
-      const parentItem = p.parent._item;
-      const existingParent =
-        !parentItem ||
-        (!inserts.hasId(parentItem.id) && !deletes.hasId(parentItem.id));
-      return existingParent &&
-        ((p.parent.name === 'tablerow' && p.item.parentSub === null) ||
-          p.item.parentSub === 'p:colSpan' ||
-          p.item.parentSub === 'p:rowSpan' ||
-          (p.parent.name === 'table' && p.item.parentSub === 'p:colWidths'))
-        ? [tables[i]!]
-        : [];
-    }),
-  );
+      for (const index of indices.slice(1)) join(indices[0], index);
+    }
+  }
   parts.forEach((p, i) => {
     const {item, parent} = p;
     // A missing parent or sequence origin must be reviewed with its dependent operation.
     for (const id of [
-      item.origin,
-      item.rightOrigin,
+      isNodeStore(binding.root, parent) ? null : item.origin,
+      isNodeStore(binding.root, parent) ? null : item.rightOrigin,
       parent._item && parent._item.id,
     ]) {
       if (!id) continue;
       const other = byID(id);
       if (other >= 0) join(i, other);
     }
+    if (
+      item.content instanceof ContentType &&
+      isNodeStore(binding.root, parent)
+    )
+      tag(i, `storage:node:${getNodeID(item.content.type)}`);
     if (item.parentSub !== null) {
       tag(i, `attribute:${typeID(parent)}:${item.parentSub}`);
-      if (/^(tree:node:|shared:)/.test(item.parentSub))
-        tag(i, `storage:${item.parentSub}`);
+      if (/^shared:/.test(item.parentSub)) tag(i, `storage:${item.parentSub}`);
       if (
         item.parentSub === 'tree:placement' &&
         parent._item &&
-        parent._item.parentSub
+        isNodeStore(binding.root, parent.parent)
       )
-        tag(i, `storage:${parent._item.parentSub}`);
+        tag(i, `storage:node:${getNodeID(parent)}`);
     }
 
-    if (tables[i] && coupledTables.has(tables[i]!) && geometry(p))
-      tag(i, `table:${tables[i]}`);
     const references = (value: unknown): void => {
       if (!value || typeof value !== 'object' || value instanceof YNode) return;
       if (Array.isArray(value)) {
@@ -233,7 +206,7 @@ export function getSuggestionGroups(
       }
       const record = value as Record<string, unknown>;
       if (typeof record.id === 'string' && typeof record.token === 'string')
-        tag(i, `storage:tree:node:${record.id}`);
+        tag(i, `storage:node:${record.id}`);
       if (typeof record.key === 'string' && record.key.startsWith('shared:'))
         tag(i, `storage:${record.key}`);
       if (
@@ -268,9 +241,7 @@ export function getSuggestionGroups(
         key === 'boundary' &&
         type.name === null &&
         type._item &&
-        type._item.parent === binding.root &&
-        typeof type._item.parentSub === 'string' &&
-        type._item.parentSub.startsWith('tree:node:')
+        isNodeStore(binding.root, type.parent)
       )
         continue;
       const state = formats.get(key) || {base: null, open: -1, proposed: null};

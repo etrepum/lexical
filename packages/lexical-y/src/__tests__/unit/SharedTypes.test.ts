@@ -18,6 +18,7 @@ import * as Y from '@y/y';
 import {
   $create,
   $createParagraphNode,
+  $exportNodeJSON,
   $getRoot,
   $getState,
   $setState,
@@ -33,6 +34,8 @@ import {
   withField,
 } from 'lexical';
 import {expect, onTestFinished, test} from 'vitest';
+
+import {getNodeStores} from '../../Topology';
 
 const valueConfig = {
   parse: (value: unknown) => (value instanceof Y.Node ? value : undefined),
@@ -137,9 +140,9 @@ test('properties and regular/flat NodeState retain live identity, aliases, and s
   const reload = new Y.Doc();
   send(a.doc, reload);
   expect(getValue(create(reload).editor).toString()).toBe('shared');
-  expect(() =>
-    JSON.stringify(b.editor.getEditorState().toJSON()),
-  ).not.toThrow();
+  expect(() => JSON.stringify(b.editor.getEditorState().toJSON())).toThrow(
+    /live external values cannot be exported/,
+  );
 });
 
 test('concurrent nested mutations merge and mark owning Lexical nodes dirty', () => {
@@ -460,13 +463,11 @@ test('release checks references on text formats and other loaded roots', () => {
   });
   expect(() => binding.releaseSharedType(value)).toThrow(/references/);
   // Copy the encoded reference to an application-owned root.
-  const stored = Object.entries(binding.root.getAttrs()).find(
-    ([key, item]) =>
-      key.startsWith('tree:node:') &&
-      item instanceof Y.Node &&
-      item.name === null &&
-      item.length > 0,
-  )![1] as Y.Node;
+  const stored = getNodeStores(binding.root)
+    .flatMap(store => store.toArray())
+    .find(
+      item => item instanceof Y.Node && item.name === null && item.length > 0,
+    ) as Y.Node;
   const op = Array.from(stored.toDelta().children)[0];
   if (!('format' in op)) throw new Error('Expected text formatting');
   const reference = op.format!['ref:p:value'];
@@ -484,4 +485,42 @@ test('release never deletes application-owned shared types', () => {
   doc.get('application').setAttr('value', external);
   expect(() => binding.releaseSharedType(external)).toThrow(/stored shared/);
   expect(doc.get('application').getAttr('value')).toBe(external);
+});
+
+test('raw shared properties are rejected by direct, EditorState, and clipboard JSON export on both peers', () => {
+  const {a, b} = pair();
+  for (const peer of [a, b]) {
+    peer.editor.read('latest', () => {
+      const node = $getRoot().getFirstChildOrThrow<SharedElement>();
+      expect(() => node.exportJSON()).toThrow(/live external values/);
+      // EditorState and clipboard walks share this checked export entry point.
+      expect(() => $exportNodeJSON(node)).toThrow(/live external values/);
+    });
+    expect(() => peer.editor.getEditorState().toJSON()).toThrow(
+      /live external values/,
+    );
+  }
+});
+
+test('explicit NodeState snapshot codecs still export plain JSON', () => {
+  const a = create();
+  const value = seed(a.editor);
+  a.binding.transact(() => value.insert(0, 'snapshot'));
+  update(a.editor, () => {
+    $getRoot().getFirstChildOrThrow<SharedElement>().getWritable().__value =
+      undefined;
+  });
+  const json = a.editor.getEditorState().toJSON();
+  expect(JSON.stringify(json)).toContain('snapshot');
+  expect(JSON.stringify(json)).not.toContain('clientID');
+});
+
+test('export rejects a newly assigned raw value even before the binding commit listener runs', () => {
+  const a = create();
+  a.editor.update(() => {
+    const node = $create(SharedElement);
+    node.__value = new Y.Node();
+    $getRoot().append(node);
+    expect(() => $exportNodeJSON(node)).toThrow(/live external values/);
+  });
 });

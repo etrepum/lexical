@@ -43,7 +43,12 @@ and nested editor instances stored as properties are unsupported.
 The binding keeps BindingV2's one-to-one non-text mapping and grouped text runs,
 but stores nodes independently from their positions. Each non-text node has a
 named `Y.Node`; adjacent TextNodes and line breaks share an unnamed text run. The root's
-`tree:node:` attributes retain these nodes. Child sequences and named slots hold
+`tree:nodes:<client>` attributes hold unordered sequence stores. Concurrent
+initializers use distinct keys so their first edits cannot replace another
+client's store; later writers reuse an existing store. Compact client/clock
+IDs come from each node's integrating Yjs item; `tree:id` preserves that logical
+identity across transmitted undo/redo. Deleting a node removes a sequence item,
+so the root map does not retain a unique key for every deleted node. Child sequences and named slots hold
 `{id, token}` placements; a node's `tree:placement` attribute selects its current
 placement. Moving a node changes its placement without deleting its shared
 content, so concurrent edits to that content survive the move.
@@ -100,7 +105,7 @@ independent `s:` attribute; flat state follows its JSON schema property. Values
 remain structured JSON, including objects, arrays and null. Within text runs,
 one-element arrays distinguish JSON null from Yjs's null formatting-removal
 sentinel. No NodeState JSON strings are needed. Plain JSON NodeState values are
-atomic at their key. Use a live `Y.Node` value when nested edits should merge.
+atomic at their key. Prefer plain JSON properties and stable IDs for application-owned shared data.
 
 Named slots use independent `slot:` attributes containing placements. Different
 slots merge even when peers create them concurrently. The supplied root and its
@@ -113,8 +118,8 @@ Every root has a `tree:format` marker containing the format version and applicat
 root. Change it when deploying incompatible node schemas; the binding rejects a
 mismatch before editing. It does not migrate Yjs 13 data or infer application
 schema compatibility. Coordinate migrations and offline-client upgrades outside
-the binding. The current experimental layout is version 2. Documents created
-with this PR's earlier version 1 layout are rejected; there is no in-place
+the binding. The current experimental layout is version 3. Documents created
+with this PR's earlier version 1 or 2 layouts are rejected; there is no in-place
 conversion. To replace an old experimental document, export it using its original
 binding, import its Lexical JSON into a new document, and retire the old document
 and offline clients together. This starts new CRDT identities and history.
@@ -192,7 +197,8 @@ identities and is not a substitute for restoring the CRDT document.
 
 ## Live shared properties and NodeState
 
-A schema property or NodeState value can hold a live `Y.Node`, including on
+Prefer plain JSON properties and stable IDs that the application resolves.
+The experimental alternative permits a live `Y.Node` value, including on
 TextNodes and in flat NodeState. The schema getter must expose the shared node
 itself; for a direct field, use `withField(rawValue<Y.Node>(), {field: '__value'})`.
 NodeState parsers must accept live nodes. The binding preserves live values
@@ -236,6 +242,11 @@ dirty, including changes to externally owned types. `binding.transact` gives loc
 mutations the binding's undo origin; call it outside an editor update. Direct Yjs
 transactions are also observed, but are excluded from local undo unless they use
 that origin. Collaborative history covers the root and its referenced types.
+
+Raw live values are rejected by node JSON export, EditorState export and clipboard
+JSON export. A schema or NodeState snapshot codec must produce plain JSON, as in
+the example above; using a raw field without such a codec throws instead of
+leaking a Yjs object into serialized output.
 
 Live values are mutable: older EditorStates reference the same live objects.
 Lexical node copying also retains those references; clone explicitly for an
@@ -496,3 +507,20 @@ The report's shared serialization issues also have regressions in `@lexical/html
 `@lexical/list`, `@lexical/table` and core TextNode import tests. Structural
 text-movement limitations are documented above and remain expected failures;
 passing regression coverage is not a claim of arbitrary collaboration correctness.
+
+
+The update listener's experimental `synchronous` option changes commit timing for
+the entire editor while registered, including updates from other extensions. It
+disables microtask batching so each local commit reaches Yjs before remote work.
+The binding writes only explicitly dirty subtrees. Structural transactions update
+the topology index for touched containers; cycle repair rebuilds the projection.
+Table geometry repair restores canonical table properties before each structural
+projection, so table integrations can still require a complete projection read.
+
+`@y/y` is pinned to `14.0.0-rc.26` because topology, review and the unordered store
+use its item internals. Install one compatible `lib0` copy shared with `@y/y`;
+`lib0` is a peer dependency. `@lexical/table` is an optional peer needed only for
+`@lexical/y/table`, which registers table geometry suggestion grouping alongside
+its selection codec and projection transform. The core binding uses Lexical's
+experimental `getNodeSchemaCodec(editor)` contract for schema export, application,
+registry access and validation; custom JSON overrides produce a DEV warning.

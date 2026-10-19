@@ -11,7 +11,12 @@ import type {HistoryExtension} from '@lexical/history';
 import {effect, namedSignals} from '@lexical/extension';
 import invariant from '@lexical/internal/invariant';
 import {Node as YNode} from '@y/y';
-import {declarePeerDependency, defineExtension, safeCast} from 'lexical';
+import {
+  declarePeerDependency,
+  defineExtension,
+  getNodeSchemaCodec,
+  safeCast,
+} from 'lexical';
 
 import {registerInlineTransforms} from './Inline';
 import {YOpaqueNode} from './Opaque';
@@ -39,8 +44,8 @@ export const YExtension = defineExtension({
       config.root instanceof YNode,
       '@lexical/y: configure an integrated Y.Node root',
     );
-    for (const {klass} of editor._nodes.values()) {
-      if (klass.getType() !== 'artificial') assertSchema(klass);
+    for (const {klass} of getNodeSchemaCodec(editor).nodes.values()) {
+      if (klass.getType() !== 'artificial') assertSchema(klass, editor);
     }
     return {
       binding: new YBinding(
