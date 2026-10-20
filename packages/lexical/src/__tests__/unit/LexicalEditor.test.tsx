@@ -497,53 +497,58 @@ describe('LexicalEditor tests', () => {
         });
       });
     });
-    it.each(['read', 'discrete update'])(
-      'does not commit an update started by a mutation listener until every listener of that commit has run, with a %s in another listener (#7709)',
-      async mode => {
-        init(function onError(err) {
-          throw err;
-        });
-        await update(() => {
-          $getRoot()
-            .clear()
-            .append($createParagraphNode().append($createTextNode('first')));
-        });
+    it('does not flush an update started by a commit listener until every listener of that commit has run (#7709)', async () => {
+      init(function onError(err) {
+        throw err;
+      });
+      await update(() => {
+        $getRoot()
+          .clear()
+          .append($createParagraphNode().append($createTextNode('first')));
+      });
 
-        const updates: [
-          prevEditorState: EditorState,
-          editorState: EditorState,
-        ][] = [];
-        editor.registerUpdateListener(({prevEditorState, editorState}) => {
-          updates.push([prevEditorState, editorState]);
-        });
-        let appended = false;
-        editor.registerMutationListener(
-          ParagraphNode,
-          () => {
-            if (!appended) {
-              appended = true;
-              editor.update(() => {
-                $getRoot().append(
-                  $createParagraphNode().append($createTextNode('third')),
-                );
-              });
-            }
-          },
-          {skipInitialization: true},
-        );
-        const reads: string[] = [];
-        editor.registerMutationListener(
-          ParagraphNode,
-          () => {
-            if (mode === 'read') {
-              reads.push(editor.read(() => $getRoot().getTextContent()));
-            } else {
-              editor.update(() => {}, {discrete: true});
-            }
-          },
-          {skipInitialization: true},
-        );
+      const updates: [
+        prevEditorState: EditorState,
+        editorState: EditorState,
+      ][] = [];
+      editor.registerUpdateListener(({prevEditorState, editorState}) => {
+        updates.push([prevEditorState, editorState]);
+      });
+      // A command dispatched from a commit listener begins its update at
+      // once instead of being enqueued like editor.update().
+      const APPEND_COMMAND = createCommand<void>('APPEND_COMMAND');
+      editor.registerCommand(
+        APPEND_COMMAND,
+        () => {
+          $getRoot().append(
+            $createParagraphNode().append($createTextNode('third')),
+          );
+          return true;
+        },
+        COMMAND_PRIORITY_EDITOR,
+      );
+      let appended = false;
+      editor.registerMutationListener(
+        ParagraphNode,
+        () => {
+          if (!appended) {
+            appended = true;
+            editor.dispatchCommand(APPEND_COMMAND, undefined);
+          }
+        },
+        {skipInitialization: true},
+      );
+      const reads: string[] = [];
+      editor.registerMutationListener(
+        ParagraphNode,
+        () => {
+          reads.push(editor.read(() => $getRoot().getTextContent()));
+        },
+        {skipInitialization: true},
+      );
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
+      try {
         editor.update(
           () => {
             $getRoot().append(
@@ -552,29 +557,26 @@ describe('LexicalEditor tests', () => {
           },
           {discrete: true},
         );
-        // The update listeners are notified of the commit that started the
-        // update in the first mutation listener before that update.
-        expect(updates[0][1].read(() => $getRoot().getTextContent())).toBe(
-          'first\n\nsecond',
-        );
-        if (mode === 'read') {
-          expect(updates).toHaveLength(1);
-          expect(reads).toEqual(['first\n\nsecond']);
-        }
+        // The read must not commit the update started by the first mutation
+        // listener: the update listeners would have been notified of it before
+        // the commit that is still notifying its own listeners.
+        expect(updates).toHaveLength(1);
+        expect(updates[0][1]).toBe(editor.getEditorState());
+        expect(reads).toEqual(['first\n\nsecond']);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toMatch(/editor\.read\(\)/);
 
-        // The update starts after those listeners and continues from that state.
+        // The pending update commits afterwards, continuing from that state.
         await Promise.resolve();
-        await Promise.resolve();
-        expect(updates.length).toBeGreaterThanOrEqual(2);
-        for (let i = 1; i < updates.length; i++) {
-          expect(updates[i][0]).toBe(updates[i - 1][1]);
-        }
-        expect(updates.at(-1)![1]).toBe(editor.getEditorState());
-        expect(editor.read(() => $getRoot().getTextContent())).toBe(
-          'first\n\nsecond\n\nthird',
-        );
-      },
-    );
+        expect(updates).toHaveLength(2);
+        expect(updates[1][0]).toBe(updates[0][1]);
+        expect(updates[1][1]).toBe(editor.getEditorState());
+        expect(reads).toEqual(['first\n\nsecond', 'first\n\nsecond\n\nthird']);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   it('Should create an editor with an initial editor state', async () => {
