@@ -238,12 +238,13 @@ export function $writeElement(
     for (const child of next) {
       if (stored[index] !== child) {
         const later = stored.indexOf(child, index);
-        if (
-          later >= 0 &&
-          stored
-            .slice(index, later)
-            .every(value => !value || (nextIndex.get(value) ?? -1) <= index)
-        ) {
+        // Drop the entries before `child` when none of them is placed later.
+        let skippable = later >= 0;
+        for (let i = index; skippable && i < later; i++) {
+          const value = stored[i];
+          skippable = !value || (nextIndex.get(value) ?? -1) <= index;
+        }
+        if (skippable) {
           type.delete(index, later - index);
           stored.splice(index, later - index);
         } else {
