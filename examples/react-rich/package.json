@@ -10,13 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lexical/clipboard": "0.52.0",
-    "@lexical/extension": "0.52.0",
-    "@lexical/history": "0.52.0",
-    "@lexical/html": "0.52.0",
-    "@lexical/react": "0.52.0",
-    "@lexical/rich-text": "0.52.0",
-    "lexical": "0.52.0",
+    "@lexical/clipboard": "https://pkg.pr.new/facebook/lexical/@lexical/clipboard@9385",
+    "@lexical/extension": "https://pkg.pr.new/facebook/lexical/@lexical/extension@9385",
+    "@lexical/history": "https://pkg.pr.new/facebook/lexical/@lexical/history@9385",
+    "@lexical/html": "https://pkg.pr.new/facebook/lexical/@lexical/html@9385",
+    "@lexical/react": "https://pkg.pr.new/facebook/lexical/@lexical/react@9385",
+    "@lexical/rich-text": "https://pkg.pr.new/facebook/lexical/@lexical/rich-text@9385",
+    "lexical": "https://pkg.pr.new/facebook/lexical/lexical@9385",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
@@ -33,5 +33,8 @@
     "@rollup/rollup-darwin-arm64": "4.52.0",
     "@rollup/rollup-win32-x64-msvc": "4.52.0",
     "@rollup/wasm-node": "4.52.0"
+  },
+  "overrides": {
+    "lexical": "https://pkg.pr.new/facebook/lexical/lexical@9385"
   }
 }

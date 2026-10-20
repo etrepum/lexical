@@ -18,7 +18,7 @@ import {ContentEditable} from '@lexical/react/LexicalContentEditable';
 import {LexicalExtensionComposer} from '@lexical/react/LexicalExtensionComposer';
 import {TreeViewExtension} from '@lexical/react/TreeViewExtension';
 import {RichTextExtension} from '@lexical/rich-text';
-import {configExtension, defineExtension} from 'lexical';
+import {configExtension, defineExtension, LexicalEditor} from 'lexical';
 
 import ExampleTheme from './ExampleTheme';
 import {StyleImportExportExtension} from './StyleImportExportExtension';
@@ -50,6 +50,7 @@ const appExtension = defineExtension({
 export default function App() {
   return (
     <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
+      <p data-testid="lexical-version">lexical {LexicalEditor.version}</p>
       <div className="editor-container">
         <Toolbar />
         <div className="editor-inner">
