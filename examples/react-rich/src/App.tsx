@@ -18,7 +18,8 @@ import {ContentEditable} from '@lexical/react/LexicalContentEditable';
 import {LexicalExtensionComposer} from '@lexical/react/LexicalExtensionComposer';
 import {TreeViewExtension} from '@lexical/react/TreeViewExtension';
 import {RichTextExtension} from '@lexical/rich-text';
-import {configExtension, defineExtension, LexicalEditor} from 'lexical';
+import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
+import {configExtension, defineExtension, type LexicalEditor} from 'lexical';
 
 import ExampleTheme from './ExampleTheme';
 import {StyleImportExportExtension} from './StyleImportExportExtension';
@@ -47,10 +48,17 @@ const appExtension = defineExtension({
   theme: ExampleTheme,
 });
 
+// LexicalEditor is a type-only export, so read the version off the instance.
+function LexicalVersion() {
+  const [editor] = useLexicalComposerContext();
+  const {version} = editor.constructor as typeof LexicalEditor;
+  return <p data-testid="lexical-version">lexical {version}</p>;
+}
+
 export default function App() {
   return (
     <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
-      <p data-testid="lexical-version">lexical {LexicalEditor.version}</p>
+      <LexicalVersion />
       <div className="editor-container">
         <Toolbar />
         <div className="editor-inner">
