@@ -18,6 +18,7 @@ export {
   getCodeThemeOptions,
   isCodeLanguageLoaded,
   isCodeThemeLoaded,
+  loadCodeLanguage,
   loadCodeTheme,
   normalizeCodeLanguage,
 } from './FacadeHighlights';

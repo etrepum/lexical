@@ -18,6 +18,7 @@ import {
   HighlightsTokenizer,
   isCodeLanguageLoaded,
   isCodeThemeLoaded,
+  loadCodeLanguage,
   loadCodeTheme,
   normalizeCodeLanguage,
   type Tokenizer,
@@ -29,6 +30,7 @@ import {
 } from '@lexical/extension';
 import {HistoryExtension} from '@lexical/history';
 import {RichTextExtension} from '@lexical/rich-text';
+import {isSupportedLanguage} from '@pierre/highlights';
 import {
   $createTextNode,
   $getRoot,
@@ -73,6 +75,14 @@ function appendCode(
   );
 }
 
+/**
+ * The engine and each theme load on first use; wait for both.
+ */
+async function settle(theme: string) {
+  await Promise.all([loadCodeLanguage('javascript'), loadCodeTheme(theme)]);
+  await Promise.resolve();
+}
+
 function $getCode() {
   const code = $getRoot().getFirstChild();
   assert($isCodeNode(code));
@@ -83,13 +93,12 @@ describe('CodeHighlightsExtension', () => {
   test('highlights with the theme colors once the theme has loaded', async () => {
     const {editor, root} = createEditor();
     appendCode(editor, 'const x = "a";\n\tfoo()', 'js');
-    // Every language is built in, so the default theme is all that loads.
-    // It isn't loaded yet, so the text is left as it was.
+    // The engine and the default theme load on first use, so the text is
+    // left as it was until they have.
     expect(isCodeThemeLoaded('one-light')).toBe(false);
     expect(editor.read(() => $getCode().getChildrenSize())).toBe(1);
 
-    await loadCodeTheme('one-light');
-    await Promise.resolve();
+    await settle('one-light');
 
     expectHtmlToBeEqual(
       root.innerHTML,
@@ -134,8 +143,7 @@ describe('CodeHighlightsExtension', () => {
   test('loading the theme does not add an undo step', async () => {
     const {editor} = createEditor();
     appendCode(editor, 'let x;', 'javascript', 'github-light');
-    await loadCodeTheme('github-light');
-    await Promise.resolve();
+    await settle('github-light');
     editor.read(() => {
       const [first] = $getCode().getChildren();
       assert($isTextNode(first));
@@ -149,7 +157,7 @@ describe('CodeHighlightsExtension', () => {
 
   test('marks diff-xxx prefixes and highlights the rest as xxx', async () => {
     const {editor} = createEditor();
-    await loadCodeTheme('one-light');
+    await settle('one-light');
     appendCode(editor, '+let a;\n-let b;', 'diff-javascript');
     editor.read(() => {
       const code = $getCode();
@@ -173,7 +181,7 @@ describe('CodeHighlightsExtension', () => {
 
   test('colors code in a language without a lexer as plain text', async () => {
     const {editor} = createEditor();
-    await loadCodeTheme('one-light');
+    await settle('one-light');
     appendCode(editor, 'a\n\tb', 'no-such-language');
     editor.read(() => {
       const code = $getCode();
@@ -197,7 +205,7 @@ describe('CodeHighlightsExtension', () => {
 
   test('highlights a block whose theme is not bundled with the default theme', async () => {
     const {editor} = createEditor();
-    await loadCodeTheme('one-light');
+    await settle('one-light');
     appendCode(editor, 'x', 'javascript', 'no-such-theme');
     editor.read(() => {
       const code = $getCode();
@@ -226,7 +234,7 @@ describe('CodeHighlightsExtension', () => {
 
   test('stops highlighting while disabled', async () => {
     const {editor} = createEditor();
-    await loadCodeTheme('one-light');
+    await settle('one-light');
     const {output} = getExtensionDependencyFromEditor(
       editor,
       CodeHighlightsExtension,
@@ -241,8 +249,10 @@ describe('CodeHighlightsExtension', () => {
 });
 
 describe('Highlights language and theme options', () => {
-  test('every listed language has a lexer and is its own normal form', () => {
+  test('every listed language has a lexer and is its own normal form', async () => {
+    await loadCodeLanguage('javascript');
     for (const [id] of getCodeLanguageOptions()) {
+      expect(isSupportedLanguage(id), id).toBe(true);
       expect(isCodeLanguageLoaded(id), id).toBe(true);
       expect(normalizeCodeLanguage(id)).toBe(id);
     }

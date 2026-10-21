@@ -38,6 +38,11 @@ declare export function getCodeLanguageOptions(): Array<[string, string]>;
 declare export function getCodeThemeOptions(): Array<[string, string]>;
 declare export function isCodeLanguageLoaded(language: string): boolean;
 declare export function isCodeThemeLoaded(theme: string): boolean;
+declare export function loadCodeLanguage(
+  language: string,
+  editor?: LexicalEditor,
+  codeNodeKey?: NodeKey,
+): Promise<void> | void;
 declare export function loadCodeTheme(
   theme: string,
   editor?: LexicalEditor,

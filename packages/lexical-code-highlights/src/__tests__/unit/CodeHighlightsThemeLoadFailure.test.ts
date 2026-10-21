@@ -12,6 +12,7 @@ import {$createCodeNode, $isCodeNode} from '@lexical/code-core';
 import {
   CodeHighlightsExtension,
   isCodeThemeLoaded,
+  loadCodeLanguage,
   loadCodeTheme,
 } from '@lexical/code-highlights';
 import {buildEditorFromExtensions} from '@lexical/extension';
@@ -40,7 +41,10 @@ describe('CodeHighlightsExtension theme load failure', () => {
       },
       {discrete: true},
     );
-    await loadCodeTheme('one-light');
+    await Promise.all([
+      loadCodeLanguage('javascript'),
+      loadCodeTheme('one-light'),
+    ]);
     await Promise.resolve();
     expect(isCodeThemeLoaded('one-light')).toBe(true);
     editor.read(() => {

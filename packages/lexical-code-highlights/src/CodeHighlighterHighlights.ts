@@ -28,9 +28,12 @@ import {
 
 import {
   $getHighlightNodes,
+  isCodeEngineSettled,
   isCodeLanguageLoaded,
+  isCodeLanguageSupported,
   isCodeThemeLoaded,
   isCodeThemeSupported,
+  loadCodeLanguage,
   loadCodeTheme,
 } from './FacadeHighlights';
 
@@ -95,20 +98,34 @@ function $prepareCodeNode(
     node.setTheme(tokenizer.defaultTheme);
   }
 
-  // Every language is built in, so only the theme can be missing.
-  const isSupported = !!language && isCodeLanguageLoaded(language);
+  if (!language) {
+    // Code without a language is only split, which needs neither the
+    // engine nor a theme, so don't defer splitting it on their loads.
+    if (node.getIsSyntaxHighlightSupported()) {
+      node.setIsSyntaxHighlightSupported(false);
+    }
+    return true;
+  }
+  // Every language is built into the engine, which is loaded on first use.
+  // If it can't load (no WebAssembly SIMD, or a CSP that forbids
+  // WebAssembly), code is left uncolored. Code in a language without a
+  // lexer is colored as plain text.
+  const nodeKey = node.getKey();
+  const isSettled =
+    isCodeEngineSettled() ||
+    !loadCodeLanguage(
+      isCodeLanguageSupported(language) ? language : 'plaintext',
+      editor,
+      nodeKey,
+    );
+  const isSupported = isCodeLanguageLoaded(language);
   if (node.getIsSyntaxHighlightSupported() !== isSupported) {
     node.setIsSyntaxHighlightSupported(isSupported);
   }
-  // Code without a language is only split, which needs no theme, so don't
-  // defer splitting it on a theme load. Code in a language without a lexer
-  // is colored as plain text.
   const theme = getCodeTheme(tokenizer, node);
-  return !(
-    language &&
-    !isCodeThemeLoaded(theme) &&
-    loadCodeTheme(theme, editor, node.getKey())
-  );
+  const isThemeReady =
+    isCodeThemeLoaded(theme) || !loadCodeTheme(theme, editor, nodeKey);
+  return isSettled && isThemeReady;
 }
 
 /**

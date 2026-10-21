@@ -20,5 +20,11 @@ const editor = buildEditorFromExtensions(
 );
 ```
 
-Every language is built in, so highlighting starts as soon as the theme of a
-code block (`one-light` by default) has loaded.
+Every language is built into the engine. The engine and the theme of a code
+block (`one-light` by default) are loaded on first use, and highlighting starts
+once both have loaded.
+
+The engine is WebAssembly that uses SIMD, so highlighting needs Chrome 91,
+Firefox 89 or Safari 16.4 or later, and a Content Security Policy that allows
+WebAssembly (`'wasm-unsafe-eval'` in `script-src`). Where the engine can't
+load, code blocks are left uncolored and the editor otherwise works as usual.

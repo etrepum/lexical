@@ -6,7 +6,12 @@
  *
  */
 
-import type {Theme, ThemedToken} from '@pierre/highlights';
+import type {
+  codeToTokens as CodeToTokens,
+  Lang,
+  Theme,
+  ThemedToken,
+} from '@pierre/highlights';
 
 import {
   $createCodeHighlightNodesFromTokens,
@@ -14,7 +19,6 @@ import {
   $plainifyCodeContent,
   type CodeNode,
 } from '@lexical/code-core';
-import {codeToTokens, isSupportedLanguage} from '@pierre/highlights';
 import {themes as themeLoaders} from '@pierre/highlights/themes/loader';
 import {
   $getNodeByKey,
@@ -31,7 +35,7 @@ import {
  * ids follow Shiki's where both have the language, so a code block keeps its
  * language when an editor switches between the two.
  */
-const LANGUAGES: readonly [id: string, name: string, aliases?: string][] = [
+const LANGUAGES: readonly [id: Lang, name: string, aliases?: string][] = [
   ['plaintext', 'Plain Text', 'plain text txt'],
   ['angular-html', 'Angular HTML'],
   ['asm', 'Assembly', 'assembly s'],
@@ -112,6 +116,49 @@ const LANGUAGES: readonly [id: string, name: string, aliases?: string][] = [
 ];
 
 /**
+ * The Highlights engine compiles its WebAssembly when its module is
+ * evaluated, so it is imported on first use rather than with this package.
+ * That keeps editors that never highlight with it (or only have it
+ * configured as a disabled alternative) from paying for it, and lets a
+ * runtime that can't compile it, such as one without WebAssembly SIMD or
+ * with a CSP that forbids WebAssembly, fall back to uncolored code instead
+ * of failing to load the app. `null` once importing it has failed.
+ */
+let engine: undefined | null | typeof CodeToTokens;
+let pendingEngine: undefined | Promise<void>;
+
+function loadEngine(): Promise<void> {
+  if (!pendingEngine) {
+    pendingEngine = import('@pierre/highlights').then(
+      module => {
+        engine = module.codeToTokens;
+      },
+      () => {
+        engine = null;
+      },
+    );
+  }
+  return pendingEngine;
+}
+
+function $markCodeNodeDirty(
+  editor: LexicalEditor | undefined,
+  codeNodeKey: NodeKey | undefined,
+): void {
+  if (editor && codeNodeKey) {
+    editor.update(
+      () => {
+        const codeNode = $getNodeByKey(codeNodeKey);
+        if ($isCodeNode(codeNode)) {
+          codeNode.markDirty();
+        }
+      },
+      {tag: HISTORY_MERGE_TAG},
+    );
+  }
+}
+
+/**
  * Each bundled theme that has been asked for: the theme once it has loaded,
  * `null` if loading it failed (code is then left uncolored), or the pending
  * load.
@@ -125,13 +172,61 @@ function getDiffedLanguage(language: string) {
   return diffLanguageMatch ? diffLanguageMatch[1] : null;
 }
 
+function findLanguage(language: string) {
+  const lang = getDiffedLanguage(language) || language;
+  return LANGUAGES.find(
+    ([id, , aliases]) =>
+      id === lang || (aliases && aliases.split(' ').includes(lang)),
+  );
+}
+
 /**
- * Highlights builds every language in, so this reports whether it has a
- * lexer for `language` (or for `xxx` in a `diff-xxx` language); nothing ever
- * needs to be loaded.
+ * Whether Highlights has a lexer for `language` (or for `xxx` in a
+ * `diff-xxx` language) and its engine has loaded. Every language is built
+ * into the engine.
  */
 export function isCodeLanguageLoaded(language: string): boolean {
-  return isSupportedLanguage(getDiffedLanguage(language) || language);
+  return !!engine && !!findLanguage(language);
+}
+
+/**
+ * Whether Highlights has a lexer for `language` (or for `xxx` in a
+ * `diff-xxx` language), loaded or not.
+ */
+export function isCodeLanguageSupported(language: string): boolean {
+  return !!findLanguage(language);
+}
+
+/**
+ * Whether loading the Highlights engine has finished, successfully or not.
+ */
+export function isCodeEngineSettled(): boolean {
+  return engine !== undefined;
+}
+
+/**
+ * Loads the Highlights engine, which has every language built in. If it
+ * is already loaded, failed to load, or `language` is not supported, the
+ * call is a no-op.
+ *
+ * When both `editor` and `codeNodeKey` are passed, the corresponding
+ * {@link CodeNode} is marked dirty once the engine has loaded, so that it
+ * is highlighted.
+ * @param language - language identifier (e.g. `"typescript"`, `"diff-js"`)
+ * @param editor - Lexical editor instance to update after the engine loads.
+ * @param codeNodeKey - Key of the {@link CodeNode} to re-highlight.
+ * @returns A Promise that resolves when the engine has loaded (or failed
+ * to), or `undefined` if there was nothing to load.
+ */
+export function loadCodeLanguage(
+  language: string,
+  editor?: LexicalEditor,
+  codeNodeKey?: NodeKey,
+): Promise<void> | undefined {
+  if (isCodeEngineSettled() || !isCodeLanguageSupported(language)) {
+    return undefined;
+  }
+  return loadEngine().then(() => $markCodeNodeDirty(editor, codeNodeKey));
 }
 
 /**
@@ -183,19 +278,7 @@ export function loadCodeTheme(
     );
     themes.set(theme, pending);
   }
-  return pending.then(() => {
-    if (editor && codeNodeKey) {
-      editor.update(
-        () => {
-          const codeNode = $getNodeByKey(codeNodeKey);
-          if ($isCodeNode(codeNode)) {
-            codeNode.markDirty();
-          }
-        },
-        {tag: HISTORY_MERGE_TAG},
-      );
-    }
-  });
+  return pending.then(() => $markCodeNodeDirty(editor, codeNodeKey));
 }
 
 export function getCodeLanguageOptions(): [string, string][] {
@@ -225,18 +308,15 @@ function getTokenStyle({color, fontStyle = 0}: ThemedToken): string {
 }
 
 export function normalizeCodeLanguage(language: string): string {
-  const languageInfo = LANGUAGES.find(
-    ([id, , aliases]) =>
-      id === language || (aliases && aliases.split(' ').includes(language)),
-  );
+  const languageInfo = !getDiffedLanguage(language) && findLanguage(language);
   return languageInfo ? languageInfo[0] : language;
 }
 
 /**
  * Highlight the text of `codeNode` as `language` (as plain text without a
  * lexer for it) with the loaded `theme`, and give the code node the theme's
- * colors. Without a loaded `theme` the text is split into uncolored code
- * highlight nodes instead.
+ * colors. Without the engine or a loaded `theme` the text is split into
+ * uncolored code highlight nodes instead.
  */
 export function $getHighlightNodes(
   codeNode: CodeNode,
@@ -247,11 +327,12 @@ export function $getHighlightNodes(
   const lang = diffedLanguage || language;
   const loadedTheme = themes.get(theme);
   const code = codeNode.getTextContent();
-  if (!loadedTheme || loadedTheme instanceof Promise) {
+  if (!engine || !loadedTheme || loadedTheme instanceof Promise) {
     return $plainifyCodeContent(code);
   }
-  const {tokens, bg, fg} = codeToTokens(code, {
-    lang: isSupportedLanguage(lang) ? lang : 'plaintext',
+  const languageInfo = findLanguage(lang);
+  const {tokens, bg, fg} = engine(code, {
+    lang: languageInfo ? languageInfo[0] : 'plaintext',
     theme: loadedTheme,
   });
   const style =
