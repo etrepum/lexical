@@ -7,6 +7,8 @@
  */
 
 import {
+  $createLineBreakNode,
+  $createTabNode,
   $createTextNode,
   $getNodeByKey,
   $getSelection,
@@ -20,10 +22,15 @@ import {
   mergeRegister,
   type NodeKey,
   TextNode,
+  tokenizeRawText,
 } from 'lexical';
 
 import {registerCodeGutter} from './CodeGutter';
-import {$isCodeHighlightNode, CodeHighlightNode} from './CodeHighlightNode';
+import {
+  $createCodeHighlightNode,
+  $isCodeHighlightNode,
+  CodeHighlightNode,
+} from './CodeHighlightNode';
 import {$isCodeNode, CodeNode} from './CodeNode';
 
 /**
@@ -41,6 +48,11 @@ export interface CodeHighlighter {
    */
   $prepare: (codeNode: CodeNode) => boolean;
   /**
+   * Keep the style of a highlight node when only its style differs from
+   * the freshly tokenized one, for a highlighter that never sets styles.
+   */
+  keepStyle?: boolean;
+  /**
    * Return the children the code node should have: `CodeHighlightNode`s,
    * `LineBreakNode`s and `TabNode`s whose text content equals the node's.
    */
@@ -54,6 +66,62 @@ interface TransformState {
   // in both cases we'll rerun whole reformatting over CodeNode, which is redundant.
   // Especially when pasting code into CodeBlock.
   nodesCurrentlyHighlighting: Set<NodeKey>;
+}
+
+const DIFF_PREFIXES = '+->< ';
+const DIFF_PREFIX_TYPES = [
+  'inserted',
+  'deleted',
+  'inserted',
+  'deleted',
+  'unchanged',
+];
+
+/**
+ * @internal
+ * Build the children of a code node from lines of styled tokens, as Shiki
+ * and Highlights produce them. With `diff`, a leading `+`, `-`, `>`, `<` or
+ * space on a line becomes its own highlight node typed `inserted`,
+ * `deleted` or `unchanged`, as for a `diff-xxx` language.
+ *
+ * @param lines The tokens of each line.
+ * @param diff Whether the lines start with diff prefixes.
+ * @param getStyle The inline style of a token's highlight nodes.
+ * @returns `CodeHighlightNode`s, `LineBreakNode`s and `TabNode`s.
+ */
+export function $createCodeHighlightNodesFromTokens<
+  T extends {content: string},
+>(
+  lines: readonly (readonly T[])[],
+  diff: boolean,
+  getStyle: (token: T) => string,
+): LexicalNode[] {
+  const nodes: LexicalNode[] = [];
+  lines.forEach((line, idx) => {
+    if (idx) {
+      nodes.push($createLineBreakNode());
+    }
+    line.forEach((token, tidx) => {
+      let text = token.content;
+      if (diff && tidx === 0 && text.length > 0) {
+        const prefixIndex = DIFF_PREFIXES.indexOf(text[0]);
+        if (prefixIndex !== -1) {
+          nodes.push(
+            $createCodeHighlightNode(text[0], DIFF_PREFIX_TYPES[prefixIndex]),
+          );
+          text = text.slice(1);
+        }
+      }
+      const style = getStyle(token);
+      tokenizeRawText(text, {
+        linebreak: () => nodes.push($createLineBreakNode()),
+        tab: () => nodes.push($createTabNode()),
+        text: part =>
+          nodes.push($createCodeHighlightNode(part).setStyle(style)),
+      });
+    });
+  });
+  return nodes;
 }
 
 function $textNodeTransform(
@@ -105,7 +173,11 @@ function $codeNodeTransform(
     }
 
     const highlightNodes = highlighter.$tokenize(currentNode);
-    const diffRange = $getDiffRange(currentNode.getChildren(), highlightNodes);
+    const diffRange = $getDiffRange(
+      currentNode.getChildren(),
+      highlightNodes,
+      !!highlighter.keepStyle,
+    );
     const {from, to, nodesForReplacement} = diffRange;
 
     if (from !== to || nodesForReplacement.length) {
@@ -206,6 +278,7 @@ function $updateAndRetainSelection(
 function $getDiffRange(
   prevNodes: LexicalNode[],
   nextNodes: LexicalNode[],
+  keepStyle: boolean,
 ): {
   from: number;
   nodesForReplacement: LexicalNode[];
@@ -213,7 +286,9 @@ function $getDiffRange(
 } {
   let leadingMatch = 0;
   while (leadingMatch < prevNodes.length) {
-    if (!$isEqual(prevNodes[leadingMatch], nextNodes[leadingMatch])) {
+    if (
+      !$isEqual(prevNodes[leadingMatch], nextNodes[leadingMatch], keepStyle)
+    ) {
       break;
     }
     leadingMatch++;
@@ -231,6 +306,7 @@ function $getDiffRange(
       !$isEqual(
         prevNodes[prevNodesLength - trailingMatch],
         nextNodes[nextNodesLength - trailingMatch],
+        keepStyle,
       )
     ) {
       trailingMatch--;
@@ -251,17 +327,19 @@ function $getDiffRange(
   };
 }
 
-function $isEqual(nodeA: LexicalNode, nodeB: LexicalNode): boolean {
+function $isEqual(
+  nodeA: LexicalNode,
+  nodeB: LexicalNode,
+  keepStyle: boolean,
+): boolean {
   // Only checking for code highlight nodes, tabs and linebreaks. If it's regular text node
-  // returning false so that it's transformed into code highlight node. The
-  // style is compared too, so that the inline colors of a highlighter that
-  // writes them are replaced when the theme or the highlighter changes.
+  // returning false so that it's transformed into code highlight node
   return (
     ($isCodeHighlightNode(nodeA) &&
       $isCodeHighlightNode(nodeB) &&
       nodeA.__text === nodeB.__text &&
       nodeA.__highlightType === nodeB.__highlightType &&
-      nodeA.__style === nodeB.__style) ||
+      (keepStyle || nodeA.__style === nodeB.__style)) ||
     ($isTabNode(nodeA) && $isTabNode(nodeB)) ||
     ($isLineBreakNode(nodeA) && $isLineBreakNode(nodeB))
   );

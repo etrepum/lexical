@@ -126,11 +126,14 @@ export function registerHighlightingOnly(
 ): () => void {
   return registerCodeHighlighter(editor, {
     $prepare: node => $prepareCodeNode(editor, tokenizer, node),
+
     $tokenize: node =>
       tokenizer.$tokenize(
         node,
         (node.getLanguage() || tokenizer.defaultLanguage) ?? undefined,
       ),
+    // Prism never styles its nodes, so leave any style on them alone.
+    keepStyle: true,
   });
 }
 

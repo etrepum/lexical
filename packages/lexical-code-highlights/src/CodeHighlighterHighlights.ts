@@ -100,11 +100,12 @@ function $prepareCodeNode(
   if (node.getIsSyntaxHighlightSupported() !== isSupported) {
     node.setIsSyntaxHighlightSupported(isSupported);
   }
-  // Text that is not highlighted needs no theme, so don't defer splitting it
-  // on a theme load. A theme that can't be loaded leaves the text uncolored.
+  // Code without a language is only split, which needs no theme, so don't
+  // defer splitting it on a theme load. Code in a language without a lexer
+  // is colored as plain text.
   const theme = getCodeTheme(tokenizer, node);
   return !(
-    isSupported &&
+    language &&
     !isCodeThemeLoaded(theme) &&
     loadCodeTheme(theme, editor, node.getKey())
   );

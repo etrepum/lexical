@@ -171,13 +171,14 @@ describe('CodeHighlightsExtension', () => {
     });
   });
 
-  test('splits code in a language without a lexer into plain nodes', async () => {
+  test('colors code in a language without a lexer as plain text', async () => {
     const {editor} = createEditor();
     await loadCodeTheme('one-light');
     appendCode(editor, 'a\n\tb', 'no-such-language');
     editor.read(() => {
       const code = $getCode();
       expect(code.getIsSyntaxHighlightSupported()).toBe(false);
+      expect(code.getStyle()).toBe('background-color: #fafafa;color: #383a42;');
       expect(
         code
           .getChildren()
@@ -186,10 +187,10 @@ describe('CodeHighlightsExtension', () => {
             $isTextNode(child) ? child.getStyle() : null,
           ]),
       ).toEqual([
-        ['code-highlight', ''],
+        ['code-highlight', 'color:#383a42'],
         ['linebreak', null],
         ['tab', ''],
-        ['code-highlight', ''],
+        ['code-highlight', 'color:#383a42'],
       ]);
     });
   });

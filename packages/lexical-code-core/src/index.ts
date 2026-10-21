@@ -8,7 +8,11 @@
 
 export {CodeExtension} from './CodeExtension';
 export {registerCodeGutter} from './CodeGutter';
-export {type CodeHighlighter, registerCodeHighlighter} from './CodeHighlighter';
+export {
+  $createCodeHighlightNodesFromTokens,
+  type CodeHighlighter,
+  registerCodeHighlighter,
+} from './CodeHighlighter';
 export {
   $createCodeHighlightNode,
   $isCodeHighlightNode,

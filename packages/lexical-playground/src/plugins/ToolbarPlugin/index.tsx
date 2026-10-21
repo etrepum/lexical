@@ -1026,11 +1026,7 @@ export default function ToolbarPlugin({
             buttonLabel={
               toolbarState.codeLanguage
                 ? (codeHighlighter.languages.find(
-                    opt =>
-                      opt[0] ===
-                      codeHighlighter.normalizeLanguage(
-                        toolbarState.codeLanguage,
-                      ),
+                    opt => opt[0] === toolbarState.codeLanguage,
                   ) || ['', ''])[1]
                 : '(No language)'
             }

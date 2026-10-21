@@ -116,8 +116,15 @@ declare export function registerCodeGutter(editor: LexicalEditor): () => void;
 
 export type CodeHighlighter = {
   $prepare: (codeNode: CodeNode) => boolean,
+  keepStyle?: boolean,
   $tokenize: (codeNode: CodeNode) => Array<LexicalNode>,
 };
+
+declare export function $createCodeHighlightNodesFromTokens<T: {+content: string, ...}>(
+  lines: $ReadOnlyArray<$ReadOnlyArray<T>>,
+  diff: boolean,
+  getStyle: (token: T) => string,
+): Array<LexicalNode>;
 
 declare export function registerCodeHighlighter(
   editor: LexicalEditor,

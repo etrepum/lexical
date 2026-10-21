@@ -9,7 +9,7 @@
 import type {Theme, ThemedToken} from '@pierre/highlights';
 
 import {
-  $createCodeHighlightNode,
+  $createCodeHighlightNodesFromTokens,
   $isCodeNode,
   $plainifyCodeContent,
   type CodeNode,
@@ -17,14 +17,11 @@ import {
 import {codeToTokens, isSupportedLanguage} from '@pierre/highlights';
 import {themes as themeLoaders} from '@pierre/highlights/themes/loader';
 import {
-  $createLineBreakNode,
-  $createTabNode,
   $getNodeByKey,
   HISTORY_MERGE_TAG,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  tokenizeRawText,
 } from 'lexical';
 
 /**
@@ -114,19 +111,16 @@ const LANGUAGES: readonly [id: string, name: string, aliases?: string][] = [
   ['zig', 'Zig', 'zon'],
 ];
 
-const DIFF_PREFIXES = '+->< ';
-const DIFF_PREFIX_TYPES = [
-  'inserted',
-  'deleted',
-  'inserted',
-  'deleted',
-  'unchanged',
-];
+/**
+ * Each bundled theme that has been asked for: the theme once it has loaded,
+ * `null` if loading it failed (code is then left uncolored), or the pending
+ * load.
+ */
+const themes = new Map<string, Theme | null | Promise<void>>();
 
-const loadedThemes = new Map<string, Theme>();
+const DIFF_LANGUAGE_REGEX = /^diff-([\w-]+)/i;
 
 function getDiffedLanguage(language: string) {
-  const DIFF_LANGUAGE_REGEX = /^diff-([\w-]+)/i;
   const diffLanguageMatch = DIFF_LANGUAGE_REGEX.exec(language);
   return diffLanguageMatch ? diffLanguageMatch[1] : null;
 }
@@ -148,8 +142,12 @@ export function isCodeThemeSupported(theme: string): boolean {
   return Object.prototype.hasOwnProperty.call(themeLoaders, theme);
 }
 
+/**
+ * Whether loading `theme` has finished, successfully or not.
+ */
 export function isCodeThemeLoaded(theme: string): boolean {
-  return loadedThemes.has(theme);
+  const entry = themes.get(theme);
+  return entry !== undefined && !(entry instanceof Promise);
 }
 
 /**
@@ -162,7 +160,7 @@ export function isCodeThemeLoaded(theme: string): boolean {
  * @param theme - theme identifier (e.g. `"one-light"`)
  * @param editor - Lexical editor instance to update after the theme loads.
  * @param codeNodeKey - Key of the {@link CodeNode} to re-highlight.
- * @returns A Promise that resolves when the theme is ready,
+ * @returns A Promise that resolves when the theme has loaded (or failed to),
  * or `undefined` if the `theme` was already loaded or is not bundled.
  */
 export function loadCodeTheme(
@@ -173,8 +171,19 @@ export function loadCodeTheme(
   if (isCodeThemeLoaded(theme) || !isCodeThemeSupported(theme)) {
     return undefined;
   }
-  return themeLoaders[theme]().then(module => {
-    loadedThemes.set(theme, module.default);
+  let pending = themes.get(theme);
+  if (!(pending instanceof Promise)) {
+    pending = themeLoaders[theme]().then(
+      module => {
+        themes.set(theme, module.default);
+      },
+      () => {
+        themes.set(theme, null);
+      },
+    );
+    themes.set(theme, pending);
+  }
+  return pending.then(() => {
     if (editor && codeNodeKey) {
       editor.update(
         () => {
@@ -200,19 +209,12 @@ export function getCodeThemeOptions(): [string, string][] {
   ]);
 }
 
-export function normalizeCodeLanguage(language: string): string {
-  const languageInfo = LANGUAGES.find(
-    ([id, , aliases]) =>
-      id === language || (aliases && aliases.split(' ').includes(language)),
-  );
-  return languageInfo ? languageInfo[0] : language;
-}
-
 function getTokenStyle({color, fontStyle = 0}: ThemedToken): string {
   const style: string[] = [];
   if (color) {
     style.push(`color:${color}`);
   }
+  // Highlights only sets the italic and bold flags.
   if (fontStyle & 1) {
     style.push('font-style:italic');
   }
@@ -222,10 +224,18 @@ function getTokenStyle({color, fontStyle = 0}: ThemedToken): string {
   return style.join(';');
 }
 
+export function normalizeCodeLanguage(language: string): string {
+  const languageInfo = LANGUAGES.find(
+    ([id, , aliases]) =>
+      id === language || (aliases && aliases.split(' ').includes(language)),
+  );
+  return languageInfo ? languageInfo[0] : language;
+}
+
 /**
- * Highlight the text of `codeNode` as `language` with the loaded `theme`,
- * and give the code node the theme's colors. Without a lexer for `language`
- * or with `theme` not loaded, the text is split into uncolored code
+ * Highlight the text of `codeNode` as `language` (as plain text without a
+ * lexer for it) with the loaded `theme`, and give the code node the theme's
+ * colors. Without a loaded `theme` the text is split into uncolored code
  * highlight nodes instead.
  */
 export function $getHighlightNodes(
@@ -235,46 +245,23 @@ export function $getHighlightNodes(
 ): LexicalNode[] {
   const diffedLanguage = getDiffedLanguage(language);
   const lang = diffedLanguage || language;
-  const loadedTheme = loadedThemes.get(theme);
+  const loadedTheme = themes.get(theme);
   const code = codeNode.getTextContent();
-  if (!loadedTheme || !isSupportedLanguage(lang)) {
+  if (!loadedTheme || loadedTheme instanceof Promise) {
     return $plainifyCodeContent(code);
   }
-  const {tokens, bg, fg} = codeToTokens(code, {lang, theme: loadedTheme});
+  const {tokens, bg, fg} = codeToTokens(code, {
+    lang: isSupportedLanguage(lang) ? lang : 'plaintext',
+    theme: loadedTheme,
+  });
   const style =
     (bg ? `background-color: ${bg};` : '') + (fg ? `color: ${fg};` : '');
   if (codeNode.getStyle() !== style) {
     codeNode.setStyle(style);
   }
-
-  const nodes: LexicalNode[] = [];
-  tokens.forEach((line, idx) => {
-    if (idx) {
-      nodes.push($createLineBreakNode());
-    }
-    line.forEach((token, tidx) => {
-      let text = token.content;
-
-      // implement diff-xxxx languages
-      if (diffedLanguage && tidx === 0 && text.length > 0) {
-        const prefixIndex = DIFF_PREFIXES.indexOf(text[0]);
-        if (prefixIndex !== -1) {
-          nodes.push(
-            $createCodeHighlightNode(text[0], DIFF_PREFIX_TYPES[prefixIndex]),
-          );
-          text = text.slice(1);
-        }
-      }
-
-      const tokenStyle = getTokenStyle(token);
-      tokenizeRawText(text, {
-        linebreak: () => nodes.push($createLineBreakNode()),
-        tab: () => nodes.push($createTabNode()),
-        text: part =>
-          nodes.push($createCodeHighlightNode(part).setStyle(tokenStyle)),
-      });
-    });
-  });
-
-  return nodes;
+  return $createCodeHighlightNodesFromTokens(
+    tokens,
+    !!diffedLanguage,
+    getTokenStyle,
+  );
 }
