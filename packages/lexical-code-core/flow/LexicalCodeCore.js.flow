@@ -120,8 +120,8 @@ export type CodeHighlighter = {
   $tokenize: (codeNode: CodeNode) => Array<LexicalNode>,
 };
 
-declare export function $createCodeHighlightNodesFromTokens<T: {+content: string, ...}>(
-  lines: $ReadOnlyArray<$ReadOnlyArray<T>>,
+declare export function $createCodeHighlightNodesFromTokens<T extends {readonly content: string, ...}>(
+  lines: ReadonlyArray<ReadonlyArray<T>>,
   diff: boolean,
   getStyle: (token: T) => string,
 ): Array<LexicalNode>;
