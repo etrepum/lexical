@@ -37,6 +37,7 @@ export default function Settings(): JSX.Element {
       selectionAlwaysOnDisplay,
       selectBlock,
       isCodeHighlighted,
+      isCodeHighlights,
       isCodeShiki,
       isShadowDOM,
     },
@@ -222,6 +223,14 @@ export default function Settings(): JSX.Element {
             }}
             checked={isCodeShiki}
             text="Use Shiki for Code Highlighting"
+          />
+
+          <Switch
+            onClick={() => {
+              setOption('isCodeHighlights', !isCodeHighlights);
+            }}
+            checked={isCodeHighlights}
+            text="Use Highlights for Code Highlighting"
           />
 
           <Switch

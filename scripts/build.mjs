@@ -162,6 +162,9 @@ const thirdPartyExternals = [
   // inlined by Rollup.
   'shiki',
   '@shikijs',
+  // @lexical/code-highlights declares @pierre/highlights as a dependency and
+  // loads its themes via dynamic import.
+  '@pierre/highlights',
   // @lexical/fast-check declares fast-check as a peer dependency: bundling it
   // would give a consumer two independent instances, so fc.configureGlobal,
   // the seed, and `instanceof Arbitrary` would not hold across the boundary.

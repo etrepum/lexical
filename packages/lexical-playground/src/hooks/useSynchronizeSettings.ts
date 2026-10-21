@@ -94,9 +94,11 @@ export function synchronizeSettingsToSignals(
     if (codeHighlight) {
       codeHighlight.mode.value = !settings.isCodeHighlighted
         ? 'off'
-        : settings.isCodeShiki
-          ? 'shiki'
-          : 'prism';
+        : settings.isCodeHighlights
+          ? 'highlights'
+          : settings.isCodeShiki
+            ? 'shiki'
+            : 'prism';
     }
     output(editor, SpecialTextExtension).disabled.value =
       !settings.shouldAllowHighlightingWithBrackets;
