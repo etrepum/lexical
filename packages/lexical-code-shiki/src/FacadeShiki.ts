@@ -9,7 +9,7 @@
 import type {ThemedToken, TokensResult} from '@shikijs/types';
 
 import {
-  $createCodeHighlightNode,
+  $createCodeHighlightNodesFromTokens,
   $isCodeNode,
   type CodeNode,
 } from '@lexical/code-core';
@@ -22,14 +22,11 @@ import {
 } from '@shikijs/core';
 import {createJavaScriptRegexEngine} from '@shikijs/engine-javascript';
 import {
-  $createLineBreakNode,
-  $createTabNode,
   $getNodeByKey,
   HISTORY_MERGE_TAG,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  tokenizeRawText,
 } from 'lexical';
 import {bundledLanguagesInfo} from 'shiki/langs';
 import {bundledThemesInfo} from 'shiki/themes';
@@ -207,58 +204,10 @@ export function $getHighlightNodes(
   if (codeNode.getStyle() !== style) {
     codeNode.setStyle(style);
   }
-  return mapTokensToLexicalStructure(tokens, !!diffLanguageMatch);
-}
-
-function mapTokensToLexicalStructure(
-  tokens: ThemedToken[][],
-  diff: boolean,
-): LexicalNode[] {
-  const nodes: LexicalNode[] = [];
-
-  tokens.forEach((line, idx) => {
-    if (idx) {
-      nodes.push($createLineBreakNode());
-    }
-    line.forEach((token, tidx) => {
-      let text = token.content;
-
-      // implement diff-xxxx languages
-      if (diff && tidx === 0 && text.length > 0) {
-        const prefixes = ['+', '-', '>', '<', ' '];
-        const prefixTypes = [
-          'inserted',
-          'deleted',
-          'inserted',
-          'deleted',
-          'unchanged',
-        ];
-        const prefixIndex = prefixes.indexOf(text[0]);
-        if (prefixIndex !== -1) {
-          nodes.push(
-            $createCodeHighlightNode(
-              prefixes[prefixIndex],
-              prefixTypes[prefixIndex],
-            ),
-          );
-          text = text.slice(1);
-        }
-      }
-
-      const style = stringifyTokenStyle(
-        token.htmlStyle || getTokenStyleObject(token),
-      );
-      tokenizeRawText(text, {
-        linebreak: () => nodes.push($createLineBreakNode()),
-        tab: () => nodes.push($createTabNode()),
-        text: (part: string) => {
-          const node = $createCodeHighlightNode(part);
-          node.setStyle(style);
-          nodes.push(node);
-        },
-      });
-    });
-  });
-
-  return nodes;
+  return $createCodeHighlightNodesFromTokens(
+    tokens,
+    !!diffLanguageMatch,
+    (token: ThemedToken) =>
+      stringifyTokenStyle(token.htmlStyle || getTokenStyleObject(token)),
+  );
 }

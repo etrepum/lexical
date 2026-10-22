@@ -19,6 +19,7 @@
     "@lexical/clipboard": "workspace:*",
     "@lexical/code": "workspace:*",
     "@lexical/code-core": "workspace:*",
+    "@lexical/code-highlights": "workspace:*",
     "@lexical/code-prism": "workspace:*",
     "@lexical/code-shiki": "workspace:*",
     "@lexical/extension": "workspace:*",

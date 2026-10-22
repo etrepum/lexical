@@ -19,6 +19,7 @@
       "@lexical/clipboard": ["../lexical-clipboard/src/index.ts"],
       "@lexical/code": ["../lexical-code/src/index.ts"],
       "@lexical/code-core": ["../lexical-code-core/src/index.ts"],
+      "@lexical/code-highlights": ["../lexical-code-highlights/src/index.ts"],
       "@lexical/code-prism": ["../lexical-code-prism/src/index.ts"],
       "@lexical/code-shiki": ["../lexical-code-shiki/src/index.ts"],
       "@lexical/compiler": ["../lexical-compiler/src/index.ts"],
