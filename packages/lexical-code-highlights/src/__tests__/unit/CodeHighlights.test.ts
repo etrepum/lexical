@@ -319,4 +319,14 @@ describe('Highlights language and theme options', () => {
     expect(themes).toContainEqual(['github-dark-dimmed', 'Github Dark Dimmed']);
     expect(loadCodeTheme('constructor')).toBe(undefined);
   });
+
+  test('concurrent loads of a theme both resolve once it has loaded', async () => {
+    const first = loadCodeTheme('nord');
+    const second = loadCodeTheme('nord');
+    assert(first && second);
+    expect(isCodeThemeLoaded('nord')).toBe(false);
+    await Promise.all([first, second]);
+    expect(isCodeThemeLoaded('nord')).toBe(true);
+    expect(loadCodeTheme('nord')).toBe(undefined);
+  });
 });
