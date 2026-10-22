@@ -184,6 +184,24 @@ describe('CodeHighlightsExtension', () => {
     );
   });
 
+  test('recolors a block when its theme changes', async () => {
+    const {editor} = createEditor();
+    await settle('one-light');
+    appendCode(editor, 'let x;', 'javascript');
+    const $getStyles = () =>
+      $getCode()
+        .getChildren()
+        .map(child => ($isTextNode(child) ? child.getStyle() : null));
+    const lightStyles = editor.read($getStyles);
+    editor.update(() => $getCode().setTheme('github-dark'), {discrete: true});
+    await settle('github-dark');
+    editor.read(() => {
+      expect($getCode().getTheme()).toBe('github-dark');
+      expect($getStyles()).not.toEqual(lightStyles);
+      expect($getCode().getTextContent()).toBe('let x;');
+    });
+  });
+
   test('marks diff-xxx prefixes and highlights the rest as xxx', async () => {
     const {editor} = createEditor();
     await settle('one-light');
