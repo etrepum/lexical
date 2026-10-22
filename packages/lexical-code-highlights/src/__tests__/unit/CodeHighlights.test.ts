@@ -34,6 +34,8 @@ import {isSupportedLanguage} from '@pierre/highlights';
 import {
   $createTextNode,
   $getRoot,
+  $getSelection,
+  $isRangeSelection,
   $isTextNode,
   defineExtension,
   type LexicalEditor,
@@ -153,6 +155,33 @@ describe('CodeHighlightsExtension', () => {
     // One undo reverts the code block and its highlighting together.
     editor.dispatchCommand(UNDO_COMMAND, undefined);
     expect(editor.read(() => $getRoot().getTextContent())).toBe('');
+  });
+
+  test('keeps the caret at its text offset when highlighting splits the text', async () => {
+    const {editor} = createEditor();
+    await settle('one-light');
+    editor.update(
+      () => {
+        const code = $createCodeNode('javascript');
+        const text = $createTextNode('const x = 1;');
+        code.append(text);
+        $getRoot().clear().append(code);
+        text.select(7, 7);
+      },
+      {discrete: true},
+    );
+    editor.update(
+      () => {
+        const selection = $getSelection();
+        assert($isRangeSelection(selection));
+        expect($getCode().getChildrenSize()).toBeGreaterThan(1);
+        selection.insertText('y');
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $getRoot().getTextContent())).toBe(
+      'const xy = 1;',
+    );
   });
 
   test('marks diff-xxx prefixes and highlights the rest as xxx', async () => {
