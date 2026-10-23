@@ -192,10 +192,12 @@ const TableCellRule = defineImportRule({
     let headerState = TableCellHeaderStates.NO_STATUS;
     if (isHeader) {
       const scope = el.getAttribute('scope');
-      if (scope === 'col') {
-        headerState = TableCellHeaderStates.COLUMN;
-      } else if (scope === 'row') {
+      if (el.getAttribute('data-lexical-header-state') === '3') {
+        headerState = TableCellHeaderStates.BOTH;
+      } else if (scope === 'col' || scope === 'colgroup') {
         headerState = TableCellHeaderStates.ROW;
+      } else if (scope === 'row' || scope === 'rowgroup') {
+        headerState = TableCellHeaderStates.COLUMN;
       } else {
         const parentRow = el.parentElement;
         const isInHeaderRow =

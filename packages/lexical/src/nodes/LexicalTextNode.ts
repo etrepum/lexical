@@ -77,9 +77,9 @@ import {
   $setCompositionKey,
   getCachedClassNameArray,
   internalMarkSiblingsAsDirty,
+  isBlockDomNode,
   isDOMTextNode,
   isHTMLElement,
-  isInlineDomNode,
   removeEmptyDOMAttribute,
   toggleTextFormatType,
 } from '../LexicalUtils';
@@ -1384,7 +1384,7 @@ function findTextInLine(text: Text, forward: boolean): null | Text {
     if (isHTMLElement(node)) {
       const display = node.style.display;
       if (
-        (display === '' && !isInlineDomNode(node)) ||
+        (display === '' && isBlockDomNode(node)) ||
         (display !== '' && !display.startsWith('inline'))
       ) {
         return null;

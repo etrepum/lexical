@@ -153,6 +153,8 @@ const thirdPartyExternals = [
   'react',
   'react-dom',
   'yjs',
+  '@y/y',
+  'lib0',
   'y-websocket',
   'happy-dom',
   'jsdom',
@@ -241,6 +243,9 @@ async function build(
         typeof modulePkgName === 'string' &&
         !(
           modulePkgName in (pkg.packageJson.dependencies || {}) ||
+          (modulePkgName in (pkg.packageJson.peerDependencies || {}) &&
+            ((pkg.packageJson.peerDependenciesMeta || {})[modulePkgName] || {})
+              .optional) ||
           modulePkgName === pkg.getNpmName()
         )
       ) {

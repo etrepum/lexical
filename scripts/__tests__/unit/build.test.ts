@@ -89,9 +89,13 @@ describe('public package.json audits (`pnpm run update-packages` to fix most iss
         expect(dependencies).not.toContain('react');
         expect(dependencies).not.toContain('react-dom');
       });
-      it('must not have monorepo peerDependencies', () => {
+      it('monorepo peerDependencies must be optional integrations', () => {
         expect(
-          Object.keys(peerDependencies).filter(dep => publicNpmNames.has(dep)),
+          Object.keys(peerDependencies).filter(
+            dep =>
+              publicNpmNames.has(dep) &&
+              !packageJson.peerDependenciesMeta?.[dep]?.optional,
+          ),
         ).toEqual([]);
       });
       it('monorepo dependencies must use workspace:* as the version', () => {

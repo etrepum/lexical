@@ -1,0 +1,24 @@
+{
+  "name": "@lexical/dev-yjs14-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@lexical/extension": "workspace:*",
+    "@lexical/rich-text": "workspace:*",
+    "@lexical/y": "workspace:*",
+    "@y/y": "14.0.0-rc.26",
+    "lexical": "workspace:*",
+    "@lexical/table": "workspace:*",
+    "@y/protocols": "1.0.6-rc.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1"
+  }
+}

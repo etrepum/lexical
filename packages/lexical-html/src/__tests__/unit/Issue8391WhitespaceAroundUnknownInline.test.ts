@@ -23,18 +23,9 @@
  *     ├ tooltip
  *     └ text " allows scripts to update content."
  *
- * With the legacy DOM importer, `<tooltip>` isn't in `isInlineDomNode`'s
- * fixed regex of known inline tags, so the surrounding text-node
- * whitespace handler treats it as a block sibling and trims the leading /
- * trailing spaces around it. The reporter's workaround was to monkey-set
- * `display: inline` on the tooltip element from inside an extended
- * TextNode importer — clunky and not composable.
- *
- * The new `DOMImportExtension` pipeline addresses the same case
- * declaratively via `ImportWhitespaceConfig`: the app configures
- * `isInline` to also recognize its custom tags as inline, and the
- * standard text-node whitespace logic preserves the surrounding spaces
- * without any importer-level monkey-patching.
+ * Unknown tags default to inline for whitespace handling. Applications
+ * can override that default through `ImportWhitespaceConfig` when an
+ * element represents a block boundary.
  */
 
 import {
@@ -110,7 +101,7 @@ function $rootParagraphTextContents(): string[] {
 }
 
 describe('issue #8391 — whitespace around unknown inline elements', () => {
-  test('default config: spaces are trimmed against an unknown <tooltip> (reproduces the bug)', () => {
+  test('default config preserves spaces around an unknown <tooltip>', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [
@@ -123,13 +114,9 @@ describe('issue #8391 — whitespace around unknown inline elements', () => {
     importInto(editor, HTML);
     editor.read(() => {
       const texts = $rootParagraphTextContents();
-      // Default `isInline` doesn't know <tooltip>, so the surrounding
-      // text-node whitespace handler treats it as a block sibling: the
-      // trailing space after "DOM" and the leading space before "allows"
-      // are stripped.
-      expect(texts[0]).toBe('In web development, the DOM');
+      expect(texts[0]).toBe('In web development, the DOM ');
       expect(texts[1]).toBe(TOOLTIP_MARKER);
-      expect(texts[2]).toBe('allows scripts to update content.');
+      expect(texts[2]).toBe(' allows scripts to update content.');
     });
   });
 

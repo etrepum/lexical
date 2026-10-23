@@ -47,6 +47,7 @@ import {
 } from './LexicalNodeState';
 import {CACHED_TEXT_SIZE_KEY} from './LexicalReconciler';
 import {type NodeSerializationSchema} from './LexicalSchema';
+import {assertSerializableSchemaValue} from './LexicalSchemaCodec';
 import {
   $getSelection,
   $isNodeSelection,
@@ -1792,6 +1793,7 @@ export class LexicalNode {
     if (state !== undefined) {
       Object.assign(json, state);
     }
+    assertSerializableSchemaValue(json);
     return json as unknown as SerializedLexicalNode;
   }
 

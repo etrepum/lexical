@@ -210,6 +210,16 @@ export class TableCellNode extends ElementNode {
         'data-temporary-table-cell-lexical-key',
         this.getKey(),
       );
+      const headerState = this.getHeaderStyles();
+      if (headerState === TableCellHeaderStates.ROW) {
+        element.scope = 'col';
+      } else if (headerState === TableCellHeaderStates.COLUMN) {
+        element.scope = 'row';
+      } else if (headerState === TableCellHeaderStates.BOTH) {
+        // HTML scope describes one axis. Preserve a header on both axes
+        // without inferring its state from its position on reimport.
+        element.setAttribute('data-lexical-header-state', '3');
+      }
       element.style.border = '1px solid black';
       if (this.__colSpan > 1) {
         element.colSpan = this.__colSpan;
@@ -378,10 +388,12 @@ export function $convertTableCellNodeElement(
 
   if (nodeName === 'th') {
     const scope = domNode_.getAttribute('scope');
-    if (scope === 'col') {
-      headerState = TableCellHeaderStates.COLUMN;
-    } else if (scope === 'row') {
+    if (domNode_.getAttribute('data-lexical-header-state') === '3') {
+      headerState = TableCellHeaderStates.BOTH;
+    } else if (scope === 'col' || scope === 'colgroup') {
       headerState = TableCellHeaderStates.ROW;
+    } else if (scope === 'row' || scope === 'rowgroup') {
+      headerState = TableCellHeaderStates.COLUMN;
     } else {
       const parentRow = domNode_.parentElement;
       const isInHeaderRow =

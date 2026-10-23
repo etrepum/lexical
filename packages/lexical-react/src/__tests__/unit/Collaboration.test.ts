@@ -20,7 +20,7 @@ import {
 } from 'lexical';
 import {$assertNodeType} from 'lexical/src/__tests__/utils';
 import {act} from 'react';
-import {afterEach, assert, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, assert, beforeEach, describe, expect, it} from 'vitest';
 import * as Y from 'yjs';
 
 import {
@@ -725,17 +725,11 @@ describe('Collaboration', () => {
           editor.read(() => $getRoot());
         });
 
-        // Silence the DEV warning for the read, see LexicalEditor.test.tsx.
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        try {
-          await waitForReact(() => {
-            client1.update(() => {
-              $getRoot().splice(1, 1, []);
-            });
+        await waitForReact(() => {
+          client1.update(() => {
+            $getRoot().splice(1, 1, []);
           });
-        } finally {
-          warnSpy.mockRestore();
-        }
+        });
 
         expect(client1.getHTML()).toEqual(
           '<p dir="auto"><span data-lexical-text="true">hello</span></p>' +

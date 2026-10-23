@@ -569,6 +569,7 @@ export {
   safeCast,
   shallowMergeConfig,
 } from './extension-core';
+export {getNodeSchemaCodec, type NodeSchemaCodec} from './LexicalSchemaCodec';
 export {
   addClassNamesToElement,
   normalizeClassNames,

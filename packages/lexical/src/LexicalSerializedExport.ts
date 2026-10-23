@@ -15,6 +15,7 @@ import type {
 import invariant from '@lexical/internal/invariant';
 
 import {$isElementNode} from '.';
+import {assertSerializableSchemaValue} from './LexicalSchemaCodec';
 
 /**
  * Whether the export in progress is writing the compact form. A module-scope
@@ -162,6 +163,7 @@ export function $exportNodeJSON(
   node: LexicalNode,
 ): SerializedPartial<SerializedLexicalNode> {
   const serializedNode = node.exportJSON(compactExport);
+  assertSerializableSchemaValue(serializedNode);
   const nodeClass = node.constructor;
   if (serializedNode.type !== nodeClass.getType()) {
     invariant(

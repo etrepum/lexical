@@ -58,7 +58,6 @@ import {
   $commitPendingUpdates,
   $fullReconcile,
   internalGetActiveEditor,
-  isDispatchingCommitListeners,
   parseEditorState,
   triggerListeners,
   updateEditor,
@@ -164,10 +163,7 @@ export type EditorSetOptions = {
  *
  * - `'force-commit'` (the default) flushes any pending updates immediately
  *   before the read, so it always observes a fully committed and reconciled
- *   state. The exception is a read while the editor is notifying listeners of
- *   a commit: pending updates then commit after those listeners have run, so
- *   that every listener observes commits in order, and the read observes the
- *   state being committed.
+ *   state.
  * - `'pending'` reads the pending state if it exists, otherwise the committed
  *   state, without flushing. This is safe to call when an update may already
  *   be in progress at the cost of possibly observing an uncommitted state
@@ -1196,6 +1192,8 @@ export class LexicalEditor {
   /** @internal */
   _cascadeCount: number;
   /** @internal */
+  _synchronousUpdates: number;
+  /** @internal */
   _listeners: Listeners;
   /** @internal */
   _commands: Commands;
@@ -1283,6 +1281,7 @@ export class LexicalEditor {
     this._updates = [];
     this._updating = false;
     this._cascadeCount = 0;
+    this._synchronousUpdates = 0;
     // Listeners
     this._listeners = {
       decorator: new Map(),
@@ -1340,10 +1339,36 @@ export class LexicalEditor {
    * each time the editor goes through an update (via {@link LexicalEditor.update}) until the
    * teardown function is called.
    *
+   * With `synchronous: true`, updates commit before returning while the listener
+   * is registered, including updates that skip transforms. Nested updates still
+   * join their containing update. This disables microtask batching.
+   *
    * @returns a teardown function that can be used to cleanup the listener.
    */
-  registerUpdateListener(listener: UpdateListener): () => void {
-    return registerListener(this._listeners.update, listener);
+  registerUpdateListener(
+    listener: UpdateListener,
+    options?: {
+      /**
+       * @experimental Changes update behavior for the entire editor while registered,
+       * including updates from other extensions. Disables microtask batching and
+       * commits each update before returning (nested updates join their parent).
+       */
+      synchronous?: boolean;
+    },
+  ): () => void {
+    const unregister = registerListener(this._listeners.update, listener);
+    if (!options || !options.synchronous) return unregister;
+    // External mutable models must observe each completed update before
+    // another synchronous event can change their source of truth.
+    this._synchronousUpdates++;
+    let active = true;
+    return () => {
+      if (active) {
+        active = false;
+        this._synchronousUpdates--;
+        unregister();
+      }
+    };
   }
   /**
    * Registers a listener for when the editor changes between editable and non-editable states.
@@ -1930,19 +1955,7 @@ export class LexicalEditor {
     const [mode, callbackFn]: [EditorReadMode, () => T] =
       args.length === 1 ? ['force-commit', args[0]] : args;
     if (mode === 'force-commit') {
-      if (!isDispatchingCommitListeners(this)) {
-        $commitPendingUpdates(this);
-      } else if (__DEV__ && this._pendingEditorState !== null) {
-        console.warn(
-          `editor.read() was called while the editor was notifying listeners ` +
-            `of a commit, and a listener had started another update. That ` +
-            `update was not committed early, so that listeners observe ` +
-            `commits in order, and the read observed the state being ` +
-            `committed. Inside listeners, read with ` +
-            `editor.getEditorState().read(fn, {editor}) or ` +
-            `editor.read('latest', fn) instead.`,
-        );
-      }
+      $commitPendingUpdates(this);
     }
     // 'pending' observes an in-progress or queued update without flushing it;
     // 'force-commit' and 'latest' read the committed (reconciled) state.
