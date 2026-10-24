@@ -56,6 +56,7 @@ export type MdastExportContext = {
   exportInline(source: ElementNode | ReadonlyArray<LexicalNode>): MdastNode[],
   exportBlocks(source: ElementNode | ReadonlyArray<LexicalNode>): MdastNode[],
   isIncluded(node: LexicalNode): boolean,
+  selection: BaseSelection | null,
 };
 
 export type MdastImportHandler = (
@@ -208,6 +209,12 @@ declare export var MdastCommonMarkExtension: LexicalExtension<
 declare export var MdastTableExtension: LexicalExtension<
   ExtensionConfigBase,
   '@lexical/mdast/Table',
+  void,
+  void,
+>;
+declare export var MdastStrictTableExtension: LexicalExtension<
+  ExtensionConfigBase,
+  '@lexical/mdast/StrictTable',
   void,
   void,
 >;

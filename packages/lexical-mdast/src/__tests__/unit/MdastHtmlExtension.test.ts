@@ -62,6 +62,7 @@ import {
   MdastExtension,
   MdastHtmlExtension,
   MdastShadowRootQuoteExtension,
+  MdastStrictTableExtension,
   MdastStrikethroughExtension,
   rawHtmlBlock,
   RenderContextMarkdownExport,
@@ -893,6 +894,31 @@ describe('MdastHtmlExtension', () => {
       expect(editor.read(() => $getRoot().getTextContent())).toBe(
         'a saw:from-emphasis b saw:default',
       );
+    });
+  });
+
+  it('moves a block raw HTML imports as in a cell out of the table', () => {
+    using editor = buildEditorFromExtensions(
+      defineExtension({
+        dependencies: [
+          MdastCommonMarkExtension,
+          MdastExtension,
+          MdastHtmlExtension,
+          MdastStrictTableExtension,
+        ],
+        name: '[root]',
+      }),
+    );
+    editor.update(() => $convertFromMarkdownString('| a |\n| - |\n| <hr> |'), {
+      discrete: true,
+    });
+    editor.read(() => {
+      expect(
+        $getRoot()
+          .getChildren()
+          .map(child => child.getType()),
+      ).toEqual(['table', 'horizontalrule']);
+      expect($convertToMarkdownString()).toBe('| a |\n| - |\n|   |\n\n***');
     });
   });
 });

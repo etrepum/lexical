@@ -25,6 +25,7 @@ import {
 } from '@lexical/rich-text';
 import {
   $addUpdateTag,
+  $findMatchingParent,
   $getNodeByKey,
   $getSelection,
   $isParagraphNode,
@@ -248,7 +249,11 @@ function $tryCheckbox(
 
   if ($isListItemNode(parent)) {
     const list = parent.getParent();
-    if (!$isListNode(list) || list.getListType() === 'number') {
+    if (
+      !$isListNode(list) ||
+      list.getListType() === 'number' ||
+      $isInTableCell(list)
+    ) {
       return false;
     }
     $stripLeading(parent, match[0].length);
@@ -271,13 +276,30 @@ function $tryCheckbox(
   return false;
 }
 
+/**
+ * Whether a block typed in `node` becomes the block its marker starts. A
+ * GFM table cell holds no block, so a marker typed in one, or in a
+ * container in one, stays text. (The cell is known by its type, which
+ * spares bundles that have no tables `@lexical/table`.)
+ */
+function $isBlockContainer(node: LexicalNode | null): boolean {
+  return $isRootOrShadowRoot(node) && !$isInTableCell(node);
+}
+
+function $isInTableCell(node: LexicalNode): boolean {
+  return (
+    $findMatchingParent(node, parent => parent.getType() === 'tablecell') !==
+    null
+  );
+}
+
 function $isShortcutParagraph(
   node: LexicalNode,
   anchorNode: TextNode,
 ): boolean {
   return (
     $isParagraphNode(node) &&
-    $isRootOrShadowRoot(node.getParent()) &&
+    $isBlockContainer(node.getParent()) &&
     node.getFirstChild() === anchorNode
   );
 }
@@ -302,7 +324,7 @@ function $isShortcutQuote(
   return (
     $isQuoteNode(node) &&
     !node.isShadowRoot() &&
-    $isRootOrShadowRoot(node.getParent()) &&
+    $isBlockContainer(node.getParent()) &&
     node.getFirstChild() === anchorNode
   );
 }

@@ -28,6 +28,7 @@ import {
   MdastExtension,
   MdastGfmExtension,
   MdastShortcutsExtension,
+  MdastStrictTableExtension,
 } from '@lexical/mdast';
 import {
   $createHeadingNode,
@@ -144,6 +145,9 @@ export const MdastEditorExtension = defineExtension({
     // CodeExtension / CodeIndentExtension dependencies).
     CodeShikiExtension,
     RichTextExtension,
+    // Table editing kept to what a GFM table holds, so tables read back as
+    // they are (with TableExtension, merged cells split).
+    MdastStrictTableExtension,
     ListExtension,
     CheckListExtension,
     HistoryExtension,

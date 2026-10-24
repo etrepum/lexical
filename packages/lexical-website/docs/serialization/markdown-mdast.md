@@ -115,11 +115,17 @@ The literal syntax of each construct is preserved on the Lexical
 nodes with [NodeState](/docs/concepts/node-state): list bullet
 `-`/`*`/`+`, ordered delimiter `.`/`)`, code fence style and
 info-string meta, setext vs ATX headings, hard-break style, soft line
-breaks, thematic break marker, table column alignment, `_` vs `*`
-emphasis, and link style (`[text](url)` vs `<autolink>` vs bare GFM
-literal). Normalization is never forced; nodes created in the editor
-defer to the document-level serialization options, which can be
-configured by contributing `mdast-util-to-markdown` options through
+breaks, thematic break marker, `_` vs `*` emphasis, and link style
+(`[text](url)` vs `<autolink>` vs bare GFM literal). A table column's
+alignment is written from the first cell from the top that starts in the
+column and has an element format (that of the block holding the cell's
+first line, or of the nearest block around it with one outside any nested
+table, or else of the cell, where start and end count as none); a format GFM can't express
+leaves the column unaligned. Normalization is never forced (unless you add
+`MdastStrictTableExtension`, which keeps tables in the editor to what a
+GFM table holds); nodes created in the editor defer to the
+document-level serialization options, which can be configured by
+contributing `mdast-util-to-markdown` options through
 `toMarkdownExtensions`.
 
 ## unified / remark interop
@@ -208,7 +214,10 @@ techniques in either registry:
   `RenderContextMarkdownSelection` carrying the selection — a
   contributed to-markdown handler that appends end-of-document data
   (like the dev example's footnote definitions) reads it with
-  `$getRenderContextValue` to scope its output to a clipboard copy.
+  `$getRenderContextValue` to scope its output to a clipboard copy. An
+  export rule can also read the selection its own export is limited to as
+  `context.selection` (`null` for a whole-document export, including one a
+  handler runs during a selection export), which needs no active editor.
 
 ## Comparison with @lexical/markdown
 
