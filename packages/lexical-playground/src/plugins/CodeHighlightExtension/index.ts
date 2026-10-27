@@ -7,6 +7,10 @@
  */
 
 import {CodeIndentExtension} from '@lexical/code-core';
+import {
+  CodeHighlightsExtension,
+  HighlightsTokenizer,
+} from '@lexical/code-highlights';
 import {CodePrismExtension, PrismTokenizer} from '@lexical/code-prism';
 import {CodeShikiExtension, ShikiTokenizer} from '@lexical/code-shiki';
 import {
@@ -16,7 +20,7 @@ import {
 } from '@lexical/extension';
 import {configExtension, defineExtension, safeCast} from 'lexical';
 
-export type CodeHighlightMode = 'off' | 'prism' | 'shiki';
+export type CodeHighlightMode = 'off' | 'prism' | 'shiki' | 'highlights';
 
 export interface CodeHighlightConfig {
   mode: CodeHighlightMode;
@@ -30,12 +34,17 @@ const NULL_LANG_SHIKI_TOKENIZER = {
   ...ShikiTokenizer,
   defaultLanguage: null,
 };
+const NULL_LANG_HIGHLIGHTS_TOKENIZER = {
+  ...HighlightsTokenizer,
+  defaultLanguage: null,
+};
 
 /**
- * Playground aggregator that switches between {@link CodePrismExtension}
- * and {@link CodeShikiExtension} based on a `mode` signal. Both sub-
- * extensions start in `disabled: true` state and this extension flips
- * their `disabled` signals to route highlighting to the selected engine.
+ * Playground aggregator that switches between {@link CodePrismExtension},
+ * {@link CodeShikiExtension} and {@link CodeHighlightsExtension} based on a
+ * `mode` signal. The sub-extensions start in `disabled: true` state and this
+ * extension flips their `disabled` signals to route highlighting to the
+ * selected engine.
  */
 export const CodeHighlightExtension = defineExtension({
   build: (editor, config) => namedSignals(config),
@@ -48,6 +57,10 @@ export const CodeHighlightExtension = defineExtension({
     configExtension(CodeShikiExtension, {
       disabled: true,
       tokenizer: NULL_LANG_SHIKI_TOKENIZER,
+    }),
+    configExtension(CodeHighlightsExtension, {
+      disabled: true,
+      tokenizer: NULL_LANG_HIGHLIGHTS_TOKENIZER,
     }),
     configExtension(CodeIndentExtension, {
       escapeWithArrows: true,
@@ -64,10 +77,15 @@ export const CodeHighlightExtension = defineExtension({
       editor,
       CodeShikiExtension,
     ).output;
+    const highlightsOutput = getExtensionDependencyFromEditor(
+      editor,
+      CodeHighlightsExtension,
+    ).output;
     return effect(() => {
       const mode = state.getOutput().mode.value;
       prismOutput.disabled.value = mode !== 'prism';
       shikiOutput.disabled.value = mode !== 'shiki';
+      highlightsOutput.disabled.value = mode !== 'highlights';
     });
   },
 });

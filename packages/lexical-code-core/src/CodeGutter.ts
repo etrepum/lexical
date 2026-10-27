@@ -54,7 +54,7 @@ function $updateCodeGutter(node: CodeNode): void {
  * line count, so a theme can render line numbers with
  * `content: attr(data-gutter)`.
  *
- * Both `@lexical/code-prism` and `@lexical/code-shiki` register this. In
+ * `registerCodeHighlighter` registers this for every highlighter. In
  * headless mode there is no DOM to write to, so registration is skipped and
  * the returned teardown does nothing.
  *

@@ -27,6 +27,7 @@ module.name_mapper='^@lexical/a11y$' -> '<PROJECT_ROOT>/packages/lexical-a11y/fl
 module.name_mapper='^@lexical/clipboard$' -> '<PROJECT_ROOT>/packages/lexical-clipboard/flow/LexicalClipboard.js.flow'
 module.name_mapper='^@lexical/code$' -> '<PROJECT_ROOT>/packages/lexical-code/flow/LexicalCode.js.flow'
 module.name_mapper='^@lexical/code-core$' -> '<PROJECT_ROOT>/packages/lexical-code-core/flow/LexicalCodeCore.js.flow'
+module.name_mapper='^@lexical/code-highlights$' -> '<PROJECT_ROOT>/packages/lexical-code-highlights/flow/LexicalCodeHighlights.js.flow'
 module.name_mapper='^@lexical/code-prism$' -> '<PROJECT_ROOT>/packages/lexical-code-prism/flow/LexicalCodePrism.js.flow'
 module.name_mapper='^@lexical/code-shiki$' -> '<PROJECT_ROOT>/packages/lexical-code-shiki/flow/LexicalCodeShiki.js.flow'
 module.name_mapper='^@lexical/compiler$' -> '<PROJECT_ROOT>/packages/lexical-compiler/flow/LexicalCompiler.js.flow'

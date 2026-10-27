@@ -8,6 +8,9 @@
       "@lexical/clipboard": ["./packages/lexical-clipboard/src/index.ts"],
       "@lexical/code": ["./packages/lexical-code/src/index.ts"],
       "@lexical/code-core": ["./packages/lexical-code-core/src/index.ts"],
+      "@lexical/code-highlights": [
+        "./packages/lexical-code-highlights/src/index.ts"
+      ],
       "@lexical/code-prism": ["./packages/lexical-code-prism/src/index.ts"],
       "@lexical/code-shiki": ["./packages/lexical-code-shiki/src/index.ts"],
       "@lexical/compiler": ["./packages/lexical-compiler/src/index.ts"],
@@ -372,6 +375,12 @@
       "@lexical/code/src/*": ["./packages/lexical-code/src/*"],
       "@lexical/code-core/src": ["./packages/lexical-code-core/src"],
       "@lexical/code-core/src/*": ["./packages/lexical-code-core/src/*"],
+      "@lexical/code-highlights/src": [
+        "./packages/lexical-code-highlights/src"
+      ],
+      "@lexical/code-highlights/src/*": [
+        "./packages/lexical-code-highlights/src/*"
+      ],
       "@lexical/code-prism/src": ["./packages/lexical-code-prism/src"],
       "@lexical/code-prism/src/*": ["./packages/lexical-code-prism/src/*"],
       "@lexical/code-shiki/src": ["./packages/lexical-code-shiki/src"],

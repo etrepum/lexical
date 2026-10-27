@@ -533,8 +533,8 @@ function $handleMoveTo(
  * indentation: Tab / Shift+Tab, INDENT/OUTDENT_CONTENT_COMMAND,
  * INSERT_TAB_COMMAND, alt+arrow line shifting, and Home/End movement.
  *
- * Both `@lexical/code-shiki` and `@lexical/code-prism` use this via
- * {@link CodeIndentExtension}; callers using `registerCodeHighlighting`
+ * `@lexical/code-shiki`, `@lexical/code-highlights` and
+ * `@lexical/code-prism` use this via {@link CodeIndentExtension}; callers using `registerCodeHighlighting`
  * will implicitly call this with tabSize of `undefined`.
  *
  * @param editor The editor to register on.
@@ -708,11 +708,12 @@ export interface CodeIndentConfig {
 
 /**
  * Adds keyboard-driven indentation to code blocks (Tab / Shift+Tab,
- * alt+arrow line shifts, Home/End within a line). Both
- * {@link "@lexical/code-shiki".CodeShikiExtension} and
+ * alt+arrow line shifts, Home/End within a line).
+ * {@link "@lexical/code-shiki".CodeShikiExtension},
+ * {@link "@lexical/code-highlights".CodeHighlightsExtension} and
  * {@link "@lexical/code-prism".CodePrismExtension} declare this as a
- * dependency, so it is activated automatically alongside either
- * highlighter.
+ * dependency, so it is activated automatically alongside any of these
+ * highlighters.
  *
  * Code blocks without syntax highlighting can use this extension on its
  * own.

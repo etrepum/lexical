@@ -9,6 +9,11 @@
 import {useMergeRefs} from '@floating-ui/react';
 import {$isCodeNode} from '@lexical/code';
 import {
+  getCodeLanguageOptions as getCodeLanguageOptionsHighlights,
+  getCodeThemeOptions as getCodeThemeOptionsHighlights,
+  normalizeCodeLanguage as normalizeCodeLanguageHighlights,
+} from '@lexical/code-highlights';
+import {
   getCodeLanguageOptions as getCodeLanguageOptionsPrism,
   normalizeCodeLanguage as normalizeCodeLanguagePrism,
 } from '@lexical/code-prism';
@@ -144,52 +149,78 @@ const CODE_LANGUAGE_OPTIONS_PRISM: [string, string][] =
     ].includes(option[0]),
   );
 
-const CODE_LANGUAGE_OPTIONS_SHIKI: [string, string][] =
-  getCodeLanguageOptionsShiki().filter(option =>
-    [
-      'c',
-      'clike',
-      'cpp',
-      'css',
-      'go',
-      'html',
-      'java',
-      'js',
-      'javascript',
-      'markdown',
-      'objc',
-      'objective-c',
-      'plain',
-      'powershell',
-      'py',
-      'python',
-      'rust',
-      'sql',
-      'typescript',
-      'xml',
-    ].includes(option[0]),
-  );
+const SHIKI_HIGHLIGHTS_LANGUAGES = [
+  'c',
+  'cpp',
+  'css',
+  'go',
+  'html',
+  'java',
+  'javascript',
+  'markdown',
+  'objective-c',
+  'plaintext',
+  'powershell',
+  'python',
+  'rust',
+  'sql',
+  'swift',
+  'typescript',
+  'xml',
+];
 
-const CODE_THEME_OPTIONS_SHIKI: [string, string][] =
-  getCodeThemeOptionsShiki().filter(option =>
-    [
-      'catppuccin-latte',
-      'everforest-light',
-      'github-light',
-      'gruvbox-light-medium',
-      'kanagawa-lotus',
-      'dark-plus',
-      'light-plus',
-      'material-theme-lighter',
-      'min-light',
-      'one-light',
-      'rose-pine-dawn',
-      'slack-ochin',
-      'snazzy-light',
-      'solarized-light',
-      'vitesse-light',
-    ].includes(option[0]),
-  );
+const SHIKI_HIGHLIGHTS_THEMES = [
+  'catppuccin-latte',
+  'everforest-light',
+  'github-light',
+  'gruvbox-light-medium',
+  'kanagawa-lotus',
+  'dark-plus',
+  'light-plus',
+  'material-theme-lighter',
+  'min-light',
+  'one-light',
+  'rose-pine-dawn',
+  'slack-ochin',
+  'snazzy-light',
+  'solarized-light',
+  'vitesse-light',
+];
+
+interface CodeHighlighterOptions {
+  languages: [string, string][];
+  normalizeLanguage: (language: string) => string;
+  themes: [string, string][];
+}
+
+const CODE_HIGHLIGHTER_OPTIONS: Record<
+  'highlights' | 'prism' | 'shiki',
+  CodeHighlighterOptions
+> = {
+  highlights: {
+    languages: getCodeLanguageOptionsHighlights().filter(option =>
+      SHIKI_HIGHLIGHTS_LANGUAGES.includes(option[0]),
+    ),
+    normalizeLanguage: normalizeCodeLanguageHighlights,
+    themes: getCodeThemeOptionsHighlights().filter(option =>
+      SHIKI_HIGHLIGHTS_THEMES.includes(option[0]),
+    ),
+  },
+  prism: {
+    languages: CODE_LANGUAGE_OPTIONS_PRISM,
+    normalizeLanguage: normalizeCodeLanguagePrism,
+    themes: [],
+  },
+  shiki: {
+    languages: getCodeLanguageOptionsShiki().filter(option =>
+      SHIKI_HIGHLIGHTS_LANGUAGES.includes(option[0]),
+    ),
+    normalizeLanguage: normalizeCodeLanguageShiki,
+    themes: getCodeThemeOptionsShiki().filter(option =>
+      SHIKI_HIGHLIGHTS_THEMES.includes(option[0]),
+    ),
+  },
+};
 
 const FONT_FAMILY_OPTIONS: [string, string][] = [
   ['Arial', 'Arial'],
@@ -622,8 +653,12 @@ export default function ToolbarPlugin({
   );
 
   const {
-    settings: {isCodeHighlighted, isCodeShiki},
+    settings: {isCodeHighlighted, isCodeHighlights, isCodeShiki},
   } = useSettings();
+  const codeHighlighter =
+    CODE_HIGHLIGHTER_OPTIONS[
+      isCodeHighlights ? 'highlights' : isCodeShiki ? 'shiki' : 'prism'
+    ];
 
   const $handleCodeNode = useCallback(
     (element: LexicalNode) => {
@@ -633,9 +668,7 @@ export default function ToolbarPlugin({
           'codeLanguage',
           language
             ? (isCodeHighlighted &&
-                (isCodeShiki
-                  ? normalizeCodeLanguageShiki(language)
-                  : normalizeCodeLanguagePrism(language))) ||
+                codeHighlighter.normalizeLanguage(language)) ||
                 language
             : '',
         );
@@ -644,7 +677,7 @@ export default function ToolbarPlugin({
         return;
       }
     },
-    [updateToolbarState, isCodeHighlighted, isCodeShiki],
+    [updateToolbarState, isCodeHighlighted, codeHighlighter],
   );
 
   const $updateToolbar = useCallback(() => {
@@ -987,101 +1020,61 @@ export default function ToolbarPlugin({
         )}
       {toolbarState.blockType === 'code' && isCodeHighlighted ? (
         <>
-          {!isCodeShiki && (
+          <DropDown
+            disabled={!isEditable}
+            buttonClassName="toolbar-item code-language"
+            buttonLabel={
+              toolbarState.codeLanguage
+                ? (codeHighlighter.languages.find(
+                    opt => opt[0] === toolbarState.codeLanguage,
+                  ) || ['', ''])[1]
+                : '(No language)'
+            }
+            buttonAriaLabel="Select language">
+            <DropDownItem
+              className={`item ${dropDownActiveClass(
+                !toolbarState.codeLanguage,
+              )}`}
+              onClick={() => onCodeLanguageSelect(null)}
+              key="__no_language__">
+              <span className="text">(No language)</span>
+            </DropDownItem>
+            {codeHighlighter.languages.map(([value, name]) => {
+              return (
+                <DropDownItem
+                  className={`item ${dropDownActiveClass(
+                    value === toolbarState.codeLanguage,
+                  )}`}
+                  onClick={() => onCodeLanguageSelect(value)}
+                  key={value}>
+                  <span className="text">{name}</span>
+                </DropDownItem>
+              );
+            })}
+          </DropDown>
+          {codeHighlighter.themes.length > 0 && (
             <DropDown
               disabled={!isEditable}
               buttonClassName="toolbar-item code-language"
               buttonLabel={
-                toolbarState.codeLanguage
-                  ? (CODE_LANGUAGE_OPTIONS_PRISM.find(
-                      opt =>
-                        opt[0] ===
-                        normalizeCodeLanguagePrism(toolbarState.codeLanguage),
-                    ) || ['', ''])[1]
-                  : '(No language)'
+                (codeHighlighter.themes.find(
+                  opt => opt[0] === toolbarState.codeTheme,
+                ) || ['', ''])[1]
               }
-              buttonAriaLabel="Select language">
-              <DropDownItem
-                className={`item ${dropDownActiveClass(
-                  !toolbarState.codeLanguage,
-                )}`}
-                onClick={() => onCodeLanguageSelect(null)}
-                key="__no_language__">
-                <span className="text">(No language)</span>
-              </DropDownItem>
-              {CODE_LANGUAGE_OPTIONS_PRISM.map(([value, name]) => {
+              buttonAriaLabel="Select theme">
+              {codeHighlighter.themes.map(([value, name]) => {
                 return (
                   <DropDownItem
                     className={`item ${dropDownActiveClass(
-                      value === toolbarState.codeLanguage,
+                      value === toolbarState.codeTheme,
                     )}`}
-                    onClick={() => onCodeLanguageSelect(value)}
+                    onClick={() => onCodeThemeSelect(value)}
                     key={value}>
                     <span className="text">{name}</span>
                   </DropDownItem>
                 );
               })}
             </DropDown>
-          )}
-          {isCodeShiki && (
-            <>
-              <DropDown
-                disabled={!isEditable}
-                buttonClassName="toolbar-item code-language"
-                buttonLabel={
-                  toolbarState.codeLanguage
-                    ? (CODE_LANGUAGE_OPTIONS_SHIKI.find(
-                        opt =>
-                          opt[0] ===
-                          normalizeCodeLanguageShiki(toolbarState.codeLanguage),
-                      ) || ['', ''])[1]
-                    : '(No language)'
-                }
-                buttonAriaLabel="Select language">
-                <DropDownItem
-                  className={`item ${dropDownActiveClass(
-                    !toolbarState.codeLanguage,
-                  )}`}
-                  onClick={() => onCodeLanguageSelect(null)}
-                  key="__no_language__">
-                  <span className="text">(No language)</span>
-                </DropDownItem>
-                {CODE_LANGUAGE_OPTIONS_SHIKI.map(([value, name]) => {
-                  return (
-                    <DropDownItem
-                      className={`item ${dropDownActiveClass(
-                        value === toolbarState.codeLanguage,
-                      )}`}
-                      onClick={() => onCodeLanguageSelect(value)}
-                      key={value}>
-                      <span className="text">{name}</span>
-                    </DropDownItem>
-                  );
-                })}
-              </DropDown>
-              <DropDown
-                disabled={!isEditable}
-                buttonClassName="toolbar-item code-language"
-                buttonLabel={
-                  (CODE_THEME_OPTIONS_SHIKI.find(
-                    opt => opt[0] === toolbarState.codeTheme,
-                  ) || ['', ''])[1]
-                }
-                buttonAriaLabel="Select theme">
-                {CODE_THEME_OPTIONS_SHIKI.map(([value, name]) => {
-                  return (
-                    <DropDownItem
-                      className={`item ${dropDownActiveClass(
-                        value === toolbarState.codeTheme,
-                      )}`}
-                      onClick={() => onCodeThemeSelect(value)}
-                      key={value}>
-                      <span className="text">{name}</span>
-                    </DropDownItem>
-                  );
-                })}
-              </DropDown>
-            </>
           )}
         </>
       ) : (

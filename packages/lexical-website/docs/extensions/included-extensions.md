@@ -22,6 +22,10 @@ Framework-agnostic accessibility extensions. See [Keyboard Accessibility](/docs/
 - [CodeExtension](/docs/api/modules/lexical_code#codeextension) - CodeNode (code blocks)
 - [CodeIndentExtension](/docs/api/modules/lexical_code#codeindentextension) - CodeNode tab key indentation (code blocks)
 
+[@lexical/code-highlights](/docs/api/modules/lexical_code-highlights)
+
+- [CodeHighlightsExtension](/docs/api/modules/lexical_code-highlights#codehighlightsextension) - Highlighting with [Highlights](https://www.npmjs.com/package/@pierre/highlights) for CodeNode
+
 [@lexical/code-prism](/docs/api/modules/lexical_code-prism)
 
 - [CodePrismExtension](/docs/api/modules/lexical_code-prism#codeprismextension) - Highlighting with Prism for CodeNode
