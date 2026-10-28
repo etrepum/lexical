@@ -11,6 +11,7 @@
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {$createLinkNode, $isLinkNode} from '@lexical/link';
 import {$createListItemNode, $createListNode} from '@lexical/list';
+import {$createMarkNode, MarkExtension} from '@lexical/mark';
 import {
   $convertFromMarkdownString,
   $convertSelectionToMarkdownString,
@@ -179,6 +180,111 @@ describe('Markdown export of literal text', () => {
     expect(exportPieces({format: 'bold', text: '  '}, '# a')).toBe('  \\# a');
   });
 
+  it('escapes an ordered list marker split across nodes', () => {
+    expect(exportPieces('1', {children: ['a'], url: 'u'})).toBe('1[a](u)');
+    expect(exportPieces('1', {format: 'code', text: '. a'})).toBe('1`. a`');
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createTextNode('1'),
+              $createTextNode('. a').setStyle('color: red'),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+      '1\\. a',
+    );
+  });
+
+  it('escapes line starts inside a text node', () => {
+    expect(exportPieces('a\n# b')).toBe('a\n\\# b');
+  });
+
+  it('escapes a `!` before a link outside an inline element', () => {
+    using editor = buildEditorFromExtensions(
+      MarkdownTestExtension,
+      MarkExtension,
+    );
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createMarkNode(['id']).append($createTextNode('see!')),
+              $createLinkNode('u').append($createTextNode('x')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+      'see\\![x](u)',
+    );
+  });
+
+  it('escapes link text as text when links are not written', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createLinkNode('u').append($createTextNode('# a [b]')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString([HEADING]))).toBe(
+      '\\# a [b]',
+    );
+  });
+
+  it('round trips link text with code spans and deep brackets', () => {
+    for (const children of [
+      [{format: 'code', text: ']'} as const],
+      ['a ', {format: 'code', text: '['} as const, ' b'],
+      ['[[[[a]]]]'],
+    ]) {
+      const markdown = exportPieces({children, url: 'u'});
+      const {exported} = importMarkdown(markdown);
+      expect(exported).toBe(markdown);
+      expect(markdown.startsWith('[')).toBe(true);
+    }
+    expect(exportPieces({children: ['[[[[a]]]]'], url: 'u'})).toBe(
+      '[[[[\\[a\\]]]]](u)',
+    );
+  });
+
+  it('keeps escapes written in the text when preserving newlines', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createTextNode('\\<b> \\&copy; <i>'),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertToMarkdownString(TRANSFORMERS, undefined, true),
+      ),
+    ).toBe('\\<b> \\&copy; \\<i>');
+  });
+
   it('escapes a task list marker at the start of a list item', () => {
     using editor = buildEditorFromExtensions([MarkdownTestExtension]);
     editor.update(
@@ -270,6 +376,30 @@ describe('Markdown import of escapes and raw inline syntax', () => {
     expect(editor.read(() => $convertToMarkdownString([HEADING]))).toBe(
       markdown,
     );
+  });
+
+  it('reads links and emphasis inside text that is not an HTML tag', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () =>
+        $convertFromMarkdownString('a <b [x](u)> c <d *e* f>', TRANSFORMERS),
+      {discrete: true},
+    );
+    editor.read(() => {
+      const paragraph = $getRoot().getFirstChild();
+      assert($isParagraphNode(paragraph));
+      expect(paragraph.getChildren().some($isLinkNode)).toBe(true);
+      expect(
+        paragraph
+          .getAllTextNodes()
+          .some(
+            node => node.hasFormat('italic') && node.getTextContent() === 'e',
+          ),
+      ).toBe(true);
+      expect($convertToMarkdownString(TRANSFORMERS)).toBe(
+        'a \\<b [x](u)> c \\<d *e* f>',
+      );
+    });
   });
 
   it('keeps raw inline syntax and formats before a link', () => {

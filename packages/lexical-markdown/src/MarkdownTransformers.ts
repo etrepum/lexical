@@ -1232,9 +1232,10 @@ export const LINK: TextMatchTransformer = {
 
     return linkContent;
   },
-  // Link text holds escapes and brackets balanced up to three deep. A bracket
-  // pair followed by `(` would be a link of its own, which link text cannot
-  // hold, so a bracket before it stays text and the inner link matches.
+  // Link text holds escapes, code spans (written with one backtick) and
+  // brackets balanced up to three deep. A bracket pair followed by `(` would be
+  // a link of its own, which link text cannot hold, so a bracket before it
+  // stays text and the inner link matches.
   // https://spec.commonmark.org/0.31.2/#link-text
   //
   // A link destination comes in two shapes, is itself optional, and may have
@@ -1265,7 +1266,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1314,7 +1315,7 @@ export const LINK: TextMatchTransformer = {
 export const RAW_INLINE: TextMatchTransformer = {
   dependencies: [],
   importRegExp:
-    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s[^<>]*)?\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--[\s\S]*?--|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
+    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--[\s\S]*?--|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
   regExp: /(?!)/,
   replace: (textNode, match) => {
     // A copy, so that the backslashes in raw HTML are not read as escapes.
