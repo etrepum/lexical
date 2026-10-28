@@ -1063,10 +1063,13 @@ function findEscapes(
     } else if (
       openers.length > 0 &&
       (text[i + 1] === '(' ||
-        // A link reference definition, which only starts a paragraph.
+        // A link reference definition, which only starts a paragraph, at the
+        // start of the block or after a blank line.
         (text[i + 1] === ':' &&
           !startsMidLine &&
-          openers[0] === text.length - text.trimStart().length))
+          openers.some(opener =>
+            /(?:^|\n[ \t]*\n)[ \t]*$/.test(text.slice(0, opener)),
+          )))
     ) {
       const opener = openers[openers.length - 1];
       if (literal) {
