@@ -6,12 +6,7 @@
  *
  */
 
-import {
-  $isAutoLinkNode,
-  $isLinkNode,
-  AutoLinkNode,
-  LinkNode,
-} from '@lexical/link';
+import {$isLinkNode} from '@lexical/link';
 import {$isHeadingNode, HeadingNode} from '@lexical/rich-text';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
@@ -658,6 +653,8 @@ type ExportContext = Readonly<{
   // Import regular expressions of the element transformers, which read a
   // line start as block syntax.
   lineStartRegExps: RegExp[];
+  // Whether each link node is written as `[text](url)`, as LINK writes it.
+  links: Map<NodeKey, boolean>;
   selection: BaseSelection | null;
   // The selected nodes and their ancestors, when exporting a selection.
   selectedKeys: Set<NodeKey>;
@@ -669,9 +666,6 @@ type ExportContext = Readonly<{
   textMatchTransformers: TextMatchTransformer[];
   // Whether a HeadingNode is written as `# text`, as HEADING writes it.
   writesHeadings: boolean;
-  // Whether a LinkNode is written as `[text](url)`, as LINK writes it.
-  // Otherwise its text is written as plain text.
-  writesLinks: boolean;
 }>;
 
 function createExportContext(
@@ -686,6 +680,7 @@ function createExportContext(
       ...byType.element.map(transformer => transformer.regExp),
       ...byType.multilineElement.map(transformer => transformer.regExpStart),
     ],
+    links: new Map(),
     selectedKeys: new Set(),
     selection,
     shouldPreserveNewLines,
@@ -700,36 +695,26 @@ function createExportContext(
           klass === HeadingNode || klass.prototype instanceof HeadingNode,
       ),
     ),
-    writesLinks: byType.textMatch.some(
-      transformer =>
-        transformer.export !== undefined &&
-        transformer.dependencies.some(
-          klass =>
-            (klass === LinkNode || klass.prototype instanceof LinkNode) &&
-            klass !== AutoLinkNode &&
-            !(klass.prototype instanceof AutoLinkNode),
-        ),
-    ),
   };
 }
 
 // The spans of a node's text that are written as the raw inline syntax it was
-// imported from: each place the text still holds that source. Text nodes with
-// the same source merge, so it can occur more than once.
+// imported from: each place the text still holds that source.
 function $rawInlineSpans(
   node: TextNode,
   textContent: string,
 ): [number, number][] {
-  const source = $getState(node, rawInlineState);
   const spans: [number, number][] = [];
-  for (
-    let start = source === '' ? -1 : textContent.indexOf(source);
-    start !== -1;
-    start = textContent.indexOf(source, start + source.length)
-  ) {
-    spans.push([start, start + source.length]);
+  for (const source of $getState(node, rawInlineState)) {
+    for (
+      let start = textContent.indexOf(source);
+      start !== -1;
+      start = textContent.indexOf(source, start + source.length)
+    ) {
+      spans.push([start, start + source.length]);
+    }
   }
-  return spans;
+  return spans.sort((a, b) => a[0] - b[0]);
 }
 
 // The text of a node that the export writes, or null if it writes none.
@@ -773,11 +758,20 @@ function $isExported(node: LexicalNode, context: ExportContext): boolean {
   return selectedKeys.has(node.getKey());
 }
 
+// Whether a transformer writes a link node as `[text](url)`.
 function $isMarkdownLinkNode(
   node: LexicalNode | null,
   context: ExportContext,
 ): boolean {
-  return $isLinkNode(node) && !$isAutoLinkNode(node) && context.writesLinks;
+  if (!$isLinkNode(node)) {
+    return false;
+  }
+  let isLink = context.links.get(node.getKey());
+  if (isLink === undefined) {
+    isLink = /^\[[\s\S]*\]\(/.test($exportWithTransformer(node, context) || '');
+    context.links.set(node.getKey(), isLink);
+  }
+  return isLink;
 }
 
 // Escapes literal text that would otherwise read back as Markdown syntax.
@@ -1048,7 +1042,7 @@ function findEscapes(
   // `<` and `&` that would begin raw HTML, an HTML block, an autolink or a
   // character reference, and a `!` before a link that the export writes.
   for (const match of text.matchAll(
-    /<(?=[A-Za-z/!?]|[^\s<>@\\]+@[^\s<>\\]+>)|!(?=\[)/g,
+    /<(?=[A-Za-z/!?]|[\w.!#$%&'*+/=?^`{|}~-]+@)|!(?=\[)/g,
   )) {
     if (
       isLiteral(match.index) &&

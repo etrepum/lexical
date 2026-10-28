@@ -17,6 +17,8 @@ import {
   $isElementNode,
   $isParagraphNode,
   $isTabNode,
+  $isTextNode,
+  $setState,
   type ElementNode,
   type LexicalNode,
   type TextNode,
@@ -106,6 +108,9 @@ export function $importMarkdownNodes(
     if ($isElementNode(child)) {
       for (const textNode of child.getAllTextNodes()) {
         $normalizeMarkdownTextNode(textNode);
+      }
+      for (const textNode of child.getAllTextNodes()) {
+        $mergeRawInlineText(textNode);
       }
     }
   }
@@ -295,11 +300,37 @@ function $importBlocks(
 // `splitText(...offsets)`: spreading one argument per tab boundary overflows
 // the call stack on a long run of tabs, and the text can hold arbitrarily
 // many.
+// Joins raw inline syntax to the text around it, which import split apart to
+// read, keeping the syntax it holds.
+function $mergeRawInlineText(textNode: TextNode): void {
+  const previous = textNode.getPreviousSibling();
+  const raw = $getState(textNode, rawInlineState);
+  if (
+    !$isTextNode(previous) ||
+    $isTabNode(previous) ||
+    $isTabNode(textNode) ||
+    !previous.isSimpleText() ||
+    !textNode.isSimpleText() ||
+    previous.getFormat() !== textNode.getFormat() ||
+    previous.getStyle() !== textNode.getStyle() ||
+    (raw.length === 0 && $getState(previous, rawInlineState).length === 0)
+  ) {
+    return;
+  }
+  previous.setTextContent(
+    previous.getTextContent() + textNode.getTextContent(),
+  );
+  $setState(previous, rawInlineState, [
+    ...new Set([...$getState(previous, rawInlineState), ...raw]),
+  ]);
+  textNode.remove();
+}
+
 function $normalizeMarkdownTextNode(textNode: TextNode): void {
   // A TabNode is a TextNode whose content is a tab, so without this guard the
   // rebuild below would destroy it and create an equivalent one in its place.
-  // Raw inline syntax stays one node, so that it is written as it was.
-  if ($isTabNode(textNode) || $getState(textNode, rawInlineState) !== '') {
+  // Raw inline syntax keeps its tabs, so that it is written as it was.
+  if ($isTabNode(textNode) || $getState(textNode, rawInlineState).length > 0) {
     return;
   }
   const text = textNode.getTextContent();

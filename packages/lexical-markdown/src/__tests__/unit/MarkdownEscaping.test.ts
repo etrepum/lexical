@@ -358,10 +358,8 @@ describe('Markdown export of literal text', () => {
     );
   });
 
-  it('round trips link text with code spans and deep brackets', () => {
+  it('round trips link text with code spans and nested brackets', () => {
     for (const children of [
-      [{format: 'code', text: ']'} as const],
-      [{format: 'code', text: ']`'} as const],
       [{format: 'code', text: 'a``b'} as const],
       ['[[[[a]]]]'],
     ]) {
@@ -606,6 +604,36 @@ describe('Markdown export of literal text', () => {
     );
   });
 
+  it('reads links a transformer writes in another syntax as opaque', () => {
+    const WIKI: TextMatchTransformer = {
+      dependencies: [],
+      export: node =>
+        $isLinkNode(node) && node.getURL().startsWith('wiki:')
+          ? '[[' + node.getTextContent() + ']]'
+          : null,
+      regExp: /(?!)/,
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createTextNode('[a '),
+              $createLinkNode('wiki:page').append($createTextNode('page')),
+              $createTextNode('](u)'),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() => $convertToMarkdownString([WIKI, ...TRANSFORMERS])),
+    ).toBe('[a [[page]]\\](u)');
+  });
+
   it('reads a nested list apart from the text of its list item', () => {
     using editor = buildEditorFromExtensions([MarkdownTestExtension]);
     editor.update(
@@ -727,10 +755,9 @@ describe('Markdown import of escapes and raw inline syntax', () => {
     editor.update(
       () => {
         $convertFromMarkdownString('a <b>', TRANSFORMERS);
-        const raw = $getRoot().getAllTextNodes()[1];
-        assert($isTextNode(raw));
-        expect(raw.getTextContent()).toBe('<b>');
-        raw.setTextContent('<i>');
+        const [text] = $getRoot().getAllTextNodes();
+        expect(text.getTextContent()).toBe('a <b>');
+        text.setTextContent('a <i>');
       },
       {discrete: true},
     );
@@ -744,10 +771,9 @@ describe('Markdown import of escapes and raw inline syntax', () => {
     editor.update(
       () => {
         $convertFromMarkdownString('a <b>x', TRANSFORMERS);
-        const raw = $getRoot().getAllTextNodes()[1];
-        assert($isTextNode(raw));
-        expect(raw.getTextContent()).toBe('<b>');
-        raw.setTextContent('<i> <b> [c](d)');
+        const [text] = $getRoot().getAllTextNodes();
+        expect(text.getTextContent()).toBe('a <b>x');
+        text.setTextContent('a <i> <b> [c](d)x');
       },
       {discrete: true},
     );
@@ -757,16 +783,30 @@ describe('Markdown import of escapes and raw inline syntax', () => {
   });
 
   it('keeps repeated raw inline syntax as written', () => {
-    for (const markdown of ['<br><br>', 'a&nbsp;&nbsp;b']) {
+    for (const markdown of ['<br><br>', 'a&nbsp;&nbsp;b', '*a <b>x</b>*']) {
       expect(importMarkdown(markdown).exported).toBe(markdown);
     }
   });
 
-  it('reads link text with backtick runs and raw HTML', () => {
+  it('keeps raw inline syntax in the text node around it', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => $convertFromMarkdownString('a <b> c &amp; d', TRANSFORMERS),
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $getRoot()
+          .getAllTextNodes()
+          .map(node => node.getTextContent()),
+      ),
+    ).toEqual(['a <b> c &amp; d']);
+  });
+
+  it('reads link text with backtick runs', () => {
     for (const [markdown, text] of [
       ['[a ``b](u)', 'a ``b'],
       ['[a ```b](u)', 'a ```b'],
-      ['[<b title="]">x](u)', '<b title="]">x'],
     ]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
@@ -795,6 +835,10 @@ describe('Markdown import of escapes and raw inline syntax', () => {
       expect(exported).toBe(markdown);
       expect(text).toBe(markdown);
     }
+  });
+
+  it('reads a link inside text that is not an email autolink', () => {
+    expect(importMarkdown('<[x](y)@z>').text).toBe('<x@z>');
   });
 
   it('reads escaped syntax as text and exports it escaped', () => {

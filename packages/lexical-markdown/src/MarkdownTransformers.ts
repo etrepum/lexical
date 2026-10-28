@@ -50,7 +50,6 @@ import {
   type TextNode,
 } from 'lexical';
 
-import {scanCodeSpans} from './importTextFormatTransformer';
 import {
   CHARACTER_REFERENCE_START,
   isEmptyParagraph,
@@ -212,7 +211,7 @@ export type TextMatchTransformer = Readonly<{
    * the match from `importRegExp` is not the entire text content of the node. That way, `importRegExp` can be used to match only the start of the node, and `getEndIndex`
    * can be used to match the end of the node.
    *
-   * @returns The end index of the match, or false if the match was unsuccessful. Import then tries the next match of `importRegExp` in the text, and a different transformer if there is none.
+   * @returns The end index of the match, or false if the match was unsuccessful and a different transformer should be tried.
    */
   getEndIndex?: (node: TextNode, match: RegExpMatchArray) => number | false;
   /**
@@ -313,13 +312,14 @@ export const codeMetaState = createState('mdCodeMeta', {
 });
 
 /**
- * The Markdown a text node was imported from when that is inline syntax the
- * editor keeps as text: raw HTML, an autolink or a named or hexadecimal
- * character reference. Export writes such a node as it was while its text is
- * unchanged, and escapes any other text that would read back as that syntax.
+ * The inline syntax in a text node's imported Markdown that the editor keeps
+ * as text: raw HTML, autolinks and named or hexadecimal character references.
+ * Export writes each as it was wherever the text still holds it, and escapes
+ * any other text that would read back as that syntax.
  */
 export const rawInlineState = createState('mdRawInline', {
-  parse: val => (typeof val === 'string' ? val : ''),
+  parse: (val): readonly string[] =>
+    Array.isArray(val) ? val.filter(item => typeof item === 'string') : [],
   resetOnCopyNode: true,
 });
 
@@ -1185,33 +1185,6 @@ function escapeCharacterReferences(value: string): string {
 //
 // - code should go first as it prevents any transformations inside
 // - then longer tags match (e.g. ** or __ should go before * or _)
-// Link text with escapes, code spans and HTML tags blanked out, leaving the
-// brackets that pair.
-function linkTextBrackets(linkText: string): string {
-  let brackets = linkText;
-  for (const {startIndex, endIndex} of scanCodeSpans(linkText)) {
-    brackets =
-      brackets.slice(0, startIndex) +
-      ' '.repeat(endIndex - startIndex) +
-      brackets.slice(endIndex);
-  }
-  return brackets.replace(/\\.|<[A-Za-z/!?][^>]*>/g, span =>
-    ' '.repeat(span.length),
-  );
-}
-
-let codeSpansText = '';
-let codeSpans: ReturnType<typeof scanCodeSpans> = [];
-
-// The code spans in a text node, kept for the matches that follow in it.
-function scanTextCodeSpans(text: string): ReturnType<typeof scanCodeSpans> {
-  if (text !== codeSpansText) {
-    codeSpansText = text;
-    codeSpans = scanCodeSpans(text);
-  }
-  return codeSpans;
-}
-
 export const LINK: TextMatchTransformer = {
   dependencies: [LinkNode],
   export: (node, exportChildren, exportFormat) => {
@@ -1261,32 +1234,9 @@ export const LINK: TextMatchTransformer = {
     return linkContent;
   },
 
-  getEndIndex: (textNode, match) => {
-    const text = textNode.getTextContent();
-    const start = match.index! + 1;
-    const end = start + match[1].length;
-    let depth = 0;
-    for (const char of linkTextBrackets(match[1])) {
-      depth += char === '[' ? 1 : char === ']' ? -1 : 0;
-      if (depth < 0) {
-        return false;
-      }
-    }
-    // No code span may hold either bracket around the link text.
-    return depth === 0 &&
-      scanTextCodeSpans(text).every(
-        span =>
-          span.endIndex <= start - 1 ||
-          span.startIndex >= end + 1 ||
-          (span.startIndex >= start && span.endIndex <= end),
-      )
-      ? match.index! + match[0].length
-      : false;
-  },
-  // Link text ends at the first unescaped `]` that a destination follows. It
-  // holds `[` only in brackets balanced up to three deep, so that a run of `[`
-  // fails fast, and not before `(`, since link text cannot hold a link.
-  // `getEndIndex` checks that its brackets are balanced.
+  // Link text holds escapes, and brackets balanced up to three deep. A bracket
+  // pair followed by `(` would be a link of its own, which link text cannot
+  // hold, so a bracket before it stays text and the inner link matches.
   // https://spec.commonmark.org/0.31.2/#link-text
   //
   // A link destination comes in two shapes, is itself optional, and may have
@@ -1317,7 +1267,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|[^\\\n[]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]])*\])*\])*\](?!\())+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]])*\])*\])*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1344,7 +1294,8 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    const brackets = linkTextBrackets(linkText);
+    // Escaped brackets are not counted.
+    const brackets = linkText.replace(/\\./g, '  ');
     const openBracketAmount = brackets.split('[').length - 1;
     const closeBracketAmount = brackets.split(']').length - 1;
     let parsedLinkText = linkText;
@@ -1383,12 +1334,12 @@ export const LINK: TextMatchTransformer = {
 export const RAW_INLINE: TextMatchTransformer = {
   dependencies: [],
   importRegExp:
-    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--(?:-?(?=>)|[\s\S]*?--)|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
+    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--(?:-?(?=>)|[\s\S]*?--)|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[\w.!#$%&'*+/=?^`{|}~-]+@[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?(?:\.[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?)*)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
   regExp: /(?!)/,
   replace: (textNode, match) => {
     // A copy, so that the backslashes in raw HTML are not read as escapes.
     const rawNode = $copyNode(textNode);
-    $setState(rawNode, rawInlineState, match[0]);
+    $setState(rawNode, rawInlineState, [match[0]]);
     textNode.replace(rawNode);
   },
   type: 'text-match',

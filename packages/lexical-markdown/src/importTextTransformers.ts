@@ -39,143 +39,140 @@ export function canContainTransformableMarkdown(
  * until there are no more transformers to apply.
  */
 export function importTextTransformers(
-  textNode: TextNode,
+  textNode_: TextNode,
   textFormatTransformersIndex: TextFormatTransformersIndex,
   textMatchTransformers: TextMatchTransformer[],
 ) {
-  let foundTextFormat = findOutermostTextFormatTransformer(
-    textNode,
-    textFormatTransformersIndex,
-  );
+  // The text after each match is read in turn rather than recursively, so a
+  // line with many matches does not exhaust the stack.
+  for (
+    let textNode: TextNode | undefined = textNode_;
+    canContainTransformableMarkdown(textNode);
+  ) {
+    let nodeAfter: TextNode | undefined;
+    let foundTextFormat = findOutermostTextFormatTransformer(
+      textNode,
+      textFormatTransformersIndex,
+    );
 
-  let foundTextMatch = findOutermostTextMatchTransformer(
-    textNode,
-    textMatchTransformers,
-  );
+    let foundTextMatch = findOutermostTextMatchTransformer(
+      textNode,
+      textMatchTransformers,
+    );
 
-  if (foundTextFormat && foundTextMatch) {
-    if (
-      foundTextFormat.isCodeSpan &&
-      foundTextMatch.transformer === RAW_INLINE &&
-      foundTextMatch.startIndex < foundTextFormat.startIndex
-    ) {
-      // Raw HTML and autolinks bind as tightly as code spans, so whichever
-      // starts first is read.
-      // https://spec.commonmark.org/0.31.2/#code-spans
-      foundTextFormat = null;
-    } else if (foundTextFormat.isCodeSpan) {
-      // Code spans bind tighter than text-match transformers (e.g. equations
-      // or links). A code span must never be partially consumed by a text
-      // match, so prefer the code format unless the text match fully wraps it
-      // (in which case the code span is part of the match's raw content).
-      // https://github.com/facebook/lexical/issues/8687
+    if (foundTextFormat && foundTextMatch) {
       if (
-        foundTextMatch.startIndex <= foundTextFormat.startIndex &&
-        foundTextMatch.endIndex >= foundTextFormat.endIndex
+        foundTextFormat.isCodeSpan &&
+        foundTextMatch.transformer === RAW_INLINE &&
+        foundTextMatch.startIndex < foundTextFormat.startIndex
       ) {
-        // foundTextMatch wraps the code span - apply foundTextMatch
+        // Raw HTML and autolinks bind as tightly as code spans, so whichever
+        // starts first is read.
+        // https://spec.commonmark.org/0.31.2/#code-spans
         foundTextFormat = null;
-      } else {
-        // Apply the code span
+      } else if (foundTextFormat.isCodeSpan) {
+        // Code spans bind tighter than text-match transformers (e.g. equations
+        // or links). A code span must never be partially consumed by a text
+        // match, so prefer the code format unless the text match fully wraps it
+        // (in which case the code span is part of the match's raw content).
+        // https://github.com/facebook/lexical/issues/8687
+        if (
+          foundTextMatch.startIndex <= foundTextFormat.startIndex &&
+          foundTextMatch.endIndex >= foundTextFormat.endIndex
+        ) {
+          // foundTextMatch wraps the code span - apply foundTextMatch
+          foundTextFormat = null;
+        } else {
+          // Apply the code span
+          foundTextMatch = null;
+        }
+      } else if (
+        // Find the outermost transformer
+        (foundTextFormat.startIndex <= foundTextMatch.startIndex &&
+          foundTextFormat.endIndex >= foundTextMatch.endIndex) ||
+        // foundTextMatch is not contained within foundTextFormat
+        foundTextMatch.startIndex > foundTextFormat.endIndex
+      ) {
+        // foundTextFormat wraps foundTextMatch - apply foundTextFormat by setting foundTextMatch to null
         foundTextMatch = null;
+      } else {
+        // foundTextMatch wraps foundTextFormat - apply foundTextMatch by setting foundTextFormat to null
+        foundTextFormat = null;
       }
-    } else if (
-      // Find the outermost transformer
-      (foundTextFormat.startIndex <= foundTextMatch.startIndex &&
-        foundTextFormat.endIndex >= foundTextMatch.endIndex) ||
-      // foundTextMatch is not contained within foundTextFormat
-      foundTextMatch.startIndex > foundTextFormat.endIndex
-    ) {
-      // foundTextFormat wraps foundTextMatch - apply foundTextFormat by setting foundTextMatch to null
-      foundTextMatch = null;
-    } else {
-      // foundTextMatch wraps foundTextFormat - apply foundTextMatch by setting foundTextFormat to null
-      foundTextFormat = null;
-    }
-  }
-
-  if (foundTextFormat) {
-    const result = importTextFormatTransformer(
-      textNode,
-      foundTextFormat.startIndex,
-      foundTextFormat.endIndex,
-      foundTextFormat.transformer,
-      foundTextFormat.match,
-    );
-
-    if (canContainTransformableMarkdown(result.nodeAfter)) {
-      importTextTransformers(
-        result.nodeAfter,
-        textFormatTransformersIndex,
-        textMatchTransformers,
-      );
-    }
-    if (canContainTransformableMarkdown(result.nodeBefore)) {
-      importTextTransformers(
-        result.nodeBefore,
-        textFormatTransformersIndex,
-        textMatchTransformers,
-      );
-    }
-    if (canContainTransformableMarkdown(result.transformedNode)) {
-      importTextTransformers(
-        result.transformedNode,
-        textFormatTransformersIndex,
-        textMatchTransformers,
-      );
-    }
-  } else if (foundTextMatch) {
-    const result = importFoundTextMatchTransformer(
-      textNode,
-      foundTextMatch.startIndex,
-      foundTextMatch.endIndex,
-      foundTextMatch.transformer,
-      foundTextMatch.match,
-    );
-    if (!result) {
-      return;
     }
 
-    if (canContainTransformableMarkdown(result.nodeAfter)) {
-      importTextTransformers(
-        result.nodeAfter,
-        textFormatTransformersIndex,
-        textMatchTransformers,
+    if (foundTextFormat) {
+      const result = importTextFormatTransformer(
+        textNode,
+        foundTextFormat.startIndex,
+        foundTextFormat.endIndex,
+        foundTextFormat.transformer,
+        foundTextFormat.match,
       );
-    }
-    if (canContainTransformableMarkdown(result.nodeBefore)) {
-      importTextTransformers(
-        result.nodeBefore,
-        textFormatTransformersIndex,
-        textMatchTransformers,
-      );
-    }
-    if (canContainTransformableMarkdown(result.transformedNode)) {
-      importTextTransformers(
-        result.transformedNode,
-        textFormatTransformersIndex,
-        textMatchTransformers,
-      );
-    } else if (
-      result.transformedNode === undefined &&
-      canContainTransformableMarkdown(result.matchedNode) &&
-      result.matchedNode.getParent() !== null
-    ) {
-      // A void return may leave the matched node in place or move it into a
-      // new parent. Read its escapes once without trying the same match again.
-      // A parent also exists when importing into a detached tree.
-      result.matchedNode.setTextContent(
-        unescapeText(result.matchedNode.getTextContent()),
-      );
-    }
-  }
 
-  // Handle escape characters. Only a node that no transformer matched is
-  // unescaped here: retained non-code results above have already had their
-  // escapes read, and code spans must keep their backslashes.
-  if (!foundTextFormat && !foundTextMatch) {
-    const textContent = textNode.getTextContent();
-    const unescapedText = unescapeText(textContent);
-    textNode.setTextContent(unescapedText);
+      nodeAfter = result.nodeAfter;
+      if (canContainTransformableMarkdown(result.nodeBefore)) {
+        importTextTransformers(
+          result.nodeBefore,
+          textFormatTransformersIndex,
+          textMatchTransformers,
+        );
+      }
+      if (canContainTransformableMarkdown(result.transformedNode)) {
+        importTextTransformers(
+          result.transformedNode,
+          textFormatTransformersIndex,
+          textMatchTransformers,
+        );
+      }
+    } else if (foundTextMatch) {
+      const result = importFoundTextMatchTransformer(
+        textNode,
+        foundTextMatch.startIndex,
+        foundTextMatch.endIndex,
+        foundTextMatch.transformer,
+        foundTextMatch.match,
+      );
+      if (!result) {
+        return;
+      }
+
+      nodeAfter = result.nodeAfter;
+      if (canContainTransformableMarkdown(result.nodeBefore)) {
+        importTextTransformers(
+          result.nodeBefore,
+          textFormatTransformersIndex,
+          textMatchTransformers,
+        );
+      }
+      if (canContainTransformableMarkdown(result.transformedNode)) {
+        importTextTransformers(
+          result.transformedNode,
+          textFormatTransformersIndex,
+          textMatchTransformers,
+        );
+      } else if (
+        result.transformedNode === undefined &&
+        canContainTransformableMarkdown(result.matchedNode) &&
+        result.matchedNode.getParent() !== null
+      ) {
+        // A void return may leave the matched node in place or move it into a
+        // new parent. Read its escapes once without trying the same match again.
+        // A parent also exists when importing into a detached tree.
+        result.matchedNode.setTextContent(
+          unescapeText(result.matchedNode.getTextContent()),
+        );
+      }
+    }
+
+    // Handle escape characters. Only a node that no transformer matched is
+    // unescaped here: retained non-code results above have already had their
+    // escapes read, and code spans must keep their backslashes.
+    if (!foundTextFormat && !foundTextMatch) {
+      const textContent = textNode.getTextContent();
+      const unescapedText = unescapeText(textContent);
+      textNode.setTextContent(unescapedText);
+    }
+    textNode = nodeAfter;
   }
 }

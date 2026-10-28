@@ -13,8 +13,8 @@ import {isEscaped} from './utils';
 const globalRegExps = new WeakMap<RegExp, RegExp>();
 
 // The first match that does not start at an escaped character, which is
-// literal text rather than the start of syntax, and that `getEndIndex`
-// accepts, with its end.
+// literal text rather than the start of syntax, with its end, or null if there
+// is none or `getEndIndex` rejects it.
 function matchUnescaped(
   textNode: TextNode,
   transformer: TextMatchTransformer,
@@ -32,13 +32,11 @@ function matchUnescaped(
   globalRegExp.lastIndex = 0;
   let match;
   while ((match = globalRegExp.exec(text)) !== null) {
-    const endIndex = isEscaped(text, match.index)
-      ? false
-      : transformer.getEndIndex
+    if (!isEscaped(text, match.index)) {
+      const endIndex = transformer.getEndIndex
         ? transformer.getEndIndex(textNode, match)
         : match.index + match[0].length;
-    if (endIndex !== false) {
-      return [match, endIndex];
+      return endIndex === false ? null : [match, endIndex];
     }
     globalRegExp.lastIndex = match.index + 1;
   }
