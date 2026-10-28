@@ -180,6 +180,14 @@ describe('Markdown export of literal text', () => {
       [{format: 'italic', text: 'Q&A.'}, '&copy; 2024'],
       '*Q&A.*&#38;copy; 2024',
     );
+    expectExport(
+      [
+        {format: 'bold', text: 'Note:'},
+        {format: 'italic', text: 'see (1).'},
+        {format: 'bold', text: '_x'},
+      ],
+      '**Note:***see (1).***\\_x**',
+    );
   });
 
   it('keeps an image read as `!` before a link', () => {
@@ -793,6 +801,7 @@ describe('Markdown import of escapes', () => {
       '[x [y](u "say \\"hi\\"") z](u)',
       '[x [y](a\\(b) z](u)',
       '[x [y](a(b(c))) z](u)',
+      '[a [[b](c)]](d)',
     ]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {

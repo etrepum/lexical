@@ -767,13 +767,17 @@ function $escapeText(
 ): string {
   const escapes = $escapesIn(node, textContent, context);
   // Right after a closing delimiter, a character reference stands in for a
-  // backslash, which a reader would not count as punctuation there.
+  // backslash, which a reader would not count as punctuation there. Where a
+  // delimiter opens too, the backslash is kept.
   const previous = node.getPreviousSibling();
   const afterCloser =
     $isTextNode(previous) &&
     /\S/.test(previous.getTextContent()) &&
     context.taggedFormats.some(
       format => previous.hasFormat(format) && !node.hasFormat(format),
+    ) &&
+    !context.taggedFormats.some(
+      format => node.hasFormat(format) && !previous.hasFormat(format),
     );
   return textContent.replace(
     ESCAPABLE_CHARACTERS,
