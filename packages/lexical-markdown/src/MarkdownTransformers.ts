@@ -1232,7 +1232,7 @@ export const LINK: TextMatchTransformer = {
 
     return linkContent;
   },
-  // Link text holds escapes, code spans (written with one backtick) and
+  // Link text holds escapes, code spans (written with one or two backticks) and
   // brackets balanced up to three deep. A bracket pair followed by `(` would be
   // a link of its own, which link text cannot hold, so a bracket before it
   // stays text and the inner link matches.
@@ -1266,7 +1266,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|`[^`\n]*`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1293,13 +1293,36 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    // The text node being replaced is the whole match, so the link's own
-    // text node carries its inline format. Read the format before the replace
-    // below detaches it.
-    const linkTextNode = $createTextNode(linkText);
-    linkTextNode.setFormat(textNode.getFormat());
+    // LINK's own importRegExp matches balanced link text, but a transformer
+    // built on LINK may match more. Escaped brackets, and brackets in code
+    // spans, are not counted.
+    const brackets = linkText.replace(
+      /\\.|``(?:[^`]|`(?!`))*``|`[^`]+`/g,
+      span => ' '.repeat(span.length),
+    );
+    const openBracketAmount = brackets.split('[').length - 1;
+    const closeBracketAmount = brackets.split(']').length - 1;
+    let parsedLinkText = linkText;
+    let outsideLinkText = '';
+    if (openBracketAmount < closeBracketAmount) {
+      return;
+    } else if (openBracketAmount > closeBracketAmount) {
+      const openBracketIndex = brackets.indexOf('[');
+      outsideLinkText = '[' + linkText.slice(0, openBracketIndex);
+      parsedLinkText = linkText.slice(openBracketIndex + 1);
+    }
+    // Both new nodes stand in for the TextNode being replaced, so the text
+    // left outside the link carries its inline format just like the link's own
+    // text node does. Read the format before the replace below detaches it.
+    const format = textNode.getFormat();
+    const linkTextNode = $createTextNode(parsedLinkText);
+    linkTextNode.setFormat(format);
     linkNode.append(linkTextNode);
     textNode.replace(linkNode);
+
+    if (outsideLinkText) {
+      linkNode.insertBefore($createTextNode(outsideLinkText).setFormat(format));
+    }
     return linkTextNode;
   },
   trigger: ')',

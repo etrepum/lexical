@@ -6,7 +6,6 @@
  *
  */
 import type {TextFormatTransformersIndex} from './MarkdownImport';
-import type {TextMatchTransformer} from './MarkdownTransformers';
 
 import {$isTextNode, type LexicalNode, type TextNode} from 'lexical';
 
@@ -18,6 +17,7 @@ import {
   findOutermostTextMatchTransformer,
   importFoundTextMatchTransformer,
 } from './importTextMatchTransformer';
+import {RAW_INLINE, type TextMatchTransformer} from './MarkdownTransformers';
 import {unescapeText} from './utils';
 
 /**
@@ -54,7 +54,16 @@ export function importTextTransformers(
   );
 
   if (foundTextFormat && foundTextMatch) {
-    if (foundTextFormat.isCodeSpan) {
+    if (
+      foundTextFormat.isCodeSpan &&
+      foundTextMatch.transformer === RAW_INLINE &&
+      foundTextMatch.startIndex < foundTextFormat.startIndex
+    ) {
+      // Raw HTML and autolinks bind as tightly as code spans, so whichever
+      // starts first is read.
+      // https://spec.commonmark.org/0.31.2/#code-spans
+      foundTextFormat = null;
+    } else if (foundTextFormat.isCodeSpan) {
       // Code spans bind tighter than text-match transformers (e.g. equations
       // or links). A code span must never be partially consumed by a text
       // match, so prefer the code format unless the text match fully wraps it

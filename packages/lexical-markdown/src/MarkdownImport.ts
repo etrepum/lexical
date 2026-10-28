@@ -13,6 +13,7 @@ import {
   $createTabNode,
   $createTextNode,
   $findMatchingParent,
+  $getState,
   $isElementNode,
   $isParagraphNode,
   $isTabNode,
@@ -27,6 +28,7 @@ import {
   type ElementTransformer,
   type MultilineElementTransformer,
   RAW_INLINE,
+  rawInlineState,
   type TextFormatTransformer,
   type TextMatchTransformer,
   type Transformer,
@@ -296,7 +298,8 @@ function $importBlocks(
 function $normalizeMarkdownTextNode(textNode: TextNode): void {
   // A TabNode is a TextNode whose content is a tab, so without this guard the
   // rebuild below would destroy it and create an equivalent one in its place.
-  if ($isTabNode(textNode)) {
+  // Raw inline syntax stays one node, so that it is written as it was.
+  if ($isTabNode(textNode) || $getState(textNode, rawInlineState) !== '') {
     return;
   }
   const text = textNode.getTextContent();

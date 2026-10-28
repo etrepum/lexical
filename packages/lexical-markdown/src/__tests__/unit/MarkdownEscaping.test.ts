@@ -52,6 +52,10 @@ function $createPieces(pieces: Piece[]): LexicalNode[] {
   );
 }
 
+function $styled(text: string): LexicalNode {
+  return $createTextNode(text).setStyle('color: red');
+}
+
 function exportPieces(...pieces: Piece[]): string {
   using editor = buildEditorFromExtensions([MarkdownTestExtension]);
   editor.update(
@@ -202,6 +206,54 @@ describe('Markdown export of literal text', () => {
     );
   });
 
+  it('escapes syntax split across nodes', () => {
+    using editor = buildEditorFromExtensions(
+      MarkdownTestExtension,
+      MarkExtension,
+    );
+    const cases: [() => LexicalNode[], string][] = [
+      [() => [$createTextNode('12'), $styled('3. a')], '123\\. a'],
+      [() => [$createTextNode('&'), $styled('#65;')], '\\&#65;'],
+      [() => [$createTextNode('<'), $styled('b>')], '\\<b>'],
+      [() => [$createTextNode('a'), $styled('\n# b')], 'a\n\\# b'],
+      [
+        () => [
+          $createMarkNode(['id']).append(
+            $createTextNode('a'),
+            $createLineBreakNode(),
+          ),
+          $createTextNode('# b'),
+        ],
+        'a\n\\# b',
+      ],
+      [
+        () => [
+          $createTextNode('1'),
+          $createMarkNode(['id']).append($createTextNode('. a')),
+        ],
+        '1\\. a',
+      ],
+    ];
+    for (const [$create, markdown] of cases) {
+      editor.update(
+        () => {
+          $getRoot()
+            .clear()
+            .append($createParagraphNode().append(...$create()));
+        },
+        {discrete: true},
+      );
+      expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+        markdown,
+      );
+    }
+  });
+
+  it('escapes line starts that import reads as block syntax', () => {
+    expectExport(['1234567890. a'], '1234567890\\. a');
+    expect(exportPieces('a\n    - b')).toBe('a\n    \\- b');
+  });
+
   it('escapes line starts inside a text node', () => {
     expect(exportPieces('a\n# b')).toBe('a\n\\# b');
   });
@@ -251,6 +303,7 @@ describe('Markdown export of literal text', () => {
   it('round trips link text with code spans and deep brackets', () => {
     for (const children of [
       [{format: 'code', text: ']'} as const],
+      [{format: 'code', text: ']`'} as const],
       ['a ', {format: 'code', text: '['} as const, ' b'],
       ['[[[[a]]]]'],
     ]) {
@@ -262,6 +315,29 @@ describe('Markdown export of literal text', () => {
     expect(exportPieces({children: ['[[[[a]]]]'], url: 'u'})).toBe(
       '[[[[\\[a\\]]]]](u)',
     );
+  });
+
+  it('keeps links after escapes written in the text when preserving newlines', () => {
+    for (const [pieces, markdown] of [
+      [['a\\!', {children: ['x'], url: 'u'}], 'a\\![x](u)'],
+      [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\]**\\](b)**'],
+      [['a\\', {children: ['x'], url: 'u'}], 'a\\\\[x](u)'],
+    ] as [Piece[], string][]) {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(
+        () => {
+          $getRoot()
+            .clear()
+            .append($createParagraphNode().append(...$createPieces(pieces)));
+        },
+        {discrete: true},
+      );
+      expect(
+        editor.read(() =>
+          $convertToMarkdownString(TRANSFORMERS, undefined, true),
+        ),
+      ).toBe(markdown);
+    }
   });
 
   it('keeps escapes written in the text when preserving newlines', () => {
@@ -400,6 +476,14 @@ describe('Markdown import of escapes and raw inline syntax', () => {
         'a \\<b [x](u)> c \\<d *e* f>',
       );
     });
+  });
+
+  it('keeps raw inline syntax that holds a tab or starts before code', () => {
+    expect(importMarkdown('<a\thref="x">').exported).toBe('<a\thref="x">');
+    // The backtick after the tag opens no code span.
+    expect(importMarkdown('x <b title="`">y` z').exported).toBe(
+      'x <b title="`">y\\` z',
+    );
   });
 
   it('keeps raw inline syntax and formats before a link', () => {
