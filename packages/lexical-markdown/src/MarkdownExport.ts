@@ -771,7 +771,7 @@ function $escapeText(
 ): string {
   const escapes = $escapesIn(node, textContent, context);
   // Right after a closing delimiter, a character reference stands in for a
-  // backslash, which a reader would not count as punctuation there. Where a
+  // backslash, which import does not count as punctuation there. Where a
   // delimiter opens too, the backslash is kept.
   const previous = node.getPreviousSibling();
   const afterCloser =
@@ -957,8 +957,8 @@ function findEscapes(
   // When preserving source newlines, a backslash at the end of a node is
   // escaped, since it could escape what the export writes after it: the next
   // node, or the closing syntax of a link or format. One that ends the block
-  // outside a link or format escapes nothing, and is kept, as the existing
-  // hard line break export relies on.
+  // outside a link or format is kept, as the existing hard line break export
+  // relies on.
   if (shouldPreserveNewLines) {
     pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;

@@ -166,7 +166,7 @@ describe('Markdown export of literal text', () => {
     expect(exportPieces('\n', '[x]: y')).toBe('\n[x\\]: y');
     expect(exportPieces('a [b] [x]: y')).toBe('a [b] [x]: y');
     expectExport(['[x](y) z](w)'], '[x\\](y) z\\](w)');
-    expectExport(['[x', {format: 'bold', text: '](y)'}], '[x**\\](y)**');
+    expectExport(['[x ', {format: 'bold', text: '](y)'}], '[x **\\](y)**');
     expectExport(['[x', {format: 'code', text: ']'}, '](y)'], '[x`]`\\](y)');
   });
 
