@@ -759,9 +759,10 @@ function $isMarkdownLinkNode(
 
 // Escapes literal text that would otherwise read back as Markdown syntax.
 // `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere, except that
-// when preserving newlines a backslash is escaped only where it would escape
-// what follows it. Other syntax depends on the text around it, which is read
-// once for each block.
+// when preserving newlines a backslash is escaped only before a character it
+// would escape or a line break, or at the end of a node in a link or format.
+// Other syntax depends on the text around it, which is read once for each
+// block.
 function $escapeText(
   node: TextNode,
   textContent: string,
@@ -1078,9 +1079,11 @@ function findEscapes(
   // that is escaped, kept as -1.
   // https://spec.commonmark.org/0.31.2/#look-for-link-or-image
   const openers: number[] = [];
-  // A link the export writes deactivates the openers before it, except an
-  // image's. A link after a literal `!` counts as a link, so that an image
-  // imported as `!` and a link is written as it was.
+  // A link the export writes deactivates the openers before it. They stay on
+  // the stack, so a closer can still pair with one and stay literal. An image
+  // the export writes deactivates none, and an opener after a literal `!`
+  // stays active, so that an image imported as `!` and a link is written as
+  // it was.
   let activeFrom = 0;
   const isActive = (opener: number): boolean =>
     opener >= activeFrom ||

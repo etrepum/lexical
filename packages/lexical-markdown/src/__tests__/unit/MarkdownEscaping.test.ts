@@ -171,6 +171,13 @@ describe('Markdown export of literal text', () => {
     );
   });
 
+  it('pairs a closer after a link with an opener the link deactivated', () => {
+    expectExport(
+      ['![a [c ', {children: ['b'], url: 'u'}, ' d] e](z)'],
+      '![a [c [b](u) d] e\\](z)',
+    );
+  });
+
   it('keeps a format that ends in punctuation before an escape', () => {
     expectExport(
       [{format: 'bold', text: 'Note:'}, '<br> see'],
