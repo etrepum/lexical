@@ -76,6 +76,7 @@ STRIKETHROUGH
 
 // Text match transformers
 LINK
+RAW_INLINE
 ```
 
 And bundles of commonly used transformers:
@@ -86,6 +87,8 @@ And bundles of commonly used transformers:
 - `TEXT_MATCH_TRANSFORMERS` - all built-in text match transformers
 
 Transformers are explicitly passed to markdown API allowing application-specific subset of markdown or custom transformers.
+
+Export escapes text that would otherwise read back as Markdown syntax. `RAW_INLINE` keeps inline HTML, autolinks and character references from imported Markdown as written; without it, they are imported as text and exported escaped.
 
 There're three types of transformers:
 

@@ -306,6 +306,17 @@ export const codeMetaState = createState('mdCodeMeta', {
   resetOnCopyNode: true,
 });
 
+/**
+ * The Markdown a text node was imported from when that is inline syntax the
+ * editor keeps as text: raw HTML, an autolink or a named or hexadecimal
+ * character reference. Export writes such a node as it was while its text is
+ * unchanged, and escapes any other text that would read back as that syntax.
+ */
+export const rawInlineState = createState('mdRawInline', {
+  parse: val => (typeof val === 'string' ? val : ''),
+  resetOnCopyNode: true,
+});
+
 export type MarkdownHardLineBreak = string;
 
 export const hardLineBreakState = createState('mdHardLineBreak', {
@@ -1247,7 +1258,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[(.+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|[^\\\n])+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1274,16 +1285,18 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    const openBracketAmount = linkText.split('[').length - 1;
-    const closeBracketAmount = linkText.split(']').length - 1;
+    // Escaped brackets are literal and are not counted.
+    const brackets = linkText.replace(/\\./g, '  ');
+    const openBracketAmount = brackets.split('[').length - 1;
+    const closeBracketAmount = brackets.split(']').length - 1;
     let parsedLinkText = linkText;
     let outsideLinkText = '';
     if (openBracketAmount < closeBracketAmount) {
       return;
     } else if (openBracketAmount > closeBracketAmount) {
-      const linkTextParts = linkText.split('[');
-      outsideLinkText = '[' + linkTextParts[0];
-      parsedLinkText = linkTextParts.slice(1).join('[');
+      const openBracketIndex = brackets.indexOf('[');
+      outsideLinkText = '[' + unescapeText(linkText.slice(0, openBracketIndex));
+      parsedLinkText = linkText.slice(openBracketIndex + 1);
     }
     // Both new nodes stand in for the TextNode being replaced, so the text
     // left outside the link carries its inline format just like the link's own
@@ -1300,6 +1313,26 @@ export const LINK: TextMatchTransformer = {
     return linkTextNode;
   },
   trigger: ')',
+  type: 'text-match',
+};
+
+// Raw HTML, an autolink, or a character reference that import does not decode,
+// kept as the text it was written as. The node is marked so that export can
+// tell it from text that only looks like this syntax.
+// https://spec.commonmark.org/0.31.2/#raw-html
+// https://spec.commonmark.org/0.31.2/#autolinks
+// https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references
+export const RAW_INLINE: TextMatchTransformer = {
+  dependencies: [],
+  importRegExp:
+    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s[^<>]*)?\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--[\s\S]*?--|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
+  regExp: /(?!)/,
+  replace: (textNode, match) => {
+    // A new node, so that the backslashes in raw HTML are not read as escapes.
+    const rawNode = $createTextNode(match[0]).setFormat(textNode.getFormat());
+    $setState(rawNode, rawInlineState, match[0]);
+    textNode.replace(rawNode);
+  },
   type: 'text-match',
 };
 
@@ -1330,7 +1363,10 @@ export const TEXT_FORMAT_TRANSFORMERS: TextFormatTransformer[] = [
   STRIKETHROUGH,
 ];
 
-export const TEXT_MATCH_TRANSFORMERS: TextMatchTransformer[] = [LINK];
+export const TEXT_MATCH_TRANSFORMERS: TextMatchTransformer[] = [
+  LINK,
+  RAW_INLINE,
+];
 
 /**
  * Concatenate transformer lists. A function declared side-effect free (so the

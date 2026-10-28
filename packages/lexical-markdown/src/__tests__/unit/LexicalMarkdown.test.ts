@@ -970,6 +970,8 @@ describe('Markdown', () => {
     {
       html: '<p><span style="white-space: pre-wrap;">[](https://lexical.dev)</span></p>',
       md: '[](https://lexical.dev)',
+      // A CommonMark reader reads the unescaped text as a link.
+      mdAfterExport: '[\\](https://lexical.dev)',
     },
     {
       html: '<p><a href="https://lexical.dev"><b><strong style="white-space: pre-wrap;">link</strong></b></a><b><strong style="white-space: pre-wrap;">text</strong></b></p>',

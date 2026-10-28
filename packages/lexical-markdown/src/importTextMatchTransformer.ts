@@ -8,6 +8,32 @@
 import type {TextMatchTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
+import {isEscaped} from './utils';
+
+const globalRegExps = new WeakMap<RegExp, RegExp>();
+
+// The first match that does not start at an escaped character, which is
+// literal text rather than the start of syntax.
+function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
+  let globalRegExp = globalRegExps.get(regExp);
+  if (globalRegExp === undefined) {
+    globalRegExp = new RegExp(
+      regExp.source,
+      regExp.flags.replace(/[gy]/g, '') + 'g',
+    );
+    globalRegExps.set(regExp, globalRegExp);
+  }
+  globalRegExp.lastIndex = 0;
+  let match;
+  while ((match = globalRegExp.exec(text)) !== null) {
+    if (!isEscaped(text, match.index)) {
+      return match;
+    }
+    globalRegExp.lastIndex = match.index + 1;
+  }
+  return null;
+}
+
 export function findOutermostTextMatchTransformer(
   textNode_: TextNode,
   textMatchTransformers: TextMatchTransformer[],
@@ -28,7 +54,10 @@ export function findOutermostTextMatchTransformer(
     if (!transformer.replace || !transformer.importRegExp) {
       continue;
     }
-    const match = textNode.getTextContent().match(transformer.importRegExp);
+    const match = matchUnescaped(
+      textNode.getTextContent(),
+      transformer.importRegExp,
+    );
 
     if (!match) {
       continue;
