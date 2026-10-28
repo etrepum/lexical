@@ -313,13 +313,21 @@ export const codeMetaState = createState('mdCodeMeta', {
 
 /**
  * The inline syntax in a text node's imported Markdown that the editor keeps
- * as text: raw HTML, autolinks and named or hexadecimal character references.
- * Export writes each as it was wherever the text still holds it, and escapes
- * any other text that would read back as that syntax.
+ * as text: raw HTML, autolinks and named or hexadecimal character references,
+ * each with its offset in the text. Export writes each as it was while the
+ * text still holds it at that offset, and escapes any other text that would
+ * read back as that syntax.
  */
 export const rawInlineState = createState('mdRawInline', {
-  parse: (val): readonly string[] =>
-    Array.isArray(val) ? val.filter(item => typeof item === 'string') : [],
+  parse: (val): readonly (readonly [number, string])[] =>
+    Array.isArray(val)
+      ? val.filter(
+          (item): item is [number, string] =>
+            Array.isArray(item) &&
+            typeof item[0] === 'number' &&
+            typeof item[1] === 'string',
+        )
+      : [],
   resetOnCopyNode: true,
 });
 
@@ -1339,7 +1347,7 @@ export const RAW_INLINE: TextMatchTransformer = {
   replace: (textNode, match) => {
     // A copy, so that the backslashes in raw HTML are not read as escapes.
     const rawNode = $copyNode(textNode);
-    $setState(rawNode, rawInlineState, [match[0]]);
+    $setState(rawNode, rawInlineState, [[0, match[0]]]);
     textNode.replace(rawNode);
   },
   type: 'text-match',

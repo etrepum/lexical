@@ -698,23 +698,16 @@ function createExportContext(
   };
 }
 
-// The spans of a node's text that are written as the raw inline syntax it was
-// imported from: each place the text still holds that source.
+// The spans of a node's text, in order, that are written as the raw inline
+// syntax it was imported from, while the text still holds it in place.
 function $rawInlineSpans(
   node: TextNode,
   textContent: string,
 ): [number, number][] {
-  const spans: [number, number][] = [];
-  for (const source of $getState(node, rawInlineState)) {
-    for (
-      let start = textContent.indexOf(source);
-      start !== -1;
-      start = textContent.indexOf(source, start + source.length)
-    ) {
-      spans.push([start, start + source.length]);
-    }
-  }
-  return spans.sort((a, b) => a[0] - b[0]);
+  return $getState(node, rawInlineState)
+    .filter(([start, source]) => textContent.startsWith(source, start))
+    .map(([start, source]): [number, number] => [start, start + source.length])
+    .sort((a, b) => a[0] - b[0]);
 }
 
 // The text of a node that the export writes, or null if it writes none.
@@ -784,10 +777,14 @@ function $escapeText(
 ): string {
   const escapes = $escapesIn(node, textContent, context);
   const raw = $rawInlineSpans(node, textContent);
+  let span = 0;
   return textContent.replace(
     ESCAPABLE_CHARACTERS,
-    (char: string, index: number) =>
-      raw.some(([start, end]) => index >= start && index < end)
+    (char: string, index: number) => {
+      while (span < raw.length && raw[span][1] <= index) {
+        span++;
+      }
+      return span < raw.length && raw[span][0] <= index
         ? char
         : escapes.has(index) ||
             (char === '\\'
@@ -799,7 +796,8 @@ function $escapeText(
                 textContent[index + 1] === '\n'
               : /[*_`~]/.test(char))
           ? '\\' + char
-          : char,
+          : char;
+    },
   );
 }
 
@@ -947,8 +945,18 @@ function findEscapes(
   const {lineStartRegExps, shouldPreserveNewLines, taggedFormats} = context;
   const starts: number[] = [];
   const pieceOf: number[] = [];
+  // The last piece of a text node before each piece, or -1.
+  const previousText: number[] = [];
   let text = '';
   pieces.forEach(([, pieceText], index) => {
+    const previous = pieces[index - 1];
+    previousText.push(
+      previous && $isTextNode(previous[0])
+        ? index - 1
+        : index > 0
+          ? previousText[index - 1]
+          : -1,
+    );
     starts.push(text.length);
     text += pieceText;
     for (let i = 0; i < pieceText.length; i++) {
@@ -988,10 +996,7 @@ function findEscapes(
     const piece = pieceOf[first];
     // A node that starts the line with its delimiters is not block syntax,
     // unless the text before it carries the format on and opens no tag.
-    let previous = piece === undefined ? -1 : piece - 1;
-    while (previous >= 0 && !$isTextNode(pieces[previous][0])) {
-      previous--;
-    }
+    const previous = piece === undefined ? -1 : previousText[piece];
     const isTagged =
       piece !== undefined &&
       /^[ \t]*$/.test(text.slice(starts[piece], first)) &&
@@ -1095,8 +1100,11 @@ function findEscapes(
         // An image the export writes.
         openers.pop();
       } else {
-        // A link the export writes, which deactivates the brackets before it.
-        openers = [];
+        // A link the export writes, which deactivates the brackets before it
+        // but not an image's.
+        openers = openers.filter(
+          index => text[index - 1] === '!' && !escaped.has(index - 1),
+        );
       }
     } else if (openers.pop() === undefined && literal && inLink) {
       escaped.add(i);

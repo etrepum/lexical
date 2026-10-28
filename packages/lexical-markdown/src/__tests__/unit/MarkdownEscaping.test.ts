@@ -162,6 +162,12 @@ describe('Markdown export of literal text', () => {
     );
   });
 
+  it('escapes an image closer after a link in its text', () => {
+    expect(exportPieces('![', {children: ['x'], url: 'u'}, '](y)')).toBe(
+      '![[x](u)\\](y)',
+    );
+  });
+
   it('escapes a `!` before a link', () => {
     expectExport(
       ['a!', {children: ['b'], url: 'https://lexical.dev'}],
@@ -773,17 +779,23 @@ describe('Markdown import of escapes and raw inline syntax', () => {
         $convertFromMarkdownString('a <b>x', TRANSFORMERS);
         const [text] = $getRoot().getAllTextNodes();
         expect(text.getTextContent()).toBe('a <b>x');
-        text.setTextContent('a <i> <b> [c](d)x');
+        text.setTextContent('a <b>x <i> [c](d)');
       },
       {discrete: true},
     );
     expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
-      'a \\<i> <b> [c\\](d)x',
+      'a <b>x \\<i> [c\\](d)',
     );
   });
 
   it('keeps repeated raw inline syntax as written', () => {
-    for (const markdown of ['<br><br>', 'a&nbsp;&nbsp;b', '*a <b>x</b>*']) {
+    for (const markdown of [
+      '<br><br>',
+      'a&nbsp;&nbsp;b',
+      '*a <b>x</b>*',
+      '\\<b> <b>',
+      '\\&amp; &amp;',
+    ]) {
       expect(importMarkdown(markdown).exported).toBe(markdown);
     }
   });

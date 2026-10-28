@@ -17,7 +17,6 @@ import {
   $isElementNode,
   $isParagraphNode,
   $isTabNode,
-  $isTextNode,
   $setState,
   type ElementNode,
   type LexicalNode,
@@ -109,9 +108,7 @@ export function $importMarkdownNodes(
       for (const textNode of child.getAllTextNodes()) {
         $normalizeMarkdownTextNode(textNode);
       }
-      for (const textNode of child.getAllTextNodes()) {
-        $mergeRawInlineText(textNode);
-      }
+      $mergeRawInlineText(child.getAllTextNodes());
     }
   }
 }
@@ -301,29 +298,44 @@ function $importBlocks(
 // the call stack on a long run of tabs, and the text can hold arbitrarily
 // many.
 // Joins raw inline syntax to the text around it, which import split apart to
-// read, keeping the syntax it holds.
-function $mergeRawInlineText(textNode: TextNode): void {
-  const previous = textNode.getPreviousSibling();
-  const raw = $getState(textNode, rawInlineState);
-  if (
-    !$isTextNode(previous) ||
-    $isTabNode(previous) ||
-    $isTabNode(textNode) ||
-    !previous.isSimpleText() ||
-    !textNode.isSimpleText() ||
-    previous.getFormat() !== textNode.getFormat() ||
-    previous.getStyle() !== textNode.getStyle() ||
-    (raw.length === 0 && $getState(previous, rawInlineState).length === 0)
-  ) {
-    return;
+// read, keeping where in the text each piece of syntax is.
+function $mergeRawInlineText(textNodes: TextNode[]): void {
+  let run: TextNode[] = [];
+  const $flush = () => {
+    if (run.some(node => $getState(node, rawInlineState).length > 0)) {
+      let text = '';
+      const raw: [number, string][] = [];
+      for (const node of run) {
+        for (const [start, source] of $getState(node, rawInlineState)) {
+          raw.push([text.length + start, source]);
+        }
+        text += node.getTextContent();
+      }
+      const [head, ...rest] = run;
+      $setState(head.setTextContent(text), rawInlineState, raw);
+      for (const node of rest) {
+        node.remove();
+      }
+    }
+    run = [];
+  };
+  for (const textNode of textNodes) {
+    const previous = run[run.length - 1];
+    if (
+      !previous ||
+      !previous.is(textNode.getPreviousSibling()) ||
+      previous.getFormat() !== textNode.getFormat() ||
+      previous.getStyle() !== textNode.getStyle()
+    ) {
+      $flush();
+    }
+    if (textNode.isSimpleText() && !$isTabNode(textNode)) {
+      run.push(textNode);
+    } else {
+      $flush();
+    }
   }
-  previous.setTextContent(
-    previous.getTextContent() + textNode.getTextContent(),
-  );
-  $setState(previous, rawInlineState, [
-    ...new Set([...$getState(previous, rawInlineState), ...raw]),
-  ]);
-  textNode.remove();
+  $flush();
 }
 
 function $normalizeMarkdownTextNode(textNode: TextNode): void {
