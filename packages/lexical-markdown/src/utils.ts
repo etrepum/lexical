@@ -110,12 +110,10 @@ export function unescapeText(value: string): string {
   );
 }
 
-// An escaped punctuation character is literal, so it cannot begin syntax.
+// Whether an odd run of backslashes comes before a character, which escapes
+// it if it is punctuation.
 // https://spec.commonmark.org/0.31.2/#backslash-escapes
 export function isEscaped(text: string, index: number): boolean {
-  if (!ESCAPABLE.test(text[index] || '')) {
-    return false;
-  }
   let backslashes = 0;
   for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) {
     backslashes++;

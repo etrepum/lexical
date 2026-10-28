@@ -8,7 +8,7 @@
 import type {TextMatchTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
-import {isEscaped} from './utils';
+import {ESCAPABLE, isEscaped} from './utils';
 
 const globalRegExps = new WeakMap<RegExp, RegExp>();
 
@@ -26,7 +26,7 @@ function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
   globalRegExp.lastIndex = 0;
   let match;
   while ((match = globalRegExp.exec(text)) !== null) {
-    if (!isEscaped(text, match.index)) {
+    if (!ESCAPABLE.test(text[match.index]) || !isEscaped(text, match.index)) {
       return match;
     }
     globalRegExp.lastIndex = match.index + 1;

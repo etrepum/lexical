@@ -1075,7 +1075,13 @@ function findEscapes(
             !escaped.has(index - 1),
         );
       }
-    } else if (openers.pop() === undefined && literal && inLink) {
+    } else if (
+      openers.pop() === undefined &&
+      literal &&
+      // When preserving newlines, the block before may continue the paragraph
+      // with an opener.
+      (inLink || shouldPreserveNewLines)
+    ) {
       escaped.add(i);
     }
   }

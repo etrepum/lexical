@@ -373,7 +373,7 @@ describe('Markdown export of literal text', () => {
         '\\\\\\<b> \\\\\\&copy; \\\\\\* \\x \\<i>',
       ],
       [['a\\', {children: ['x'], url: 'u'}], 'a\\\\[x](u)'],
-      [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\\\]**](b)**'],
+      [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\\\]**\\](b)**'],
     ] as [Piece[], string][]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(
@@ -485,6 +485,26 @@ describe('Markdown export of literal text', () => {
         $convertToMarkdownString(TRANSFORMERS, undefined, true),
       ),
     ).toBe('Title\n\\===');
+  });
+
+  it('escapes a closer whose opener is in the block before when preserving newlines', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append($createTextNode('[a')),
+            $createParagraphNode().append($createTextNode('b](c)')),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertToMarkdownString(TRANSFORMERS, undefined, true),
+      ),
+    ).toBe('[a\nb\\](c)');
   });
 
   it('escapes a highlighted setext heading underline', () => {
@@ -738,6 +758,7 @@ describe('Markdown import of escapes', () => {
     for (const [markdown, text] of [
       ['[call f[0](x, y)](u)', 'call f[0](x, y)'],
       ['[[x](y](u)', '[x](y'],
+      ['[a (b) c](u)', 'a (b) c'],
     ]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
@@ -749,6 +770,36 @@ describe('Markdown import of escapes', () => {
         expect(link.getTextContent()).toBe(text);
       });
     }
+  });
+
+  it('reads a link inside brackets before a destination', () => {
+    for (const markdown of [
+      '[see [Foo](https://en.wikipedia.org/wiki/Foo_(bar))](x)',
+      '[a [b](c "t")](d)',
+      '[a [b](<c d>)](d)',
+    ]) {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
+        discrete: true,
+      });
+      editor.read(() => {
+        const [first] = $getRoot().getAllTextNodes();
+        expect($isLinkNode(first.getParent())).toBe(false);
+      });
+    }
+  });
+
+  it('reads escapes of custom format tags', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    const UNDERLINE = {
+      format: ['underline'],
+      tag: '§',
+      type: 'text-format',
+    } as const;
+    editor.update(() => $convertFromMarkdownString('\\§x§ y', [UNDERLINE]), {
+      discrete: true,
+    });
+    expect(editor.read(() => $getRoot().getTextContent())).toBe('\\§x§ y');
   });
 
   it('reads link text with backtick runs', () => {
