@@ -13,14 +13,15 @@ import {ESCAPABLE, isEscaped} from './utils';
 const globalRegExps = new WeakMap<RegExp, RegExp>();
 
 // The first match that does not start at an escaped character, which is
-// literal text rather than the start of syntax.
-function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
+// literal text rather than the start of syntax. A global or sticky regular
+// expression is matched as it is.
+function matchUnescaped(text: string, regExp: RegExp): RegExpMatchArray | null {
+  if (regExp.global || regExp.sticky) {
+    return text.match(regExp);
+  }
   let globalRegExp = globalRegExps.get(regExp);
   if (globalRegExp === undefined) {
-    globalRegExp = new RegExp(
-      regExp.source,
-      regExp.flags.replace(/[gy]/g, '') + 'g',
-    );
+    globalRegExp = new RegExp(regExp.source, regExp.flags + 'g');
     globalRegExps.set(regExp, globalRegExp);
   }
   globalRegExp.lastIndex = 0;
@@ -63,7 +64,7 @@ export function findOutermostTextMatchTransformer(
       continue;
     }
 
-    const startIndex = match.index;
+    const startIndex = match.index || 0;
     const endIndex = transformer.getEndIndex
       ? transformer.getEndIndex(textNode, match)
       : startIndex + match[0].length;

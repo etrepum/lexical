@@ -171,11 +171,11 @@ describe('Markdown export of literal text', () => {
   it('keeps a format that ends in punctuation before an escape', () => {
     expectExport(
       [{format: 'bold', text: 'Note:'}, '<br> see'],
-      '**Note:**\\<br> see',
+      '**Note:**&#60;br> see',
     );
     expectExport(
       [{format: 'italic', text: 'Q&A.'}, '&copy; 2024'],
-      '*Q&A.*\\&copy; 2024',
+      '*Q&A.*&#38;copy; 2024',
     );
   });
 
@@ -790,6 +790,23 @@ describe('Markdown import of escapes', () => {
         expect($isLinkNode(first.getParent())).toBe(false);
       });
     }
+  });
+
+  it('matches a sticky custom regular expression only where it starts', () => {
+    const EMOJI: TextMatchTransformer = {
+      dependencies: [],
+      importRegExp: /:([a-z]+):/y,
+      regExp: /(?!)/,
+      replace: textNode => {
+        textNode.replace($createTextNode('emoji'));
+      },
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(() => $convertFromMarkdownString('x :smile:', [EMOJI]), {
+      discrete: true,
+    });
+    expect(editor.read(() => $getRoot().getTextContent())).toBe('x :smile:');
   });
 
   it('reads escapes of custom format tags', () => {
