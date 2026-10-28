@@ -688,10 +688,13 @@ function createExportContext(
       .map(transformer => transformer.format[0])
       .filter(format => format !== 'code'),
     textMatchTransformers: byType.textMatch,
+    // Dependencies are not read by export otherwise, so a transformer
+    // without them still exports.
     writesHeadings: byType.element.some(transformer =>
-      transformer.dependencies.some(
+      (transformer.dependencies || []).some(
         klass =>
-          klass === HeadingNode || klass.prototype instanceof HeadingNode,
+          klass === HeadingNode ||
+          (klass !== undefined && klass.prototype instanceof HeadingNode),
       ),
     ),
   };
@@ -890,7 +893,8 @@ const ESCAPABLE_CHARACTERS = /[!-/:-@[-`{-~]/g;
 const LINE_START_SYNTAX =
   /^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-[-:|\s]*$|\[[ xX]?\](?:\s|$))/;
 
-// A setext heading underline or table delimiter row, after a line of text.
+// A setext heading underline or table delimiter row, after a line of text,
+// which may end the block before when preserving newlines.
 const UNDERLINE_SYNTAX = /^(?:=+\s*$|[:|][-:|\s]*-[-:|\s]*$)/;
 
 // Finds the escapes that the text of a block or link needs, by node: line
@@ -985,7 +989,8 @@ function findEscapes(
       isLiteral(first) &&
       ESCAPABLE.test(text[first]) &&
       (LINE_START_SYNTAX.test(rest) ||
-        (lineStart > 0 && UNDERLINE_SYNTAX.test(rest)) ||
+        ((lineStart > 0 || shouldPreserveNewLines) &&
+          UNDERLINE_SYNTAX.test(rest)) ||
         lineStartRegExps.some(regExp => line.search(regExp) !== -1))
     ) {
       escaped.add(first);

@@ -467,6 +467,26 @@ describe('Markdown export of literal text', () => {
     );
   });
 
+  it('escapes an underline that starts a block when preserving newlines', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append($createTextNode('Title')),
+            $createParagraphNode().append($createTextNode('===')),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertToMarkdownString(TRANSFORMERS, undefined, true),
+      ),
+    ).toBe('Title\n\\===');
+  });
+
   it('escapes a highlighted setext heading underline', () => {
     expectExport(['a', '\n', {format: 'highlight', text: '='}], 'a\n==\\===');
   });
@@ -712,6 +732,23 @@ describe('Markdown import of escapes', () => {
       {discrete: true},
     );
     expect(editor.read(() => $getRoot().getTextContent())).toBe('\\(x) math');
+  });
+
+  it('reads link text holding brackets before text that is no destination', () => {
+    for (const [markdown, text] of [
+      ['[call f[0](x, y)](u)', 'call f[0](x, y)'],
+      ['[[x](y](u)', '[x](y'],
+    ]) {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
+        discrete: true,
+      });
+      editor.read(() => {
+        const link = $getRoot().getFirstDescendant()?.getParent();
+        assert($isLinkNode(link));
+        expect(link.getTextContent()).toBe(text);
+      });
+    }
   });
 
   it('reads link text with backtick runs', () => {
