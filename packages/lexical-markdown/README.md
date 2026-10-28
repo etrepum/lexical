@@ -87,7 +87,7 @@ And bundles of commonly used transformers:
 
 Transformers are explicitly passed to markdown API allowing application-specific subset of markdown or custom transformers.
 
-Export escapes text that would otherwise read back as Markdown syntax. Inline HTML, autolinks and named or hexadecimal character references in imported Markdown are kept as text, so they are exported escaped and read back as the same text.
+Export escapes literal text that would otherwise read back as a link, inline HTML, an autolink, a character reference or block syntax at the start of a line, along with every `*`, `_`, `` ` `` and `~`. Inline HTML, autolinks and named or hexadecimal character references in imported Markdown are kept as text, so they are exported escaped and read back as the same text.
 
 There're three types of transformers:
 

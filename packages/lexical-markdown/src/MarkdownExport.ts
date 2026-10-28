@@ -758,8 +758,10 @@ function $isMarkdownLinkNode(
 }
 
 // Escapes literal text that would otherwise read back as Markdown syntax.
-// `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere. Other syntax
-// depends on the text around it, which is read once for each block.
+// `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere, except that
+// when preserving newlines a backslash is escaped only where it would escape
+// what follows it. Other syntax depends on the text around it, which is read
+// once for each block.
 function $escapeText(
   node: TextNode,
   textContent: string,
@@ -879,8 +881,9 @@ function $collectPieces(
   return pieces;
 }
 
-// The Markdown a text match transformer other than for links writes for a
-// node, which is opaque to escaping, or null.
+// The Markdown the first text match transformer that writes a node writes for
+// it, or null. Other than for a link written as `[text](url)`, whose text is
+// read on its own, it is opaque to escaping.
 function $exportWithTransformer(
   node: LexicalNode,
   context: ExportContext,
@@ -903,8 +906,8 @@ function $exportWithTransformer(
 const ESCAPABLE_CHARACTERS = /[!-/:-@[-`{-~]/g;
 
 // A line that would read back as a heading, block quote, list item, task
-// list item or thematic break. Fences and HTML blocks start with characters
-// escaped anywhere.
+// list item or thematic break. Fences start with characters escaped anywhere,
+// and HTML blocks with a `<` that is escaped before what could begin a tag.
 const LINE_START_SYNTAX =
   /^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-[-:|\s]*$|\[[ xX]?\](?:\s|$))/;
 
@@ -950,7 +953,9 @@ function findEscapes(
   const escaped = new Set<number>();
 
   // When preserving source newlines, a backslash at the end of a node would
-  // escape what the export writes next, or make a hard line break.
+  // escape what the export writes next in the block, or make a hard line
+  // break. At the end of a block it is written as it is, as that mode reads
+  // each line of its own output as a block.
   if (shouldPreserveNewLines) {
     pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;
@@ -1072,10 +1077,18 @@ function findEscapes(
   // import reads holds brackets nested up to three deep, so a pair deeper than
   // that is escaped, kept as -1.
   // https://spec.commonmark.org/0.31.2/#look-for-link-or-image
-  let openers: number[] = [];
+  const openers: number[] = [];
+  // A link the export writes deactivates the openers before it, except an
+  // image's. A link after a literal `!` counts as a link, so that an image
+  // imported as `!` and a link is written as it was.
+  let activeFrom = 0;
+  const isActive = (opener: number): boolean =>
+    opener >= activeFrom ||
+    (isLiteral(opener) && text[opener - 1] === '!' && !escaped.has(opener - 1));
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const literal = isLiteral(i);
+    const opener = openers[openers.length - 1];
     if ((char !== '[' && char !== ']') || escaped.has(i)) {
       // Not a bracket a reader pairs.
     } else if (char === '[') {
@@ -1085,35 +1098,26 @@ function findEscapes(
       } else {
         openers.push(i);
       }
-    } else if (openers[openers.length - 1] === -1) {
+    } else if (opener === -1) {
       openers.pop();
       if (literal) {
         escaped.add(i);
       }
     } else if (
-      openers.length > 0 &&
+      opener !== undefined &&
+      isActive(opener) &&
       (text[i + 1] === '(' ||
         // A link reference definition, whose label holds no brackets.
-        (text[i + 1] === ':' &&
-          paragraphStarts.has(openers[openers.length - 1])))
+        (text[i + 1] === ':' && paragraphStarts.has(opener)))
     ) {
-      const opener = openers[openers.length - 1];
       if (literal) {
         // Escaped, the bracket keeps the opener.
         escaped.add(i);
-      } else if (text[opener - 1] === '!' && !isLiteral(opener - 1)) {
-        // An image the export writes.
-        openers.pop();
       } else {
-        // A link the export writes, which deactivates the brackets before it
-        // but not an image's. A link after a literal `!` counts as a link, so
-        // that an image imported as `!` and a link is written as it was.
-        openers = openers.filter(
-          index =>
-            isLiteral(index) &&
-            text[index - 1] === '!' &&
-            !escaped.has(index - 1),
-        );
+        openers.pop();
+        if (text[opener - 1] !== '!' || isLiteral(opener - 1)) {
+          activeFrom = i;
+        }
       }
     } else if (
       openers.pop() === undefined &&
