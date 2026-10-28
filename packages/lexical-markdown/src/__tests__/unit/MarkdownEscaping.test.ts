@@ -176,6 +176,24 @@ describe('Markdown export of literal text', () => {
       ['![a [c ', {children: ['b'], url: 'u'}, ' d] e](z)'],
       '![a [c [b](u) d] e\\](z)',
     );
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              ...$createPieces(['[a ', {children: ['b'], url: 'u'}, ' c](z)']),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertToMarkdownString(TRANSFORMERS, undefined, true),
+      ),
+    ).toBe('[a [b](u) c](z)');
   });
 
   it('keeps a format that ends in punctuation before an escape', () => {
