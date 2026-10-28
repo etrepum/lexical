@@ -29,6 +29,14 @@ function matchUnescaped(text: string, regExp: RegExp): RegExpMatchArray | null {
     if (!ESCAPABLE.test(text[index]) || !isEscaped(text, index)) {
       match.index = index;
       match.input = text;
+      if (match.indices) {
+        for (const range of match.indices) {
+          if (range) {
+            range[0] += offset;
+            range[1] += offset;
+          }
+        }
+      }
       return match;
     }
     offset = index + 1;

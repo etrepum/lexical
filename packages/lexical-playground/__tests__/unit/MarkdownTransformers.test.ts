@@ -315,7 +315,7 @@ describe('playground IMAGE markdown transformer', () => {
     using editor = buildEditorFromExtensions(ImageMarkdownTestExtension);
     editor.update(
       () => {
-        $convertFromMarkdownString('![a]b](src.png)', [IMAGE]);
+        $convertFromMarkdownString('![a]b](src.png) c](d)', [IMAGE]);
       },
       {discrete: true},
     );
@@ -325,6 +325,7 @@ describe('playground IMAGE markdown transformer', () => {
       const image = paragraph.getFirstChild();
       assert($isImageNode(image), 'Paragraph child must be an ImageNode');
       expect(image.getAltText()).toBe('a]b');
+      expect(paragraph.getTextContent()).toBe(' c](d)');
     });
   });
 });

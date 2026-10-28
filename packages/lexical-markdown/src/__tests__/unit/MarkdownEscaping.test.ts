@@ -869,6 +869,24 @@ describe('Markdown import of escapes', () => {
       discrete: true,
     });
     expect(editor.read(() => $getRoot().getTextContent())).toBe('see (tag)');
+    const DOLLARS: TextMatchTransformer = {
+      dependencies: [],
+      getEndIndex: (_node, match) => match.indices![0]![1],
+      // The `d` flag, written so as to compile for older targets.
+      importRegExp: new RegExp('\\$(\\w+)\\$', 'd'),
+      regExp: /(?!)/,
+      replace: textNode => {
+        textNode.replace($createTextNode('math'));
+      },
+      type: 'text-match',
+    };
+    editor.update(
+      () => $convertFromMarkdownString('\\$5$ and $x$ y', [DOLLARS]),
+      {discrete: true},
+    );
+    expect(editor.read(() => $getRoot().getTextContent())).toBe(
+      '$5$ and math y',
+    );
   });
 
   it('matches a sticky custom regular expression only where it starts', () => {
