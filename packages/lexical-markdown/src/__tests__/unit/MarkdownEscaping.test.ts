@@ -218,6 +218,8 @@ describe('Markdown export of literal text', () => {
       '**Note:**&#60;br> see',
     );
     expectExport([{format: 'bold', text: 'x.'}, '\\a'], '**x.**&#92;a', true);
+    expectExport([{format: 'bold', text: 'a.'}, '*b'], '**a.**&#42;b');
+    expectExport([{format: 'bold', text: 'a\\ '}, 'b'], '**a\\\\** b', true);
     expectExport(
       [{format: 'italic', text: 'Q&A.'}, '&copy; 2024'],
       '*Q&A.*&#38;copy; 2024',

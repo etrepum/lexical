@@ -310,4 +310,21 @@ describe('playground IMAGE markdown transformer', () => {
       expect($isImageNode(paragraph.getFirstChild())).toBe(false);
     });
   });
+
+  it('imports an image whose alt text holds a closing bracket', () => {
+    using editor = buildEditorFromExtensions(ImageMarkdownTestExtension);
+    editor.update(
+      () => {
+        $convertFromMarkdownString('![a]b](src.png)', [IMAGE]);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const paragraph = $getRoot().getFirstChildOrThrow();
+      assert($isParagraphNode(paragraph), 'Root child must be a paragraph');
+      const image = paragraph.getFirstChild();
+      assert($isImageNode(image), 'Paragraph child must be an ImageNode');
+      expect(image.getAltText()).toBe('a]b');
+    });
+  });
 });

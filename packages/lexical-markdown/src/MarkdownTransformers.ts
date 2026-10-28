@@ -1285,7 +1285,8 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    // Escaped brackets are not counted.
+    // Escaped brackets are not counted. Link text that `importRegExp` matches
+    // is balanced, so only the shortcut `regExp` can match unbalanced text.
     const brackets = linkText.replace(/\\./g, '  ');
     const openBracketAmount = brackets.split('[').length - 1;
     const closeBracketAmount = brackets.split(']').length - 1;

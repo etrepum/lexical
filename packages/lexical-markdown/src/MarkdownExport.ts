@@ -787,7 +787,9 @@ function $escapeText(
     ESCAPABLE_CHARACTERS,
     (char: string, index: number) =>
       // A backslash written as it is would not count as punctuation either.
-      index === 0 && afterCloser && (char === '\\' || escapes.has(index))
+      index === 0 &&
+      afterCloser &&
+      (char === '\\' || escapes.has(index) || /[*_`~]/.test(char))
         ? '&#' + char.charCodeAt(0) + ';'
         : escapes.has(index) ||
             (char === '\\'
@@ -991,14 +993,15 @@ function findEscapes(
   if (shouldPreserveNewLines) {
     pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;
+      // A format closes before trailing whitespace.
+      const trailing = /\\(\s*)$/.exec(pieceText);
+      const tagged = taggedFormats.some(format => hasFormat(node, format));
       if (
         literal &&
-        pieceText.endsWith('\\') &&
-        (end < text.length ||
-          inLink ||
-          taggedFormats.some(format => hasFormat(node, format)))
+        trailing &&
+        (tagged || (trailing[1] === '' && (end < text.length || inLink)))
       ) {
-        escaped.add(end - 1);
+        escaped.add(end - 1 - trailing[1].length);
       }
     });
   }
@@ -1018,6 +1021,7 @@ function findEscapes(
     const previous = piece === undefined ? -1 : previousText[piece];
     const isTagged =
       piece !== undefined &&
+      starts[piece] >= lineStart &&
       /^[ \t]*$/.test(text.slice(starts[piece], first)) &&
       taggedFormats.some(
         format =>
