@@ -10,7 +10,7 @@ import type {TextFormatTransformersIndex} from './MarkdownImport';
 import type {TextFormatTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
-import {PUNCTUATION, WHITESPACE} from './utils';
+import {isEscaped, PUNCTUATION, WHITESPACE} from './utils';
 
 interface Delimiter {
   index: number;
@@ -129,14 +129,6 @@ function scanCodeSpans(text: string): {
   endIndex: number;
   content: string;
 }[] {
-  const isEscaped = (index: number): boolean => {
-    let count = 0;
-    for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) {
-      count++;
-    }
-    return count % 2 === 1;
-  };
-
   // Collect maximal backtick runs.
   const runs: {index: number; length: number}[] = [];
   let i = 0;
@@ -159,7 +151,7 @@ function scanCodeSpans(text: string): {
     const opener = runs[openIdx];
 
     // An escaped backtick run is a literal backtick and cannot open a span.
-    if (isEscaped(opener.index)) {
+    if (isEscaped(text, opener.index)) {
       openIdx++;
       continue;
     }
@@ -212,14 +204,6 @@ function scanDelimiters(
       .map(tag => tag[0]),
   );
 
-  const isEscaped = (index: number): boolean => {
-    let count = 0;
-    for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) {
-      count++;
-    }
-    return count % 2 === 1;
-  };
-
   const isInExcludedRange = (index: number): boolean => {
     return excludeRanges.some(
       range => index >= range.start && index < range.end,
@@ -230,7 +214,11 @@ function scanDelimiters(
   while (i < text.length) {
     const char = text[i];
 
-    if (!delimiterChars.has(char) || isEscaped(i) || isInExcludedRange(i)) {
+    if (
+      !delimiterChars.has(char) ||
+      isEscaped(text, i) ||
+      isInExcludedRange(i)
+    ) {
       i++;
       continue;
     }

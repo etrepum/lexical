@@ -26,6 +26,7 @@ import {
   $createMarkdownLineBreakNode,
   type ElementTransformer,
   type MultilineElementTransformer,
+  RAW_INLINE,
   type TextFormatTransformer,
   type TextMatchTransformer,
   type Transformer,
@@ -53,6 +54,9 @@ export function $importMarkdownNodes(
   const textFormatTransformersIndex = createTextFormatTransformersIndex(
     byType.textFormat,
   );
+  // Raw inline syntax is kept as written whatever the transformers are, so
+  // that export can tell it from text that only looks like it.
+  const textMatchTransformers = [...byType.textMatch, RAW_INLINE];
   const lines = markdownString.split('\n');
   const linesLength = lines.length;
 
@@ -81,7 +85,7 @@ export function $importMarkdownNodes(
         container,
         byType.element,
         textFormatTransformersIndex,
-        byType.textMatch,
+        textMatchTransformers,
         shouldPreserveNewLines,
       );
     }

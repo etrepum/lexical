@@ -10,9 +10,13 @@
 
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {$createLinkNode, $isLinkNode} from '@lexical/link';
+import {$createListItemNode, $createListNode} from '@lexical/list';
 import {
   $convertFromMarkdownString,
+  $convertSelectionToMarkdownString,
   $convertToMarkdownString,
+  HEADING,
+  type TextMatchTransformer,
   TRANSFORMERS,
 } from '@lexical/markdown';
 import {
@@ -20,6 +24,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $getSelection,
   $isParagraphNode,
   $isTextNode,
   type LexicalNode,
@@ -124,7 +129,7 @@ describe('Markdown export of literal text', () => {
 
   it('leaves brackets that cannot form a link unescaped', () => {
     expectExport(['[1] and a](b)'], '[1] and a](b)');
-    expectExport(['[x] (y)'], '[x] (y)');
+    expectExport(['a [x] (y)'], 'a [x] (y)');
     expectExport(
       ['[a ', {children: ['b'], url: 'https://lexical.dev'}, '](c)'],
       '[a [b](https://lexical.dev)](c)',
@@ -169,6 +174,54 @@ describe('Markdown export of literal text', () => {
     expectExport(['a|b', '\n', '-|-'], 'a|b\n\\-|-');
     expectExport(['|a|', '\n', '|:-|'], '|a|\n\\|:-|');
     expectExport(['#', {format: 'bold', text: ' a'}], '\\# **a**');
+    expectExport(['[x] a'], '\\[x] a');
+    expectExport(['a', '\n', '[ ] b'], 'a\n\\[ ] b');
+    expect(exportPieces({format: 'bold', text: '  '}, '# a')).toBe('  \\# a');
+  });
+
+  it('escapes a task list marker at the start of a list item', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('[x] done')),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    const markdown = editor.read(() => $convertToMarkdownString(TRANSFORMERS));
+    expect(markdown).toBe('- \\[x] done');
+    expect(importMarkdown(markdown).exported).toBe(markdown);
+  });
+
+  it('escapes a line start where a selection starts', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        const text = $createTextNode('# a');
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createLinkNode('https://lexical.dev').append(
+                $createTextNode('b'),
+              ),
+              text,
+            ),
+          );
+        text.select(0, 3);
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertSelectionToMarkdownString(TRANSFORMERS, $getSelection()),
+      ),
+    ).toBe('\\# a');
   });
 
   it('escapes a line start after a line break in link text', () => {
@@ -206,6 +259,43 @@ describe('Markdown import of escapes and raw inline syntax', () => {
         text: markdown,
       });
     }
+  });
+
+  it('keeps raw inline syntax with any transformers', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    const markdown = '<b>x</b> &copy; <https://lexical.dev>';
+    editor.update(() => $convertFromMarkdownString(markdown, [HEADING]), {
+      discrete: true,
+    });
+    expect(editor.read(() => $convertToMarkdownString([HEADING]))).toBe(
+      markdown,
+    );
+  });
+
+  it('keeps raw inline syntax and formats before a link', () => {
+    expect(importMarkdown('[<b> [x](y)')).toEqual({
+      exported: '[<b> [x](y)',
+      text: '[<b> x',
+    });
+    expect(importMarkdown('[*a* [x](y)').exported).toBe('[*a* [x](y)');
+  });
+
+  it('does not match syntax that starts at an escaped backslash', () => {
+    const MATH: TextMatchTransformer = {
+      dependencies: [],
+      importRegExp: /\\\((.+?)\\\)/,
+      regExp: /(?!)/,
+      replace: textNode => {
+        textNode.replace($createTextNode('math'));
+      },
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => $convertFromMarkdownString('\\\\(x\\) \\(y\\)', [MATH]),
+      {discrete: true},
+    );
+    expect(editor.read(() => $getRoot().getTextContent())).toBe('\\(x) math');
   });
 
   it('escapes raw inline syntax once its text is edited', () => {

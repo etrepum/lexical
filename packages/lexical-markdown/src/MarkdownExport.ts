@@ -20,6 +20,7 @@ import {
   type ElementNode,
   type LexicalNode,
   type LineBreakNode,
+  type NodeKey,
   type TextFormatType,
   type TextNode,
 } from 'lexical';
@@ -34,7 +35,11 @@ import {
   type TextMatchTransformer,
   type Transformer,
 } from './MarkdownTransformers';
-import {isEmptyParagraph, transformersByType} from './utils';
+import {
+  CHARACTER_REFERENCE_START,
+  isEmptyParagraph,
+  transformersByType,
+} from './utils';
 
 /**
  * Renders string from markdown. The selection is moved to the start after the operation.
@@ -60,36 +65,37 @@ export function createMarkdownExport(
       );
     });
 
-  return node => {
-    const output = [];
-    const children = (node || $getRoot()).getChildren();
+  return node =>
+    $withExportContext(null, () => {
+      const output = [];
+      const children = (node || $getRoot()).getChildren();
 
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      const result = $exportTopLevelElements(
-        child,
-        elementTransformers,
-        textFormatTransformers,
-        byType.textMatch,
-        shouldPreserveNewLines,
-      );
-
-      if (result != null) {
-        output.push(
-          // separate consecutive group of texts with a line break: eg. ["hello", "world"] -> ["hello", "/nworld"]
-          isNewlineDelimited &&
-            i > 0 &&
-            !isEmptyParagraph(child) &&
-            !isEmptyParagraph(children[i - 1])
-            ? '\n'.concat(result)
-            : result,
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        const result = $exportTopLevelElements(
+          child,
+          elementTransformers,
+          textFormatTransformers,
+          byType.textMatch,
+          shouldPreserveNewLines,
         );
+
+        if (result != null) {
+          output.push(
+            // separate consecutive group of texts with a line break: eg. ["hello", "world"] -> ["hello", "/nworld"]
+            isNewlineDelimited &&
+              i > 0 &&
+              !isEmptyParagraph(child) &&
+              !isEmptyParagraph(children[i - 1])
+              ? '\n'.concat(result)
+              : result,
+          );
+        }
       }
-    }
-    // Ensure consecutive groups of texts are at least \n\n apart while each empty paragraph render as a newline.
-    // Eg. ["hello", "", "", "hi", "\nworld"] -> "hello\n\n\nhi\n\nworld"
-    return output.join('\n');
-  };
+      // Ensure consecutive groups of texts are at least \n\n apart while each empty paragraph render as a newline.
+      // Eg. ["hello", "", "", "hi", "\nworld"] -> "hello\n\n\nhi\n\nworld"
+      return output.join('\n');
+    });
 }
 
 /**
@@ -114,38 +120,39 @@ export function createSelectionMarkdownExport(
       );
     });
 
-  return selection => {
-    const output = [];
-    // The separator depends on the previously *emitted* block, not on the
-    // previous root child: unselected children produce no output, so keying
-    // off the child index would prefix a newline to the first emitted block
-    // whenever the selection starts below the top of the document.
-    let previousExported: LexicalNode | null = null;
+  return selection =>
+    $withExportContext(selection, () => {
+      const output = [];
+      // The separator depends on the previously *emitted* block, not on the
+      // previous root child: unselected children produce no output, so keying
+      // off the child index would prefix a newline to the first emitted block
+      // whenever the selection starts below the top of the document.
+      let previousExported: LexicalNode | null = null;
 
-    for (const child of $getRoot().getChildren()) {
-      const {shouldInclude, markdown} = $processNodeForSelection(
-        child,
-        selection,
-        elementTransformers,
-        textFormatTransformers,
-        byType.textMatch,
-        shouldPreserveNewLines,
-      );
-
-      if (shouldInclude && markdown != null) {
-        output.push(
-          isNewlineDelimited &&
-            previousExported !== null &&
-            !isEmptyParagraph(child) &&
-            !isEmptyParagraph(previousExported)
-            ? '\n'.concat(markdown)
-            : markdown,
+      for (const child of $getRoot().getChildren()) {
+        const {shouldInclude, markdown} = $processNodeForSelection(
+          child,
+          selection,
+          elementTransformers,
+          textFormatTransformers,
+          byType.textMatch,
+          shouldPreserveNewLines,
         );
-        previousExported = child;
+
+        if (shouldInclude && markdown != null) {
+          output.push(
+            isNewlineDelimited &&
+              previousExported !== null &&
+              !isEmptyParagraph(child) &&
+              !isEmptyParagraph(previousExported)
+              ? '\n'.concat(markdown)
+              : markdown,
+          );
+          previousExported = child;
+        }
       }
-    }
-    return output.join('\n');
-  };
+      return output.join('\n');
+    });
 }
 
 function $processNodeForSelection(
@@ -643,8 +650,31 @@ function $exportTextFormat(
   );
 }
 
-const INLINE_SYNTAX_START =
-  /<(?=[A-Za-z/!?])|&(?=#\d+;|#[Xx][\dA-Fa-f]+;|[A-Za-z][\dA-Za-z]*;)/g;
+// What one export call shares: the selection it exports, if any, and the
+// brackets to escape in each block or link text, paired once per export.
+let exportContext: {
+  brackets: Map<NodeKey, Map<NodeKey, Set<number>>>;
+  selection: BaseSelection | null;
+} | null = null;
+
+function $withExportContext<T>(
+  selection: BaseSelection | null,
+  fn: () => T,
+): T {
+  const previous = exportContext;
+  exportContext = {brackets: new Map(), selection};
+  try {
+    return fn();
+  } finally {
+    exportContext = previous;
+  }
+}
+
+// Whether a node is part of what is exported.
+function $isExported(node: LexicalNode): boolean {
+  const selection = exportContext && exportContext.selection;
+  return selection === null || node.isSelected(selection);
+}
 
 function $isMarkdownLinkNode(node: LexicalNode | null): boolean {
   return $isLinkNode(node) && !$isAutoLinkNode(node);
@@ -666,37 +696,15 @@ function $escapeText(
           ? '\\' + char
           : char,
     )
-    .replace(INLINE_SYNTAX_START, '\\$&');
+    // `<` that would begin raw HTML or an autolink, and `&` that would begin
+    // a character reference.
+    .replace(/<(?=[A-Za-z/!?])/g, '\\<')
+    .replace(CHARACTER_REFERENCE_START, '\\&');
   // A `!` before a link would make it an image.
   if (output.endsWith('!') && $isMarkdownLinkNode(node.getNextSibling())) {
     output = output.slice(0, -1) + '\\!';
   }
   return output;
-}
-
-// The text beside a node in its block, or in the text of the link around it.
-// It stops at a link, which deactivates the brackets before it.
-function $textBeside(node: LexicalNode, backward: boolean): string {
-  let text = '';
-  for (let current = node; ; ) {
-    for (
-      let sibling = backward
-        ? current.getPreviousSibling()
-        : current.getNextSibling();
-      sibling !== null && !$isMarkdownLinkNode(sibling);
-      sibling = backward
-        ? sibling.getPreviousSibling()
-        : sibling.getNextSibling()
-    ) {
-      const siblingText = $bracketText(sibling);
-      text = backward ? siblingText + text : text + siblingText;
-    }
-    const parent = current.getParent();
-    if (parent === null || !parent.isInline() || $isMarkdownLinkNode(parent)) {
-      return text;
-    }
-    current = parent;
-  }
 }
 
 // The text of a node as a reader pairs brackets in it. Brackets in a code span
@@ -710,48 +718,116 @@ function $bracketText(node: LexicalNode): string {
 }
 
 // The indices of the brackets in a node's text that would read back as a
-// link, an image or a link reference definition, paired the way a CommonMark
-// reader pairs them. In link text, every bracket that is not part of a
-// balanced pair is escaped as well.
-// https://spec.commonmark.org/0.31.2/#look-for-link-or-image
+// link, an image or a link reference definition. In link text, every bracket
+// that is not part of a balanced pair is escaped as well.
 function $bracketsToEscape(node: TextNode, textContent: string): Set<number> {
-  const escaped = new Set<number>();
-  if (!/[[\]]/.test(textContent)) {
-    return escaped;
+  const container = /[[\]]/.test(textContent)
+    ? $findMatchingParent(
+        node,
+        parent =>
+          $isElementNode(parent) &&
+          (!parent.isInline() || $isMarkdownLinkNode(parent)),
+      )
+    : null;
+  if (!$isElementNode(container)) {
+    return new Set();
   }
-  const inLink = $findMatchingParent(node, $isMarkdownLinkNode) !== null;
-  const before = $textBeside(node, true);
-  const text = before + textContent + $textBeside(node, false);
-  const openers: number[] = [];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '[') {
-      openers.push(i);
-    } else if (text[i] === ']') {
-      if (openers.length > 0 && /[(:]/.test(text[i + 1] || '')) {
-        // The reader would close a link here. Escaped, it keeps the opener.
-        escaped.add(i);
-      } else if (openers.pop() === undefined && inLink) {
-        escaped.add(i);
+  // A selection exports a slice of the text, which is paired on its own.
+  const cache =
+    exportContext && textContent === node.getTextContent()
+      ? exportContext.brackets
+      : null;
+  let brackets = cache && cache.get(container.getKey());
+  if (!brackets) {
+    brackets = $pairBrackets(container, node, textContent);
+    if (cache) {
+      cache.set(container.getKey(), brackets);
+    }
+  }
+  return brackets.get(node.getKey()) || new Set();
+}
+
+// Pairs the brackets in the text of a block or link the way a CommonMark
+// reader does, and returns the ones to escape by text node. A link nested in
+// it starts a new run, since it deactivates the brackets before it.
+// https://spec.commonmark.org/0.31.2/#look-for-link-or-image
+function $pairBrackets(
+  container: ElementNode,
+  node: TextNode,
+  textContent: string,
+): Map<NodeKey, Set<number>> {
+  const inLink = $isMarkdownLinkNode(container);
+  const brackets = new Map<NodeKey, Set<number>>();
+  let pieces: [NodeKey, number][] = [];
+  let text = '';
+  const flush = () => {
+    const escaped: number[] = [];
+    const openers: number[] = [];
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '[') {
+        openers.push(i);
+      } else if (text[i] === ']') {
+        if (openers.length > 0 && /[(:]/.test(text[i + 1] || '')) {
+          // The reader would close a link here. Escaped, it keeps the opener.
+          escaped.push(i);
+        } else if (openers.pop() === undefined && inLink) {
+          escaped.push(i);
+        }
       }
     }
-  }
-  if (inLink) {
-    for (const opener of openers) {
-      escaped.add(opener);
+    if (inLink) {
+      escaped.push(...openers);
     }
-  }
-  return new Set(
-    Array.from(escaped, index => index - before.length).filter(
-      index => index >= 0 && index < textContent.length,
-    ),
+    for (const index of escaped) {
+      let piece = pieces.length - 1;
+      while (pieces[piece][1] > index) {
+        piece--;
+      }
+      const [key, start] = pieces[piece];
+      const indices = brackets.get(key) || new Set();
+      brackets.set(key, indices.add(index - start));
+    }
+    pieces = [];
+    text = '';
+  };
+  const $visit = (parent: ElementNode) => {
+    for (const child of parent.getChildren()) {
+      if ($isMarkdownLinkNode(child)) {
+        flush();
+      } else if ($isElementNode(child)) {
+        $visit(child);
+      } else {
+        pieces.push([child.getKey(), text.length]);
+        text += child.is(node) ? textContent : $bracketText(child);
+      }
+    }
+  };
+  $visit(container);
+  flush();
+  return brackets;
+}
+
+// Whether a text node exports as whitespace alone, without delimiters.
+function $isBlankText(node: LexicalNode): boolean {
+  return (
+    $isTextNode(node) &&
+    !node.hasFormat('code') &&
+    /^\s*$/.test(node.getTextContent())
   );
 }
 
 // Whether the text of a node starts a line of its block, where block syntax
-// can begin. A line break inside link text starts a line as well.
+// can begin. A line break inside link text starts a line as well. Nodes that
+// are not exported, or export as whitespace, are passed over.
 function $isAtLineStart(node: LexicalNode): boolean {
   for (let current = node; ; ) {
-    const previous = current.getPreviousSibling();
+    let previous = current.getPreviousSibling();
+    while (
+      previous !== null &&
+      (!$isExported(previous) || $isBlankText(previous))
+    ) {
+      previous = previous.getPreviousSibling();
+    }
     if (previous !== null) {
       return $isLineBreakNode(previous);
     }
@@ -781,7 +857,7 @@ function $escapeLineStart(
 ): string {
   let line = output + trailingSpace;
   for (let next = node.getNextSibling(); ; next = next.getNextSibling()) {
-    if (next === null || $isLineBreakNode(next)) {
+    if (next === null || $isLineBreakNode(next) || !$isExported(next)) {
       break;
     } else if (!$isTextNode(next)) {
       // Any other node continues the line with content.
@@ -792,6 +868,14 @@ function $escapeLineStart(
   }
   if (/^\d{1,9}[.)](?:[ \t]|$)/.test(line)) {
     return output.replace(/^\d+/, '$&\\');
+  }
+  // A task list marker, which import reads at the start of any line. In link
+  // text it cannot start a list item, and escaping it would unbalance it.
+  if (
+    /^\[[ xX]?\](?:[ \t]|$)/.test(line) &&
+    !$findMatchingParent(node, $isMarkdownLinkNode)
+  ) {
+    return '\\' + output;
   }
   return LINE_START_SYNTAX.test(line) ? '\\' + output : output;
 }

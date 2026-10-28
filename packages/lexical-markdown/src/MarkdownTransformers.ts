@@ -32,6 +32,7 @@ import {
   QuoteNode,
 } from '@lexical/rich-text';
 import {
+  $copyNode,
   $createLineBreakNode,
   $createTextNode,
   $findMatchingParent,
@@ -49,7 +50,11 @@ import {
   type TextNode,
 } from 'lexical';
 
-import {isEmptyParagraph, unescapeText} from './utils';
+import {
+  CHARACTER_REFERENCE_START,
+  isEmptyParagraph,
+  unescapeText,
+} from './utils';
 
 export type Transformer =
   | ElementTransformer
@@ -1172,10 +1177,7 @@ export const ITALIC_UNDERSCORE: TextFormatTransformer = {
 // An `&` that begins nothing is an ordinary character and stays as it is, so a
 // query string keeps the separators it was written with.
 function escapeCharacterReferences(value: string): string {
-  return value.replace(
-    /&(?=#\d+;|#[Xx][\dA-Fa-f]+;|[A-Za-z][\dA-Za-z]*;)/g,
-    '&#38;',
-  );
+  return value.replace(CHARACTER_REFERENCE_START, '&#38;');
 }
 
 // Order of text transformers matters:
@@ -1230,6 +1232,11 @@ export const LINK: TextMatchTransformer = {
 
     return linkContent;
   },
+  // Link text holds escapes and brackets balanced up to three deep. A bracket
+  // pair followed by `(` would be a link of its own, which link text cannot
+  // hold, so a bracket before it stays text and the inner link matches.
+  // https://spec.commonmark.org/0.31.2/#link-text
+  //
   // A link destination comes in two shapes, is itself optional, and may have
   // whitespace on either side of it inside the parentheses. Between `<` and
   // `>` it holds anything but a line ending and an unescaped angle bracket,
@@ -1258,7 +1265,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|[^\\\n])+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n]|\[(?:\\.|[^[\\\]\n])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1285,31 +1292,13 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    // Escaped brackets are literal and are not counted.
-    const brackets = linkText.replace(/\\./g, '  ');
-    const openBracketAmount = brackets.split('[').length - 1;
-    const closeBracketAmount = brackets.split(']').length - 1;
-    let parsedLinkText = linkText;
-    let outsideLinkText = '';
-    if (openBracketAmount < closeBracketAmount) {
-      return;
-    } else if (openBracketAmount > closeBracketAmount) {
-      const openBracketIndex = brackets.indexOf('[');
-      outsideLinkText = '[' + unescapeText(linkText.slice(0, openBracketIndex));
-      parsedLinkText = linkText.slice(openBracketIndex + 1);
-    }
-    // Both new nodes stand in for the TextNode being replaced, so the text
-    // left outside the link carries its inline format just like the link's own
-    // text node does. Read the format before the replace below detaches it.
-    const format = textNode.getFormat();
-    const linkTextNode = $createTextNode(parsedLinkText);
-    linkTextNode.setFormat(format);
+    // The text node being replaced is the whole match, so the link's own
+    // text node carries its inline format. Read the format before the replace
+    // below detaches it.
+    const linkTextNode = $createTextNode(linkText);
+    linkTextNode.setFormat(textNode.getFormat());
     linkNode.append(linkTextNode);
     textNode.replace(linkNode);
-
-    if (outsideLinkText) {
-      linkNode.insertBefore($createTextNode(outsideLinkText).setFormat(format));
-    }
     return linkTextNode;
   },
   trigger: ')',
@@ -1317,8 +1306,8 @@ export const LINK: TextMatchTransformer = {
 };
 
 // Raw HTML, an autolink, or a character reference that import does not decode,
-// kept as the text it was written as. The node is marked so that export can
-// tell it from text that only looks like this syntax.
+// kept as the text it was written as. Import always applies it, and marks the
+// node so that export can tell it from text that only looks like this syntax.
 // https://spec.commonmark.org/0.31.2/#raw-html
 // https://spec.commonmark.org/0.31.2/#autolinks
 // https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references
@@ -1328,8 +1317,8 @@ export const RAW_INLINE: TextMatchTransformer = {
     /<(?:[A-Za-z][\dA-Za-z-]*(?:\s[^<>]*)?\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--[\s\S]*?--|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
   regExp: /(?!)/,
   replace: (textNode, match) => {
-    // A new node, so that the backslashes in raw HTML are not read as escapes.
-    const rawNode = $createTextNode(match[0]).setFormat(textNode.getFormat());
+    // A copy, so that the backslashes in raw HTML are not read as escapes.
+    const rawNode = $copyNode(textNode);
     $setState(rawNode, rawInlineState, match[0]);
     textNode.replace(rawNode);
   },
@@ -1363,10 +1352,7 @@ export const TEXT_FORMAT_TRANSFORMERS: TextFormatTransformer[] = [
   STRIKETHROUGH,
 ];
 
-export const TEXT_MATCH_TRANSFORMERS: TextMatchTransformer[] = [
-  LINK,
-  RAW_INLINE,
-];
+export const TEXT_MATCH_TRANSFORMERS: TextMatchTransformer[] = [LINK];
 
 /**
  * Concatenate transformer lists. A function declared side-effect free (so the

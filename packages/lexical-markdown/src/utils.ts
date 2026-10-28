@@ -89,6 +89,10 @@ function decodeDecimalCharacterReference(_: string, digits: string): string {
     : String.fromCodePoint(codePoint);
 }
 
+// An `&` that begins a character reference.
+export const CHARACTER_REFERENCE_START =
+  /&(?=#\d+;|#[Xx][\dA-Fa-f]+;|[A-Za-z][\dA-Za-z]*;)/g;
+
 // Escapes and references are read in one pass, so an escaped `&` does not
 // begin a reference and a decoded reference is not read as an escape.
 export function unescapeText(value: string): string {
@@ -102,7 +106,7 @@ export function unescapeText(value: string): string {
 // An escaped punctuation character is literal, so it cannot begin syntax.
 // https://spec.commonmark.org/0.31.2/#backslash-escapes
 export function isEscaped(text: string, index: number): boolean {
-  if (!PUNCTUATION.test(text[index])) {
+  if (!/[!-/:-@[-`{-~]/.test(text[index])) {
     return false;
   }
   let backslashes = 0;
