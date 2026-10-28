@@ -1232,7 +1232,7 @@ export const LINK: TextMatchTransformer = {
 
     return linkContent;
   },
-  // Link text holds escapes, code spans (written with one or two backticks) and
+  // Link text holds escapes, code spans (fenced with up to three backticks) and
   // brackets balanced up to three deep. A bracket pair followed by `(` would be
   // a link of its own, which link text cannot hold, so a bracket before it
   // stays text and the inner link matches.
@@ -1266,7 +1266,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|``(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1297,7 +1297,7 @@ export const LINK: TextMatchTransformer = {
     // built on LINK may match more. Escaped brackets, and brackets in code
     // spans, are not counted.
     const brackets = linkText.replace(
-      /\\.|``(?:[^`]|`(?!`))*``|`[^`]+`/g,
+      /\\.|```(?:[^`]|``?(?!`))*```|``(?:[^`]|`(?!`))*``|`[^`]+`/g,
       span => ' '.repeat(span.length),
     );
     const openBracketAmount = brackets.split('[').length - 1;

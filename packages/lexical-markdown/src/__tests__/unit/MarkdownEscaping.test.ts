@@ -249,6 +249,58 @@ describe('Markdown export of literal text', () => {
     }
   });
 
+  it('escapes brackets beside an object replacement character', () => {
+    expectExport(['[a\uFFFC](b)'], '[a\uFFFC\\](b)');
+  });
+
+  it('leaves numbered heading text unescaped', () => {
+    for (const markdown of ['# 1. Intro', '## 2) Next', '### - a']) {
+      expect(importMarkdown(markdown).exported).toBe(markdown);
+    }
+  });
+
+  it('escapes around what a custom transformer writes', () => {
+    const MENTION: TextMatchTransformer = {
+      dependencies: [],
+      export: node =>
+        $isTextNode(node) && node.getTextContent() === '@bob'
+          ? '[@bob](mention:1)'
+          : null,
+      regExp: /(?!)/,
+      type: 'text-match',
+    };
+    const DASH: TextMatchTransformer = {
+      dependencies: [],
+      export: (node, _exportChildren, exportFormat) =>
+        $isTextNode(node) && node.getTextContent() === 'dash'
+          ? exportFormat(node, '- x')
+          : null,
+      regExp: /(?!)/,
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createTextNode('x !'),
+              $styled('@bob'),
+              $createTextNode(' a '),
+              $styled('dash'),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() =>
+        $convertToMarkdownString([...TRANSFORMERS, MENTION, DASH]),
+      ),
+    ).toBe('x \\![@bob](mention:1) a - x');
+  });
+
   it('escapes line starts that import reads as block syntax', () => {
     expectExport(['1234567890. a'], '1234567890\\. a');
     expect(exportPieces('a\n    - b')).toBe('a\n    \\- b');
@@ -304,6 +356,7 @@ describe('Markdown export of literal text', () => {
     for (const children of [
       [{format: 'code', text: ']'} as const],
       [{format: 'code', text: ']`'} as const],
+      [{format: 'code', text: 'a``b'} as const],
       ['a ', {format: 'code', text: '['} as const, ' b'],
       ['[[[[a]]]]'],
     ]) {
@@ -317,11 +370,15 @@ describe('Markdown export of literal text', () => {
     );
   });
 
-  it('keeps links after escapes written in the text when preserving newlines', () => {
+  it('escapes backslashes before syntax when preserving newlines', () => {
     for (const [pieces, markdown] of [
-      [['a\\!', {children: ['x'], url: 'u'}], 'a\\![x](u)'],
-      [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\]**\\](b)**'],
+      [
+        ['\\<b> \\&copy; \\* \\x <i>'],
+        '\\\\\\<b> \\\\\\&copy; \\\\\\* \\x \\<i>',
+      ],
+      [['a\\!', {children: ['x'], url: 'u'}], 'a\\\\\\![x](u)'],
       [['a\\', {children: ['x'], url: 'u'}], 'a\\\\[x](u)'],
+      [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\\\]**](b)**'],
     ] as [Piece[], string][]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(
@@ -332,33 +389,19 @@ describe('Markdown export of literal text', () => {
         },
         {discrete: true},
       );
-      expect(
-        editor.read(() =>
-          $convertToMarkdownString(TRANSFORMERS, undefined, true),
-        ),
-      ).toBe(markdown);
-    }
-  });
-
-  it('keeps escapes written in the text when preserving newlines', () => {
-    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
-    editor.update(
-      () => {
-        $getRoot()
-          .clear()
-          .append(
-            $createParagraphNode().append(
-              $createTextNode('\\<b> \\&copy; <i>'),
-            ),
-          );
-      },
-      {discrete: true},
-    );
-    expect(
-      editor.read(() =>
+      const exported = editor.read(() =>
         $convertToMarkdownString(TRANSFORMERS, undefined, true),
-      ),
-    ).toBe('\\<b> \\&copy; \\<i>');
+      );
+      expect(exported).toBe(markdown);
+      editor.update(
+        () =>
+          $convertFromMarkdownString(exported, TRANSFORMERS, undefined, true),
+        {discrete: true},
+      );
+      expect(editor.read(() => $getRoot().getTextContent())).toBe(
+        textOf(...pieces),
+      );
+    }
   });
 
   it('escapes a task list marker at the start of a list item', () => {

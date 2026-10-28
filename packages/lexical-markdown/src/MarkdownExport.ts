@@ -6,8 +6,8 @@
  *
  */
 
-import invariant from '@lexical/internal/invariant';
 import {$isAutoLinkNode, $isLinkNode, LinkNode} from '@lexical/link';
+import {$isHeadingNode} from '@lexical/rich-text';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
   $findMatchingParent,
@@ -39,7 +39,6 @@ import {
 import {
   CHARACTER_REFERENCE_START,
   isEmptyParagraph,
-  isEscaped,
   transformersByType,
 } from './utils';
 
@@ -67,43 +66,42 @@ export function createMarkdownExport(
       );
     });
 
-  const config = createEscapeConfig(
-    byType,
-    textFormatTransformers,
-    shouldPreserveNewLines,
-  );
+  return node => {
+    const context = createExportContext(
+      byType,
+      textFormatTransformers,
+      shouldPreserveNewLines,
+      null,
+    );
+    const output = [];
+    const children = (node || $getRoot()).getChildren();
 
-  return node =>
-    $withExportContext(null, config, () => {
-      const output = [];
-      const children = (node || $getRoot()).getChildren();
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const result = $exportTopLevelElements(
+        child,
+        elementTransformers,
+        textFormatTransformers,
+        byType.textMatch,
+        context,
+      );
 
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        const result = $exportTopLevelElements(
-          child,
-          elementTransformers,
-          textFormatTransformers,
-          byType.textMatch,
-          shouldPreserveNewLines,
+      if (result != null) {
+        output.push(
+          // separate consecutive group of texts with a line break: eg. ["hello", "world"] -> ["hello", "/nworld"]
+          isNewlineDelimited &&
+            i > 0 &&
+            !isEmptyParagraph(child) &&
+            !isEmptyParagraph(children[i - 1])
+            ? '\n'.concat(result)
+            : result,
         );
-
-        if (result != null) {
-          output.push(
-            // separate consecutive group of texts with a line break: eg. ["hello", "world"] -> ["hello", "/nworld"]
-            isNewlineDelimited &&
-              i > 0 &&
-              !isEmptyParagraph(child) &&
-              !isEmptyParagraph(children[i - 1])
-              ? '\n'.concat(result)
-              : result,
-          );
-        }
       }
-      // Ensure consecutive groups of texts are at least \n\n apart while each empty paragraph render as a newline.
-      // Eg. ["hello", "", "", "hi", "\nworld"] -> "hello\n\n\nhi\n\nworld"
-      return output.join('\n');
-    });
+    }
+    // Ensure consecutive groups of texts are at least \n\n apart while each empty paragraph render as a newline.
+    // Eg. ["hello", "", "", "hi", "\nworld"] -> "hello\n\n\nhi\n\nworld"
+    return output.join('\n');
+  };
 }
 
 /**
@@ -128,45 +126,44 @@ export function createSelectionMarkdownExport(
       );
     });
 
-  const config = createEscapeConfig(
-    byType,
-    textFormatTransformers,
-    shouldPreserveNewLines,
-  );
+  return selection => {
+    const context = createExportContext(
+      byType,
+      textFormatTransformers,
+      shouldPreserveNewLines,
+      selection,
+    );
+    const output = [];
+    // The separator depends on the previously *emitted* block, not on the
+    // previous root child: unselected children produce no output, so keying
+    // off the child index would prefix a newline to the first emitted block
+    // whenever the selection starts below the top of the document.
+    let previousExported: LexicalNode | null = null;
 
-  return selection =>
-    $withExportContext(selection, config, () => {
-      const output = [];
-      // The separator depends on the previously *emitted* block, not on the
-      // previous root child: unselected children produce no output, so keying
-      // off the child index would prefix a newline to the first emitted block
-      // whenever the selection starts below the top of the document.
-      let previousExported: LexicalNode | null = null;
+    for (const child of $getRoot().getChildren()) {
+      const {shouldInclude, markdown} = $processNodeForSelection(
+        child,
+        selection,
+        elementTransformers,
+        textFormatTransformers,
+        byType.textMatch,
+        context,
+      );
 
-      for (const child of $getRoot().getChildren()) {
-        const {shouldInclude, markdown} = $processNodeForSelection(
-          child,
-          selection,
-          elementTransformers,
-          textFormatTransformers,
-          byType.textMatch,
-          shouldPreserveNewLines,
+      if (shouldInclude && markdown != null) {
+        output.push(
+          isNewlineDelimited &&
+            previousExported !== null &&
+            !isEmptyParagraph(child) &&
+            !isEmptyParagraph(previousExported)
+            ? '\n'.concat(markdown)
+            : markdown,
         );
-
-        if (shouldInclude && markdown != null) {
-          output.push(
-            isNewlineDelimited &&
-              previousExported !== null &&
-              !isEmptyParagraph(child) &&
-              !isEmptyParagraph(previousExported)
-              ? '\n'.concat(markdown)
-              : markdown,
-          );
-          previousExported = child;
-        }
+        previousExported = child;
       }
-      return output.join('\n');
-    });
+    }
+    return output.join('\n');
+  };
 }
 
 function $processNodeForSelection(
@@ -175,7 +172,7 @@ function $processNodeForSelection(
   elementTransformers: (ElementTransformer | MultilineElementTransformer)[],
   textFormatTransformers: TextFormatTransformer[],
   textMatchTransformers: TextMatchTransformer[],
-  shouldPreserveNewLines: boolean,
+  context: ExportContext,
 ): {shouldInclude: boolean; markdown: string | null} {
   let shouldInclude = node.isSelected(selection);
 
@@ -192,7 +189,7 @@ function $processNodeForSelection(
           selection,
           textFormatTransformers,
           textMatchTransformers,
-          shouldPreserveNewLines,
+          context,
         ).markdown,
       selection,
     );
@@ -206,7 +203,7 @@ function $processNodeForSelection(
             selection,
             textFormatTransformers,
             textMatchTransformers,
-            shouldPreserveNewLines,
+            context,
           );
           if (childResult.shouldInclude) {
             shouldInclude = true;
@@ -223,7 +220,7 @@ function $processNodeForSelection(
       selection,
       textFormatTransformers,
       textMatchTransformers,
-      shouldPreserveNewLines,
+      context,
     );
     return {
       markdown: childResult.markdown,
@@ -241,7 +238,7 @@ function $exportChildrenForSelection(
   selection: BaseSelection,
   textFormatTransformers: TextFormatTransformer[],
   textMatchTransformers: TextMatchTransformer[],
-  shouldPreserveNewLines: boolean,
+  context: ExportContext,
   unclosedTags?: {format: TextFormatType; tag: string}[],
   unclosableTags?: {format: TextFormatType; tag: string}[],
 ): {shouldInclude: boolean; markdown: string} {
@@ -273,7 +270,7 @@ function $exportChildrenForSelection(
             selection,
             textFormatTransformers,
             textMatchTransformers,
-            shouldPreserveNewLines,
+            context,
             unclosedTags,
             [...unclosableTags, ...unclosedTags],
           ).markdown,
@@ -289,7 +286,7 @@ function $exportChildrenForSelection(
             textFormatTransformers,
             unclosedTags,
             unclosableTags,
-            shouldPreserveNewLines,
+            context,
           );
         },
       );
@@ -327,7 +324,7 @@ function $exportChildrenForSelection(
             textFormatTransformers,
             unclosedTags,
             unclosableTags,
-            shouldPreserveNewLines,
+            context,
           ),
         );
         anyChildIncluded = true;
@@ -338,7 +335,7 @@ function $exportChildrenForSelection(
         selection,
         textFormatTransformers,
         textMatchTransformers,
-        shouldPreserveNewLines,
+        context,
         unclosedTags,
         unclosableTags,
       );
@@ -372,7 +369,7 @@ function $exportTopLevelElements(
   elementTransformers: (ElementTransformer | MultilineElementTransformer)[],
   textTransformersIndex: TextFormatTransformer[],
   textMatchTransformers: TextMatchTransformer[],
-  shouldPreserveNewLines: boolean,
+  context: ExportContext,
 ): string | null {
   for (const transformer of elementTransformers) {
     if (!transformer.export) {
@@ -385,7 +382,7 @@ function $exportTopLevelElements(
         textMatchTransformers,
         undefined,
         undefined,
-        shouldPreserveNewLines,
+        context,
       ),
     );
 
@@ -401,7 +398,7 @@ function $exportTopLevelElements(
       textMatchTransformers,
       undefined,
       undefined,
-      shouldPreserveNewLines,
+      context,
     );
   } else if ($isDecoratorNode(node)) {
     return node.getTextContent();
@@ -414,9 +411,9 @@ function $exportChildren(
   node: ElementNode,
   textTransformersIndex: TextFormatTransformer[],
   textMatchTransformers: TextMatchTransformer[],
-  unclosedTags?: {format: TextFormatType; tag: string}[],
-  unclosableTags?: {format: TextFormatType; tag: string}[],
-  shouldPreserveNewLines: boolean = false,
+  unclosedTags: {format: TextFormatType; tag: string}[] | undefined,
+  unclosableTags: {format: TextFormatType; tag: string}[] | undefined,
+  context: ExportContext,
 ): string {
   const output = [];
   const children = node.getChildren();
@@ -448,7 +445,7 @@ function $exportChildren(
             // is invalid markdown, as the closing ** is inside the link.
             //
             [...unclosableTags, ...unclosedTags],
-            shouldPreserveNewLines,
+            context,
           ),
         (textNode, textContent) =>
           $exportTextFormat(
@@ -457,7 +454,7 @@ function $exportChildren(
             textTransformersIndex,
             unclosedTags,
             unclosableTags,
-            shouldPreserveNewLines,
+            context,
           ),
       );
 
@@ -477,7 +474,7 @@ function $exportChildren(
           textTransformersIndex,
           unclosedTags,
           unclosableTags,
-          shouldPreserveNewLines,
+          context,
         ),
       );
     } else if ($isElementNode(child)) {
@@ -489,7 +486,7 @@ function $exportChildren(
           textMatchTransformers,
           unclosedTags,
           unclosableTags,
-          shouldPreserveNewLines,
+          context,
         ),
       );
     } else if ($isDecoratorNode(child)) {
@@ -510,8 +507,8 @@ function $exportTextFormat(
   textTransformers: TextFormatTransformer[],
   // unclosed tags include the markdown tags that haven't been closed yet, and their associated formats
   unclosedTags: {format: TextFormatType; tag: string}[],
-  unclosableTags?: {format: TextFormatType; tag: string}[],
-  shouldPreserveNewLines: boolean = false,
+  unclosableTags: {format: TextFormatType; tag: string}[] | undefined,
+  context: ExportContext,
 ): string {
   // This function handles the case of a string looking like this: "   foo   "
   // Where it would be invalid markdown to generate: "**   foo   **"
@@ -523,7 +520,9 @@ function $exportTextFormat(
 
   const isLiteral = !isCode && !$isRawInlineText(node, textContent);
 
-  const output = isLiteral ? $escapeText(node, textContent) : textContent;
+  const output = isLiteral
+    ? $escapeText(node, textContent, context)
+    : textContent;
 
   let leadingSpace: string;
   let trimmedOutput: string;
@@ -650,33 +649,44 @@ function $exportTextFormat(
   );
 }
 
-// What escaping depends on in the transformers an export uses.
-type EscapeConfig = Readonly<{
+// What one export call shares, for escaping literal text.
+type ExportContext = Readonly<{
+  // The escapes in the text of each block or link, found once per export.
+  escapes: Map<NodeKey, Map<NodeKey, Set<number>>>;
   // Import regular expressions of the element transformers, which read a
   // line start as block syntax.
   lineStartRegExps: RegExp[];
+  selection: BaseSelection | null;
   shouldPreserveNewLines: boolean;
+  // The selected text of each text node, when exporting a selection.
+  slices: Map<NodeKey, string | null>;
   // Formats written with delimiters around the text.
   taggedFormats: TextFormatType[];
+  textMatchTransformers: TextMatchTransformer[];
   // Whether a LinkNode is written as `[text](url)`, as LINK writes it.
   // Otherwise its text is written as plain text.
   writesLinks: boolean;
 }>;
 
-function createEscapeConfig(
+function createExportContext(
   byType: ReturnType<typeof transformersByType>,
   textFormatTransformers: TextFormatTransformer[],
   shouldPreserveNewLines: boolean,
-): EscapeConfig {
+  selection: BaseSelection | null,
+): ExportContext {
   return {
+    escapes: new Map(),
     lineStartRegExps: [
       ...byType.element.map(transformer => transformer.regExp),
       ...byType.multilineElement.map(transformer => transformer.regExpStart),
     ],
+    selection,
     shouldPreserveNewLines,
+    slices: new Map(),
     taggedFormats: textFormatTransformers
       .map(transformer => transformer.format[0])
       .filter(format => format !== 'code'),
+    textMatchTransformers: byType.textMatch,
     writesLinks: byType.textMatch.some(
       transformer =>
         transformer.export !== undefined &&
@@ -685,53 +695,30 @@ function createEscapeConfig(
   };
 }
 
-// What one export call shares: its configuration, the selection it exports,
-// if any, and the escapes in each block or link text, found once per export.
-let exportContext:
-  | (EscapeConfig & {
-      escapes: Map<NodeKey, Map<NodeKey, Set<number>>>;
-      selection: BaseSelection | null;
-    })
-  | null = null;
-
-function $withExportContext<T>(
-  selection: BaseSelection | null,
-  config: EscapeConfig,
-  fn: () => T,
-): T {
-  const previous = exportContext;
-  exportContext = {...config, escapes: new Map(), selection};
-  try {
-    return fn();
-  } finally {
-    exportContext = previous;
-  }
-}
-
-function getExportContext(): NonNullable<typeof exportContext> {
-  invariant(exportContext !== null, 'Markdown export context is not set');
-  return exportContext;
-}
-
 // Text imported from raw inline syntax is written as it was while unchanged.
 function $isRawInlineText(node: TextNode, textContent: string): boolean {
   return textContent !== '' && $getState(node, rawInlineState) === textContent;
 }
 
 // The text of a node that the export writes, or null if it writes none.
-function $exportedText(node: TextNode): string | null {
-  const {selection} = getExportContext();
+function $exportedText(node: TextNode, context: ExportContext): string | null {
+  const {selection, slices} = context;
   if (!selection) {
     return node.getTextContent();
   }
-  return node.isSelected(selection)
-    ? $sliceSelectedTextNodeContent(selection, node, 'clone').getTextContent()
-    : null;
+  let slice = slices.get(node.getKey());
+  if (slice === undefined) {
+    slice = node.isSelected(selection)
+      ? $sliceSelectedTextNodeContent(selection, node, 'clone').getTextContent()
+      : null;
+    slices.set(node.getKey(), slice);
+  }
+  return slice;
 }
 
 // Whether the export writes a node, or anything in it.
-function $isExported(node: LexicalNode): boolean {
-  const {selection} = getExportContext();
+function $isExported(node: LexicalNode, context: ExportContext): boolean {
+  const {selection} = context;
   return (
     !selection ||
     node.isSelected(selection) ||
@@ -740,60 +727,75 @@ function $isExported(node: LexicalNode): boolean {
   );
 }
 
-function $isMarkdownLinkNode(node: LexicalNode | null): boolean {
-  return (
-    $isLinkNode(node) &&
-    !$isAutoLinkNode(node) &&
-    getExportContext().writesLinks
-  );
+function $isMarkdownLinkNode(
+  node: LexicalNode | null,
+  context: ExportContext,
+): boolean {
+  return $isLinkNode(node) && !$isAutoLinkNode(node) && context.writesLinks;
 }
+
+const PUNCTUATION_CHARACTER = /[!-/:-@[-`{-~]/;
 
 // Escapes literal text that would otherwise read back as Markdown syntax.
 // `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere. Other syntax
 // depends on the text around it, which is read once for each block.
-function $escapeText(node: TextNode, textContent: string): string {
-  const {shouldPreserveNewLines} = getExportContext();
-  const escapes = $escapesIn(node, textContent);
-  let output = '';
-  for (let i = 0; i < textContent.length; i++) {
-    const char = textContent[i];
-    // Backslashes are written as they are when preserving source newlines,
-    // so one that already escapes a character escapes it in the output too.
-    const escape =
-      escapes.has(i) ||
-      (/[*_`~\\]/.test(char) &&
-        !(
-          shouldPreserveNewLines &&
-          (char === '\\' || isEscaped(textContent, i))
-        ));
-    output += escape ? '\\' + char : char;
-  }
-  return output;
+function $escapeText(
+  node: TextNode,
+  textContent: string,
+  context: ExportContext,
+): string {
+  const escapes = $escapesIn(node, textContent, context);
+  return textContent.replace(
+    /[!-/:-@[-`{-~]/g,
+    (char: string, index: number) =>
+      escapes.has(index) ||
+      (char === '\\'
+        ? // When preserving source newlines, a backslash is written as it
+          // is unless it would escape the character after it.
+          !context.shouldPreserveNewLines ||
+          PUNCTUATION_CHARACTER.test(textContent[index + 1] || '')
+        : /[*_`~]/.test(char))
+        ? '\\' + char
+        : char,
+  );
 }
 
 // The indices in a node's text that need an escape, from the escapes in the
 // text of its block, or of the link around it.
-function $escapesIn(node: TextNode, textContent: string): Set<number> {
-  const context = getExportContext();
+function $escapesIn(
+  node: TextNode,
+  textContent: string,
+  context: ExportContext,
+): Set<number> {
   const container = $findMatchingParent(
     node,
     parent =>
       $isElementNode(parent) &&
-      (!parent.isInline() || $isMarkdownLinkNode(parent)),
+      (!parent.isInline() || $isMarkdownLinkNode(parent, context)),
   );
-  // A transformer may export text other than the node's own, which is read
-  // on its own.
-  if (!$isElementNode(container) || textContent !== $exportedText(node)) {
+  if (!$isElementNode(container)) {
+    return new Set();
+  }
+  if (textContent !== $exportedText(node, context)) {
+    // A transformer exports other text for the node, which is read in its
+    // place.
     return (
-      findEscapes([[node, textContent, true]], false).get(node) || new Set()
+      findEscapes(
+        $collectPieces(container, context, node, textContent),
+        $isMarkdownLinkNode(container, context),
+        $isHeadingNode(container),
+        context,
+      ).get(node) || new Set()
     );
   }
   let escapes = context.escapes.get(container.getKey());
   if (!escapes) {
     escapes = new Map();
     for (const [piece, indices] of findEscapes(
-      $collectPieces(container),
-      $isMarkdownLinkNode(container),
+      $collectPieces(container, context),
+      $isMarkdownLinkNode(container, context),
+      $isHeadingNode(container),
+      context,
     )) {
       escapes.set(piece.getKey(), indices);
     }
@@ -806,39 +808,71 @@ function $escapesIn(node: TextNode, textContent: string): Set<number> {
 // it is literal text that can be escaped.
 type Piece = [LexicalNode, string, boolean];
 
-// Stands for a link nested in a block. Brackets before a link are
-// deactivated, and a `!` before it makes it an image.
-const LINK_PIECE = '￼';
-
 // The exported text of a block or link, in order, looking into inline
-// elements other than links.
-function $collectPieces(container: ElementNode): Piece[] {
+// elements that are written as their children. A link nested in it is
+// written as `[]()`, since only its brackets matter around it.
+function $collectPieces(
+  container: ElementNode,
+  context: ExportContext,
+  replacedNode?: TextNode,
+  replacedText?: string,
+): Piece[] {
   const pieces: Piece[] = [];
   const $visit = (parent: ElementNode) => {
     for (const child of parent.getChildren()) {
-      if ($isMarkdownLinkNode(child)) {
-        if ($isExported(child)) {
-          pieces.push([child, LINK_PIECE, false]);
-        }
+      if (!$isExported(child, context)) {
+        continue;
+      }
+      if ($isMarkdownLinkNode(child, context)) {
+        pieces.push([child, '[]()', false]);
+        continue;
+      }
+      const markdown = $exportWithTransformer(child, context);
+      if (markdown !== null) {
+        pieces.push([child, markdown, false]);
       } else if ($isElementNode(child)) {
         $visit(child);
       } else if ($isTextNode(child)) {
-        const text = $exportedText(child);
-        if (text !== null) {
-          pieces.push(
-            child.hasFormat('code')
-              ? // A code span starts with a backtick, and holds no syntax.
-                [child, '`', false]
-              : [child, text, !$isRawInlineText(child, text)],
-          );
-        }
-      } else if ($isExported(child)) {
+        const text = child.is(replacedNode)
+          ? replacedText || ''
+          : $exportedText(child, context) || '';
+        pieces.push(
+          child.hasFormat('code')
+            ? // A code span starts with a backtick, and holds no syntax.
+              [child, '`', false]
+            : $isRawInlineText(child, text)
+              ? // Brackets in raw HTML are not link syntax.
+                [child, text.replace(/[[\]]/g, ' '), false]
+              : [child, text, true],
+        );
+      } else {
         pieces.push([child, child.getTextContent(), false]);
       }
     }
   };
   $visit(container);
   return pieces;
+}
+
+// The Markdown a text match transformer other than for links writes for a
+// node, which is opaque to escaping, or null.
+function $exportWithTransformer(
+  node: LexicalNode,
+  context: ExportContext,
+): string | null {
+  for (const transformer of context.textMatchTransformers) {
+    const result =
+      transformer.export &&
+      transformer.export(
+        node,
+        element => element.getTextContent(),
+        (_textNode, textContent) => textContent,
+      );
+    if (result != null) {
+      return result;
+    }
+  }
+  return null;
 }
 
 // A line that would read back as a heading, block quote, list item, task
@@ -850,22 +884,18 @@ const LINE_START_SYNTAX =
 // Link text that import reads holds brackets nested this deep.
 const LINK_TEXT_BRACKET_DEPTH = 3;
 
-// Whether text ends with a backslash that escapes what follows it.
-function endsWithEscape(text: string): boolean {
-  return isEscaped(text + '!', text.length);
-}
-
 // Finds the escapes that the text of a block or link needs, by node: line
 // starts that would read back as block syntax, `<` and `&` that would begin
 // raw HTML, an autolink or a character reference, a `!` before a link, and
 // the brackets a CommonMark reader would pair into a link, or that link text
-// cannot hold.
+// cannot hold. Link and heading text start mid-line, after `[` or `# `.
 function findEscapes(
   pieces: Piece[],
   inLink: boolean,
+  startsMidLine: boolean,
+  context: ExportContext,
 ): Map<LexicalNode, Set<number>> {
-  const {lineStartRegExps, shouldPreserveNewLines, taggedFormats} =
-    getExportContext();
+  const {lineStartRegExps, shouldPreserveNewLines, taggedFormats} = context;
   const starts: number[] = [];
   const pieceOf: number[] = [];
   let text = '';
@@ -876,27 +906,18 @@ function findEscapes(
       pieceOf.push(index);
     }
   });
-  // Whether the character is literal text that is not already escaped.
-  const canEscape = (i: number): boolean => {
-    if (i < 0 || i >= text.length) {
-      return false;
-    }
-    const [, pieceText, isLiteral] = pieces[pieceOf[i]];
-    return (
-      isLiteral &&
-      !(shouldPreserveNewLines && isEscaped(pieceText, i - starts[pieceOf[i]]))
-    );
-  };
+  const isLiteral = (i: number): boolean =>
+    i >= 0 && i < text.length && pieces[pieceOf[i]][2];
   const escaped = new Set<number>();
 
   // When preserving source newlines, a backslash at the end of a node would
   // escape what the export writes next, unless that is a line ending.
   if (shouldPreserveNewLines) {
-    pieces.forEach(([node, pieceText, isLiteral], index) => {
+    pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;
       if (
-        isLiteral &&
-        endsWithEscape(pieceText) &&
+        literal &&
+        pieceText.endsWith('\\') &&
         text[end] !== '\n' &&
         (end < text.length ||
           inLink ||
@@ -907,11 +928,9 @@ function findEscapes(
     });
   }
 
-  // Line starts. A line of link text starts after the link's `[` unless a
-  // line break starts it.
   for (
-    let lineStart = inLink ? text.indexOf('\n') + 1 : 0;
-    lineStart > 0 || !inLink;
+    let lineStart = startsMidLine ? text.indexOf('\n') + 1 : 0;
+    lineStart > 0 || !startsMidLine;
     lineStart = text.indexOf('\n', lineStart) + 1
   ) {
     const lineEnd = text.indexOf('\n', lineStart);
@@ -929,12 +948,12 @@ function findEscapes(
       // Nothing to escape.
     } else if (orderedList) {
       const delimiter = first + orderedList[0].trimEnd().length - 1;
-      if (canEscape(delimiter)) {
+      if (isLiteral(delimiter)) {
         escaped.add(delimiter);
       }
     } else if (
-      canEscape(first) &&
-      /[!-/:-@[-`{-~]/.test(text[first]) &&
+      isLiteral(first) &&
+      PUNCTUATION_CHARACTER.test(text[first]) &&
       (LINE_START_SYNTAX.test(rest) ||
         lineStartRegExps.some(regExp => line.search(regExp) !== -1))
     ) {
@@ -946,35 +965,33 @@ function findEscapes(
   }
 
   // `<` and `&` that would begin raw HTML, an autolink or a character
-  // reference, and a `!` before a link.
-  for (const match of text.matchAll(/<(?=[A-Za-z/!?])|!(?=￼)/g)) {
-    if (canEscape(match.index)) {
+  // reference, and a `!` before a link that the export writes.
+  for (const match of text.matchAll(/<(?=[A-Za-z/!?])|!(?=\[)/g)) {
+    if (
+      isLiteral(match.index) &&
+      (match[0] === '<' || !isLiteral(match.index + 1))
+    ) {
       escaped.add(match.index);
     }
   }
   for (const match of text.matchAll(CHARACTER_REFERENCE_START)) {
-    if (canEscape(match.index)) {
+    if (isLiteral(match.index)) {
       escaped.add(match.index);
     }
   }
 
-  // Brackets, paired the way a CommonMark reader pairs them. A link nested in
-  // a block deactivates the brackets before it. Openers are kept as indices,
-  // or -1 for one that link text holds too deep, escaped with its closer.
+  // Brackets, paired the way a CommonMark reader pairs them. Openers are kept
+  // as indices, or -1 for one that link text holds too deep, escaped with its
+  // closer.
   // https://spec.commonmark.org/0.31.2/#look-for-link-or-image
   let openers: number[] = [];
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    if (char === LINK_PIECE) {
-      openers = [];
-    } else if (
-      (char !== '[' && char !== ']') ||
-      !canEscape(i) ||
-      escaped.has(i)
-    ) {
+    const literal = isLiteral(i);
+    if ((char !== '[' && char !== ']') || escaped.has(i)) {
       // Not a bracket a reader pairs.
     } else if (char === '[') {
-      if (inLink && openers.length >= LINK_TEXT_BRACKET_DEPTH) {
+      if (literal && inLink && openers.length >= LINK_TEXT_BRACKET_DEPTH) {
         escaped.add(i);
         openers.push(-1);
       } else {
@@ -985,18 +1002,23 @@ function findEscapes(
       openers[openers.length - 1] !== -1 &&
       /[(:]/.test(text[i + 1] || '')
     ) {
-      // The reader would close a link here. Escaped, it keeps the opener.
-      escaped.add(i);
+      if (literal) {
+        // Escaped, the bracket keeps the opener.
+        escaped.add(i);
+      } else {
+        // A link the export writes, which deactivates the brackets before it.
+        openers = [];
+      }
     } else {
       const opener = openers.pop();
-      if (opener === -1 || (opener === undefined && inLink)) {
+      if (literal && (opener === -1 || (opener === undefined && inLink))) {
         escaped.add(i);
       }
     }
   }
   if (inLink) {
     for (const opener of openers) {
-      if (opener !== -1) {
+      if (isLiteral(opener)) {
         escaped.add(opener);
       }
     }
