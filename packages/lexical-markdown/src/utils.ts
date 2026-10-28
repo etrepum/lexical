@@ -59,8 +59,8 @@ export function transformersByType(transformers: Transformer[]): Readonly<{
 export const PUNCTUATION_OR_SPACE = /[!-/:-@[-`{-~\s]/;
 export const WHITESPACE = /\s/;
 // Punctuation for emphasis flanking. CommonMark counts a backslash too, but
-// leaving it out keeps a delimiter run before an escape that export writes
-// after a word, as in `a**\*b**`.
+// leaving it out where a run is followed by one keeps a run that opens before
+// an escape that export writes after a word, as in `a**\*b**`.
 export const PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~]/;
 
 // An ASCII punctuation character, which a backslash can escape.

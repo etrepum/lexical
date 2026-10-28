@@ -10,7 +10,7 @@ import type {TextFormatTransformersIndex} from './MarkdownImport';
 import type {TextFormatTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
-import {isEscaped, PUNCTUATION, WHITESPACE} from './utils';
+import {ESCAPABLE, isEscaped, PUNCTUATION, WHITESPACE} from './utils';
 
 interface Delimiter {
   index: number;
@@ -409,10 +409,13 @@ function isFlanking(
   if (!PUNCTUATION.test(primary)) {
     return true;
   }
+  // A backslash counts as punctuation here, as in CommonMark, so that a run
+  // closes before an escape that export writes after punctuation, as in
+  // `**a:**\<b`.
   return (
     secondary === undefined ||
     WHITESPACE.test(secondary) ||
-    PUNCTUATION.test(secondary)
+    ESCAPABLE.test(secondary)
   );
 }
 

@@ -5,22 +5,16 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+import type {TextMatchTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
-import {RAW_INLINE, type TextMatchTransformer} from './MarkdownTransformers';
 import {isEscaped} from './utils';
 
 const globalRegExps = new WeakMap<RegExp, RegExp>();
 
 // The first match that does not start at an escaped character, which is
-// literal text rather than the start of syntax, with its end, or null if there
-// is none or `getEndIndex` rejects it.
-function matchUnescaped(
-  textNode: TextNode,
-  transformer: TextMatchTransformer,
-  regExp: RegExp,
-): [RegExpExecArray, number] | null {
-  const text = textNode.getTextContent();
+// literal text rather than the start of syntax.
+function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
   let globalRegExp = globalRegExps.get(regExp);
   if (globalRegExp === undefined) {
     globalRegExp = new RegExp(
@@ -33,10 +27,7 @@ function matchUnescaped(
   let match;
   while ((match = globalRegExp.exec(text)) !== null) {
     if (!isEscaped(text, match.index)) {
-      const endIndex = transformer.getEndIndex
-        ? transformer.getEndIndex(textNode, match)
-        : match.index + match[0].length;
-      return endIndex === false ? null : [match, endIndex];
+      return match;
     }
     globalRegExp.lastIndex = match.index + 1;
   }
@@ -63,30 +54,30 @@ export function findOutermostTextMatchTransformer(
     if (!transformer.replace || !transformer.importRegExp) {
       continue;
     }
-    const found = matchUnescaped(
-      textNode,
-      transformer,
+    const match = matchUnescaped(
+      textNode.getTextContent(),
       transformer.importRegExp,
     );
 
-    if (!found) {
+    if (!match) {
       continue;
     }
 
-    const [match, endIndex] = found;
     const startIndex = match.index;
+    const endIndex = transformer.getEndIndex
+      ? transformer.getEndIndex(textNode, match)
+      : startIndex + match[0].length;
+
+    if (endIndex === false) {
+      continue;
+    }
 
     if (
       foundMatchStartIndex === undefined ||
       foundMatchEndIndex === undefined ||
       // Wraps previous match or is strictly before it.
       (startIndex < foundMatchStartIndex &&
-        (endIndex > foundMatchEndIndex || endIndex <= foundMatchStartIndex)) ||
-      // Raw HTML binds tighter than the brackets of a link it overlaps.
-      (transformer === RAW_INLINE &&
-        startIndex < foundMatchEndIndex &&
-        endIndex > foundMatchStartIndex &&
-        (startIndex < foundMatchStartIndex || endIndex > foundMatchEndIndex))
+        (endIndex > foundMatchEndIndex || endIndex <= foundMatchStartIndex))
     ) {
       foundMatchStartIndex = startIndex;
       foundMatchEndIndex = endIndex;

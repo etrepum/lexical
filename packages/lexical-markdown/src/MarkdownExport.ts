@@ -31,7 +31,6 @@ import {
   getCodeSpanDelimiter,
   hardLineBreakState,
   type MultilineElementTransformer,
-  rawInlineState,
   type TextFormatTransformer,
   type TextMatchTransformer,
   type Transformer,
@@ -698,18 +697,6 @@ function createExportContext(
   };
 }
 
-// The spans of a node's text, in order, that are written as the raw inline
-// syntax it was imported from, while the text still holds it in place.
-function $rawInlineSpans(
-  node: TextNode,
-  textContent: string,
-): [number, number][] {
-  return $getState(node, rawInlineState)
-    .filter(([start, source]) => textContent.startsWith(source, start))
-    .map(([start, source]): [number, number] => [start, start + source.length])
-    .sort((a, b) => a[0] - b[0]);
-}
-
 // The text of a node that the export writes, or null if it writes none.
 function $exportedText(node: TextNode, context: ExportContext): string | null {
   const {selection, slices} = context;
@@ -776,28 +763,20 @@ function $escapeText(
   context: ExportContext,
 ): string {
   const escapes = $escapesIn(node, textContent, context);
-  const raw = $rawInlineSpans(node, textContent);
-  let span = 0;
   return textContent.replace(
     ESCAPABLE_CHARACTERS,
-    (char: string, index: number) => {
-      while (span < raw.length && raw[span][1] <= index) {
-        span++;
-      }
-      return span < raw.length && raw[span][0] <= index
-        ? char
-        : escapes.has(index) ||
-            (char === '\\'
-              ? // When preserving source newlines, a backslash is written as it
-                // is unless it would escape the character after it, or make a
-                // hard line break.
-                !context.shouldPreserveNewLines ||
-                ESCAPABLE.test(textContent[index + 1] || '') ||
-                textContent[index + 1] === '\n'
-              : /[*_`~]/.test(char))
-          ? '\\' + char
-          : char;
-    },
+    (char: string, index: number) =>
+      escapes.has(index) ||
+      (char === '\\'
+        ? // When preserving source newlines, a backslash is written as it
+          // is unless it would escape the character after it, or make a
+          // hard line break.
+          !context.shouldPreserveNewLines ||
+          ESCAPABLE.test(textContent[index + 1] || '') ||
+          textContent[index + 1] === '\n'
+        : /[*_`~]/.test(char))
+        ? '\\' + char
+        : char,
   );
 }
 
@@ -838,9 +817,9 @@ function $escapesIn(
   return escapes.get(node.getKey()) || new Set();
 }
 
-// A run of exported text: its node, the text as a reader sees it, whether it
-// is literal text that can be escaped, and where it starts in the node's text.
-type Piece = [LexicalNode, string, boolean, number];
+// A run of exported text: its node, the text as a reader sees it, and whether
+// it is literal text that can be escaped.
+type Piece = [LexicalNode, string, boolean];
 
 // The exported text of a block or link, in order, looking into inline
 // elements that are written as their children. A link nested in it is
@@ -856,41 +835,25 @@ function $collectPieces(
         continue;
       }
       if ($isMarkdownLinkNode(child, context)) {
-        pieces.push([child, '[]()', false, 0]);
+        pieces.push([child, '[]()', false]);
         continue;
       }
       const markdown = $exportWithTransformer(child, context);
       if (markdown !== null) {
-        pieces.push([child, markdown, false, 0]);
+        pieces.push([child, markdown, false]);
       } else if ($isElementNode(child) && !child.isInline()) {
         // A block in a block, such as a nested list, starts a new line.
-        pieces.push([child, '\n', false, 0]);
+        pieces.push([child, '\n', false]);
       } else if ($isElementNode(child)) {
         $visit(child);
       } else if ($isTextNode(child)) {
         const text = $exportedText(child, context) || '';
-        if (child.hasFormat('code')) {
-          // A code span starts with a backtick, and holds no syntax.
-          pieces.push([child, '`', false, 0]);
-          continue;
-        }
-        let offset = 0;
-        for (const [start, end] of $rawInlineSpans(child, text)) {
-          // Brackets in raw HTML are not link syntax.
-          pieces.push(
-            [child, text.slice(offset, start), true, offset],
-            [
-              child,
-              text.slice(start, end).replace(/[[\]]/g, ' '),
-              false,
-              start,
-            ],
-          );
-          offset = end;
-        }
-        pieces.push([child, text.slice(offset), true, offset]);
+        // A code span starts with a backtick, and holds no syntax.
+        pieces.push(
+          child.hasFormat('code') ? [child, '`', false] : [child, text, true],
+        );
       } else {
-        pieces.push([child, child.getTextContent(), false, 0]);
+        pieces.push([child, child.getTextContent(), false]);
       }
     }
   };
@@ -932,7 +895,7 @@ const UNDERLINE_SYNTAX = /^(?:=+\s*$|[:|][-:|\s]*-[-:|\s]*$)/;
 
 // Finds the escapes that the text of a block or link needs, by node: line
 // starts that would read back as block syntax, `<` and `&` that would begin
-// raw HTML, an autolink or a character reference, a `!` before a link, and
+// raw HTML, an autolink or a character reference, and
 // the brackets a CommonMark reader would pair into a link, or that link text
 // cannot hold. Link and heading text start mid-line, after `[` or `# `.
 function findEscapes(
@@ -1045,14 +1008,11 @@ function findEscapes(
   }
 
   // `<` and `&` that would begin raw HTML, an HTML block, an autolink or a
-  // character reference, and a `!` before a link that the export writes.
+  // character reference.
   for (const match of text.matchAll(
-    /<(?=[A-Za-z/!?]|[\w.!#$%&'*+/=?^`{|}~-]+@)|!(?=\[)/g,
+    /<(?=[A-Za-z/!?]|[\w.!#$%&'*+/=?^`{|}~-]+@)/g,
   )) {
-    if (
-      isLiteral(match.index) &&
-      (match[0] === '<' || !isLiteral(match.index + 1))
-    ) {
+    if (isLiteral(match.index)) {
       escaped.add(match.index);
     }
   }
@@ -1096,14 +1056,18 @@ function findEscapes(
       if (literal) {
         // Escaped, the bracket keeps the opener.
         escaped.add(i);
-      } else if (text[opener - 1] === '!' && !escaped.has(opener - 1)) {
+      } else if (text[opener - 1] === '!' && !isLiteral(opener - 1)) {
         // An image the export writes.
         openers.pop();
       } else {
         // A link the export writes, which deactivates the brackets before it
-        // but not an image's.
+        // but not an image's. A link after a literal `!` counts as a link, so
+        // that an image imported as `!` and a link is written as it was.
         openers = openers.filter(
-          index => text[index - 1] === '!' && !escaped.has(index - 1),
+          index =>
+            isLiteral(index) &&
+            text[index - 1] === '!' &&
+            !escaped.has(index - 1),
         );
       }
     } else if (openers.pop() === undefined && literal && inLink) {
@@ -1120,9 +1084,9 @@ function findEscapes(
 
   const escapes = new Map<LexicalNode, Set<number>>();
   for (const index of escaped) {
-    const [node, , , offset] = pieces[pieceOf[index]];
+    const [node] = pieces[pieceOf[index]];
     const indices = escapes.get(node) || new Set();
-    escapes.set(node, indices.add(index - starts[pieceOf[index]] + offset));
+    escapes.set(node, indices.add(index - starts[pieceOf[index]]));
   }
   return escapes;
 }

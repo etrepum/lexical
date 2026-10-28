@@ -32,7 +32,6 @@ import {
   QuoteNode,
 } from '@lexical/rich-text';
 import {
-  $copyNode,
   $createLineBreakNode,
   $createTextNode,
   $findMatchingParent,
@@ -308,26 +307,6 @@ export const codeFenceState = createState('mdCodeFence', {
  */
 export const codeMetaState = createState('mdCodeMeta', {
   parse: val => (typeof val === 'string' ? val : ''),
-  resetOnCopyNode: true,
-});
-
-/**
- * The inline syntax in a text node's imported Markdown that the editor keeps
- * as text: raw HTML, autolinks and named or hexadecimal character references,
- * each with its offset in the text. Export writes each as it was while the
- * text still holds it at that offset, and escapes any other text that would
- * read back as that syntax.
- */
-export const rawInlineState = createState('mdRawInline', {
-  parse: (val): readonly (readonly [number, string])[] =>
-    Array.isArray(val)
-      ? val.filter(
-          (item): item is [number, string] =>
-            Array.isArray(item) &&
-            typeof item[0] === 'number' &&
-            typeof item[1] === 'string',
-        )
-      : [],
   resetOnCopyNode: true,
 });
 
@@ -1330,26 +1309,6 @@ export const LINK: TextMatchTransformer = {
     return linkTextNode;
   },
   trigger: ')',
-  type: 'text-match',
-};
-
-// Raw HTML, an autolink, or a character reference that import does not decode,
-// kept as the text it was written as. Import always applies it, and marks the
-// node so that export can tell it from text that only looks like this syntax.
-// https://spec.commonmark.org/0.31.2/#raw-html
-// https://spec.commonmark.org/0.31.2/#autolinks
-// https://spec.commonmark.org/0.31.2/#entity-and-numeric-character-references
-export const RAW_INLINE: TextMatchTransformer = {
-  dependencies: [],
-  importRegExp:
-    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--(?:-?(?=>)|[\s\S]*?--)|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[\w.!#$%&'*+/=?^`{|}~-]+@[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?(?:\.[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?)*)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
-  regExp: /(?!)/,
-  replace: (textNode, match) => {
-    // A copy, so that the backslashes in raw HTML are not read as escapes.
-    const rawNode = $copyNode(textNode);
-    $setState(rawNode, rawInlineState, [[0, match[0]]]);
-    textNode.replace(rawNode);
-  },
   type: 'text-match',
 };
 

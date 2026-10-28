@@ -13,11 +13,9 @@ import {
   $createTabNode,
   $createTextNode,
   $findMatchingParent,
-  $getState,
   $isElementNode,
   $isParagraphNode,
   $isTabNode,
-  $setState,
   type ElementNode,
   type LexicalNode,
   type TextNode,
@@ -28,8 +26,6 @@ import {
   $createMarkdownLineBreakNode,
   type ElementTransformer,
   type MultilineElementTransformer,
-  RAW_INLINE,
-  rawInlineState,
   type TextFormatTransformer,
   type TextMatchTransformer,
   type Transformer,
@@ -57,9 +53,6 @@ export function $importMarkdownNodes(
   const textFormatTransformersIndex = createTextFormatTransformersIndex(
     byType.textFormat,
   );
-  // Raw inline syntax is kept as written whatever the transformers are, so
-  // that export can tell it from text that only looks like it.
-  const textMatchTransformers = [...byType.textMatch, RAW_INLINE];
   const lines = markdownString.split('\n');
   const linesLength = lines.length;
 
@@ -88,7 +81,7 @@ export function $importMarkdownNodes(
         container,
         byType.element,
         textFormatTransformersIndex,
-        textMatchTransformers,
+        byType.textMatch,
         shouldPreserveNewLines,
       );
     }
@@ -108,7 +101,6 @@ export function $importMarkdownNodes(
       for (const textNode of child.getAllTextNodes()) {
         $normalizeMarkdownTextNode(textNode);
       }
-      $mergeRawInlineText(child.getAllTextNodes());
     }
   }
 }
@@ -297,52 +289,10 @@ function $importBlocks(
 // `splitText(...offsets)`: spreading one argument per tab boundary overflows
 // the call stack on a long run of tabs, and the text can hold arbitrarily
 // many.
-// Joins raw inline syntax to the text around it, which import split apart to
-// read, keeping where in the text each piece of syntax is.
-function $mergeRawInlineText(textNodes: TextNode[]): void {
-  let run: TextNode[] = [];
-  const $flush = () => {
-    if (run.some(node => $getState(node, rawInlineState).length > 0)) {
-      let text = '';
-      const raw: [number, string][] = [];
-      for (const node of run) {
-        for (const [start, source] of $getState(node, rawInlineState)) {
-          raw.push([text.length + start, source]);
-        }
-        text += node.getTextContent();
-      }
-      const [head, ...rest] = run;
-      $setState(head.setTextContent(text), rawInlineState, raw);
-      for (const node of rest) {
-        node.remove();
-      }
-    }
-    run = [];
-  };
-  for (const textNode of textNodes) {
-    const previous = run[run.length - 1];
-    if (
-      !previous ||
-      !previous.is(textNode.getPreviousSibling()) ||
-      previous.getFormat() !== textNode.getFormat() ||
-      previous.getStyle() !== textNode.getStyle()
-    ) {
-      $flush();
-    }
-    if (textNode.isSimpleText() && !$isTabNode(textNode)) {
-      run.push(textNode);
-    } else {
-      $flush();
-    }
-  }
-  $flush();
-}
-
 function $normalizeMarkdownTextNode(textNode: TextNode): void {
   // A TabNode is a TextNode whose content is a tab, so without this guard the
   // rebuild below would destroy it and create an equivalent one in its place.
-  // Raw inline syntax keeps its tabs, so that it is written as it was.
-  if ($isTabNode(textNode) || $getState(textNode, rawInlineState).length > 0) {
+  if ($isTabNode(textNode)) {
     return;
   }
   const text = textNode.getTextContent();
