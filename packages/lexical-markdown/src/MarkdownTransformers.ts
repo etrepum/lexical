@@ -212,7 +212,7 @@ export type TextMatchTransformer = Readonly<{
    * the match from `importRegExp` is not the entire text content of the node. That way, `importRegExp` can be used to match only the start of the node, and `getEndIndex`
    * can be used to match the end of the node.
    *
-   * @returns The end index of the match, or false if the match was unsuccessful and a different transformer should be tried.
+   * @returns The end index of the match, or false if the match was unsuccessful. Import then tries the next match of `importRegExp` in the text, and a different transformer if there is none.
    */
   getEndIndex?: (node: TextNode, match: RegExpMatchArray) => number | false;
   /**
@@ -1185,7 +1185,7 @@ function escapeCharacterReferences(value: string): string {
 //
 // - code should go first as it prevents any transformations inside
 // - then longer tags match (e.g. ** or __ should go before * or _)
-// Link text with escapes, code spans and raw HTML blanked out, leaving the
+// Link text with escapes, code spans and HTML tags blanked out, leaving the
 // brackets that pair.
 function linkTextBrackets(linkText: string): string {
   let brackets = linkText;
@@ -1195,10 +1195,21 @@ function linkTextBrackets(linkText: string): string {
       ' '.repeat(endIndex - startIndex) +
       brackets.slice(endIndex);
   }
-  return brackets.replace(
-    RegExp('\\\\.|' + RAW_INLINE.importRegExp!.source, 'g'),
-    span => ' '.repeat(span.length),
+  return brackets.replace(/\\.|<[A-Za-z/!?][^>]*>/g, span =>
+    ' '.repeat(span.length),
   );
+}
+
+let codeSpansText = '';
+let codeSpans: ReturnType<typeof scanCodeSpans> = [];
+
+// The code spans in a text node, kept for the matches that follow in it.
+function scanTextCodeSpans(text: string): ReturnType<typeof scanCodeSpans> {
+  if (text !== codeSpansText) {
+    codeSpansText = text;
+    codeSpans = scanCodeSpans(text);
+  }
+  return codeSpans;
 }
 
 export const LINK: TextMatchTransformer = {
@@ -1263,7 +1274,7 @@ export const LINK: TextMatchTransformer = {
     }
     // No code span may hold either bracket around the link text.
     return depth === 0 &&
-      scanCodeSpans(text).every(
+      scanTextCodeSpans(text).every(
         span =>
           span.endIndex <= start - 1 ||
           span.startIndex >= end + 1 ||
@@ -1272,7 +1283,9 @@ export const LINK: TextMatchTransformer = {
       ? match.index! + match[0].length
       : false;
   },
-  // Link text ends at the first unescaped `]` that a destination follows, and
+  // Link text ends at the first unescaped `]` that a destination follows. It
+  // holds `[` only in brackets balanced up to three deep, so that a run of `[`
+  // fails fast, and not before `(`, since link text cannot hold a link.
   // `getEndIndex` checks that its brackets are balanced.
   // https://spec.commonmark.org/0.31.2/#link-text
   //
@@ -1304,7 +1317,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|[^\\\n])+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|[^\\\n[]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]]|\[(?:\\.|[^\\\n[\]])*\])*\])*\](?!\())+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1370,7 +1383,7 @@ export const LINK: TextMatchTransformer = {
 export const RAW_INLINE: TextMatchTransformer = {
   dependencies: [],
   importRegExp:
-    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--[\s\S]*?--|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
+    /<(?:[A-Za-z][\dA-Za-z-]*(?:\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?|\/[A-Za-z][\dA-Za-z-]*\s*|!--(?:-?(?=>)|[\s\S]*?--)|\?[\s\S]*?\?|![A-Za-z][^>]*|!\[CDATA\[[\s\S]*?\]\]|[A-Za-z][\dA-Za-z+.-]{1,31}:[^\s<>]*|[^\s<>@\\]+@[^\s<>\\]+)>|&(?:#[Xx][\dA-Fa-f]{1,6}|[A-Za-z][\dA-Za-z]{1,31});/,
   regExp: /(?!)/,
   replace: (textNode, match) => {
     // A copy, so that the backslashes in raw HTML are not read as escapes.

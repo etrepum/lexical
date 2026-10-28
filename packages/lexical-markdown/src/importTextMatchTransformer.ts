@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import type {TextMatchTransformer} from './MarkdownTransformers';
 import type {TextNode} from 'lexical';
 
+import {RAW_INLINE, type TextMatchTransformer} from './MarkdownTransformers';
 import {isEscaped} from './utils';
 
 const globalRegExps = new WeakMap<RegExp, RegExp>();
@@ -83,7 +83,12 @@ export function findOutermostTextMatchTransformer(
       foundMatchEndIndex === undefined ||
       // Wraps previous match or is strictly before it.
       (startIndex < foundMatchStartIndex &&
-        (endIndex > foundMatchEndIndex || endIndex <= foundMatchStartIndex))
+        (endIndex > foundMatchEndIndex || endIndex <= foundMatchStartIndex)) ||
+      // Raw HTML binds tighter than the brackets of a link it overlaps.
+      (transformer === RAW_INLINE &&
+        startIndex < foundMatchEndIndex &&
+        endIndex > foundMatchStartIndex &&
+        (startIndex < foundMatchStartIndex || endIndex > foundMatchEndIndex))
     ) {
       foundMatchStartIndex = startIndex;
       foundMatchEndIndex = endIndex;

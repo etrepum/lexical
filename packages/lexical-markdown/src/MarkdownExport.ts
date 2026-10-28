@@ -12,7 +12,7 @@ import {
   AutoLinkNode,
   LinkNode,
 } from '@lexical/link';
-import {$isHeadingNode} from '@lexical/rich-text';
+import {$isHeadingNode, HeadingNode} from '@lexical/rich-text';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
   $findMatchingParent,
@@ -667,6 +667,8 @@ type ExportContext = Readonly<{
   // Formats written with delimiters around the text.
   taggedFormats: TextFormatType[];
   textMatchTransformers: TextMatchTransformer[];
+  // Whether a HeadingNode is written as `# text`, as HEADING writes it.
+  writesHeadings: boolean;
   // Whether a LinkNode is written as `[text](url)`, as LINK writes it.
   // Otherwise its text is written as plain text.
   writesLinks: boolean;
@@ -692,6 +694,12 @@ function createExportContext(
       .map(transformer => transformer.format[0])
       .filter(format => format !== 'code'),
     textMatchTransformers: byType.textMatch,
+    writesHeadings: byType.element.some(transformer =>
+      transformer.dependencies.some(
+        klass =>
+          klass === HeadingNode || klass.prototype instanceof HeadingNode,
+      ),
+    ),
     writesLinks: byType.textMatch.some(
       transformer =>
         transformer.export !== undefined &&
@@ -783,7 +791,7 @@ function $escapeText(
   const escapes = $escapesIn(node, textContent, context);
   const raw = $rawInlineSpans(node, textContent);
   return textContent.replace(
-    RegExp(ESCAPABLE, 'g'),
+    ESCAPABLE_CHARACTERS,
     (char: string, index: number) =>
       raw.some(([start, end]) => index >= start && index < end)
         ? char
@@ -828,7 +836,7 @@ function $escapesIn(
     for (const [piece, indices] of findEscapes(
       $collectPieces(container, context),
       $isMarkdownLinkNode(container, context),
-      $isHeadingNode(container),
+      $isHeadingNode(container) && context.writesHeadings,
       context,
     )) {
       escapes.set(piece.getKey(), indices);
@@ -919,11 +927,16 @@ function $exportWithTransformer(
   return null;
 }
 
+const ESCAPABLE_CHARACTERS = /[!-/:-@[-`{-~]/g;
+
 // A line that would read back as a heading, block quote, list item, task
-// list item, thematic break, setext heading underline or table delimiter
-// row. Fences and HTML blocks start with characters escaped anywhere.
+// list item or thematic break. Fences and HTML blocks start with characters
+// escaped anywhere.
 const LINE_START_SYNTAX =
-  /^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-[-:|\s]*$|=+\s*$|[:|][-:|\s]*-[-:|\s]*$|\[[ xX]?\](?:\s|$))/;
+  /^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-[-:|\s]*$|\[[ xX]?\](?:\s|$))/;
+
+// A setext heading underline or table delimiter row, after a line of text.
+const UNDERLINE_SYNTAX = /^(?:=+\s*$|[:|][-:|\s]*-[-:|\s]*$)/;
 
 // Finds the escapes that the text of a block or link needs, by node: line
 // starts that would read back as block syntax, `<` and `&` that would begin
@@ -1010,6 +1023,7 @@ function findEscapes(
       isLiteral(first) &&
       ESCAPABLE.test(text[first]) &&
       (LINE_START_SYNTAX.test(rest) ||
+        (lineStart > 0 && UNDERLINE_SYNTAX.test(rest)) ||
         lineStartRegExps.some(regExp => line.search(regExp) !== -1))
     ) {
       escaped.add(first);
@@ -1019,8 +1033,11 @@ function findEscapes(
     }
   }
 
-  // A heading's closing sequence of `#`, which a reader drops.
-  const closing = isHeading ? /(?:^|[ \t])(#+)[ \t]*$/.exec(text) : null;
+  // A heading's closing sequence of `#`, which a reader drops. The heading
+  // ends with its first line.
+  const closing = isHeading
+    ? /(?:^|[ \t])(#+)[ \t]*$/.exec(text.split('\n')[0])
+    : null;
   if (closing) {
     const hash = closing.index + closing[0].indexOf('#');
     if (isLiteral(hash)) {
@@ -1028,13 +1045,14 @@ function findEscapes(
     }
   }
 
-  // `<` and `&` that would begin raw HTML, an autolink or a character
-  // reference, and a `!` before a link that the export writes.
-  const lastClose = text.lastIndexOf('>');
-  for (const match of text.matchAll(/<(?=[A-Za-z/!?])|!(?=\[)/g)) {
+  // `<` and `&` that would begin raw HTML, an HTML block, an autolink or a
+  // character reference, and a `!` before a link that the export writes.
+  for (const match of text.matchAll(
+    /<(?=[A-Za-z/!?]|[^\s<>@\\]+@[^\s<>\\]+>)|!(?=\[)/g,
+  )) {
     if (
       isLiteral(match.index) &&
-      (match[0] === '<' ? match.index < lastClose : !isLiteral(match.index + 1))
+      (match[0] === '<' || !isLiteral(match.index + 1))
     ) {
       escaped.add(match.index);
     }
@@ -1045,7 +1063,9 @@ function findEscapes(
     }
   }
 
-  // Brackets, paired the way a CommonMark reader pairs them.
+  // Brackets, paired the way a CommonMark reader pairs them. Link text that
+  // import reads holds brackets nested up to three deep, so a pair deeper than
+  // that is escaped, kept as -1.
   // https://spec.commonmark.org/0.31.2/#look-for-link-or-image
   let openers: number[] = [];
   for (let i = 0; i < text.length; i++) {
@@ -1054,7 +1074,17 @@ function findEscapes(
     if ((char !== '[' && char !== ']') || escaped.has(i)) {
       // Not a bracket a reader pairs.
     } else if (char === '[') {
-      openers.push(i);
+      if (literal && inLink && openers.length >= 3) {
+        escaped.add(i);
+        openers.push(-1);
+      } else {
+        openers.push(i);
+      }
+    } else if (openers[openers.length - 1] === -1) {
+      openers.pop();
+      if (literal) {
+        escaped.add(i);
+      }
     } else if (
       openers.length > 0 &&
       (text[i + 1] === '(' ||

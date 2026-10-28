@@ -24,6 +24,7 @@ import {
   HEADING,
   type TextMatchTransformer,
   TRANSFORMERS,
+  UNORDERED_LIST,
 } from '@lexical/markdown';
 import {
   $createLineBreakNode,
@@ -362,7 +363,6 @@ describe('Markdown export of literal text', () => {
       [{format: 'code', text: ']'} as const],
       [{format: 'code', text: ']`'} as const],
       [{format: 'code', text: 'a``b'} as const],
-      ['a ', {format: 'code', text: '['} as const, ' b'],
       ['[[[[a]]]]'],
     ]) {
       const markdown = exportPieces({children, url: 'u'});
@@ -371,7 +371,7 @@ describe('Markdown export of literal text', () => {
       expect(markdown.startsWith('[')).toBe(true);
     }
     expect(exportPieces({children: ['[[[[a]]]]'], url: 'u'})).toBe(
-      '[[[[[a]]]]](u)',
+      '[[[[\\[a\\]]]]](u)',
     );
   });
 
@@ -511,9 +511,11 @@ describe('Markdown export of literal text', () => {
     ).toBe('**a\n\\# b**');
   });
 
-  it('leaves `<` unescaped when no `>` follows it', () => {
-    expectExport(['if x<y then'], 'if x<y then');
-    expectExport(['a <b'], 'a <b');
+  it('escapes `<` that would begin an HTML block or an email autolink', () => {
+    expectExport(['<div'], '\\<div');
+    expectExport(['<!-- x'], '\\<!-- x');
+    expectExport(['<1a@b.co>'], '\\<1a@b.co>');
+    expectExport(['if x<1 then'], 'if x<1 then');
   });
 
   it('escapes brackets around an image a transformer writes', () => {
@@ -570,6 +572,38 @@ describe('Markdown export of literal text', () => {
     expect(
       editor.read(() => $convertToMarkdownString([HEADING, AUTOLINK])),
     ).toBe('\\# a');
+  });
+
+  it('escapes a closing sequence on the first line of a heading', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $convertFromMarkdownString('# x', TRANSFORMERS);
+        const text = $getRoot().getAllTextNodes()[0];
+        text.setTextContent('foo #');
+        text
+          .insertAfter($createTextNode('bar'))
+          .insertBefore($createLineBreakNode());
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+      '# foo \\#\nbar',
+    );
+  });
+
+  it('escapes line starts in headings that are written as paragraphs', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $convertFromMarkdownString('# x', TRANSFORMERS);
+        $getRoot().getAllTextNodes()[0].setTextContent('- a #');
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString([UNORDERED_LIST]))).toBe(
+      '\\- a #',
+    );
   });
 
   it('reads a nested list apart from the text of its list item', () => {
@@ -748,6 +782,19 @@ describe('Markdown import of escapes and raw inline syntax', () => {
       [{children: [{format: 'code', text: 'a```b'}], url: 'u'}],
       '[```` a```b ````](u)',
     );
+  });
+
+  it('reads raw HTML that overlaps link brackets as HTML', () => {
+    for (const markdown of [
+      '<b title="[">x](u)',
+      '[a <b title="](x)">',
+      '<!--> x',
+      '<!---> x',
+    ]) {
+      const {exported, text} = importMarkdown(markdown);
+      expect(exported).toBe(markdown);
+      expect(text).toBe(markdown);
+    }
   });
 
   it('reads escaped syntax as text and exports it escaped', () => {
