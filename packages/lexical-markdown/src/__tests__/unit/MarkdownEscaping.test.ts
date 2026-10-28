@@ -777,6 +777,9 @@ describe('Markdown import of escapes', () => {
       '[see [Foo](https://en.wikipedia.org/wiki/Foo_(bar))](x)',
       '[a [b](c "t")](d)',
       '[a [b](<c d>)](d)',
+      '[x [y](u "say \\"hi\\"") z](u)',
+      '[x [y](a\\(b) z](u)',
+      '[x [y](a(b(c))) z](u)',
     ]) {
       using editor = buildEditorFromExtensions([MarkdownTestExtension]);
       editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
