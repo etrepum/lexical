@@ -50,6 +50,7 @@ import {
   type TextNode,
 } from 'lexical';
 
+import {scanCodeSpans} from './importTextFormatTransformer';
 import {
   CHARACTER_REFERENCE_START,
   isEmptyParagraph,
@@ -1184,6 +1185,22 @@ function escapeCharacterReferences(value: string): string {
 //
 // - code should go first as it prevents any transformations inside
 // - then longer tags match (e.g. ** or __ should go before * or _)
+// Link text with escapes, code spans and raw HTML blanked out, leaving the
+// brackets that pair.
+function linkTextBrackets(linkText: string): string {
+  let brackets = linkText;
+  for (const {startIndex, endIndex} of scanCodeSpans(linkText)) {
+    brackets =
+      brackets.slice(0, startIndex) +
+      ' '.repeat(endIndex - startIndex) +
+      brackets.slice(endIndex);
+  }
+  return brackets.replace(
+    RegExp('\\\\.|' + RAW_INLINE.importRegExp!.source, 'g'),
+    span => ' '.repeat(span.length),
+  );
+}
+
 export const LINK: TextMatchTransformer = {
   dependencies: [LinkNode],
   export: (node, exportChildren, exportFormat) => {
@@ -1232,10 +1249,31 @@ export const LINK: TextMatchTransformer = {
 
     return linkContent;
   },
-  // Link text holds escapes, code spans (fenced with up to three backticks) and
-  // brackets balanced up to three deep. A bracket pair followed by `(` would be
-  // a link of its own, which link text cannot hold, so a bracket before it
-  // stays text and the inner link matches.
+
+  getEndIndex: (textNode, match) => {
+    const text = textNode.getTextContent();
+    const start = match.index! + 1;
+    const end = start + match[1].length;
+    let depth = 0;
+    for (const char of linkTextBrackets(match[1])) {
+      depth += char === '[' ? 1 : char === ']' ? -1 : 0;
+      if (depth < 0) {
+        return false;
+      }
+    }
+    // No code span may hold either bracket around the link text.
+    return depth === 0 &&
+      scanCodeSpans(text).every(
+        span =>
+          span.endIndex <= start - 1 ||
+          span.startIndex >= end + 1 ||
+          (span.startIndex >= start && span.endIndex <= end),
+      )
+      ? match.index! + match[0].length
+      : false;
+  },
+  // Link text ends at the first unescaped `]` that a destination follows, and
+  // `getEndIndex` checks that its brackets are balanced.
   // https://spec.commonmark.org/0.31.2/#link-text
   //
   // A link destination comes in two shapes, is itself optional, and may have
@@ -1266,7 +1304,7 @@ export const LINK: TextMatchTransformer = {
   // are characters, which costs a quadratic walk of every run that never
   // reaches the closing parenthesis.
   importRegExp:
-    /(?:\[((?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`]|\[(?:\\.|```(?!`)(?:[^`\n]|``?(?!`))*```|``(?!`)(?:[^`\n]|`(?!`))*``|`[^`\n]+`|`(?![^`\n]*`)|[^[\\\]\n`])*\](?!\())*\](?!\())*\](?!\())+)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
+    /(?:\[((?:\\.|[^\\\n])+?)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))/,
   regExp:
     /(?:\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\])(?:\(\s*(?:(?:<((?:\\.|[^<>\n\\])*)>|((?!<)(?:\\[^\s]|\\(?=\s)|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\]|\((?:\\[^\s]|[^\s()\\])*\))*\))*\)|[^\s()\\])+))(?:\s+(?:"((?:[^"]*\\")*[^"]*)"|'((?:[^']*\\')*[^']*)'|\(((?:\\.|[^()\\])*)\)))?\s*)?\))$/,
   replace: (textNode, match) => {
@@ -1293,13 +1331,7 @@ export const LINK: TextMatchTransformer = {
     const linkTitle =
       rawLinkTitle != null ? unescapeText(rawLinkTitle) : undefined;
     const linkNode = $createLinkNode(linkUrl, {title: linkTitle});
-    // LINK's own importRegExp matches balanced link text, but a transformer
-    // built on LINK may match more. Escaped brackets, and brackets in code
-    // spans, are not counted.
-    const brackets = linkText.replace(
-      /\\.|```(?:[^`]|``?(?!`))*```|``(?:[^`]|`(?!`))*``|`[^`]+`/g,
-      span => ' '.repeat(span.length),
-    );
+    const brackets = linkTextBrackets(linkText);
     const openBracketAmount = brackets.split('[').length - 1;
     const closeBracketAmount = brackets.split(']').length - 1;
     let parsedLinkText = linkText;

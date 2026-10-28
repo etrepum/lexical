@@ -6,7 +6,12 @@
  *
  */
 
-import {$isAutoLinkNode, $isLinkNode, LinkNode} from '@lexical/link';
+import {
+  $isAutoLinkNode,
+  $isLinkNode,
+  AutoLinkNode,
+  LinkNode,
+} from '@lexical/link';
 import {$isHeadingNode} from '@lexical/rich-text';
 import {$sliceSelectedTextNodeContent} from '@lexical/selection';
 import {
@@ -691,21 +696,32 @@ function createExportContext(
       transformer =>
         transformer.export !== undefined &&
         transformer.dependencies.some(
-          klass => klass === LinkNode || klass.prototype instanceof LinkNode,
+          klass =>
+            (klass === LinkNode || klass.prototype instanceof LinkNode) &&
+            klass !== AutoLinkNode &&
+            !(klass.prototype instanceof AutoLinkNode),
         ),
     ),
   };
 }
 
-// The span of a node's text that is written as the raw inline syntax it was
-// imported from, while the text still holds that source unchanged.
-function $rawInlineSpan(
+// The spans of a node's text that are written as the raw inline syntax it was
+// imported from: each place the text still holds that source. Text nodes with
+// the same source merge, so it can occur more than once.
+function $rawInlineSpans(
   node: TextNode,
   textContent: string,
-): [number, number] | null {
+): [number, number][] {
   const source = $getState(node, rawInlineState);
-  const start = source === '' ? -1 : textContent.indexOf(source);
-  return start === -1 ? null : [start, start + source.length];
+  const spans: [number, number][] = [];
+  for (
+    let start = source === '' ? -1 : textContent.indexOf(source);
+    start !== -1;
+    start = textContent.indexOf(source, start + source.length)
+  ) {
+    spans.push([start, start + source.length]);
+  }
+  return spans;
 }
 
 // The text of a node that the export writes, or null if it writes none.
@@ -734,7 +750,9 @@ function $isExported(node: LexicalNode, context: ExportContext): boolean {
   if (selectedKeys.size === 0) {
     for (const selected of selection.getNodes()) {
       for (
-        let current: LexicalNode | null = selected;
+        let current: LexicalNode | null = selected.isSelected(selection)
+          ? selected
+          : null;
         current !== null && !selectedKeys.has(current.getKey());
         current = current.getParent()
       ) {
@@ -744,7 +762,7 @@ function $isExported(node: LexicalNode, context: ExportContext): boolean {
     // Marks the set as filled, even if nothing is selected.
     selectedKeys.add('');
   }
-  return selectedKeys.has(node.getKey()) || node.isSelected(selection);
+  return selectedKeys.has(node.getKey());
 }
 
 function $isMarkdownLinkNode(
@@ -763,18 +781,20 @@ function $escapeText(
   context: ExportContext,
 ): string {
   const escapes = $escapesIn(node, textContent, context);
-  const raw = $rawInlineSpan(node, textContent);
+  const raw = $rawInlineSpans(node, textContent);
   return textContent.replace(
-    /[!-/:-@[-`{-~]/g,
+    RegExp(ESCAPABLE, 'g'),
     (char: string, index: number) =>
-      raw !== null && index >= raw[0] && index < raw[1]
+      raw.some(([start, end]) => index >= start && index < end)
         ? char
         : escapes.has(index) ||
             (char === '\\'
               ? // When preserving source newlines, a backslash is written as it
-                // is unless it would escape the character after it.
+                // is unless it would escape the character after it, or make a
+                // hard line break.
                 !context.shouldPreserveNewLines ||
-                ESCAPABLE.test(textContent[index + 1] || '')
+                ESCAPABLE.test(textContent[index + 1] || '') ||
+                textContent[index + 1] === '\n'
               : /[*_`~]/.test(char))
           ? '\\' + char
           : char,
@@ -798,16 +818,9 @@ function $escapesIn(
     return new Set();
   }
   if (textContent !== $exportedText(node, context)) {
-    // A transformer exports other text for the node, which is read in its
-    // place.
-    return (
-      findEscapes(
-        $collectPieces(container, context, node, textContent),
-        $isMarkdownLinkNode(container, context),
-        $isHeadingNode(container),
-        context,
-      ).get(node) || new Set()
-    );
+    // A transformer writes other text for the node, which is opaque to the
+    // text around it.
+    return new Set();
   }
   let escapes = context.escapes.get(container.getKey());
   if (!escapes) {
@@ -835,8 +848,6 @@ type Piece = [LexicalNode, string, boolean, number];
 function $collectPieces(
   container: ElementNode,
   context: ExportContext,
-  replacedNode?: TextNode,
-  replacedText?: string,
 ): Piece[] {
   const pieces: Piece[] = [];
   const $visit = (parent: ElementNode) => {
@@ -857,23 +868,27 @@ function $collectPieces(
       } else if ($isElementNode(child)) {
         $visit(child);
       } else if ($isTextNode(child)) {
-        const text = child.is(replacedNode)
-          ? replacedText || ''
-          : $exportedText(child, context) || '';
-        const raw = $rawInlineSpan(child, text);
+        const text = $exportedText(child, context) || '';
         if (child.hasFormat('code')) {
           // A code span starts with a backtick, and holds no syntax.
           pieces.push([child, '`', false, 0]);
-        } else if (raw) {
+          continue;
+        }
+        let offset = 0;
+        for (const [start, end] of $rawInlineSpans(child, text)) {
           // Brackets in raw HTML are not link syntax.
           pieces.push(
-            [child, text.slice(0, raw[0]), true, 0],
-            [child, text.slice(...raw).replace(/[[\]]/g, ' '), false, raw[0]],
-            [child, text.slice(raw[1]), true, raw[1]],
+            [child, text.slice(offset, start), true, offset],
+            [
+              child,
+              text.slice(start, end).replace(/[[\]]/g, ' '),
+              false,
+              start,
+            ],
           );
-        } else {
-          pieces.push([child, text, true, 0]);
+          offset = end;
         }
+        pieces.push([child, text.slice(offset), true, offset]);
       } else {
         pieces.push([child, child.getTextContent(), false, 0]);
       }
@@ -910,9 +925,6 @@ function $exportWithTransformer(
 const LINE_START_SYNTAX =
   /^(?:#{1,6}(?:\s|$)|>|[-+](?:\s|$)|-[-:|\s]*$|=+\s*$|[:|][-:|\s]*-[-:|\s]*$|\[[ xX]?\](?:\s|$))/;
 
-// Link text that import reads holds brackets nested this deep.
-const LINK_TEXT_BRACKET_DEPTH = 3;
-
 // Finds the escapes that the text of a block or link needs, by node: line
 // starts that would read back as block syntax, `<` and `&` that would begin
 // raw HTML, an autolink or a character reference, a `!` before a link, and
@@ -941,14 +953,13 @@ function findEscapes(
   const escaped = new Set<number>();
 
   // When preserving source newlines, a backslash at the end of a node would
-  // escape what the export writes next, unless that is a line ending.
+  // escape what the export writes next, or make a hard line break.
   if (shouldPreserveNewLines) {
     pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;
       if (
         literal &&
         pieceText.endsWith('\\') &&
-        text[end] !== '\n' &&
         (end < text.length ||
           inLink ||
           taggedFormats.some(format => hasFormat(node, format)))
@@ -968,11 +979,20 @@ function findEscapes(
     const first = lineStart + line.length - line.trimStart().length;
     const rest = line.slice(first - lineStart);
     const piece = pieceOf[first];
-    // A node that starts the line with its delimiters is not block syntax.
+    // A node that starts the line with its delimiters is not block syntax,
+    // unless the text before it carries the format on and opens no tag.
+    let previous = piece === undefined ? -1 : piece - 1;
+    while (previous >= 0 && !$isTextNode(pieces[previous][0])) {
+      previous--;
+    }
     const isTagged =
       piece !== undefined &&
       /^[ \t]*$/.test(text.slice(starts[piece], first)) &&
-      taggedFormats.some(format => hasFormat(pieces[piece][0], format));
+      taggedFormats.some(
+        format =>
+          hasFormat(pieces[piece][0], format) &&
+          (previous < 0 || !hasFormat(pieces[previous][0], format)),
+      );
     const orderedList = /^\d+[.)](?:\s|$)/.exec(rest);
     if (rest === '' || (isTagged && !/^=+\s*$/.test(rest))) {
       // Nothing to escape. A tagged node's delimiters come first, except
@@ -1010,10 +1030,11 @@ function findEscapes(
 
   // `<` and `&` that would begin raw HTML, an autolink or a character
   // reference, and a `!` before a link that the export writes.
+  const lastClose = text.lastIndexOf('>');
   for (const match of text.matchAll(/<(?=[A-Za-z/!?])|!(?=\[)/g)) {
     if (
       isLiteral(match.index) &&
-      (match[0] === '<' || !isLiteral(match.index + 1))
+      (match[0] === '<' ? match.index < lastClose : !isLiteral(match.index + 1))
     ) {
       escaped.add(match.index);
     }
@@ -1024,9 +1045,7 @@ function findEscapes(
     }
   }
 
-  // Brackets, paired the way a CommonMark reader pairs them. Openers are kept
-  // as indices, or -1 for one that link text holds too deep, escaped with its
-  // closer.
+  // Brackets, paired the way a CommonMark reader pairs them.
   // https://spec.commonmark.org/0.31.2/#look-for-link-or-image
   let openers: number[] = [];
   for (let i = 0; i < text.length; i++) {
@@ -1035,33 +1054,28 @@ function findEscapes(
     if ((char !== '[' && char !== ']') || escaped.has(i)) {
       // Not a bracket a reader pairs.
     } else if (char === '[') {
-      if (literal && inLink && openers.length >= LINK_TEXT_BRACKET_DEPTH) {
-        escaped.add(i);
-        openers.push(-1);
-      } else {
-        openers.push(i);
-      }
+      openers.push(i);
     } else if (
       openers.length > 0 &&
-      openers[openers.length - 1] !== -1 &&
       (text[i + 1] === '(' ||
         // A link reference definition, which only starts a paragraph.
         (text[i + 1] === ':' &&
           !startsMidLine &&
           openers[0] === text.length - text.trimStart().length))
     ) {
+      const opener = openers[openers.length - 1];
       if (literal) {
         // Escaped, the bracket keeps the opener.
         escaped.add(i);
+      } else if (text[opener - 1] === '!' && !escaped.has(opener - 1)) {
+        // An image the export writes.
+        openers.pop();
       } else {
         // A link the export writes, which deactivates the brackets before it.
         openers = [];
       }
-    } else {
-      const opener = openers.pop();
-      if (literal && (opener === -1 || (opener === undefined && inLink))) {
-        escaped.add(i);
-      }
+    } else if (openers.pop() === undefined && literal && inLink) {
+      escaped.add(i);
     }
   }
   if (inLink) {

@@ -13,8 +13,14 @@ import {isEscaped} from './utils';
 const globalRegExps = new WeakMap<RegExp, RegExp>();
 
 // The first match that does not start at an escaped character, which is
-// literal text rather than the start of syntax.
-function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
+// literal text rather than the start of syntax, and that `getEndIndex`
+// accepts, with its end.
+function matchUnescaped(
+  textNode: TextNode,
+  transformer: TextMatchTransformer,
+  regExp: RegExp,
+): [RegExpExecArray, number] | null {
+  const text = textNode.getTextContent();
   let globalRegExp = globalRegExps.get(regExp);
   if (globalRegExp === undefined) {
     globalRegExp = new RegExp(
@@ -26,8 +32,13 @@ function matchUnescaped(text: string, regExp: RegExp): RegExpExecArray | null {
   globalRegExp.lastIndex = 0;
   let match;
   while ((match = globalRegExp.exec(text)) !== null) {
-    if (!isEscaped(text, match.index)) {
-      return match;
+    const endIndex = isEscaped(text, match.index)
+      ? false
+      : transformer.getEndIndex
+        ? transformer.getEndIndex(textNode, match)
+        : match.index + match[0].length;
+    if (endIndex !== false) {
+      return [match, endIndex];
     }
     globalRegExp.lastIndex = match.index + 1;
   }
@@ -54,23 +65,18 @@ export function findOutermostTextMatchTransformer(
     if (!transformer.replace || !transformer.importRegExp) {
       continue;
     }
-    const match = matchUnescaped(
-      textNode.getTextContent(),
+    const found = matchUnescaped(
+      textNode,
+      transformer,
       transformer.importRegExp,
     );
 
-    if (!match) {
+    if (!found) {
       continue;
     }
 
-    const startIndex = match.index || 0;
-    const endIndex = transformer.getEndIndex
-      ? transformer.getEndIndex(textNode, match)
-      : startIndex + match[0].length;
-
-    if (endIndex === false) {
-      continue;
-    }
+    const [match, endIndex] = found;
+    const startIndex = match.index;
 
     if (
       foundMatchStartIndex === undefined ||

@@ -9,7 +9,12 @@
 // @vitest-environment node
 
 import {buildEditorFromExtensions} from '@lexical/extension';
-import {$createLinkNode, $isLinkNode} from '@lexical/link';
+import {
+  $createLinkNode,
+  $isAutoLinkNode,
+  $isLinkNode,
+  AutoLinkNode,
+} from '@lexical/link';
 import {$createListItemNode, $createListNode} from '@lexical/list';
 import {$createMarkNode, MarkExtension} from '@lexical/mark';
 import {
@@ -366,7 +371,7 @@ describe('Markdown export of literal text', () => {
       expect(markdown.startsWith('[')).toBe(true);
     }
     expect(exportPieces({children: ['[[[[a]]]]'], url: 'u'})).toBe(
-      '[[[[\\[a\\]]]]](u)',
+      '[[[[[a]]]]](u)',
     );
   });
 
@@ -495,6 +500,76 @@ describe('Markdown export of literal text', () => {
       );
       expect(importMarkdown(markdown).text).toBe(text);
     }
+  });
+
+  it('escapes a line start inside a format carried on from the line before', () => {
+    expect(
+      exportPieces(
+        {format: 'bold', text: 'a\n'},
+        {format: 'bold', text: '# b'},
+      ),
+    ).toBe('**a\n\\# b**');
+  });
+
+  it('leaves `<` unescaped when no `>` follows it', () => {
+    expectExport(['if x<y then'], 'if x<y then');
+    expectExport(['a <b'], 'a <b');
+  });
+
+  it('escapes brackets around an image a transformer writes', () => {
+    const IMAGE: TextMatchTransformer = {
+      dependencies: [],
+      export: node =>
+        $isTextNode(node) && node.getTextContent() === 'img' ? '![a](b)' : null,
+      regExp: /(?!)/,
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createTextNode('['),
+              $styled('img'),
+              $createTextNode('](u)'),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() => $convertToMarkdownString([...TRANSFORMERS, IMAGE])),
+    ).toBe('[![a](b)\\](u)');
+  });
+
+  it('escapes line starts in links that only an autolink transformer writes', () => {
+    const AUTOLINK: TextMatchTransformer = {
+      dependencies: [AutoLinkNode],
+      export: node =>
+        $isAutoLinkNode(node) ? '<' + node.getURL() + '>' : null,
+      regExp: /(?!)/,
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createParagraphNode().append(
+              $createLinkNode('https://lexical.dev').append(
+                $createTextNode('# a'),
+              ),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() => $convertToMarkdownString([HEADING, AUTOLINK])),
+    ).toBe('\\# a');
   });
 
   it('reads a nested list apart from the text of its list item', () => {
@@ -644,6 +719,34 @@ describe('Markdown import of escapes and raw inline syntax', () => {
     );
     expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
       'a \\<i> <b> [c\\](d)x',
+    );
+  });
+
+  it('keeps repeated raw inline syntax as written', () => {
+    for (const markdown of ['<br><br>', 'a&nbsp;&nbsp;b']) {
+      expect(importMarkdown(markdown).exported).toBe(markdown);
+    }
+  });
+
+  it('reads link text with backtick runs and raw HTML', () => {
+    for (const [markdown, text] of [
+      ['[a ``b](u)', 'a ``b'],
+      ['[a ```b](u)', 'a ```b'],
+      ['[<b title="]">x](u)', '<b title="]">x'],
+    ]) {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
+        discrete: true,
+      });
+      editor.read(() => {
+        const link = $getRoot().getFirstDescendant()?.getParent();
+        assert($isLinkNode(link));
+        expect(link.getTextContent()).toBe(text);
+      });
+    }
+    expectExport(
+      [{children: [{format: 'code', text: 'a```b'}], url: 'u'}],
+      '[```` a```b ````](u)',
     );
   });
 
