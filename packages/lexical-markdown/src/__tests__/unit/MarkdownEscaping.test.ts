@@ -217,6 +217,7 @@ describe('Markdown export of literal text', () => {
       [{format: 'bold', text: 'Note:'}, '<br> see'],
       '**Note:**&#60;br> see',
     );
+    expectExport([{format: 'bold', text: 'x.'}, '\\a'], '**x.**&#92;a', true);
     expectExport(
       [{format: 'italic', text: 'Q&A.'}, '&copy; 2024'],
       '*Q&A.*&#38;copy; 2024',
@@ -307,6 +308,22 @@ describe('Markdown export of literal text', () => {
         ],
         '1\\. a',
       ],
+      [
+        () => [
+          $createMarkNode(['id']).append(
+            $createTextNode('Q&A.').toggleFormat('italic'),
+          ),
+          $createTextNode('&copy; 2024'),
+        ],
+        '*Q&A.*&#38;copy; 2024',
+      ],
+      [
+        () => [
+          $createTextNode('a.').toggleFormat('bold'),
+          $createMarkNode(['id']).append($createTextNode('<b>')),
+        ],
+        '**a.**&#60;b>',
+      ],
     ];
     for (const [$create, markdown] of cases) {
       editor.update(
@@ -333,7 +350,7 @@ describe('Markdown export of literal text', () => {
     }
   });
 
-  it('escapes around what a custom transformer writes', () => {
+  it('leaves text around what a custom transformer writes unescaped', () => {
     const MENTION: TextMatchTransformer = {
       dependencies: [],
       export: node =>
@@ -708,7 +725,7 @@ describe('Markdown export of literal text', () => {
     ).toBe('[a [[page]]\\](u)');
   });
 
-  it('reads a nested list apart from the text of its list item', () => {
+  it('reads a nested list apart from the list item before it', () => {
     using editor = buildEditorFromExtensions([MarkdownTestExtension]);
     editor.update(
       () => {
@@ -716,8 +733,8 @@ describe('Markdown export of literal text', () => {
           .clear()
           .append(
             $createListNode('bullet').append(
+              $createListItemNode().append($createTextNode('a!')),
               $createListItemNode().append(
-                $createTextNode('a!'),
                 $createListNode('bullet').append(
                   $createListItemNode().append(
                     $createLinkNode('https://lexical.dev').append(
@@ -731,8 +748,8 @@ describe('Markdown export of literal text', () => {
       },
       {discrete: true},
     );
-    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toContain(
-      'a!',
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+      '- a!\n    - [b](https://lexical.dev)',
     );
   });
 });
@@ -833,6 +850,23 @@ describe('Markdown import of escapes', () => {
         expect($isLinkNode(first.getParent())).toBe(false);
       });
     }
+  });
+
+  it('matches a custom regular expression after an escaped character', () => {
+    const HASHTAG: TextMatchTransformer = {
+      dependencies: [],
+      importRegExp: /(^|[^\w])#(\w+)/,
+      regExp: /(?!)/,
+      replace: textNode => {
+        textNode.replace($createTextNode('tag'));
+      },
+      type: 'text-match',
+    };
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(() => $convertFromMarkdownString('see \\(#x)', [HASHTAG]), {
+      discrete: true,
+    });
+    expect(editor.read(() => $getRoot().getTextContent())).toBe('see (tag)');
   });
 
   it('matches a sticky custom regular expression only where it starts', () => {

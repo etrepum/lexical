@@ -773,7 +773,7 @@ function $escapeText(
   // Right after a closing delimiter, a character reference stands in for a
   // backslash, which import does not count as punctuation there. Where a
   // delimiter opens too, the backslash is kept.
-  const previous = node.getPreviousSibling();
+  const previous = $textBefore(node, context);
   const afterCloser =
     $isTextNode(previous) &&
     /\S/.test(previous.getTextContent()) &&
@@ -786,20 +786,49 @@ function $escapeText(
   return textContent.replace(
     ESCAPABLE_CHARACTERS,
     (char: string, index: number) =>
-      escapes.has(index) ||
-      (char === '\\'
-        ? // When preserving source newlines, a backslash is written as it
-          // is unless it would escape the character after it, or make a
-          // hard line break.
-          !context.shouldPreserveNewLines ||
-          ESCAPABLE.test(textContent[index + 1] || '') ||
-          textContent[index + 1] === '\n'
-        : /[*_`~]/.test(char))
-        ? index === 0 && afterCloser
-          ? '&#' + char.charCodeAt(0) + ';'
-          : '\\' + char
-        : char,
+      // A backslash written as it is would not count as punctuation either.
+      index === 0 && afterCloser && (char === '\\' || escapes.has(index))
+        ? '&#' + char.charCodeAt(0) + ';'
+        : escapes.has(index) ||
+            (char === '\\'
+              ? // When preserving source newlines, a backslash is written as
+                // it is unless it would escape the character after it, or
+                // make a hard line break.
+                !context.shouldPreserveNewLines ||
+                ESCAPABLE.test(textContent[index + 1] || '') ||
+                textContent[index + 1] === '\n'
+              : /[*_`~]/.test(char))
+          ? '\\' + char
+          : char,
   );
+}
+
+// The text node written right before a node, through the edges of inline
+// elements that write no syntax of their own.
+function $textBefore(
+  node: LexicalNode,
+  context: ExportContext,
+): TextNode | null {
+  let current = node;
+  let previous = current.getPreviousSibling();
+  const $isPlainInline = (
+    element: LexicalNode | null,
+  ): element is ElementNode =>
+    $isElementNode(element) &&
+    element.isInline() &&
+    !$isMarkdownLinkNode(element, context);
+  while (previous === null) {
+    const parent = current.getParent();
+    if (!$isPlainInline(parent)) {
+      return null;
+    }
+    current = parent;
+    previous = current.getPreviousSibling();
+  }
+  while ($isPlainInline(previous)) {
+    previous = previous.getLastChild();
+  }
+  return $isTextNode(previous) ? previous : null;
 }
 
 // The indices in a node's text that need an escape, from the escapes in the

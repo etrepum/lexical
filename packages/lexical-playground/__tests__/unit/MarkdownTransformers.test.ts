@@ -295,4 +295,19 @@ describe('playground IMAGE markdown transformer', () => {
       expect(image.__maxWidth).toBe(500);
     });
   });
+
+  it('does not import an image whose alt text closer is escaped', () => {
+    using editor = buildEditorFromExtensions(ImageMarkdownTestExtension);
+    editor.update(
+      () => {
+        $convertFromMarkdownString('![a\\](b)', [IMAGE]);
+      },
+      {discrete: true},
+    );
+    editor.read(() => {
+      const paragraph = $getRoot().getFirstChildOrThrow();
+      assert($isParagraphNode(paragraph), 'Root child must be a paragraph');
+      expect($isImageNode(paragraph.getFirstChild())).toBe(false);
+    });
+  });
 });

@@ -10,29 +10,29 @@ import type {TextNode} from 'lexical';
 
 import {ESCAPABLE, isEscaped} from './utils';
 
-const globalRegExps = new WeakMap<RegExp, RegExp>();
-
 // The first match that does not start at an escaped character, which is
-// literal text rather than the start of syntax. A global or sticky regular
-// expression is matched as it is.
+// literal text rather than the start of syntax. After one, matching starts
+// again from the next character, as if the text began there, so that a
+// pattern that matches the character before its syntax (`(^|[^\w])#`) can
+// still match after an escaped one. A global or sticky regular expression is
+// matched as it is.
 function matchUnescaped(text: string, regExp: RegExp): RegExpMatchArray | null {
   if (regExp.global || regExp.sticky) {
     return text.match(regExp);
   }
-  let globalRegExp = globalRegExps.get(regExp);
-  if (globalRegExp === undefined) {
-    globalRegExp = new RegExp(regExp.source, regExp.flags + 'g');
-    globalRegExps.set(regExp, globalRegExp);
-  }
-  globalRegExp.lastIndex = 0;
-  let match;
-  while ((match = globalRegExp.exec(text)) !== null) {
-    if (!ESCAPABLE.test(text[match.index]) || !isEscaped(text, match.index)) {
+  for (let offset = 0; ; ) {
+    const match = text.slice(offset).match(regExp);
+    if (match === null) {
+      return null;
+    }
+    const index = offset + match.index!;
+    if (!ESCAPABLE.test(text[index]) || !isEscaped(text, index)) {
+      match.index = index;
+      match.input = text;
       return match;
     }
-    globalRegExp.lastIndex = match.index + 1;
+    offset = index + 1;
   }
-  return null;
 }
 
 export function findOutermostTextMatchTransformer(

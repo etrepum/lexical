@@ -190,7 +190,10 @@ export type TextMatchTransformer = Readonly<{
     exportFormat: (node: TextNode, textContent: string) => string,
   ) => string | null;
   /**
-   * This regex determines what text is matched during markdown imports
+   * This regex determines what text is matched during markdown imports.
+   * Unless it is global or sticky, a match that starts at a backslash-escaped
+   * punctuation character is skipped, and matching starts again from the
+   * character after it.
    */
   importRegExp?: RegExp;
   /**
