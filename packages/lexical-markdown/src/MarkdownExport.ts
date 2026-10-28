@@ -1038,6 +1038,32 @@ function findEscapes(
     }
   }
 
+  // Where a paragraph starts for a reader: the first line, unless it follows
+  // `[` or `# `, and a line after a blank line or a heading's first line.
+  // Link text continues a paragraph.
+  const paragraphStarts = new Set<number>();
+  if (!inLink) {
+    let paragraphOpen = isHeading;
+    for (let lineStart = 0; lineStart <= text.length; ) {
+      const lineEnd = text.indexOf('\n', lineStart);
+      const end = lineEnd === -1 ? text.length : lineEnd;
+      const first = text.slice(lineStart, end).search(/\S/);
+      if (first === -1) {
+        paragraphOpen = false;
+      } else if (!paragraphOpen) {
+        paragraphStarts.add(lineStart + first);
+        paragraphOpen = true;
+      }
+      if (isHeading && lineStart === 0) {
+        paragraphOpen = false;
+      }
+      if (lineEnd === -1) {
+        break;
+      }
+      lineStart = lineEnd + 1;
+    }
+  }
+
   // Brackets, paired the way a CommonMark reader pairs them. Link text that
   // import reads holds brackets nested up to three deep, so a pair deeper than
   // that is escaped, kept as -1.
@@ -1063,13 +1089,9 @@ function findEscapes(
     } else if (
       openers.length > 0 &&
       (text[i + 1] === '(' ||
-        // A link reference definition, which only starts a paragraph, at the
-        // start of the block or after a blank line.
+        // A link reference definition, whose label holds no brackets.
         (text[i + 1] === ':' &&
-          !startsMidLine &&
-          openers.some(opener =>
-            /(?:^|\n[ \t]*\n)[ \t]*$/.test(text.slice(0, opener)),
-          )))
+          paragraphStarts.has(openers[openers.length - 1])))
     ) {
       const opener = openers[openers.length - 1];
       if (literal) {
