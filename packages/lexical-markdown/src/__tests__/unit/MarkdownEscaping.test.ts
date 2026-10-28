@@ -63,6 +63,13 @@ function $styled(text: string): LexicalNode {
 }
 
 function exportPieces(...pieces: Piece[]): string {
+  return exportParagraph(pieces, false);
+}
+
+function exportParagraph(
+  pieces: Piece[],
+  shouldPreserveNewLines: boolean,
+): string {
   using editor = buildEditorFromExtensions([MarkdownTestExtension]);
   editor.update(
     () => {
@@ -72,17 +79,29 @@ function exportPieces(...pieces: Piece[]): string {
     },
     {discrete: true},
   );
-  return editor.read(() => $convertToMarkdownString(TRANSFORMERS));
+  return editor.read(() =>
+    $convertToMarkdownString(TRANSFORMERS, undefined, shouldPreserveNewLines),
+  );
 }
 
-function importMarkdown(markdown: string): {
+function importMarkdown(
+  markdown: string,
+  shouldPreserveNewLines = false,
+): {
   exported: string;
   text: string;
 } {
   using editor = buildEditorFromExtensions([MarkdownTestExtension]);
-  editor.update(() => $convertFromMarkdownString(markdown, TRANSFORMERS), {
-    discrete: true,
-  });
+  editor.update(
+    () =>
+      $convertFromMarkdownString(
+        markdown,
+        TRANSFORMERS,
+        undefined,
+        shouldPreserveNewLines,
+      ),
+    {discrete: true},
+  );
   return editor.read(() => ({
     exported: $convertToMarkdownString(TRANSFORMERS),
     text: $getRoot().getTextContent(),
@@ -103,9 +122,15 @@ function textOf(...pieces: Piece[]): string {
 
 // Exports the content, and checks that importing the export gives the same
 // text back.
-function expectExport(pieces: Piece[], markdown: string) {
-  expect(exportPieces(...pieces)).toBe(markdown);
-  expect(importMarkdown(markdown).text).toBe(textOf(...pieces));
+function expectExport(
+  pieces: Piece[],
+  markdown: string,
+  shouldPreserveNewLines = false,
+) {
+  expect(exportParagraph(pieces, shouldPreserveNewLines)).toBe(markdown);
+  expect(importMarkdown(markdown, shouldPreserveNewLines).text).toBe(
+    textOf(...pieces),
+  );
 }
 
 describe('Markdown export of literal text', () => {
@@ -176,24 +201,11 @@ describe('Markdown export of literal text', () => {
       ['![a [c ', {children: ['b'], url: 'u'}, ' d] e](z)'],
       '![a [c [b](u) d] e\\](z)',
     );
-    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
-    editor.update(
-      () => {
-        $getRoot()
-          .clear()
-          .append(
-            $createParagraphNode().append(
-              ...$createPieces(['[a ', {children: ['b'], url: 'u'}, ' c](z)']),
-            ),
-          );
-      },
-      {discrete: true},
+    expectExport(
+      ['[a ', {children: ['b'], url: 'u'}, ' c](z)'],
+      '[a [b](u) c](z)',
+      true,
     );
-    expect(
-      editor.read(() =>
-        $convertToMarkdownString(TRANSFORMERS, undefined, true),
-      ),
-    ).toBe('[a [b](u) c](z)');
   });
 
   it('keeps a format that ends in punctuation before an escape', () => {

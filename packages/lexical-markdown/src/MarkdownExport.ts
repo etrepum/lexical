@@ -760,7 +760,8 @@ function $isMarkdownLinkNode(
 // Escapes literal text that would otherwise read back as Markdown syntax.
 // `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere, except that
 // when preserving newlines a backslash is escaped only before a character it
-// would escape or a line break, or at the end of a node (see `findEscapes`).
+// would escape or a line break, or at the end of a node that does not end a
+// plain block (see `findEscapes`).
 // Other syntax depends on the text around it, which is read once for each
 // block.
 function $escapeText(
