@@ -103,7 +103,11 @@ function importMarkdown(
     {discrete: true},
   );
   return editor.read(() => ({
-    exported: $convertToMarkdownString(TRANSFORMERS),
+    exported: $convertToMarkdownString(
+      TRANSFORMERS,
+      undefined,
+      shouldPreserveNewLines,
+    ),
     text: $getRoot().getTextContent(),
   }));
 }
@@ -423,27 +427,7 @@ describe('Markdown export of literal text', () => {
       [['a\\', {children: ['x'], url: 'u'}], 'a\\\\[x](u)'],
       [['[a\\]', {format: 'bold', text: '](b)'}], '[a\\\\]**\\](b)**'],
     ] as [Piece[], string][]) {
-      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
-      editor.update(
-        () => {
-          $getRoot()
-            .clear()
-            .append($createParagraphNode().append(...$createPieces(pieces)));
-        },
-        {discrete: true},
-      );
-      const exported = editor.read(() =>
-        $convertToMarkdownString(TRANSFORMERS, undefined, true),
-      );
-      expect(exported).toBe(markdown);
-      editor.update(
-        () =>
-          $convertFromMarkdownString(exported, TRANSFORMERS, undefined, true),
-        {discrete: true},
-      );
-      expect(editor.read(() => $getRoot().getTextContent())).toBe(
-        textOf(...pieces),
-      );
+      expectExport(pieces, markdown, true);
     }
   });
 

@@ -760,8 +760,8 @@ function $isMarkdownLinkNode(
 // Escapes literal text that would otherwise read back as Markdown syntax.
 // `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere, except that
 // when preserving newlines a backslash is escaped only before a character it
-// would escape or a line break, or at the end of a node that does not end a
-// plain block (see `findEscapes`).
+// would escape or a line break, or at the end of a node where it could escape
+// what is written next (see `findEscapes`).
 // Other syntax depends on the text around it, which is read once for each
 // block.
 function $escapeText(
@@ -956,8 +956,9 @@ function findEscapes(
 
   // When preserving source newlines, a backslash at the end of a node is
   // escaped, since it could escape what the export writes after it: the next
-  // node, or the closing syntax of a link or format. A backslash that ends a
-  // plain block is kept, as the existing hard line break export relies on.
+  // node, or the closing syntax of a link or format. One that ends the block
+  // outside a link or format escapes nothing, and is kept, as the existing
+  // hard line break export relies on.
   if (shouldPreserveNewLines) {
     pieces.forEach(([node, pieceText, literal], index) => {
       const end = starts[index] + pieceText.length;
