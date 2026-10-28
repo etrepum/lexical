@@ -465,6 +465,64 @@ describe('Markdown export of literal text', () => {
     expectExport(['a', '\n', ':)'], 'a\n:)');
     expectExport([{format: 'bold', text: '# a'}], '**# a**');
     expectExport(['a # b - c'], 'a # b - c');
+    expectExport(['a [x]: y'], 'a [x]: y');
+    expectExport(
+      [{children: ['1. Intro'], url: 'https://lexical.dev'}],
+      '[1. Intro](https://lexical.dev)',
+    );
+  });
+
+  it('escapes a highlighted setext heading underline', () => {
+    expectExport(['a', '\n', {format: 'highlight', text: '='}], 'a\n==\\===');
+  });
+
+  it('escapes a closing sequence in heading text', () => {
+    for (const [text, markdown] of [
+      ['a #', '# a \\#'],
+      ['#', '# \\#'],
+      ['C#', '# C#'],
+    ]) {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(
+        () => {
+          $convertFromMarkdownString('# x', TRANSFORMERS);
+          $getRoot().getAllTextNodes()[0].setTextContent(text);
+        },
+        {discrete: true},
+      );
+      expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+        markdown,
+      );
+      expect(importMarkdown(markdown).text).toBe(text);
+    }
+  });
+
+  it('reads a nested list apart from the text of its list item', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append(
+            $createListNode('bullet').append(
+              $createListItemNode().append(
+                $createTextNode('a!'),
+                $createListNode('bullet').append(
+                  $createListItemNode().append(
+                    $createLinkNode('https://lexical.dev').append(
+                      $createTextNode('b'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toContain(
+      'a!',
+    );
   });
 });
 
@@ -569,6 +627,23 @@ describe('Markdown import of escapes and raw inline syntax', () => {
     );
     expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
       'a \\<i>',
+    );
+  });
+
+  it('keeps raw inline syntax as written when text is typed beside it', () => {
+    using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+    editor.update(
+      () => {
+        $convertFromMarkdownString('a <b>x', TRANSFORMERS);
+        const raw = $getRoot().getAllTextNodes()[1];
+        assert($isTextNode(raw));
+        expect(raw.getTextContent()).toBe('<b>');
+        raw.setTextContent('<i> <b> [c](d)');
+      },
+      {discrete: true},
+    );
+    expect(editor.read(() => $convertToMarkdownString(TRANSFORMERS))).toBe(
+      'a \\<i> <b> [c\\](d)x',
     );
   });
 

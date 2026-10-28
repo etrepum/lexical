@@ -58,7 +58,13 @@ export function transformersByType(transformers: Transformer[]): Readonly<{
 
 export const PUNCTUATION_OR_SPACE = /[!-/:-@[-`{-~\s]/;
 export const WHITESPACE = /\s/;
+// Punctuation for emphasis flanking. CommonMark counts a backslash too, but
+// leaving it out keeps a delimiter run before an escape that export writes
+// after a word, as in `a**\*b**`.
 export const PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~]/;
+
+// An ASCII punctuation character, which a backslash can escape.
+export const ESCAPABLE = /[!-/:-@[-`{-~]/;
 
 const MARKDOWN_EMPTY_LINE_REG_EXP = /^\s{0,3}$/;
 
@@ -89,7 +95,8 @@ function decodeDecimalCharacterReference(_: string, digits: string): string {
     : String.fromCodePoint(codePoint);
 }
 
-// An `&` that begins a character reference.
+// An `&` that begins a character reference. Global, for `replace` and
+// `matchAll` only.
 export const CHARACTER_REFERENCE_START =
   /&(?=#\d+;|#[Xx][\dA-Fa-f]+;|[A-Za-z][\dA-Za-z]*;)/g;
 
@@ -106,7 +113,7 @@ export function unescapeText(value: string): string {
 // An escaped punctuation character is literal, so it cannot begin syntax.
 // https://spec.commonmark.org/0.31.2/#backslash-escapes
 export function isEscaped(text: string, index: number): boolean {
-  if (!/[!-/:-@[-`{-~]/.test(text[index])) {
+  if (!ESCAPABLE.test(text[index] || '')) {
     return false;
   }
   let backslashes = 0;

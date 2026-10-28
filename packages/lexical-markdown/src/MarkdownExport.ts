@@ -38,6 +38,7 @@ import {
 } from './MarkdownTransformers';
 import {
   CHARACTER_REFERENCE_START,
+  ESCAPABLE,
   isEmptyParagraph,
   transformersByType,
 } from './utils';
@@ -518,11 +519,7 @@ function $exportTextFormat(
 
   const isCode = node.hasFormat('code');
 
-  const isLiteral = !isCode && !$isRawInlineText(node, textContent);
-
-  const output = isLiteral
-    ? $escapeText(node, textContent, context)
-    : textContent;
+  const output = isCode ? textContent : $escapeText(node, textContent, context);
 
   let leadingSpace: string;
   let trimmedOutput: string;
@@ -657,6 +654,8 @@ type ExportContext = Readonly<{
   // line start as block syntax.
   lineStartRegExps: RegExp[];
   selection: BaseSelection | null;
+  // The selected nodes and their ancestors, when exporting a selection.
+  selectedKeys: Set<NodeKey>;
   shouldPreserveNewLines: boolean;
   // The selected text of each text node, when exporting a selection.
   slices: Map<NodeKey, string | null>;
@@ -680,6 +679,7 @@ function createExportContext(
       ...byType.element.map(transformer => transformer.regExp),
       ...byType.multilineElement.map(transformer => transformer.regExpStart),
     ],
+    selectedKeys: new Set(),
     selection,
     shouldPreserveNewLines,
     slices: new Map(),
@@ -690,14 +690,22 @@ function createExportContext(
     writesLinks: byType.textMatch.some(
       transformer =>
         transformer.export !== undefined &&
-        transformer.dependencies.includes(LinkNode),
+        transformer.dependencies.some(
+          klass => klass === LinkNode || klass.prototype instanceof LinkNode,
+        ),
     ),
   };
 }
 
-// Text imported from raw inline syntax is written as it was while unchanged.
-function $isRawInlineText(node: TextNode, textContent: string): boolean {
-  return textContent !== '' && $getState(node, rawInlineState) === textContent;
+// The span of a node's text that is written as the raw inline syntax it was
+// imported from, while the text still holds that source unchanged.
+function $rawInlineSpan(
+  node: TextNode,
+  textContent: string,
+): [number, number] | null {
+  const source = $getState(node, rawInlineState);
+  const start = source === '' ? -1 : textContent.indexOf(source);
+  return start === -1 ? null : [start, start + source.length];
 }
 
 // The text of a node that the export writes, or null if it writes none.
@@ -719,12 +727,24 @@ function $exportedText(node: TextNode, context: ExportContext): string | null {
 // Whether the export writes a node, or anything in it.
 function $isExported(node: LexicalNode, context: ExportContext): boolean {
   const {selection} = context;
-  return (
-    !selection ||
-    node.isSelected(selection) ||
-    ($isElementNode(node) &&
-      node.getAllTextNodes().some(text => text.isSelected(selection)))
-  );
+  if (!selection) {
+    return true;
+  }
+  const {selectedKeys} = context;
+  if (selectedKeys.size === 0) {
+    for (const selected of selection.getNodes()) {
+      for (
+        let current: LexicalNode | null = selected;
+        current !== null && !selectedKeys.has(current.getKey());
+        current = current.getParent()
+      ) {
+        selectedKeys.add(current.getKey());
+      }
+    }
+    // Marks the set as filled, even if nothing is selected.
+    selectedKeys.add('');
+  }
+  return selectedKeys.has(node.getKey()) || node.isSelected(selection);
 }
 
 function $isMarkdownLinkNode(
@@ -733,8 +753,6 @@ function $isMarkdownLinkNode(
 ): boolean {
   return $isLinkNode(node) && !$isAutoLinkNode(node) && context.writesLinks;
 }
-
-const PUNCTUATION_CHARACTER = /[!-/:-@[-`{-~]/;
 
 // Escapes literal text that would otherwise read back as Markdown syntax.
 // `*`, `_`, `` ` ``, `~` and backslashes are escaped anywhere. Other syntax
@@ -745,18 +763,21 @@ function $escapeText(
   context: ExportContext,
 ): string {
   const escapes = $escapesIn(node, textContent, context);
+  const raw = $rawInlineSpan(node, textContent);
   return textContent.replace(
     /[!-/:-@[-`{-~]/g,
     (char: string, index: number) =>
-      escapes.has(index) ||
-      (char === '\\'
-        ? // When preserving source newlines, a backslash is written as it
-          // is unless it would escape the character after it.
-          !context.shouldPreserveNewLines ||
-          PUNCTUATION_CHARACTER.test(textContent[index + 1] || '')
-        : /[*_`~]/.test(char))
-        ? '\\' + char
-        : char,
+      raw !== null && index >= raw[0] && index < raw[1]
+        ? char
+        : escapes.has(index) ||
+            (char === '\\'
+              ? // When preserving source newlines, a backslash is written as it
+                // is unless it would escape the character after it.
+                !context.shouldPreserveNewLines ||
+                ESCAPABLE.test(textContent[index + 1] || '')
+              : /[*_`~]/.test(char))
+          ? '\\' + char
+          : char,
   );
 }
 
@@ -804,9 +825,9 @@ function $escapesIn(
   return escapes.get(node.getKey()) || new Set();
 }
 
-// A run of exported text: its node, the text as a reader sees it, and whether
-// it is literal text that can be escaped.
-type Piece = [LexicalNode, string, boolean];
+// A run of exported text: its node, the text as a reader sees it, whether it
+// is literal text that can be escaped, and where it starts in the node's text.
+type Piece = [LexicalNode, string, boolean, number];
 
 // The exported text of a block or link, in order, looking into inline
 // elements that are written as their children. A link nested in it is
@@ -824,29 +845,37 @@ function $collectPieces(
         continue;
       }
       if ($isMarkdownLinkNode(child, context)) {
-        pieces.push([child, '[]()', false]);
+        pieces.push([child, '[]()', false, 0]);
         continue;
       }
       const markdown = $exportWithTransformer(child, context);
       if (markdown !== null) {
-        pieces.push([child, markdown, false]);
+        pieces.push([child, markdown, false, 0]);
+      } else if ($isElementNode(child) && !child.isInline()) {
+        // A block in a block, such as a nested list, starts a new line.
+        pieces.push([child, '\n', false, 0]);
       } else if ($isElementNode(child)) {
         $visit(child);
       } else if ($isTextNode(child)) {
         const text = child.is(replacedNode)
           ? replacedText || ''
           : $exportedText(child, context) || '';
-        pieces.push(
-          child.hasFormat('code')
-            ? // A code span starts with a backtick, and holds no syntax.
-              [child, '`', false]
-            : $isRawInlineText(child, text)
-              ? // Brackets in raw HTML are not link syntax.
-                [child, text.replace(/[[\]]/g, ' '), false]
-              : [child, text, true],
-        );
+        const raw = $rawInlineSpan(child, text);
+        if (child.hasFormat('code')) {
+          // A code span starts with a backtick, and holds no syntax.
+          pieces.push([child, '`', false, 0]);
+        } else if (raw) {
+          // Brackets in raw HTML are not link syntax.
+          pieces.push(
+            [child, text.slice(0, raw[0]), true, 0],
+            [child, text.slice(...raw).replace(/[[\]]/g, ' '), false, raw[0]],
+            [child, text.slice(raw[1]), true, raw[1]],
+          );
+        } else {
+          pieces.push([child, text, true, 0]);
+        }
       } else {
-        pieces.push([child, child.getTextContent(), false]);
+        pieces.push([child, child.getTextContent(), false, 0]);
       }
     }
   };
@@ -892,9 +921,10 @@ const LINK_TEXT_BRACKET_DEPTH = 3;
 function findEscapes(
   pieces: Piece[],
   inLink: boolean,
-  startsMidLine: boolean,
+  isHeading: boolean,
   context: ExportContext,
 ): Map<LexicalNode, Set<number>> {
+  const startsMidLine = inLink || isHeading;
   const {lineStartRegExps, shouldPreserveNewLines, taggedFormats} = context;
   const starts: number[] = [];
   const pieceOf: number[] = [];
@@ -944,8 +974,13 @@ function findEscapes(
       /^[ \t]*$/.test(text.slice(starts[piece], first)) &&
       taggedFormats.some(format => hasFormat(pieces[piece][0], format));
     const orderedList = /^\d+[.)](?:\s|$)/.exec(rest);
-    if (rest === '' || isTagged) {
-      // Nothing to escape.
+    if (rest === '' || (isTagged && !/^=+\s*$/.test(rest))) {
+      // Nothing to escape. A tagged node's delimiters come first, except
+      // that `==` around `=` would still read as a setext heading underline.
+    } else if (isTagged) {
+      if (isLiteral(first)) {
+        escaped.add(first);
+      }
     } else if (orderedList) {
       const delimiter = first + orderedList[0].trimEnd().length - 1;
       if (isLiteral(delimiter)) {
@@ -953,7 +988,7 @@ function findEscapes(
       }
     } else if (
       isLiteral(first) &&
-      PUNCTUATION_CHARACTER.test(text[first]) &&
+      ESCAPABLE.test(text[first]) &&
       (LINE_START_SYNTAX.test(rest) ||
         lineStartRegExps.some(regExp => line.search(regExp) !== -1))
     ) {
@@ -961,6 +996,15 @@ function findEscapes(
     }
     if (lineEnd === -1) {
       break;
+    }
+  }
+
+  // A heading's closing sequence of `#`, which a reader drops.
+  const closing = isHeading ? /(?:^|[ \t])(#+)[ \t]*$/.exec(text) : null;
+  if (closing) {
+    const hash = closing.index + closing[0].indexOf('#');
+    if (isLiteral(hash)) {
+      escaped.add(hash);
     }
   }
 
@@ -1000,7 +1044,11 @@ function findEscapes(
     } else if (
       openers.length > 0 &&
       openers[openers.length - 1] !== -1 &&
-      /[(:]/.test(text[i + 1] || '')
+      (text[i + 1] === '(' ||
+        // A link reference definition, which only starts a paragraph.
+        (text[i + 1] === ':' &&
+          !startsMidLine &&
+          openers[0] === text.length - text.trimStart().length))
     ) {
       if (literal) {
         // Escaped, the bracket keeps the opener.
@@ -1026,9 +1074,9 @@ function findEscapes(
 
   const escapes = new Map<LexicalNode, Set<number>>();
   for (const index of escaped) {
-    const [node] = pieces[pieceOf[index]];
+    const [node, , , offset] = pieces[pieceOf[index]];
     const indices = escapes.get(node) || new Set();
-    escapes.set(node, indices.add(index - starts[pieceOf[index]]));
+    escapes.set(node, indices.add(index - starts[pieceOf[index]] + offset));
   }
   return escapes;
 }
