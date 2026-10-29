@@ -23,11 +23,8 @@ import {
   ParagraphNode,
   TextNode,
 } from 'lexical';
-import {
-  $assertNodeType,
-  expectHtmlToBeEqual,
-  html,
-} from 'lexical/src/__tests__/utils';
+import {$assertNodeType, html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {afterEach, beforeEach, describe, it} from 'vitest';
 import * as Y from 'yjs';
 

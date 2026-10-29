@@ -12,7 +12,8 @@ import {
   $generateNodesFromDOMViaExtension,
 } from '@lexical/html';
 import {$getRoot, $insertNodes, defineExtension} from 'lexical';
-import {expectHtmlToBeEqual, html} from 'lexical/src/__tests__/utils';
+import {html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {assert, describe, expect, it} from 'vitest';
 
 import {

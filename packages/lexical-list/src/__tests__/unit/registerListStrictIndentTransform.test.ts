@@ -8,11 +8,8 @@
 import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
 import {registerListStrictIndentTransform} from '@lexical/list';
 import {$getRoot} from 'lexical';
-import {
-  expectHtmlToBeEqual,
-  html,
-  initializeUnitTest,
-} from 'lexical/src/__tests__/utils';
+import {html, initializeUnitTest} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {beforeEach, describe, test} from 'vitest';
 
 describe('Lexical List StrictIndentTransform tests', () => {

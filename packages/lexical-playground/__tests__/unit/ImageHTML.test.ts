@@ -10,7 +10,8 @@ import {$insertGeneratedNodes} from '@lexical/clipboard';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {$generateHtmlFromNodes} from '@lexical/html';
 import {$selectAll, $setSelection, defineExtension} from 'lexical';
-import {expectHtmlToBeEqual, html} from 'lexical/src/__tests__/utils';
+import {html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {describe, it} from 'vitest';
 
 import {$createImageNode} from '../../src/nodes/ImageNode';

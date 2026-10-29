@@ -21,11 +21,8 @@ import {
   $setSelection,
   defineExtension,
 } from 'lexical';
-import {
-  $assertNodeType,
-  expectHtmlToBeEqual,
-  html,
-} from 'lexical/src/__tests__/utils';
+import {$assertNodeType, html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {describe, expect, it} from 'vitest';
 
 import {

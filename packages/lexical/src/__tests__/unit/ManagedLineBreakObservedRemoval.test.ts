@@ -38,7 +38,8 @@ import {
 } from 'lexical';
 import {describe, expect, test} from 'vitest';
 
-import {$assertNodeType, expectHtmlToBeEqual} from '../utils';
+import {$assertNodeType} from '../utils';
+import {expectHtmlToBeEqual} from '../utils/formatHtml';
 import {
   BlockDecoratorNode,
   decorators,

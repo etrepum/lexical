@@ -39,12 +39,12 @@ import {
 } from 'lexical';
 import {
   $assertNodeType,
-  expectHtmlToBeEqual,
   html,
   initializeUnitTest,
   invariant,
   polyfillContentEditable,
 } from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {act, useState} from 'react';
 import {assert, beforeEach, describe, expect, test} from 'vitest';
 

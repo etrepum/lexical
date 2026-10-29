@@ -66,10 +66,10 @@ import {
 import {
   createTestEditor,
   DECORATOR_BOUNDARY_ANCHOR_HTML,
-  expectHtmlToBeEqual,
   html,
   TestComposer,
 } from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {act, type JSX} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {

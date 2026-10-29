@@ -16,7 +16,12 @@ import {
   ReactPluginHostExtension,
 } from '@lexical/react/ReactPluginHostExtension';
 import {RichTextExtension} from '@lexical/rich-text';
-import {$createParagraphNode, $getRoot, defineExtension} from 'lexical';
+import {
+  $createParagraphNode,
+  $getRoot,
+  defineExtension,
+  IS_APPLE,
+} from 'lexical';
 import {act} from 'react';
 import {describe, onTestFinished, test} from 'vitest';
 
@@ -24,6 +29,7 @@ import theme from '../../themes/PlaygroundEditorTheme';
 import {
   assertCaret,
   assertHTML,
+  assertSelection,
   html,
   press as nativePress,
   typeText as nativeTypeText,
@@ -81,6 +87,95 @@ async function setup(charset: 'UTF-8' | 'UTF-16', isRichText: boolean) {
 
 describe.each(['UTF-8', 'UTF-16'] as const)('character limit %s', charset => {
   describe.each([true, false])('rich text: %s', isRichText => {
+    test('displays overflow on text', async () => {
+      const {root} = await setup(charset, isRichText);
+
+      await typeText('12345');
+      await assertHTML(
+        root,
+        html`
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span data-lexical-text="true">12345</span>
+          </p>
+        `,
+      );
+
+      await typeText('6789');
+      await assertHTML(
+        root,
+        html`
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span data-lexical-text="true">12345</span>
+            <span class="PlaygroundEditorTheme__characterLimit">
+              <span data-lexical-text="true">6789</span>
+            </span>
+          </p>
+        `,
+      );
+      await assertSelection(root, {
+        anchorOffset: 4,
+        anchorPath: [0, 1, 0, 0],
+        focusOffset: 4,
+        focusPath: [0, 1, 0, 0],
+      });
+
+      await press(IS_APPLE ? 'Meta+ArrowLeft' : 'Home');
+      await typeText('0');
+
+      await assertHTML(
+        root,
+        html`
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span data-lexical-text="true">01234</span>
+            <span class="PlaygroundEditorTheme__characterLimit">
+              <span data-lexical-text="true">56789</span>
+            </span>
+          </p>
+        `,
+      );
+      await assertSelection(root, {
+        anchorOffset: 1,
+        anchorPath: [0, 0, 0],
+        focusOffset: 1,
+        focusPath: [0, 0, 0],
+      });
+    });
+
+    test.runIf(isRichText)('can delete an overflowed paragraph', async () => {
+      const {root} = await setup(charset, isRichText);
+
+      await typeText('12345');
+      await press('Enter');
+      await typeText('6');
+      await assertHTML(
+        root,
+        html`
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span data-lexical-text="true">12345</span>
+          </p>
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span class="PlaygroundEditorTheme__characterLimit">
+              <span data-lexical-text="true">6</span>
+            </span>
+          </p>
+        `,
+      );
+
+      await press('ArrowLeft');
+      await press('Backspace');
+      await assertHTML(
+        root,
+        html`
+          <p class="PlaygroundEditorTheme__paragraph" dir="auto">
+            <span data-lexical-text="true">12345</span>
+            <span class="PlaygroundEditorTheme__characterLimit">
+              <span data-lexical-text="true">6</span>
+            </span>
+          </p>
+        `,
+      );
+    });
+
     test('can type new lines inside overflow', async () => {
       const {root} = await setup(charset, isRichText);
 

@@ -9,7 +9,8 @@
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {TailwindExtension} from '@lexical/tailwind';
 import {$createParagraphNode, $createTextNode, $getRoot} from 'lexical';
-import {expectHtmlToBeEqual, html} from 'lexical/src/__tests__/utils';
+import {html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {describe, it} from 'vitest';
 
 describe('TailwindExtension', () => {
