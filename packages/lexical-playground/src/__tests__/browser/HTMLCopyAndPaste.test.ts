@@ -25,8 +25,10 @@ test('Copy + paste multi line html with extra newlines', async () => {
       '<p>Hello\n</p>\n\n<p>\n\nWorld\n\n</p>\n\n<p>Hello\n\n   World   \n\n!\n\n</p><p>Hello <b>World</b> <i>!</i></p>',
   });
 
-  // Keep the rendered whitespace: assertHTML normalizes it and would hide
-  // extra newlines. Comparing the array also checks the paragraph count.
+  // HTML import collapses whitespace outside preformatted content. Check the
+  // resulting innerText exactly: the old E2E toHaveText(string) assertion
+  // normalized whitespace even with useInnerText, hiding extra newlines.
+  // Comparing the array also checks the paragraph count.
   await expect
     .poll(() =>
       Array.from(
@@ -34,7 +36,7 @@ test('Copy + paste multi line html with extra newlines', async () => {
         p => (p as HTMLElement).innerText,
       ),
     )
-    .toEqual(['Hello', 'World', 'Hello   World   !', 'Hello World !']);
+    .toEqual(['Hello', 'World', 'Hello World !', 'Hello World !']);
 });
 
 test('Copy + paste blocks after two line breaks', async () => {
