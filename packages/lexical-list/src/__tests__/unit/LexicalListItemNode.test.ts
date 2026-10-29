@@ -32,11 +32,8 @@ import {
   $isRangeSelection,
   TextNode,
 } from 'lexical';
-import {
-  expectHtmlToBeEqual,
-  html,
-  initializeUnitTest,
-} from 'lexical/src/__tests__/utils';
+import {html, initializeUnitTest} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {assert, beforeEach, describe, expect, it, test} from 'vitest';
 
 import {$handleIndent} from '../../formatList';

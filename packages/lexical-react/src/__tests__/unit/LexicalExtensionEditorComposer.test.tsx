@@ -40,10 +40,10 @@ import {
 } from 'lexical';
 import {
   DECORATOR_BOUNDARY_ANCHOR_HTML,
-  expectHtmlToBeEqual,
   html,
   invariant,
 } from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import * as React from 'react';
 import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';

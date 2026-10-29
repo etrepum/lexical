@@ -103,11 +103,11 @@ import {
   $createTestInlineElementNode,
   createTestEditor,
   createTestHeadlessEditor,
-  expectHtmlToBeEqual,
   html,
   TestComposer,
   TestTextNode,
 } from '../utils';
+import {expectHtmlToBeEqual} from '../utils/formatHtml';
 
 function $getAllNodes(): Set<LexicalNode> {
   const root = $getRoot();

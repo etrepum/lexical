@@ -23,7 +23,6 @@ import {
 } from '@lexical/react/LexicalComposerContext';
 import {HeadingNode, QuoteNode} from '@lexical/rich-text';
 import {TableCellNode, TableNode, TableRowNode} from '@lexical/table';
-import prettier from '@prettier/sync';
 import {
   $create,
   $isRangeSelection,
@@ -66,8 +65,6 @@ import {
 // record — what a package's generated-code test asks about, since the module
 // it imports exports the factory, not the functions.
 export {getGeneratedJSON};
-
-const prettierConfig = prettier.resolveConfig(__filename);
 
 type TestEnv = {
   readonly container: HTMLDivElement;
@@ -651,17 +648,6 @@ export function $expectSameParse<T extends LexicalNode>(
   const viaWalk = $walkJSONSetters($create(klass), json);
   expect(viaGenerated.exportJSON()).toEqual(viaWalk.exportJSON());
   return viaGenerated;
-}
-
-export function expectHtmlToBeEqual(actual: string, expected: string): void {
-  expect(prettifyHtml(actual)).toBe(prettifyHtml(expected));
-}
-
-export function prettifyHtml(s: string): string {
-  return prettier.format(s.replace(/\n/g, ''), {
-    ...prettierConfig,
-    parser: 'html',
-  });
 }
 
 /**

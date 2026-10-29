@@ -6,6 +6,8 @@
  *
  */
 
+// @vitest-environment node
+
 import type {QuoteNode} from '@lexical/rich-text';
 
 import {
@@ -75,7 +77,6 @@ import {
   isSchemaField,
 } from '../../LexicalSchema';
 import {resolveSchemaField} from '../../LexicalUtils';
-import {initializeUnitTest} from '../utils';
 
 describe('LexicalSchema value schemas', () => {
   test('stringValue', () => {
@@ -230,157 +231,130 @@ function refused(combinator: string, build: () => unknown): void {
 }
 
 describe('updateFromJSON tolerates partial and out-of-domain JSON', () => {
-  initializeUnitTest(testEnv => {
-    test('TextNode applies defaults when properties are missing', () => {
-      const {editor} = testEnv;
-      editor.update(() => {
-        const node = $createTextNode('initial');
-        // A "compact" serialized node with no node-specific properties.
-        node.updateFromJSON({});
-        expect(node.getTextContent()).toBe('');
-        expect(node.getFormat()).toBe(0);
-        expect(node.getDetail()).toBe(0);
-        expect(node.getMode()).toBe('normal');
-        expect(node.getStyle()).toBe('');
-      });
-    });
+  test('TextNode applies defaults when properties are missing', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
 
-    test('TextNode rejects out-of-domain values', () => {
-      const {editor} = testEnv;
-      editor.update(() => {
-        const node = $createTextNode('initial');
-        node.updateFromJSON({
-          detail: 'nope',
-          format: null,
-          mode: 'bogus',
-          style: 42,
-          text: 99,
-          // deliberately out of domain, so the double cast is required
-        } as unknown as LexicalParseJSON<SerializedTextNode>);
-        expect(node.getTextContent()).toBe('');
-        expect(node.getFormat()).toBe(0);
-        expect(node.getDetail()).toBe(0);
-        expect(node.getMode()).toBe('normal');
-        expect(node.getStyle()).toBe('');
-      });
+    editor.update(() => {
+      const node = $createTextNode('initial');
+      // A "compact" serialized node with no node-specific properties.
+      node.updateFromJSON({});
+      expect(node.getTextContent()).toBe('');
+      expect(node.getFormat()).toBe(0);
+      expect(node.getDetail()).toBe(0);
+      expect(node.getMode()).toBe('normal');
+      expect(node.getStyle()).toBe('');
     });
+  });
 
-    test('TextNode preserves valid values', () => {
-      const {editor} = testEnv;
-      editor.update(() => {
-        const node = $createTextNode('initial');
-        node.updateFromJSON({
-          detail: 0,
-          format: 1,
-          mode: 'token',
-          style: 'color: red',
-          text: 'hello',
-        });
-        expect(node.getTextContent()).toBe('hello');
-        expect(node.getFormat()).toBe(1);
-        expect(node.getMode()).toBe('token');
-        expect(node.getStyle()).toBe('color: red');
-      });
+  test('TextNode rejects out-of-domain values', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    editor.update(() => {
+      const node = $createTextNode('initial');
+      node.updateFromJSON({
+        detail: 'nope',
+        format: null,
+        mode: 'bogus',
+        style: 42,
+        text: 99,
+        // deliberately out of domain, so the double cast is required
+      } as unknown as LexicalParseJSON<SerializedTextNode>);
+      expect(node.getTextContent()).toBe('');
+      expect(node.getFormat()).toBe(0);
+      expect(node.getDetail()).toBe(0);
+      expect(node.getMode()).toBe('normal');
+      expect(node.getStyle()).toBe('');
     });
+  });
 
-    test('parseEditorState round-trips compact node JSON', () => {
-      const {editor} = testEnv;
-      const editorState = editor.parseEditorState(
-        JSON.stringify({
-          root: {
-            children: [
-              {
-                // ParagraphNode missing direction/format/indent/textFormat/...
-                children: [
-                  // TextNode missing detail/format/mode/style
-                  {text: 'hello', type: 'text', version: 1},
-                ],
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            type: 'root',
-            version: 1,
-          },
-        }),
-      );
-      editorState.read(() => {
-        const textNodes = $getRoot().getAllTextNodes();
-        expect(textNodes).toHaveLength(1);
-        expect(textNodes[0].getTextContent()).toBe('hello');
-        expect(textNodes[0].getFormat()).toBe(0);
-        expect(textNodes[0].getDetail()).toBe(0);
-        expect(textNodes[0].getMode()).toBe('normal');
-        expect(textNodes[0].getStyle()).toBe('');
+  test('TextNode preserves valid values', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    editor.update(() => {
+      const node = $createTextNode('initial');
+      node.updateFromJSON({
+        detail: 0,
+        format: 1,
+        mode: 'token',
+        style: 'color: red',
+        text: 'hello',
       });
+      expect(node.getTextContent()).toBe('hello');
+      expect(node.getFormat()).toBe(1);
+      expect(node.getMode()).toBe('token');
+      expect(node.getStyle()).toBe('color: red');
     });
+  });
 
-    test('TextNode accepts the legacy string names for format and detail', () => {
-      // Hand-authored and older documents carry e.g. `format: 'bold'`, which
-      // setFormat/setDetail have always converted from.
-      const {editor} = testEnv;
-      editor.update(() => {
-        const node = $createTextNode('x');
-        node.updateFromJSON({
-          detail: 'directionless',
-          format: 'bold',
-        } as unknown as LexicalParseJSON<SerializedTextNode>);
-        expect(node.hasFormat('bold')).toBe(true);
-        expect(node.isDirectionless()).toBe(true);
-      });
-    });
+  test('parseEditorState round-trips compact node JSON', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
 
-    test('TabNode ignores JSON for its fixed properties', () => {
-      // text/detail/mode are derived for a tab (setTextContent normalizes, and
-      // setDetail/setMode reject anything else), so a hand-authored or foreign
-      // value for them must be ignored rather than reach a setter that throws.
-      const {editor} = testEnv;
-      for (const bad of [
-        {mode: 'token'},
-        {detail: 0},
-        {text: 'xyz'},
-        {detail: 'directionless', mode: 'segmented', text: ''},
-      ]) {
-        const state = editor.parseEditorState(
-          JSON.stringify({
-            root: {
+    const editorState = editor.parseEditorState(
+      JSON.stringify({
+        root: {
+          children: [
+            {
+              // ParagraphNode missing direction/format/indent/textFormat/...
               children: [
-                {
-                  children: [{type: 'tab', version: 1, ...bad}],
-                  type: 'paragraph',
-                  version: 1,
-                },
+                // TextNode missing detail/format/mode/style
+                {text: 'hello', type: 'text', version: 1},
               ],
-              type: 'root',
+              type: 'paragraph',
               version: 1,
             },
-          }),
-        );
-        state.read(() => {
-          const [tab] = $getRoot().getAllTextNodes();
-          expect($isTabNode(tab)).toBe(true);
-          expect(tab.getTextContent()).toBe('\t');
-          expect(tab.isUnmergeable()).toBe(true);
-          expect(tab.getMode()).toBe('normal');
-        });
-      }
+          ],
+          type: 'root',
+          version: 1,
+        },
+      }),
+    );
+    editorState.read(() => {
+      const textNodes = $getRoot().getAllTextNodes();
+      expect(textNodes).toHaveLength(1);
+      expect(textNodes[0].getTextContent()).toBe('hello');
+      expect(textNodes[0].getFormat()).toBe(0);
+      expect(textNodes[0].getDetail()).toBe(0);
+      expect(textNodes[0].getMode()).toBe('normal');
+      expect(textNodes[0].getStyle()).toBe('');
     });
+  });
 
-    test('TabNode imports fully compact JSON', () => {
-      // TabNode's own schema must override the inherited TextNode field
-      // defaults: applying `detail: 0` or `text: ''` would throw in its
-      // setters, so `{type: 'tab'}` alone must restore the canonical tab.
-      const {editor} = testEnv;
-      const editorState = editor.parseEditorState(
+  test('TextNode accepts the legacy string names for format and detail', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    // Hand-authored and older documents carry e.g. `format: 'bold'`, which
+    // setFormat/setDetail have always converted from.
+
+    editor.update(() => {
+      const node = $createTextNode('x');
+      node.updateFromJSON({
+        detail: 'directionless',
+        format: 'bold',
+      } as unknown as LexicalParseJSON<SerializedTextNode>);
+      expect(node.hasFormat('bold')).toBe(true);
+      expect(node.isDirectionless()).toBe(true);
+    });
+  });
+
+  test('TabNode ignores JSON for its fixed properties', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    // text/detail/mode are derived for a tab (setTextContent normalizes, and
+    // setDetail/setMode reject anything else), so a hand-authored or foreign
+    // value for them must be ignored rather than reach a setter that throws.
+
+    for (const bad of [
+      {mode: 'token'},
+      {detail: 0},
+      {text: 'xyz'},
+      {detail: 'directionless', mode: 'segmented', text: ''},
+    ]) {
+      const state = editor.parseEditorState(
         JSON.stringify({
           root: {
             children: [
               {
-                children: [
-                  {type: 'tab', version: 1},
-                  // Out-of-domain values fall back to the same canonical state
-                  {detail: 'bogus', text: 'xyz', type: 'tab', version: 1},
-                ],
+                children: [{type: 'tab', version: 1, ...bad}],
                 type: 'paragraph',
                 version: 1,
               },
@@ -390,15 +364,50 @@ describe('updateFromJSON tolerates partial and out-of-domain JSON', () => {
           },
         }),
       );
-      editorState.read(() => {
-        const textNodes = $getRoot().getAllTextNodes();
-        expect(textNodes).toHaveLength(2);
-        for (const node of textNodes) {
-          expect($isTabNode(node)).toBe(true);
-          expect(node.getTextContent()).toBe('\t');
-          expect(node.isUnmergeable()).toBe(true);
-        }
+      state.read(() => {
+        const [tab] = $getRoot().getAllTextNodes();
+        expect($isTabNode(tab)).toBe(true);
+        expect(tab.getTextContent()).toBe('\t');
+        expect(tab.isUnmergeable()).toBe(true);
+        expect(tab.getMode()).toBe('normal');
       });
+    }
+  });
+
+  test('TabNode imports fully compact JSON', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    // TabNode's own schema must override the inherited TextNode field
+    // defaults: applying `detail: 0` or `text: ''` would throw in its
+    // setters, so `{type: 'tab'}` alone must restore the canonical tab.
+
+    const editorState = editor.parseEditorState(
+      JSON.stringify({
+        root: {
+          children: [
+            {
+              children: [
+                {type: 'tab', version: 1},
+                // Out-of-domain values fall back to the same canonical state
+                {detail: 'bogus', text: 'xyz', type: 'tab', version: 1},
+              ],
+              type: 'paragraph',
+              version: 1,
+            },
+          ],
+          type: 'root',
+          version: 1,
+        },
+      }),
+    );
+    editorState.read(() => {
+      const textNodes = $getRoot().getAllTextNodes();
+      expect(textNodes).toHaveLength(2);
+      for (const node of textNodes) {
+        expect($isTabNode(node)).toBe(true);
+        expect(node.getTextContent()).toBe('\t');
+        expect(node.isUnmergeable()).toBe(true);
+      }
     });
   });
 
@@ -618,52 +627,53 @@ describe('updateFromJSON tolerates partial and out-of-domain JSON', () => {
   });
 
   describe('exportJSON is written from the schema', () => {
-    initializeUnitTest(testEnv => {
-      test('a getter returning undefined omits its property', () => {
-        const {editor} = testEnv;
-        editor.update(() => {
-          // ElementNode only persists textFormat/textStyle when there are no
-          // TextNode children to recompute them from, which it expresses by
-          // returning undefined from the getters its schema names.
-          const paragraph = $createParagraphNode();
-          paragraph.append($createTextNode('x').setFormat(1));
-          expect(paragraph.getSerializedTextFormat()).toBeUndefined();
-          expect(paragraph.getSerializedTextStyle()).toBeUndefined();
-          // and a node that does carry them writes them out
-          const styled = $createParagraphNode().setTextStyle('color: red');
-          expect(styled.getSerializedTextStyle()).toBe('color: red');
-          expect(styled.exportJSON()).toMatchObject({textStyle: 'color: red'});
+    test('a getter returning undefined omits its property', () => {
+      using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+      editor.update(() => {
+        // ElementNode only persists textFormat/textStyle when there are no
+        // TextNode children to recompute them from, which it expresses by
+        // returning undefined from the getters its schema names.
+        const paragraph = $createParagraphNode();
+        paragraph.append($createTextNode('x').setFormat(1));
+        expect(paragraph.getSerializedTextFormat()).toBeUndefined();
+        expect(paragraph.getSerializedTextStyle()).toBeUndefined();
+        // and a node that does carry them writes them out
+        const styled = $createParagraphNode().setTextStyle('color: red');
+        expect(styled.getSerializedTextStyle()).toBe('color: red');
+        expect(styled.exportJSON()).toMatchObject({textStyle: 'color: red'});
+      });
+    });
+
+    test('a property is read through the getter its schema names', () => {
+      using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+      editor.update(() => {
+        // `text` is declared with getTextContent, not the default getText,
+        // and ElementNode's `format` with getFormatType (a string) rather
+        // than the numeric getFormat.
+        expect($createTextNode('hi').exportJSON()).toMatchObject({
+          text: 'hi',
+          type: 'text',
+        });
+        expect($createParagraphNode().exportJSON()).toMatchObject({
+          format: '',
+          type: 'paragraph',
         });
       });
+    });
 
-      test('a property is read through the getter its schema names', () => {
-        const {editor} = testEnv;
-        editor.update(() => {
-          // `text` is declared with getTextContent, not the default getText,
-          // and ElementNode's `format` with getFormatType (a string) rather
-          // than the numeric getFormat.
-          expect($createTextNode('hi').exportJSON()).toMatchObject({
-            text: 'hi',
-            type: 'text',
-          });
-          expect($createParagraphNode().exportJSON()).toMatchObject({
-            format: '',
-            type: 'paragraph',
-          });
-        });
-      });
+    test('export round-trips through import for every schema property', () => {
+      using editor = buildEditorFromExtensions({name: '[schema-test]'});
 
-      test('export round-trips through import for every schema property', () => {
-        const {editor} = testEnv;
-        editor.update(() => {
-          const node = $createTextNode('round trip')
-            .setFormat(1)
-            .setStyle('color: red')
-            .setMode('token');
-          const json = node.exportJSON();
-          const restored = $createTextNode('').updateFromJSON(json);
-          expect(restored.exportJSON()).toEqual(json);
-        });
+      editor.update(() => {
+        const node = $createTextNode('round trip')
+          .setFormat(1)
+          .setStyle('color: red')
+          .setMode('token');
+        const json = node.exportJSON();
+        const restored = $createTextNode('').updateFromJSON(json);
+        expect(restored.exportJSON()).toEqual(json);
       });
     });
   });
@@ -936,50 +946,50 @@ describe('the export and parse shapes differ only where parsing is looser', () =
     >().toEqualTypeOf<false>();
   });
 
-  initializeUnitTest(testEnv => {
-    test('exportJSON(true) type-checks as the value it actually returns', () => {
-      // The compact form omits version; while it was required, reading it off
-      // the result type-checked as a number and was undefined at runtime.
-      testEnv.editor.update(() => {
-        const node = $createParagraphNode();
-        const compact = node.exportJSON(true);
-        expectTypeOf(compact.version).toEqualTypeOf<number | undefined>();
-        expect(compact).not.toHaveProperty('version');
-        expect(node.exportJSON()).toHaveProperty('version', 1);
-      });
-    });
+  test('exportJSON(true) type-checks as the value it actually returns', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
 
-    test('the compact form is typed as the partial it returns', () => {
-      testEnv.editor.update(() => {
-        const node = $createParagraphNode();
-        // The legacy form writes every property, so it is the full type…
-        expectTypeOf(
-          node.exportJSON(),
-        ).toEqualTypeOf<SerializedParagraphNode>();
-        expectTypeOf(
-          node.exportJSON(false),
-        ).toEqualTypeOf<SerializedParagraphNode>();
-        // …and the compact form omits them, so every one is optional. Typing
-        // it as the full shape is what let `json.indent.toFixed()` compile on
-        // a value the form had dropped.
-        expectTypeOf(node.exportJSON(true)).toEqualTypeOf<
-          SerializedPartial<SerializedParagraphNode>
-        >();
-        expectTypeOf(node.exportJSON(true).indent).toEqualTypeOf<
-          number | undefined
-        >();
-        // A flag whose value is not known statically cannot promise either
-        // form, so it resolves to the one that admits both.
-        const compact: boolean = Math.max(0, 1) > 0;
-        expectTypeOf(node.exportJSON(compact)).toEqualTypeOf<
-          SerializedPartial<SerializedParagraphNode>
-        >();
-        // LexicalExportJSON still describes the legacy form, which is the one
-        // that writes everything — it reads the first overload, not the last.
-        expectTypeOf<
-          LexicalExportJSON<ParagraphNode>['indent']
-        >().toEqualTypeOf<number>();
-      });
+    // The compact form omits version; while it was required, reading it off
+    // the result type-checked as a number and was undefined at runtime.
+    editor.update(() => {
+      const node = $createParagraphNode();
+      const compact = node.exportJSON(true);
+      expectTypeOf(compact.version).toEqualTypeOf<number | undefined>();
+      expect(compact).not.toHaveProperty('version');
+      expect(node.exportJSON()).toHaveProperty('version', 1);
+    });
+  });
+
+  test('the compact form is typed as the partial it returns', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    editor.update(() => {
+      const node = $createParagraphNode();
+      // The legacy form writes every property, so it is the full type…
+      expectTypeOf(node.exportJSON()).toEqualTypeOf<SerializedParagraphNode>();
+      expectTypeOf(
+        node.exportJSON(false),
+      ).toEqualTypeOf<SerializedParagraphNode>();
+      // …and the compact form omits them, so every one is optional. Typing
+      // it as the full shape is what let `json.indent.toFixed()` compile on
+      // a value the form had dropped.
+      expectTypeOf(node.exportJSON(true)).toEqualTypeOf<
+        SerializedPartial<SerializedParagraphNode>
+      >();
+      expectTypeOf(node.exportJSON(true).indent).toEqualTypeOf<
+        number | undefined
+      >();
+      // A flag whose value is not known statically cannot promise either
+      // form, so it resolves to the one that admits both.
+      const compact: boolean = Math.max(0, 1) > 0;
+      expectTypeOf(node.exportJSON(compact)).toEqualTypeOf<
+        SerializedPartial<SerializedParagraphNode>
+      >();
+      // LexicalExportJSON still describes the legacy form, which is the one
+      // that writes everything — it reads the first overload, not the last.
+      expectTypeOf<
+        LexicalExportJSON<ParagraphNode>['indent']
+      >().toEqualTypeOf<number>();
     });
   });
 });
@@ -2358,35 +2368,37 @@ describe('a schema tracks what it accepts, not only what it parses to', () => {
 });
 
 describe('the parse shape accepts what a parser actually accepts', () => {
-  initializeUnitTest(testEnv => {
-    test('a legacy alias and a stringified number type-check as input', () => {
-      testEnv.editor.update(
-        () => {
-          const node = $createTextNode('hi');
-          // Both are values TextNode's schema accepts and normalizes. Before
-          // the parse shape was widened, each was a type error at the call
-          // site while working perfectly at runtime — the type described what
-          // the parser produces rather than what it takes.
-          node.updateFromJSON({detail: 'directionless', format: 'bold'});
-          expect(node.getFormat()).toBe(IS_BOLD);
-          expect(node.isDirectionless()).toBe(true);
-        },
-        {discrete: true},
-      );
-    });
+  test('a legacy alias and a stringified number type-check as input', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
 
-    test('a property the node does not have is still refused', () => {
-      testEnv.editor.update(
-        () => {
-          const node = $createTextNode('hi');
-          node.updateFromJSON({
-            // @ts-expect-error -- widening the values keeps the names checked
-            frmat: 'bold',
-          });
-        },
-        {discrete: true},
-      );
-    });
+    editor.update(
+      () => {
+        const node = $createTextNode('hi');
+        // Both are values TextNode's schema accepts and normalizes. Before
+        // the parse shape was widened, each was a type error at the call
+        // site while working perfectly at runtime — the type described what
+        // the parser produces rather than what it takes.
+        node.updateFromJSON({detail: 'directionless', format: 'bold'});
+        expect(node.getFormat()).toBe(IS_BOLD);
+        expect(node.isDirectionless()).toBe(true);
+      },
+      {discrete: true},
+    );
+  });
+
+  test('a property the node does not have is still refused', () => {
+    using editor = buildEditorFromExtensions({name: '[schema-test]'});
+
+    editor.update(
+      () => {
+        const node = $createTextNode('hi');
+        node.updateFromJSON({
+          // @ts-expect-error -- widening the values keeps the names checked
+          frmat: 'bold',
+        });
+      },
+      {discrete: true},
+    );
   });
 });
 

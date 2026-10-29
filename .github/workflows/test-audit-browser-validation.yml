@@ -1,46 +1,54 @@
 # Temporary validation branch only; not part of the final PR.
-name: Test audit browser validation
-
+name: Test audit unit validation
 on:
   push:
     branches: [codex/validate-test-ci-costs]
-
 permissions:
   contents: read
-
 concurrency:
   group: test-audit-validation-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  browser:
-    if: github.repository == 'etrepum/lexical' && github.ref_name == 'codex/validate-test-ci-costs'
-    runs-on: ${{ matrix.os }}
+  unit:
+    if: github.repository == 'etrepum/lexical' && github.ref == 'refs/heads/codex/validate-test-ci-costs'
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            browser: chromium
-          - os: ubuntu-latest
-            browser: firefox
-          - os: macos-latest
-            browser: webkit
+        node: ['22.x', '24.x']
     env:
       CI: true
-      VITEST_BROWSER: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-pnpm
         with:
-          node-version: '24.x'
-      - uses: ./.github/actions/setup-playwright
-        with:
-          node-version: '24.x'
-      - name: Validate migrated assertions in a real browser
+          node-version: ${{ matrix.node }}
+      - name: Check test types
+        if: matrix.node == '24.x'
+        run: pnpm run tsc-test
+      - name: Validate formatter consumers and DOM-free fixtures
         run: >-
-          pnpm exec vitest run --project browser
-          packages/lexical-playground/src/__tests__/browser/HTMLCopyAndPaste.test.ts
-          packages/lexical-playground/src/__tests__/browser/CharacterLimit.test.ts
-          packages/lexical-playground/src/__tests__/browser/TablesHTMLCopyAndPaste.test.ts
+          pnpm exec vitest run --project unit --maxWorkers=2
+          packages/lexical/src/__tests__/unit/LexicalDOMSlot.test.tsx
+          packages/lexical/src/__tests__/unit/LexicalEditor.test.tsx
+          packages/lexical/src/__tests__/unit/LexicalListPlugin.test.tsx
+          packages/lexical/src/__tests__/unit/ManagedLineBreakObservedRemoval.test.ts
+          packages/lexical-code/src/__tests__/unit/LexicalCodeNode.test.ts
+          packages/lexical-history/src/__tests__/unit/LexicalHistory.test.tsx
+          packages/lexical-html/src/__tests__/unit/DOMRenderExtension.test.ts
+          packages/lexical-list/src/__tests__/unit/LexicalListItemNode.test.ts
+          packages/lexical-list/src/__tests__/unit/LexicalListNode.test.ts
+          packages/lexical-list/src/__tests__/unit/registerListStrictIndentTransform.test.ts
+          packages/lexical-playground/__tests__/unit/ImageHTML.test.ts
+          packages/lexical-playground/__tests__/unit/LayoutContainerNode.test.ts
+          packages/lexical-playground/__tests__/unit/MentionHTML.test.ts
+          packages/lexical-react/src/__tests__/unit/CollaborationSnapshot.test.ts
+          packages/lexical-react/src/__tests__/unit/LexicalExtensionEditorComposer.test.tsx
+          packages/lexical-react/src/__tests__/unit/LexicalNestedComposer.test.tsx
+          packages/lexical-selection/src/__tests__/unit/LexicalSelection.test.tsx
+          packages/lexical-table/src/__tests__/unit/LexicalTableCellNode.test.ts
+          packages/lexical-table/src/__tests__/unit/LexicalTableNode.test.tsx
+          packages/lexical-tailwind/src/__tests__/unit/LexicalTailwind.test.ts
+          packages/lexical/src/__tests__/unit/LexicalSchema.test.ts
+          packages/lexical-markdown/src/__tests__/unit/MarkdownTransformers.test.ts

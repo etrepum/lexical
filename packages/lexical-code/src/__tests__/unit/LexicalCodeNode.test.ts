@@ -38,12 +38,12 @@ import {
   MOVE_TO_START,
 } from 'lexical';
 import {
-  expectHtmlToBeEqual,
   initializeUnitTest,
   invariant,
   shiftTabKeyboardEvent,
   tabKeyboardEvent,
 } from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {describe, expect, test} from 'vitest';
 
 const editorConfig = Object.freeze({

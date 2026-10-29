@@ -33,10 +33,10 @@ import {ElementDOMSlot} from '../../LexicalDOMSlot';
 import {
   $assertNodeType,
   $createTestDecoratorNode,
-  expectHtmlToBeEqual,
   html,
   TestDecoratorNode,
 } from '../utils';
+import {expectHtmlToBeEqual} from '../utils/formatHtml';
 
 describe('ElementDOMSlot class', () => {
   function makeElement(): HTMLElement {
