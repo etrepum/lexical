@@ -90,6 +90,118 @@ export async function initialize(options) {
     initializePlayground(options));
 }
 
+// Temporary observational probe: no readiness waits or editor settings change.
+async function installReadinessProbe(page) {
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    const marks = {};
+    let frame;
+    let firstEditor = null;
+    const findEditor = root => {
+      const editor = root.querySelector('[data-lexical-editor="true"]');
+      if (editor) return editor;
+      for (const element of root.querySelectorAll('*')) {
+        if (element.shadowRoot) {
+          const found = findEditor(element.shadowRoot);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const snapshot = editor => {
+      const links = Array.from(
+        document.querySelectorAll('link[rel="stylesheet"]'),
+      );
+      const rect = editor?.getBoundingClientRect();
+      const scope = editor?.getRootNode();
+      return {
+        adoptedSheets:
+          scope instanceof ShadowRoot ? scope.adoptedStyleSheets.length : null,
+        editorHeight: rect?.height ?? null,
+        editorWidth: rect?.width ?? null,
+        fontStatus: document.fonts.status,
+        images: Array.from(document.images, img => ({
+          complete: img.complete,
+          naturalWidth: img.naturalWidth,
+          path: img.currentSrc ? new URL(img.currentSrc).pathname : '',
+        })),
+        inlineStyles: document.querySelectorAll('style').length,
+        loadedStylesheets: links.filter(link => link.sheet !== null).length,
+        stylesheets: links.length,
+      };
+    };
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        marks.domContentLoadedObservedMs = performance.now();
+      },
+      {once: true},
+    );
+    window.addEventListener(
+      'load',
+      () => {
+        marks.loadObservedMs = performance.now();
+      },
+      {once: true},
+    );
+    const sample = () => {
+      const tree = document.querySelector('.tree-view-output pre');
+      const editor = tree ? findEditor(document) : null;
+      if (
+        editor &&
+        editor.__lexicalEditor &&
+        tree.getBoundingClientRect().height > 0 &&
+        tree.getBoundingClientRect().width > 0 &&
+        getComputedStyle(tree).visibility !== 'hidden'
+      ) {
+        if (marks.editorObservedMs === undefined) {
+          marks.editorObservedMs = performance.now();
+          firstEditor = snapshot(editor);
+          // Start this only after editor layout has requested its used fonts.
+          document.fonts.ready.then(() => {
+            marks.editorFontsReadyMs = performance.now();
+          });
+        }
+        const state = snapshot(editor);
+        if (
+          state.loadedStylesheets === state.stylesheets &&
+          marks.editorStylesObservedMs === undefined
+        ) {
+          marks.editorStylesObservedMs = performance.now();
+        }
+      }
+      frame = requestAnimationFrame(sample);
+    };
+    frame = requestAnimationFrame(sample);
+    window.__lexicalReadinessProbe = () => {
+      cancelAnimationFrame(frame);
+      const navigation = performance.getEntriesByType('navigation')[0];
+      return {
+        afterExposeMs: performance.now(),
+        final: snapshot(findEditor(document)),
+        firstEditor,
+        marks,
+        navigation: navigation
+          ? {
+              domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,
+              loadEventEnd: navigation.loadEventEnd,
+              loadEventStart: navigation.loadEventStart,
+            }
+          : null,
+        resources: performance
+          .getEntriesByType('resource')
+          .sort((a, b) => b.responseEnd - a.responseEnd)
+          .slice(0, 8)
+          .map(entry => ({
+            endMs: entry.responseEnd,
+            kind: entry.initiatorType,
+            path: new URL(entry.name).pathname,
+          })),
+      };
+    };
+  });
+}
+
 async function initializePlayground({
   page,
   isCollab,
@@ -194,11 +306,20 @@ async function initializePlayground({
     });
   }
 
+  const readinessProbe = process.env.E2E_READINESS_PROBE === '1' && !isCollab;
+  if (readinessProbe) await installReadinessProbe(page);
+
   // The split page's load event also waits for iframe subresources. The
   // explicit provider/editor checks below determine collaboration readiness.
   await page.goto(url, {waitUntil: isCollab ? 'domcontentloaded' : 'load'});
 
   await exposeLexicalEditor(page, pageError);
+  if (readinessProbe) {
+    const probe = await page.evaluate(() => window.__lexicalReadinessProbe());
+    process.stdout.write(
+      `Readiness probe: ${JSON.stringify({probe, title: test.info().title})}\n`,
+    );
+  }
 }
 
 /**

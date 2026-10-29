@@ -1,5 +1,5 @@
-# Temporary validation branch only; not part of the final PR.
-name: Test audit unit validation
+# Temporary baseline telemetry on the validation branch; not part of PR80.
+name: Test audit readiness baseline
 on:
   push:
     branches: [codex/validate-test-ci-costs]
@@ -9,46 +9,44 @@ concurrency:
   group: test-audit-validation-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  unit:
+  readiness:
     if: github.repository == 'etrepum/lexical' && github.ref == 'refs/heads/codex/validate-test-ci-costs'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.x', '24.x']
+        include:
+          - os: ubuntu-latest
+            browser: chromium
+          - os: ubuntu-latest
+            browser: firefox
+          - os: macos-latest
+            browser: webkit
     env:
       CI: true
+      E2E_BROWSER: ${{ matrix.browser }}
+      E2E_EDITOR_MODE: rich-text
+      E2E_READINESS_PROBE: '1'
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-pnpm
         with:
-          node-version: ${{ matrix.node }}
-      - name: Check test types
-        if: matrix.node == '24.x'
-        run: pnpm run tsc-test
-      - name: Validate formatter consumers and DOM-free fixtures
+          node-version: '24.x'
+      - uses: ./.github/actions/setup-playground
+        with:
+          node-version: '24.x'
+      - uses: ./.github/actions/setup-playwright
+        with:
+          node-version: '24.x'
+      - name: Measure baseline readiness without changing waits or slow motion
         run: >-
-          pnpm exec vitest run --project unit --maxWorkers=2
-          packages/lexical/src/__tests__/unit/LexicalDOMSlot.test.tsx
-          packages/lexical/src/__tests__/unit/LexicalEditor.test.tsx
-          packages/lexical/src/__tests__/unit/LexicalListPlugin.test.tsx
-          packages/lexical/src/__tests__/unit/ManagedLineBreakObservedRemoval.test.ts
-          packages/lexical-code/src/__tests__/unit/LexicalCodeNode.test.ts
-          packages/lexical-history/src/__tests__/unit/LexicalHistory.test.tsx
-          packages/lexical-html/src/__tests__/unit/DOMRenderExtension.test.ts
-          packages/lexical-list/src/__tests__/unit/LexicalListItemNode.test.ts
-          packages/lexical-list/src/__tests__/unit/LexicalListNode.test.ts
-          packages/lexical-list/src/__tests__/unit/registerListStrictIndentTransform.test.ts
-          packages/lexical-playground/__tests__/unit/ImageHTML.test.ts
-          packages/lexical-playground/__tests__/unit/LayoutContainerNode.test.ts
-          packages/lexical-playground/__tests__/unit/MentionHTML.test.ts
-          packages/lexical-react/src/__tests__/unit/CollaborationSnapshot.test.ts
-          packages/lexical-react/src/__tests__/unit/LexicalExtensionEditorComposer.test.tsx
-          packages/lexical-react/src/__tests__/unit/LexicalNestedComposer.test.tsx
-          packages/lexical-selection/src/__tests__/unit/LexicalSelection.test.tsx
-          packages/lexical-table/src/__tests__/unit/LexicalTableCellNode.test.ts
-          packages/lexical-table/src/__tests__/unit/LexicalTableNode.test.tsx
-          packages/lexical-tailwind/src/__tests__/unit/LexicalTailwind.test.ts
-          packages/lexical/src/__tests__/unit/LexicalSchema.test.ts
-          packages/lexical-markdown/src/__tests__/unit/MarkdownTransformers.test.ts
+          pnpm exec playwright test --project=${{ matrix.browser }} --workers=2 --retries=0
+          packages/lexical-playground/__tests__/e2e/Navigation.spec.mjs
+          packages/lexical-playground/__tests__/e2e/Clear.spec.mjs
+          packages/lexical-playground/__tests__/e2e/CodeBlockCaretScroll.spec.mjs
+          packages/lexical-playground/__tests__/e2e/AutoScroll.spec.mjs
+          packages/lexical-playground/__tests__/e2e/TextFormatting.spec.mjs
+          packages/lexical-playground/__tests__/e2e/Images.spec.mjs
+          packages/lexical-playground/__tests__/e2e/ShadowDOM.spec.mjs
+          --grep 'can type and navigate several paragraphs|can clear the editor|Home, End and Enter|Pressing Enter scrolls new caret|triple click selection|change the font-size and font-family|Verifies image dimensions|Dimensionless SVG renders|populates shadowRoot.adoptedStyleSheets|characterData update on a'
