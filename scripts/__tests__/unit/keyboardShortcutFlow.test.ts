@@ -11,15 +11,21 @@ import * as fs from 'node:fs';
 import {createRequire} from 'node:module';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import {afterEach, beforeEach, expect, it} from 'vitest';
+import {afterAll, beforeAll, expect, it} from 'vitest';
 
 const require = createRequire(import.meta.url);
 const flowBinary: string = require('flow-bin');
 
 let dir: string;
+let errors: {
+  error_codes: string[];
+  message: {path: string}[];
+}[];
 
-beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lexical-keyboard-flow-'));
+beforeAll(() => {
+  dir = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'lexical-keyboard-flow-')),
+  );
   fs.copyFileSync(
     'packages/lexical/flow/Lexical.js.flow',
     path.join(dir, 'Lexical.js.flow'),
@@ -29,38 +35,44 @@ beforeEach(() => {
     path.join(dir, '.flowconfig'),
     `[declarations]\n.*/flow-typed/.*\n[libs]\n./flow-typed\n[options]\nmodule.name_mapper='^lexical$' -> '<PROJECT_ROOT>/Lexical.js.flow'\n`,
   );
-});
-
-afterEach(() => fs.rmSync(dir, {force: true, recursive: true}));
-
-it.each([
-  {
-    code: `
+  fs.writeFileSync(
+    path.join(dir, 'accepted.js'),
+    `// @flow
       import type {CompiledKeyboardShortcuts, KeyboardShortcutMatch} from 'lexical';
       import {compileKeyboardShortcuts} from 'lexical';
       const shortcuts: CompiledKeyboardShortcuts<KeyboardShortcutMatch> = compileKeyboardShortcuts([{key: 'x'}]);
       shortcuts.add({key: 'y'});
     `,
-    message: 'Found 0 errors',
-    name: 'accepts the type and runtime factory',
-    status: 0,
-  },
-  {
-    code: `import {CompiledKeyboardShortcuts} from 'lexical'; new CompiledKeyboardShortcuts();`,
-    message: '[import-type-as-value]',
-    name: 'rejects construction through a nonexistent runtime export',
-    status: 2,
-  },
-])(
-  'keyboard shortcut Flow API $name',
-  ({code, message, status}) => {
-    fs.writeFileSync(path.join(dir, 'consumer.js'), `// @flow\n${code}\n`);
-    const result = spawnSync(flowBinary, ['full-check', dir], {
-      encoding: 'utf8',
-      timeout: 20_000,
-    });
-    expect(result.status, result.stdout + result.stderr).toBe(status);
-    expect(result.stdout).toContain(message);
-  },
-  25_000,
-);
+  );
+  fs.writeFileSync(
+    path.join(dir, 'rejected.js'),
+    `// @flow
+      import {CompiledKeyboardShortcuts} from 'lexical';
+      new CompiledKeyboardShortcuts();
+    `,
+  );
+  // Check both consumers together so Flow loads its libraries only once.
+  const result = spawnSync(flowBinary, ['full-check', '--json', dir], {
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  expect(result.status, result.stdout + result.stderr).toBe(2);
+  errors = JSON.parse(result.stdout).errors;
+}, 25_000);
+
+afterAll(() => fs.rmSync(dir, {force: true, recursive: true}));
+
+it('keyboard shortcut Flow API accepts the type and runtime factory', () => {
+  // Any diagnostic in the valid consumer or declaration libraries is a failure.
+  expect(
+    errors.filter(
+      error =>
+        path.resolve(error.message[0].path) !== path.join(dir, 'rejected.js'),
+    ),
+  ).toEqual([]);
+});
+
+it('keyboard shortcut Flow API rejects construction through a nonexistent runtime export', () => {
+  expect(errors).toHaveLength(1);
+  expect(errors[0].error_codes).toEqual(['import-type-as-value']);
+});
