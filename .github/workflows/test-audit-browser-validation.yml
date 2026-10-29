@@ -1,19 +1,20 @@
-# Temporary fork-only validation for PR80; removed after recording results.
+# Temporary validation branch only; not part of the final PR.
 name: Test audit browser validation
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'packages/lexical-playground/src/__tests__/browser/HTMLCopyAndPaste.test.ts'
-      - '.github/workflows/test-audit-browser-validation.yml'
+  push:
+    branches: [codex/validate-test-ci-costs]
 
 permissions:
   contents: read
 
+concurrency:
+  group: test-audit-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   browser:
-    if: github.repository == 'etrepum/lexical' && github.head_ref == 'codex/reduce-test-ci-costs'
+    if: github.repository == 'etrepum/lexical' && github.ref_name == 'codex/validate-test-ci-costs'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -37,5 +38,9 @@ jobs:
       - uses: ./.github/actions/setup-playwright
         with:
           node-version: '24.x'
-      - name: Validate migrated paste assertions in a real browser
-        run: pnpm exec vitest run --project browser packages/lexical-playground/src/__tests__/browser/HTMLCopyAndPaste.test.ts
+      - name: Validate migrated assertions in a real browser
+        run: >-
+          pnpm exec vitest run --project browser
+          packages/lexical-playground/src/__tests__/browser/HTMLCopyAndPaste.test.ts
+          packages/lexical-playground/src/__tests__/browser/CharacterLimit.test.ts
+          packages/lexical-playground/src/__tests__/browser/TablesHTMLCopyAndPaste.test.ts
