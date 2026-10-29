@@ -23,35 +23,6 @@ import viteCopyExcalidrawAssets from './viteCopyExcalidrawAssets.ts';
 // definitions; widening the one array-valued entry keeps the check shallow.
 const reactPlugins: PluginOption[] = react();
 
-// Opt-in CI experiment for local preview only. A Vercel deployment serves
-// these scripts, but the static preview does not. Keep native navigation/load
-// semantics and browser caching intact rather than intercepting page requests.
-function previewAnalyticsStub(): PluginOption {
-  return {
-    configurePreviewServer(server) {
-      if (process.env.E2E_STUB_VERCEL_ANALYTICS !== '1') {
-        return;
-      }
-      server.middlewares.use((req, res, next) => {
-        const pathname = req.url?.split('?', 1)[0];
-        if (
-          (req.method !== 'GET' && req.method !== 'HEAD') ||
-          (pathname !== '/_vercel/insights/script.js' &&
-            pathname !== '/_vercel/speed-insights/script.js')
-        ) {
-          next();
-          return;
-        }
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/javascript');
-        res.setHeader('Content-Length', '0');
-        res.end();
-      });
-    },
-    name: 'e2e-preview-analytics-stub',
-  };
-}
-
 // https://vitejs.dev/config/
 export default defineConfig(
   ({mode}): UserConfig => ({
@@ -77,7 +48,6 @@ export default defineConfig(
         : {minify: false}),
     },
     plugins: [
-      previewAnalyticsStub(),
       viteMonorepoResolutionPlugin(),
       babel({
         babelHelpers: 'bundled',
