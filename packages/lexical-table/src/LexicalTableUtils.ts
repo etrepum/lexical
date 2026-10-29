@@ -16,12 +16,14 @@ import {
   $createTextNode,
   $findMatchingParent,
   $getSelection,
+  $isElementNode,
   $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
   type ElementNode,
   type LexicalNode,
   type NodeKey,
+  type ParagraphNode,
   type PointType,
   type RangeSelection,
 } from 'lexical';
@@ -308,6 +310,17 @@ export function $insertTableRowAtSelection(
 export const $insertTableRow__EXPERIMENTAL = $insertTableRowAtSelection;
 
 /**
+ * A paragraph for a cell added beside `cell`, with the alignment of `cell`'s
+ * first block, so that a new row or a split cell is aligned as its column is.
+ */
+function $createParagraphLike(cell: TableCellNode): ParagraphNode {
+  const block = cell.getFirstChild();
+  return $createParagraphNode().setFormat(
+    $isElementNode(block) ? block.getFormatType() : '',
+  );
+}
+
+/**
  * Inserts a table row before or after the given cell node,
  * taking into account any spans. If successful, returns the
  * inserted table row node.
@@ -339,7 +352,9 @@ export function $insertTableRowAtNode(
         );
 
         newRow.append(
-          $createTableCellNode(headerState).append($createParagraphNode()),
+          $createTableCellNode(headerState).append(
+            $createParagraphLike(currentCell),
+          ),
         );
       } else {
         cell.setRowSpan(cell.__rowSpan + 1);
@@ -368,7 +383,9 @@ export function $insertTableRowAtNode(
         );
 
         newRow.append(
-          $createTableCellNode(headerState).append($createParagraphNode()),
+          $createTableCellNode(headerState).append(
+            $createParagraphLike(currentCell),
+          ),
         );
       } else {
         cell.setRowSpan(cell.__rowSpan + 1);
@@ -1023,17 +1040,23 @@ export function $unmergeCellNode(cellNode: TableCellNode): void {
   // loops below, the header state, recomputed above, and the width, which
   // measured a cell colSpan grid columns wide and which every other path that
   // creates a cell here leaves to the table's colWidths.
-  const $createSplitCell = (headerState: TableCellHeaderState) =>
+  // A split cell's paragraph is aligned as another cell of its column, since
+  // the merged cell's content was aligned for the column it starts in.
+  const colCells = Array.from({length: colSpan}, (_v, i) => {
+    const other = map.find(r => r[i + startColumn].cell !== cell);
+    return other ? other[i + startColumn].cell : cell;
+  });
+  const $createSplitCell = (headerState: TableCellHeaderState, i: number) =>
     $copyNode(cell)
       .setColSpan(1)
       .setRowSpan(1)
       .setHeaderStyles(headerState)
       .setWidth(undefined)
-      .append($createParagraphNode());
+      .append($createParagraphLike(colCells[i]));
 
   if (colSpan > 1) {
     for (let i = 1; i < colSpan; i++) {
-      cell.insertAfter($createSplitCell(colStyles[i] | rowStyles[0]));
+      cell.insertAfter($createSplitCell(colStyles[i] | rowStyles[0], i));
     }
     cell.setColSpan(1);
   }
@@ -1063,13 +1086,13 @@ export function $unmergeCellNode(cellNode: TableCellNode): void {
         for (let j = colSpan - 1; j >= 0; j--) {
           $insertFirst(
             currentRowNode,
-            $createSplitCell(colStyles[j] | rowStyles[i]),
+            $createSplitCell(colStyles[j] | rowStyles[i], j),
           );
         }
       } else {
         for (let j = colSpan - 1; j >= 0; j--) {
           insertAfterCell.insertAfter(
-            $createSplitCell(colStyles[j] | rowStyles[i]),
+            $createSplitCell(colStyles[j] | rowStyles[i], j),
           );
         }
       }

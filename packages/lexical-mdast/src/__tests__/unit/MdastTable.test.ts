@@ -472,7 +472,7 @@ describe('MdastTableExtension', () => {
       });
     });
 
-    it('leaves the cells that were there before as they are', () => {
+    it('is aligned as the row it is inserted beside', () => {
       using editor = createAlignedEditor();
       editor.update(
         () => {
@@ -494,9 +494,23 @@ describe('MdastTableExtension', () => {
         expect($formats()).toEqual([
           ['left', 'center', 'right', ''],
           ['left', '', 'right', ''],
-          ['left', 'center', 'right', ''],
+          ['left', '', 'right', ''],
         ]);
       });
+    });
+
+    it('in a row inserted above the header row keeps the column alignment', () => {
+      using editor = createAlignedEditor();
+      editor.update(
+        () => {
+          $cells()[0][0].selectStart();
+          $insertTableRowAtSelection(false);
+        },
+        {discrete: true},
+      );
+      expect(editor.read(() => $convertToMarkdownString()).split('\n')[1]).toBe(
+        '| :- | :-: | -: | - |',
+      );
     });
   });
 
