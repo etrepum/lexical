@@ -65,12 +65,12 @@ import {
   $createTestDecoratorNode,
   $createTestElementNode,
   createTestEditor,
-  expectHtmlToBeEqual,
   html,
   initializeClipboard,
   invariant,
   TestComposer,
 } from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, it, test, vi} from 'vitest';

@@ -1440,31 +1440,39 @@ function normJson(p: FPeer): string {
 }
 
 function checkPeers(world: World, phase: string) {
-  const [a] = world.peers;
-  const raw = a.json();
-  for (const p of world.peers.slice(1)) {
-    if (p.json() !== raw && normJson(p) === normJson(a)) {
+  // No peer changes during this check: export and normalize each state once.
+  const [first, ...rest] = world.peers.map(peer => {
+    const raw = peer.json();
+    return {
+      normalized: JSON.stringify(stripLimits(JSON.parse(raw))),
+      peer,
+      raw,
+    };
+  });
+  const {peer: a, raw, normalized: ja} = first;
+  for (const {raw: peerRaw, normalized: jp} of rest) {
+    if (peerRaw !== raw && jp === ja) {
       const sorted = (x: string) =>
         JSON.stringify(stripLimits(JSON.parse(x), false));
-      if (sorted(raw) === sorted(p.json())) {
+      if (sorted(raw) === sorted(peerRaw)) {
         world.fail('nit:json-key-order', `${a.describe()}`);
       } else {
         world.fail(
           'limit:group-textFormat/textStyle',
-          String(jsonDiff(JSON.parse(raw), JSON.parse(p.json()))),
+          String(jsonDiff(JSON.parse(raw), JSON.parse(peerRaw))),
         );
       }
     }
   }
-  const ja = normJson(a);
-  for (const p of world.peers.slice(1)) {
-    if (normJson(p) !== ja) {
+  for (const {peer: p, normalized: jp} of rest) {
+    if (jp !== ja) {
       const sva = a.Y.encodeStateVector(a.doc as never).toString();
       const svp = p.Y.encodeStateVector(p.doc as never).toString();
-      const dk = diffKey(jsonDiff(JSON.parse(ja), JSON.parse(normJson(p))));
+      const diff = jsonDiff(JSON.parse(ja), JSON.parse(jp));
+      const dk = diffKey(diff);
       world.fail(
         `diverge${phase === 'final' ? '' : '-mid'}${sva === svp ? '' : '(yjs-sv-differs)'}:${dk}`,
-        `${jsonDiff(JSON.parse(ja), JSON.parse(normJson(p)))}\n${a.name}: ${a.describe()}\n${p.name}: ${p.describe()}`,
+        `${diff}\n${a.name}: ${a.describe()}\n${p.name}: ${p.describe()}`,
       );
       return false;
     }

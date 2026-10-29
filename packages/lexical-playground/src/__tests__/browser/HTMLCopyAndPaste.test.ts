@@ -7,7 +7,7 @@
  */
 
 import {IS_APPLE} from 'lexical';
-import {test} from 'vitest';
+import {expect, test} from 'vitest';
 import {userEvent} from 'vitest/browser';
 
 import {
@@ -16,6 +16,28 @@ import {
   setupPasteEditor,
 } from './htmlPasteUtils';
 import {assertSelection, html, press, typeText} from './utils';
+
+test('Copy + paste multi line html with extra newlines', async () => {
+  const {root} = setupPasteEditor();
+
+  await pasteFromClipboard(root, {
+    'text/html':
+      '<p>Hello\n</p>\n\n<p>\n\nWorld\n\n</p>\n\n<p>Hello\n\n   World   \n\n!\n\n</p><p>Hello <b>World</b> <i>!</i></p>',
+  });
+
+  // HTML import collapses whitespace outside preformatted content. Check the
+  // resulting innerText exactly: the old E2E toHaveText(string) assertion
+  // normalized whitespace even with useInnerText, hiding extra newlines.
+  // Comparing the array also checks the paragraph count.
+  await expect
+    .poll(() =>
+      Array.from(
+        root.querySelectorAll(':scope > p'),
+        p => (p as HTMLElement).innerText,
+      ),
+    )
+    .toEqual(['Hello', 'World', 'Hello World !', 'Hello World !']);
+});
 
 test('Copy + paste blocks after two line breaks', async () => {
   const {root} = setupPasteEditor();

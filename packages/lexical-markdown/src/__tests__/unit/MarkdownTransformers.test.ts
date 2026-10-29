@@ -5,6 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
+
+// @vitest-environment node
+
 import {CodeExtension} from '@lexical/code-core';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {HistoryExtension} from '@lexical/history';
@@ -20,6 +23,7 @@ import {
   $isParagraphNode,
   $isRangeSelection,
   $isTextNode,
+  configExtension,
   defineExtension,
   type LexicalEditor,
   UNDO_COMMAND,
@@ -28,7 +32,9 @@ import {assert, describe, expect, test} from 'vitest';
 
 const MarkdownShortcutTestExtension = defineExtension({
   dependencies: [
-    HistoryExtension,
+    // History is enabled by default in the browser; these unmounted editors
+    // exercise the same undo behavior without a DOM.
+    configExtension(HistoryExtension, {disabled: false}),
     LinkExtension,
     RichTextExtension,
     ListExtension,

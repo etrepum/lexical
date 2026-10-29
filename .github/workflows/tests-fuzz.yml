@@ -1,0 +1,53 @@
+name: Lexical Fuzz Campaigns
+
+on:
+  # Scheduled workflows become active after this file reaches the default branch.
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.campaign }}, Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - campaign: baseline
+            node-version: 22.x
+          - campaign: baseline
+            node-version: 24.x
+          - campaign: rotating
+            node-version: 24.x
+    env:
+      CI: true
+      CAMPAIGN: ${{ matrix.campaign }}
+      FUZZ_SEEDS: 300
+      FUZZ_GC_SEEDS: 100
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Select and record reproducible seed ranges
+        shell: bash
+        run: |
+          start=1
+          if [[ "$CAMPAIGN" == rotating ]]; then
+            # Cover 301..9900 in 32 windows; reruns retain the same window.
+            start=$((301 + ((GITHUB_RUN_NUMBER - 1) % 32) * 300))
+          fi
+          echo "FUZZ_SEED_START=$start" >> "$GITHUB_ENV"
+          echo "Campaign: $CAMPAIGN; commit: $GITHUB_SHA; Node: $(node --version)"
+          echo "Non-GC: $FUZZ_SEEDS seeds, $start..$((start + FUZZ_SEEDS - 1))"
+          echo "GC: $FUZZ_GC_SEEDS seeds, $start..$((start + FUZZ_GC_SEEDS - 1))"
+          echo "The suite retains its documented KNOWN_OPEN exclusions."
+          echo "Replay campaign: FUZZ_SEED_START=$start FUZZ_SEEDS=$FUZZ_SEEDS FUZZ_GC_SEEDS=$FUZZ_GC_SEEDS pnpm exec vitest run --project unit packages/lexical-y/src/__tests__/unit/Fuzz.test.ts"
+          echo "Replay a failing seed: FUZZ_SEED=<seed> FUZZ_GC=<0-or-1> pnpm exec vitest run --project unit packages/lexical-y/src/__tests__/unit/Fuzz.test.ts"
+      - name: Run the fuzz campaign
+        run: pnpm exec vitest run --project unit packages/lexical-y/src/__tests__/unit/Fuzz.test.ts

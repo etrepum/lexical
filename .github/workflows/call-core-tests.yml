@@ -38,6 +38,10 @@ jobs:
         node-version: [22.x, 24.x]
     env:
       CI: true
+      # Keep deterministic smoke coverage and every minimized replay on pushes;
+      # tests-fuzz.yml runs the full baseline and rotating campaigns daily.
+      FUZZ_SEEDS: 50
+      FUZZ_GC_SEEDS: 25
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-pnpm

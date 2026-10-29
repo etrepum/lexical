@@ -35,7 +35,8 @@ import {
   setDOMUnmanaged,
   TextNode,
 } from 'lexical';
-import {expectHtmlToBeEqual, html} from 'lexical/src/__tests__/utils';
+import {html} from 'lexical/src/__tests__/utils';
+import {expectHtmlToBeEqual} from 'lexical/src/__tests__/utils/formatHtml';
 import {assert, describe, expect, test} from 'vitest';
 
 const idState = createState('id', {
