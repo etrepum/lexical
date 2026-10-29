@@ -307,7 +307,25 @@ async function initializePlayground({
   }
 
   const readinessProbe = process.env.E2E_READINESS_PROBE === '1' && !isCollab;
-  if (readinessProbe) await installReadinessProbe(page);
+  if (readinessProbe) {
+    await installReadinessProbe(page);
+    page.on('response', response => {
+      const path = new URL(response.url()).pathname;
+      if (
+        path === '/_vercel/insights/script.js' ||
+        path === '/_vercel/speed-insights/script.js'
+      ) {
+        process.stdout.write(
+          `Analytics response: ${JSON.stringify({
+            contentType: response.headers()['content-type'],
+            path,
+            status: response.status(),
+            stub: process.env.E2E_STUB_VERCEL_ANALYTICS,
+          })}\n`,
+        );
+      }
+    });
+  }
 
   // The split page's load event also waits for iframe subresources. The
   // explicit provider/editor checks below determine collaboration readiness.
@@ -317,7 +335,7 @@ async function initializePlayground({
   if (readinessProbe) {
     const probe = await page.evaluate(() => window.__lexicalReadinessProbe());
     process.stdout.write(
-      `Readiness probe: ${JSON.stringify({probe, title: test.info().title})}\n`,
+      `Readiness probe: ${JSON.stringify({phase: process.env.E2E_PROBE_PHASE, probe, title: test.info().title})}\n`,
     );
   }
 }
