@@ -454,11 +454,13 @@ export function shape(peer: Peer): unknown {
 
 export async function expectConverged(peers: Peer[], expected?: string) {
   const first = peers[0];
+  const description = first.describe();
+  const json = shape(first);
   for (const peer of peers) {
     expect(peer.errors).toEqual([]);
     expect(peer.warnings.filter(w => w.includes('self-check'))).toEqual([]);
-    expect(peer.describe()).toBe(first.describe());
-    expect(shape(peer)).toEqual(shape(first));
+    expect(peer.describe()).toBe(description);
+    expect(shape(peer)).toEqual(json);
   }
   const fresh = await freshReader(first);
   expect(fresh.describe()).toBe(first.describe());
@@ -466,6 +468,7 @@ export async function expectConverged(peers: Peer[], expected?: string) {
   if (expected !== undefined) {
     expect(first.describe()).toBe(expected);
   }
+  return fresh;
 }
 
 export function $block(path: number[]): ElementNode {
