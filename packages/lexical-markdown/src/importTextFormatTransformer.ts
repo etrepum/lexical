@@ -49,6 +49,8 @@ export interface FormatScan {
   offset: number;
   nextCodeSpan: number;
   nextEmphasis: number;
+  /** An emphasis that starts at `offset`, found after the scan. */
+  pending: FormatMatch | undefined;
 }
 
 export function scanTextFormats(
@@ -85,6 +87,7 @@ export function scanTextFormats(
     nextCodeSpan: 0,
     nextEmphasis: 0,
     offset: 0,
+    pending: undefined,
     text,
   };
 }
@@ -103,8 +106,12 @@ export function advanceFormatScan(
   offset: number,
   isFormatEnd: boolean,
 ): boolean {
-  const {codeSpans, emphasis, text} = scan;
+  const {codeSpans, emphasis, pending, text} = scan;
   scan.offset = offset;
+  scan.pending = undefined;
+  if (pending !== undefined && pending.endIndex > offset) {
+    return false;
+  }
   while (
     scan.nextCodeSpan < codeSpans.length &&
     codeSpans[scan.nextCodeSpan].startIndex < offset
@@ -124,10 +131,67 @@ export function advanceFormatScan(
   const cut = text[offset - 1];
   return (
     cut !== '\\' &&
-    (isFormatEnd ||
+    // A pair found after the scan cut a run that the scan measured whole.
+    ((isFormatEnd && pending === undefined) ||
       cut !== text[offset] ||
       (cut !== '`' && !scan.delimiters.has(cut)))
   );
+}
+
+/**
+ * Lets `scan`, moved on to `rest` by {@link advanceFormatScan}, read the
+ * delimiter run that starts `rest` beside the edge of a line, where it opens,
+ * rather than beside what came before, where it did not. Nothing in `rest`
+ * comes before the run, so the rest reads the same either way but for the
+ * pair the run opens, which nothing in `rest` can hold. That pair is found in
+ * ever longer prefixes of `rest`, so that finding it costs about as much as
+ * the text it holds. Returns false when no prefix short of the whole of
+ * `rest` holds it, and the rest has to be scanned again.
+ */
+export function findPairAtEdge(
+  scan: FormatScan,
+  rest: string,
+  textFormatTransformersIndex: TextFormatTransformersIndex,
+  after: string | undefined,
+): boolean {
+  const {codeSpans, offset} = scan;
+  let span = scan.nextCodeSpan;
+  for (let length = 64; length < rest.length; length *= 2) {
+    // Cut neither a code span nor a run of a delimiter or backtick.
+    while (
+      span < codeSpans.length &&
+      codeSpans[span].endIndex <= offset + length
+    ) {
+      span++;
+    }
+    if (
+      span < codeSpans.length &&
+      codeSpans[span].startIndex < offset + length
+    ) {
+      length = codeSpans[span].endIndex - offset;
+    }
+    if (rest[length - 1] === '`' || scan.delimiters.has(rest[length - 1])) {
+      length = getDelimiterRunEdge(rest, length, 1);
+    }
+    if (length >= rest.length) {
+      break;
+    }
+    const pair = scanTextFormats(
+      rest.slice(0, length),
+      textFormatTransformersIndex,
+      undefined,
+      characterAt(rest, length),
+    ).emphasis[0];
+    if (pair !== undefined && pair.startIndex === 0) {
+      scan.pending = {
+        ...pair,
+        endIndex: pair.endIndex + offset,
+        startIndex: offset,
+      };
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -176,7 +240,7 @@ export function findOutermostTextFormatTransformer(
 } | null {
   const codeMatch: FormatMatch | undefined = scan.codeSpans[scan.nextCodeSpan];
   const emphasisMatch: FormatMatch | undefined =
-    scan.emphasis[scan.nextEmphasis];
+    scan.pending ?? scan.emphasis[scan.nextEmphasis];
   // Delimiters inside a code span were excluded, so an emphasis match that
   // starts first either holds the whole span or ends before it, and either
   // way it is applied first.

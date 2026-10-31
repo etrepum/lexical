@@ -5359,6 +5359,15 @@ describe('emphasis next to Unicode punctuation and symbols', () => {
       'www&#46;x.co:**a** z',
     ],
     [
+      'a URL before a character that is a letter only for CommonMark',
+      [
+        ['see ', 0],
+        ['http://x.co/', TEXT_TYPE_TO_FORMAT.bold],
+        ['\u2028x', 0],
+      ],
+      'see **http&#58;//x.co/**&#8232;x',
+    ],
+    [
       'a `www.` host that would take in a code span',
       [
         ['www.x.co', 0],
@@ -5491,6 +5500,48 @@ describe('emphasis next to Unicode punctuation and symbols', () => {
       expect(
         editor.read('latest', () => $convertToMarkdownString(TRANSFORMERS)),
       ).toBe(`see ${markdown}**${LEFT_DOUBLE_QUOTE}x${RIGHT_DOUBLE_QUOTE}**`);
+    },
+  );
+
+  it.each([
+    ['after', 'user:bob**(admin)**', ['(admin)', 1]],
+    ['before', '**(admin)**user:bob', ['(admin)', 1]],
+    ['in italic after', 'user:bob*\u201ca\u201d*', ['\u201ca\u201d', 2]],
+  ] as const)(
+    'reads formatting %s a text match whose syntax has a letter beside it',
+    (_where, markdown, formatted) => {
+      // A mention-style transformer whose syntax starts and ends in a letter.
+      const MENTION: TextMatchTransformer = {
+        dependencies: [LinkNode],
+        export: node =>
+          $isLinkNode(node) && node.getURL().startsWith('mention:')
+            ? 'user:' + node.getURL().slice('mention:'.length)
+            : null,
+        importRegExp: /user:(\w+)/,
+        regExp: /user:(\w+)$/,
+        replace: (textNode, match) => {
+          const link = $createLinkNode('mention:' + match[1]);
+          link.append($createTextNode(match[1]));
+          textNode.replace(link);
+        },
+        type: 'text-match',
+      };
+      const transformers = [MENTION, ...TRANSFORMERS];
+      const editor = createTestEditor();
+      editor.update(() => $convertFromMarkdownString(markdown, transformers), {
+        discrete: true,
+      });
+      const read = () =>
+        editor.read('latest', () =>
+          $getRoot()
+            .getAllTextNodes()
+            .map(node => [node.getTextContent(), node.getFormat()]),
+        );
+      const imported = read();
+      expect(imported).toContainEqual(formatted);
+      expect(
+        editor.read('latest', () => $convertToMarkdownString(transformers)),
+      ).toBe(markdown);
     },
   );
 

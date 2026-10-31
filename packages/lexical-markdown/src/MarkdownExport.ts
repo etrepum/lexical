@@ -955,7 +955,10 @@ function findSpoiledLinks(
   };
   for (let start = 0; start < text.length; ) {
     let end = start;
-    while (end < text.length && isLinkCharacter(text[end])) {
+    while (
+      end < text.length &&
+      (isLinkCharacter(text[end]) || isReference[end] === 1)
+    ) {
       end++;
     }
     if (end === start) {

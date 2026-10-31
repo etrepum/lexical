@@ -13,6 +13,7 @@ import {$isTextNode, type LexicalNode, type TextNode} from 'lexical';
 import {
   advanceFormatScan,
   findOutermostTextFormatTransformer,
+  findPairAtEdge,
   type FormatScan,
   importTextFormatTransformer,
   partlyHoldsCodeSpan,
@@ -27,6 +28,7 @@ import {
   characterAt,
   characterBefore,
   getDelimiterRunEdge,
+  getEmphasisSides,
   unescapeText,
 } from './utils';
 
@@ -40,6 +42,23 @@ export function canContainTransformableMarkdown(
   node: LexicalNode | undefined,
 ): node is TextNode {
   return $isTextNode(node) && !node.hasFormat('code');
+}
+
+/**
+ * Whether the delimiter run that starts `text` opens beside the edge of a
+ * line but not beside `before`.
+ */
+function opensOnlyBesideEdge(
+  text: string,
+  before: string | undefined,
+  outside: string | undefined,
+): boolean {
+  const edge = getDelimiterRunEdge(text, 1, 1);
+  const after = edge < text.length ? characterAt(text, edge) : outside;
+  return (
+    getEmphasisSides(text[0], undefined, after).canOpen &&
+    !getEmphasisSides(text[0], before, after).canOpen
+  );
 }
 
 const delimitersByIndex = new WeakMap<TextFormatTransformersIndex, string>();
@@ -62,7 +81,8 @@ function getDelimiters(index: TextFormatTransformersIndex): string {
  * What a delimiter run cut at `index` of `text` sees beyond its far end once
  * the text is split there: before the run that starts at `index` when `step`
  * is -1, after the run that ends there when it is 1. `outside` is what lies
- * beyond the text.
+ * beyond the text. Beside a text match, which is written in a syntax of its
+ * own, a run that the cut does not go through sees the edge of a line.
  */
 function characterBeyondRun(
   text: string,
@@ -70,6 +90,7 @@ function characterBeyondRun(
   step: 1 | -1,
   outside: string | undefined,
   delimiters: string,
+  isBesideTextMatch = false,
 ): string | undefined {
   // Only a delimiter's run is walked: beside anything else, what lies beyond
   // is never read, and a long run of it would be walked at every cut.
@@ -78,6 +99,9 @@ function characterBeyondRun(
     beside !== undefined && delimiters.includes(beside)
       ? getDelimiterRunEdge(text, index, step)
       : index;
+  if (isBesideTextMatch && edge === index) {
+    return undefined;
+  }
   return step === 1
     ? edge < text.length
       ? characterAt(text, edge)
@@ -290,11 +314,19 @@ function importOutermost(
     inside: TextPart,
     matched: LexicalNode | undefined,
   ): TextRest | null => {
+    const isTextMatch = textAfter !== null;
     deferred.push({
       inside,
       matched,
       outside: {
-        after: characterBeyondRun(text, startIndex, 1, after, delimiters),
+        after: characterBeyondRun(
+          text,
+          startIndex,
+          1,
+          after,
+          delimiters,
+          isTextMatch,
+        ),
         before,
         node: nodeBefore,
       },
@@ -306,15 +338,41 @@ function importOutermost(
     if (textAfter !== null && textAfter !== rest) {
       return {after: undefined, before: undefined, node: nodeAfter, scan: null};
     }
-    const isReusable = advanceFormatScan(
+    const restBefore = characterBeyondRun(
+      text,
+      endIndex,
+      -1,
+      before,
+      delimiters,
+      isTextMatch,
+    );
+    // The scan read a run at the start of the rest beside the end of the
+    // match. Read beside the edge of a line instead, it can only differ in
+    // whether it opens, since it has nothing before it in the rest to close,
+    // and then only in the pair it opens.
+    let isReusable = advanceFormatScan(
       formats,
       formats.offset + endIndex,
-      textAfter === null,
+      !isTextMatch,
     );
+    if (
+      isReusable &&
+      isTextMatch &&
+      restBefore === undefined &&
+      formats.delimiters.has(rest[0]) &&
+      opensOnlyBesideEdge(rest, characterBefore(text, endIndex), after)
+    ) {
+      isReusable = findPairAtEdge(
+        formats,
+        rest,
+        textFormatTransformersIndex,
+        after,
+      );
+    }
     scan.rest = rest;
     return {
       after,
-      before: characterBeyondRun(text, endIndex, -1, before, delimiters),
+      before: restBefore,
       node: nodeAfter,
       scan: isReusable ? scan : null,
     };
