@@ -561,7 +561,8 @@ function $exportTextFormat(
     // escape instead.
     // Default mode guards numeric references; named references keep legacy output.
     // Numeric escapes avoid changing emphasis flanking beside formatting.
-    // Guard ambiguous '<' and '&' at node ends for constructs split across nodes.
+    // '<' and '&' are guarded only where they could start HTML, an autolink
+    // or a numeric reference, reading the next node's first character.
     if (shouldPreserveNewLines) {
       // A whole run of backslashes is matched, so that one before no marker
       // is not tried again from each of its backslashes.
@@ -577,11 +578,7 @@ function $exportTextFormat(
     } else {
       output = $escapeLiteralBrackets(
         node,
-        output.replace(/([*_`~\\]|<(?=\S|$)|&(?=#|$))/g, character =>
-          /[*_`~\\]/.test(character)
-            ? `\\${character}`
-            : toCharacterReference(character),
-        ),
+        $escapeMarkup(node, output, selection).replace(/[*_`~\\]/g, '\\$&'),
         selection,
       );
     }
@@ -1284,6 +1281,44 @@ function $escapeLiteralBrackets(
     output += escaped.has(index) ? `&#${text.charCodeAt(index)};` : text[index];
   }
   return output;
+}
+
+/**
+ * What can follow a `<` that starts raw HTML, an HTML block or an autolink
+ * (https://spec.commonmark.org/0.31.2/#raw-html,
+ * https://spec.commonmark.org/0.31.2/#autolinks): an ASCII letter (a tag,
+ * an HTML block or a URI scheme), `/`, `!` or `?`, or the local part of an
+ * email address up to its `@`. `&` only matters before `#`, where it starts a
+ * numeric reference that import decodes; named references keep their legacy
+ * output. Elsewhere, as in `<3`, `1 < 2` or `AT&T`, both stay literal.
+ * `UNKNOWN` ends the text when what follows cannot be seen.
+ */
+const MARKUP_START =
+  // eslint-disable-next-line no-control-regex
+  /<(?=[A-Za-z/!?]|[\w.!#$%&'*+/=?^`{|}~-]*[@\u0002])|&(?=[#\u0002])/g;
+
+/**
+ * Writes the `<` and `&` of a text node that could start markup as numeric
+ * references, reading the first character exported after the node, so a
+ * construct split across nodes is still caught.
+ */
+function $escapeMarkup(
+  node: TextNode,
+  text: string,
+  selection: BaseSelection | null,
+): string {
+  if (!/[<&]/.test(text)) {
+    return text;
+  }
+  // Only the next character is known: anything beyond it is UNKNOWN.
+  const next = $nextExportedChar(node, selection);
+  const tail = next === '' || next === UNKNOWN ? next : next + UNKNOWN;
+  const escaped = (text + tail).replace(
+    MARKUP_START,
+    (character, offset: number) =>
+      offset < text.length ? toCharacterReference(character) : character,
+  );
+  return escaped.slice(0, escaped.length - tail.length);
 }
 
 /** Stands for exported text that cannot be part of a label: a link. */

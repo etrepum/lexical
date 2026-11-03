@@ -113,6 +113,9 @@ const LITERALS = [
   ['<https://example.com>', '&#60;https://example.com>'],
   ['<0@a.b>', '&#60;0@a.b>'],
   ['<+@a.b>', '&#60;+@a.b>'],
+  ['<3@a.b>', '&#60;3@a.b>'],
+  ['<!-- c -->', '&#60;!-- c -->'],
+  ['<?x?>', '&#60;?x?>'],
   ['&#65;', '&#38;#65;'],
   ['&#x41;', '&#38;#x41;'],
   ['[label](uri)', '[label&#93;(uri)'],
@@ -120,6 +123,21 @@ const LITERALS = [
 ];
 
 describe('literal Markdown text', () => {
+  it.each(['<3', 'I <3 you', '<3 <3', '1<2', 'a < b', '<=>', 'AT&T', '&copy;'])(
+    'keeps %j literal where it cannot start markup',
+    text => {
+      using editor = buildEditorFromExtensions([MarkdownTestExtension]);
+      editor.update(
+        () =>
+          $getRoot()
+            .clear()
+            .append($createParagraphNode().append($createTextNode(text))),
+        {discrete: true},
+      );
+      expect(editor.read(() => $convertToMarkdownString())).toBe(text);
+    },
+  );
+
   it.each(LITERALS)('escapes %j across styled text nodes', (text, expected) => {
     using editor = buildEditorFromExtensions([MarkdownTestExtension]);
     for (let split = 0; split <= text.length; split++) {
@@ -217,10 +235,13 @@ describe('literal Markdown text', () => {
 
   it.each([
     [['&', '#65;'], '&#38;#65;'],
-    [['&', 'copy;'], '&#38;copy;'],
+    [['&', 'copy;'], '&copy;'],
     [['<', 'b>text</b>'], '&#60;b>text&#60;/b>'],
-    [['AT&', 'T'], 'AT&#38;T'],
-    [['a <', ' b'], 'a &#60; b'],
+    [['<3', '@a.b>'], '&#60;3@a.b>'],
+    [['AT&', 'T'], 'AT&T'],
+    [['a <', ' b'], 'a < b'],
+    [['I <3', ' you'], 'I <3 you'],
+    [['<3', ','], '<3,'],
   ] as const)('guards ambiguous node boundaries: %j', (pieces, expected) => {
     using editor = buildEditorFromExtensions([MarkdownTestExtension]);
     editor.update(

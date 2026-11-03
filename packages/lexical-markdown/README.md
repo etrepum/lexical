@@ -88,9 +88,11 @@ And bundles of commonly used transformers:
 Transformers are explicitly passed to markdown API allowing application-specific subset of markdown or custom transformers.
 
 Default export protects numeric-reference, HTML and link syntax in text,
-including constructs split across text nodes. `AT&T` and `a < b` stay readable;
-named references keep their legacy import and export behavior. An ambiguous `<`
-or `&` at the end of a text node is escaped conservatively. Code and strings
+including constructs split across text nodes. A `<` is escaped only before an
+ASCII letter, `/`, `!`, `?` or the local part of an email address, and a `&`
+only before `#`, so `AT&T`, `a < b` and `<3` stay readable; named references
+keep their legacy import and export behavior. A `<` or `&` at the end of a text
+node is escaped when the next node's text could complete the markup. Code and strings
 returned by custom transformers retain their existing serialization rules, as
 does the legacy source escaping of `shouldPreserveNewLines`. Import reads
 backslash escapes and decimal or hexadecimal references in one pass. A literal
