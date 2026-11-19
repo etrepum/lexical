@@ -159,7 +159,6 @@ describe(`LexicalCollaborationPlugin`, () => {
   let reactRoot: Root;
 
   const editorConfig = Object.freeze({
-    disableLegacyImport: false,
     // NOTE: This is critical for collaboration plugin to set editor state to null. It
     // would indicate that the editor should not try to set any default state
     // (not even empty one), and let collaboration plugin do it instead
