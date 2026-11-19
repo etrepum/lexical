@@ -22,7 +22,6 @@ import {ToolbarExtension, ToolbarPlugin} from './plugins/ToolbarPlugin';
 const placeholder = 'Enter some rich text...';
 
 const appExtension = defineExtension({
-  disableLegacyImport: false,
   dependencies: [
     RichTextExtension,
     HistoryExtension,
@@ -31,6 +30,7 @@ const appExtension = defineExtension({
     CustomParagraphExtension,
     ToolbarExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/examples/node-replacement',
   namespace: 'Node Replacement Demo',
   theme: ExampleTheme,

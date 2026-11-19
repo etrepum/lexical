@@ -55,6 +55,7 @@ async function mountChip(value: string): Promise<void> {
       $getRoot().clear().append($createParagraphNode().append(node));
     },
     dependencies: [RichTextExtension],
+    disableLegacyImport: false,
     name: '[test-datetime-component]',
     nodes: [DateTimeNode],
   });

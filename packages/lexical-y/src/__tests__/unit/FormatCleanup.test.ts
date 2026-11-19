@@ -338,6 +338,7 @@ describe('a document that loads a stored state before the binding (S7-14)', () =
     ).not.toThrow();
     expect(() =>
       buildEditorFromExtensions(
+        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
         configExtension(YCollabExtension, {
           // @ts-expect-error - a plain Y.Doc may have run Yjs's format cleanup
           doc: new Y.Doc(),

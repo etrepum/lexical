@@ -21,7 +21,6 @@ const placeholder = 'Enter some plain text...';
 const isEmbedded = new URLSearchParams(window.location.search).has('embed');
 
 const appExtension = defineExtension({
-  disableLegacyImport: false,
   dependencies: [
     configExtension(HMRExtension, {hot: import.meta.hot ?? null}),
     PlainTextExtension,
@@ -32,6 +31,7 @@ const appExtension = defineExtension({
     }),
     TreeViewExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/examples/react-plain-text',
   namespace: 'react-plain-text',
   theme: ExampleTheme,

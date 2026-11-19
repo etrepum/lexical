@@ -25,12 +25,12 @@ import {defineExtension} from 'lexical';
  * listener here would leave a test no edge to declare.
  */
 export const MarkdownTestExtension = defineExtension({
-  disableLegacyImport: false,
   dependencies: [
     RichTextExtension,
     ListExtension,
     LinkExtension,
     CodeExtension,
   ],
+  disableLegacyImport: false,
   name: '@lexical/markdown/test',
 });

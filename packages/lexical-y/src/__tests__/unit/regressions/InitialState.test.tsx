@@ -462,6 +462,7 @@ describe('S7-23: the initial state on a document that has content', () => {
           synced: true,
         }),
       ],
+      disableLegacyImport: false,
       name: '@lexical/y/test/initial-state-react',
       onError: error => {
         throw error;
