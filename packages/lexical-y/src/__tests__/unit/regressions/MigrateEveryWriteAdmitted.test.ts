@@ -39,7 +39,6 @@ function editorOf(errors: Error[]) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'every-write',
       onError: e => {
         errors.push(e);

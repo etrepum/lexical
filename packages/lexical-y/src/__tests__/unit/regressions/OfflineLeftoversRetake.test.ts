@@ -91,7 +91,6 @@ function tab(bytes: Uint8Array, generateId?: () => string) {
         HorizontalRuleExtension,
         yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
       ],
-      disableLegacyImport: false,
       name: 'lv-races',
       onError: e => {
         throw e;

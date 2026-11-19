@@ -98,7 +98,6 @@ function build(): LexicalEditorWithDispose {
       }),
       configExtension(BlockIdExtension, {generateId: () => `b${++n}`}),
     ],
-    disableLegacyImport: false,
     name: '[block-id-property]',
   });
   // Deleting characters reads the DOM selection.

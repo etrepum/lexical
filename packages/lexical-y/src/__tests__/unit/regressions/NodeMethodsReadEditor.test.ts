@@ -65,7 +65,6 @@ function client(id: number, doc = createYDoc()) {
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/active-editor',
       nodes: [EditorReadingTextNode],
       onError: e => {

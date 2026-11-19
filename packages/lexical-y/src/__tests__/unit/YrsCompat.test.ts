@@ -41,7 +41,6 @@ function session(yrs: Yrs, options: {doc?: YDoc}) {
   const doc = options.doc || createYDoc();
   doc.on('update', (u: Uint8Array) => yrs.applyUpdate(relay, u, null));
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;
@@ -115,7 +114,6 @@ describe('@lexical/y/headless with yrs relays', () => {
       }
     });
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;

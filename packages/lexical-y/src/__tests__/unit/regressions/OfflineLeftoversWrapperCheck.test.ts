@@ -77,7 +77,6 @@ function tab(bytes: Uint8Array) {
         BlockIdExtension,
         yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
       ],
-      disableLegacyImport: false,
       name: 'lv-additional',
       onError: e => {
         throw e;

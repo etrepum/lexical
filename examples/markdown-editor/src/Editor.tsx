@@ -89,7 +89,6 @@ const markdownEditorExtension = defineExtension({
     }),
     ToolbarStateExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/markdown-editor-example/Editor',
   namespace: '@lexical/markdown-editor-example',
   theme,

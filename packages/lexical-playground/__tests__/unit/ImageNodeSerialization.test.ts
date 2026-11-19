@@ -19,7 +19,6 @@ describe('ImageNode serialization', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[image-serialization]',
         nodes: [ImageNode],
       }),
@@ -84,7 +83,6 @@ describe('ImageNode serialization', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[image-max-width]',
         nodes: [ImageNode],
       }),
@@ -111,7 +109,6 @@ describe('ImageNode serialization', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[image-show-caption]',
         nodes: [ImageNode],
       }),

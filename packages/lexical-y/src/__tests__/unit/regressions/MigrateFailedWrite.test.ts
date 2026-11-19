@@ -69,7 +69,6 @@ describe.each([false, true])('a write that fails part way, gc %s', gc => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [catalogAppExtension({blockIds: 'absent'})],
-        disableLegacyImport: false,
         name: 'failed-write',
         nodes: [CardNode, ChipNode, ComponentNode, SlotBodyNode],
         onError: () => {},

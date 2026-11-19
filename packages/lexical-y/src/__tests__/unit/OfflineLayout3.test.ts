@@ -119,7 +119,6 @@ describe.each([false, true])('layout 3 documents, gc %s', gc => {
             catalogAppExtension(fixture.cfg),
             yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
           ],
-          disableLegacyImport: false,
           name: 'offline-layout-3',
           onWarn: () => {},
         }),

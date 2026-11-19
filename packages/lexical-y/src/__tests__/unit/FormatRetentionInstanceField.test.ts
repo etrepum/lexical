@@ -38,7 +38,6 @@ class ConstructorEnabled extends TextNode {
 }
 function editor() {
   return createEditor({
-    disableLegacyImport: false,
     nodes: [
       ConstructorEnabled,
       {

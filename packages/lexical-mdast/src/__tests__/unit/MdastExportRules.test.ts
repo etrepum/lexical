@@ -62,7 +62,6 @@ function createEditor(exportRules: readonly MdastExportRule[]) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(MdastExtension, {exportRules})],
-      disableLegacyImport: true,
       name: '[root]',
       // The intermediate CustomTextNode deliberately is not registered.
       nodes: [DerivedTextNode, LegacyTextNode],

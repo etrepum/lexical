@@ -54,7 +54,6 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 function newEditor(): LexicalEditor {
   return createEditor({
-    disableLegacyImport: false,
     namespace: 'api',
     nodes: NODES,
     onError: error => {
@@ -420,7 +419,6 @@ test('yCollab: the extension built from the options, its collab output', async (
           synced: false,
         }),
       ],
-      disableLegacyImport: false,
       name: 'api',
       nodes: () => NODES,
       onError: error => {
@@ -451,7 +449,6 @@ test('disposing the editor removes the collab binding listener', () => {
       dependencies: [
         yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: false}),
       ],
-      disableLegacyImport: false,
       name: 'api-dispose',
       nodes: () => NODES,
       onError: error => {

@@ -253,16 +253,11 @@ function createEditors(punctuation: PunctuationMode): {
           importPunctuation: punctuation,
         }),
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
   const markdown = buildEditorFromExtensions(
-    defineExtension({
-      dependencies: [RichTextExtension],
-      disableLegacyImport: false,
-      name: '[root]',
-    }),
+    defineExtension({dependencies: [RichTextExtension], name: '[root]'}),
   );
   onTestFinished(() => {
     mdast.dispose();

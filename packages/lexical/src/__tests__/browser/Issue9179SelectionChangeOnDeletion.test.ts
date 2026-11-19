@@ -45,7 +45,6 @@ describe('selection change after deleting a range (#9179)', () => {
       contentEditable.contentEditable = 'true';
       document.body.appendChild(contentEditable);
       const editor = buildEditorFromExtensions(
-        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
         RichTextExtension,
         LinkExtension,
       );
@@ -150,10 +149,7 @@ describe('selection change after deleting a range (#9179)', () => {
     const contentEditable = document.createElement('div');
     contentEditable.contentEditable = 'true';
     document.body.appendChild(contentEditable);
-    const editor = buildEditorFromExtensions(
-      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-      RichTextExtension,
-    );
+    const editor = buildEditorFromExtensions(RichTextExtension);
     editor.setRootElement(contentEditable);
     onTestFinished(() => {
       editor.dispose();

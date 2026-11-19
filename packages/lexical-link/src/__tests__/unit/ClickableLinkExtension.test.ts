@@ -39,7 +39,6 @@ const extension = defineExtension({
     $getRoot().append(paragraph.append(link));
   },
   dependencies: [ClickableLinkExtension, RichTextExtension],
-  disableLegacyImport: false,
   name: '[root]',
 });
 
@@ -82,10 +81,7 @@ describe('ClickableLinkExtension', () => {
     fn: (anchor: HTMLAnchorElement) => void,
     rootExtension: AnyLexicalExtension = extension,
   ): void {
-    using editor = buildEditorFromExtensions(
-      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-      rootExtension,
-    );
+    using editor = buildEditorFromExtensions(rootExtension);
     const rootElement = document.createElement('div');
     rootElement.contentEditable = 'true';
     document.body.appendChild(rootElement);

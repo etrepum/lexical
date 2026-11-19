@@ -183,7 +183,6 @@ function $summary(): {blocks: number; text: number; breaks: number} {
 /** The summary of `shape` built in a plain editor. */
 function expectedOf(shape: Shape): ReturnType<typeof $summary> {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'size',
     nodes: NODES,
     onError: error => {

@@ -44,7 +44,6 @@ function bind(
   init?: () => void,
 ): {binding: YBinding; editor: LexicalEditor} {
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: e => {
       throw e;
     },

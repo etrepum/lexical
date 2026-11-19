@@ -38,7 +38,6 @@ test.each<[string, KeyboardEventInit]>([
   document.body.append(root, button);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[keydown-outside-editor]',
   });
   editor.setRootElement(root);

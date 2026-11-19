@@ -44,7 +44,6 @@ function build(repairTransforms?: boolean): LexicalEditorWithDispose {
         ...(repairTransforms === undefined ? {} : {repairTransforms}),
       }),
     ],
-    disableLegacyImport: false,
     name: 'test',
     onError: e => {
       throw e;

@@ -56,11 +56,7 @@ function createEditor(
   ...dependencies: AnyLexicalExtensionArgument[]
 ): LexicalEditorWithDispose {
   const editor = buildEditorFromExtensions(
-    defineExtension({
-      dependencies,
-      disableLegacyImport: false,
-      name: 'markdown-quote-container-host',
-    }),
+    defineExtension({dependencies, name: 'markdown-quote-container-host'}),
   );
   onTestFinished(() => editor.dispose());
   return editor;
@@ -427,7 +423,6 @@ describe('the "> " shortcut', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [extension],
-        disableLegacyImport: false,
         name: 'markdown-quote-container-shortcut-host',
         register: target => registerMarkdownShortcuts(target, transformers),
       }),
@@ -479,7 +474,6 @@ describe('the "> " shortcut', () => {
       const editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [extension],
-          disableLegacyImport: false,
           name: 'markdown-quote-container-enter-host',
           register: target =>
             registerMarkdownShortcuts(

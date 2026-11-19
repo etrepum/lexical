@@ -2683,30 +2683,26 @@ describe('LexicalEditor tests', () => {
     }
     expect(() =>
       // @ts-expect-error
-      createEditor({disableLegacyImport: false, nodes: [FakeLexicalNode]}),
+      createEditor({nodes: [FakeLexicalNode]}),
     ).toThrow(
       /nodes\[0\] FakeLexicalNode \(type fake-node\) is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('rejects creating an editor with invalid LexicalNode parent class (no getType)', async () => {
     class FakeLexicalNode {}
-    expect(() =>
-      // @ts-expect-error
-      createEditor({disableLegacyImport: false, nodes: [FakeLexicalNode]}),
-    ).toThrow(
+    // @ts-expect-error
+    expect(() => createEditor({nodes: [FakeLexicalNode]})).toThrow(
       /nodes\[0\] FakeLexicalNode is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('rejects creating an editor with invalid LexicalNode parent class (undefined)', async () => {
-    expect(() =>
-      // @ts-expect-error
-      createEditor({disableLegacyImport: false, nodes: [undefined]}),
-    ).toThrow(
+    // @ts-expect-error
+    expect(() => createEditor({nodes: [undefined]})).toThrow(
       /nodes\[0\] undefined is not a constructor that subclasses LexicalNode from the lexical package used by this editor/,
     );
   });
   it('mutation listener on newly initialized editor', async () => {
-    editor = createEditor({disableLegacyImport: false});
+    editor = createEditor();
     const textNodeMutations = vi.fn();
     editor.registerMutationListener(TextNode, textNodeMutations, {
       skipInitialization: false,
@@ -4264,8 +4260,8 @@ describe('LexicalEditor tests', () => {
     expect(updateListener.mock.lastCall?.[0].prevEditorState).toBe(editorState);
   });
 
-  it('should call importDOM methods only once', async () => {
-    vi.spyOn(ParagraphNode, 'importDOM');
+  it('deduplicates inherited importDOM methods on first legacy import', () => {
+    using importDOM = vi.spyOn(ParagraphNode, 'importDOM');
 
     class CustomParagraphNode extends ParagraphNode {
       $config() {
@@ -4273,9 +4269,23 @@ describe('LexicalEditor tests', () => {
       }
     }
 
-    createTestEditor({nodes: [CustomParagraphNode]});
+    const editorWithCustomNode = createEditor({
+      disableLegacyImport: false,
+      nodes: [CustomParagraphNode],
+    });
+    expect(importDOM).not.toHaveBeenCalled();
 
-    expect(ParagraphNode.importDOM).toHaveBeenCalledTimes(1);
+    editorWithCustomNode.update(
+      () => {
+        const dom = document.createElement('p');
+        dom.textContent = 'paragraph';
+        $generateNodesFromDOM(editorWithCustomNode, dom);
+        $generateNodesFromDOM(editorWithCustomNode, dom);
+      },
+      {discrete: true},
+    );
+
+    expect(importDOM).toHaveBeenCalledTimes(1);
   });
 
   describe('setRootElement', () => {

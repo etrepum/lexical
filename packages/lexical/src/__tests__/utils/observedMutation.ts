@@ -152,7 +152,6 @@ function buildEditor(
   return buildEditorFromExtensions({
     $initialEditorState,
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[observed-mutation]',
     nodes: [
       BlockDecoratorNode,

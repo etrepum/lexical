@@ -30,8 +30,6 @@ function buildEditor() {
       // `HorizontalRuleNode` registration — no dedicated import
       // extension required.
       dependencies: [CoreImportExtension, HorizontalRuleExtension],
-
-      disableLegacyImport: false,
       name: 'hr-host',
     }),
   );
@@ -85,7 +83,6 @@ describe('HorizontalRuleImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [CoreImportExtension],
-        disableLegacyImport: false,
         name: 'hr-gated-host',
       }),
     );

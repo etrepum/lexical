@@ -21,10 +21,7 @@ import {describe, expect, it} from 'vitest';
 import {MarkdownTestExtension} from '../utils';
 
 function roundTrip(markdown: string): string {
-  using editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    [MarkdownTestExtension],
-  );
+  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
   editor.update(
     () => {
       $convertFromMarkdownString(markdown, TRANSFORMERS);
@@ -38,10 +35,7 @@ function importCodeBlock(markdown: string): {
   language: string | null | undefined;
   text: string | null;
 } {
-  using editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    [MarkdownTestExtension],
-  );
+  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
   let result: {language: string | null | undefined; text: string | null} = {
     language: undefined,
     text: null,

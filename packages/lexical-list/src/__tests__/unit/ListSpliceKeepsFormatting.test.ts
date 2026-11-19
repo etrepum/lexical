@@ -30,7 +30,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension, LinkExtension],
-      disableLegacyImport: false,
       name: 'list-splice-host',
     }),
   );

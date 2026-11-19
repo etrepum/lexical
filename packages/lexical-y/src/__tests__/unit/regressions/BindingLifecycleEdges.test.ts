@@ -39,7 +39,6 @@ function editorOf(warnings: Warning[]) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'lifecycle-edges',
       onError: e => {
         throw e;

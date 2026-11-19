@@ -118,7 +118,6 @@ class Client {
     const editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [ListExtension, TableExtension],
-      disableLegacyImport: false,
       name: `[repair-${name}]`,
       nodes: [HeadingNode, QuoteNode, LinkNode, MarkNode],
       onError: e => {

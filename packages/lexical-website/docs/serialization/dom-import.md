@@ -1,23 +1,11 @@
 # DOMImportExtension
 
-:::warning Experimental
+:::note
 
-`DOMImportExtension` and everything described on this page are marked
-`@experimental` and may change between any two Lexical releases —
-including breaking renames, signature changes, or behavior changes —
-until the API stabilizes. We track issues and proposals in the
-[GitHub repo](https://github.com/meta/lexical); breaking changes
-will be called out in release notes. Apps that depend on this
-pipeline should pin their Lexical version and treat upgrades as
-intentional.
-
-The legacy static `importDOM` machinery, `$config().importDOM`,
-`html.import`, and `$generateNodesFromDOM` entry are deprecated but
-remain available by default. Existing applications can keep using them
-while migrating; deprecation does not change their behavior or remove
-them in this release.
-
-The DOMImportExtension API was introduced in Lexical v0.45.0
+`DOMImportExtension` was introduced in Lexical v0.45.0. The legacy
+`static importDOM()`, `$config().importDOM`, `html.import` conversion maps,
+and `$generateNodesFromDOM` APIs are deprecated but remain available
+by default.
 
 :::
 
@@ -1171,29 +1159,23 @@ const editor = buildEditorFromExtensions(
 );
 ```
 
-`disableLegacyImport` defaults to `null`: legacy import stays enabled and
-emits a one-time development warning. Set it to `false` to explicitly retain
-legacy import without warning while migrating. Setting it to `true` skips calls to
-registered nodes' static `importDOM` factories and allocation of the
-legacy conversion cache. Calling the old `$generateNodesFromDOM` then
-throws with migration guidance, including for an empty document.
-Nonempty `html.import` configurations are rejected during editor
-construction so overrides cannot silently disappear.
+`disableLegacyImport` defaults to `null`: legacy import stays enabled,
+and its first use emits a one-time development warning. Editors that
+never use the legacy importer do not invoke the registered node factories
+or allocate the legacy conversion cache. Set the option to `false` to use
+legacy import without warning while migrating.
 
-The same `disableLegacyImport` setting is available in `createEditor`,
-`LexicalComposer` initial configuration, and extension definitions. The
-lower-level `html: {import: false}` equivalent is also supported in
-`createEditor` or an extension. It disables legacy import without installing any
-replacement. Combining that setting with an extension's legacy
-conversion map is an error regardless of extension order. HTML export
-configuration is preserved.
+Setting it to `true` makes `$generateNodesFromDOM` throw with migration
+guidance, including for an empty document. Nonempty `html.import` maps
+cannot be combined with this setting. HTML export is unaffected. Bare
+nested editors created with `createEditor()` keep legacy import enabled
+so that they can still paste formatted HTML without extensions.
 
-This opt-out removes legacy converter initialization work. It does not
-remove legacy methods from node classes, avoid evaluating their `$config`
-methods, or promise to eliminate their code from application bundles.
-Removing those methods and changing the default require a later
-compatibility decision. Built-in and third-party nodes can still support
-both pipelines during the transition.
+This setting is available in `createEditor`, `LexicalComposer` initial
+configuration, and extension definitions. It does not remove legacy methods
+from node classes or promise to eliminate their code from application bundles.
+Built-in and third-party nodes can still support both pipelines during
+the transition.
 
 ### Translate custom conversions
 

@@ -42,7 +42,6 @@ class EditorReadingTextNode extends TextNode {
 
 const ShortcutsTestExtension = defineExtension({
   dependencies: [MarkdownTestExtension],
-  disableLegacyImport: false,
   name: 'ShortcutsActiveEditorTest',
   nodes: [EditorReadingTextNode],
   register: editor => registerMarkdownShortcuts(editor),

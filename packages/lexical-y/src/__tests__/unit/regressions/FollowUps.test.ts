@@ -56,7 +56,6 @@ function client(doc: YDoc, attached: boolean) {
         }),
         BlockIdExtension,
       ],
-      disableLegacyImport: false,
       name: 'regressions-follow-ups',
       onError: e => {
         throw e;

@@ -47,7 +47,6 @@ function settle(ms = 50): Promise<void> {
 
 function mount() {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'skip-transforms-mutation-revert',
     nodes: [ParagraphNode, TextNode, BadgeNode],
     onError: e => {

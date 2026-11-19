@@ -221,7 +221,6 @@ for (let seed = START; seed < START + SEEDS; seed++) {
               synced: true,
             }),
           ],
-          disableLegacyImport: false,
           name: `undo-spread-fuzz/${name}`,
           onError: error => {
             throw error;

@@ -96,10 +96,7 @@ function expectRoundTrip(
   makeNode: () => LexicalNode,
   $assert: () => void,
 ): void {
-  using editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    testExtension(feature),
-  );
+  using editor = buildEditorFromExtensions(testExtension(feature));
   editor.update(
     () => {
       $getRoot().clear();
@@ -209,7 +206,6 @@ describe('Playground node importers (DOMImportExtension round-trip)', () => {
           ImagesExtension,
           PageBreakExtension,
         ],
-        disableLegacyImport: false,
         name: '[test-legacy-page-break]',
       }),
     );

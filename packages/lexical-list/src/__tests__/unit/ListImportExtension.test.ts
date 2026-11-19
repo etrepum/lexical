@@ -60,8 +60,6 @@ function buildEditor() {
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
       dependencies: [ListExtension],
-
-      disableLegacyImport: false,
       name: 'list-host',
     }),
   );
@@ -169,7 +167,6 @@ describe('ListImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [ListExtension],
-        disableLegacyImport: false,
         name: 'custom-list-host',
         nodes: [
           CustomListNode,
@@ -220,7 +217,6 @@ function buildWordPasteEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [WordListImportExtension],
-      disableLegacyImport: false,
       name: 'word-paste-host',
     }),
   );
@@ -419,7 +415,6 @@ describe('ListItemNode block flattening', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HorizontalRuleExtension, ListExtension],
-        disableLegacyImport: false,
         name: 'list-hr-host',
       }),
     );
@@ -447,7 +442,6 @@ describe('ListItemNode block flattening', () => {
           ListExtension,
           NodeStructureExtension,
         ],
-        disableLegacyImport: false,
         name: 'list-hr-structure-host',
       }),
     );
@@ -489,7 +483,6 @@ describe('ListItemNode block flattening', () => {
             ListExtension,
             ...(withStructure ? [NodeStructureExtension] : []),
           ],
-          disableLegacyImport: false,
           name: 'list-link-structure-host',
         }),
       );

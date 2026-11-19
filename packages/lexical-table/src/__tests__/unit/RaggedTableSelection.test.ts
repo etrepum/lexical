@@ -50,7 +50,6 @@ function buildEditor(rows: Spec) {
         return () => document.body.removeChild(container);
       },
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: '[ragged-table-selection]',
       onError: (error: Error) => {
         throw error;

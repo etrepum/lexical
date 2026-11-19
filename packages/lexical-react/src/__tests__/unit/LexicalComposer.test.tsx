@@ -49,7 +49,6 @@ describe('LexicalComposer tests', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             namespace: '',
             nodes: [],
             onError: err => {
@@ -80,7 +79,6 @@ describe('LexicalComposer tests', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             namespace: '',
             nodes: [],
             onError: err => {
@@ -125,7 +123,6 @@ describe('LexicalComposer tests', () => {
         return (
           <LexicalComposer
             initialConfig={{
-              disableLegacyImport: false,
               editorState(editor) {
                 editors.add(editor);
                 editor.update(() => {

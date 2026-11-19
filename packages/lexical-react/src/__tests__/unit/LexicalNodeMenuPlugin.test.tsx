@@ -119,7 +119,6 @@ function createApp(plugin: React.ReactNode): React.FC {
     return (
       <LexicalComposer
         initialConfig={{
-          disableLegacyImport: false,
           namespace: 'test-node-menu',
           nodes: [],
           onError: err => {

@@ -20,7 +20,6 @@ import {writeEditorToYDoc} from '../utils/headless';
 
 function bigDoc(n: number): Y.Doc {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

@@ -30,7 +30,6 @@ it('builds a CJK-friendly import without a layout warning', () => {
           micromarkExtensions: [gfmStrikethrough()],
         }),
       ],
-      disableLegacyImport: false,
       name: '[test]',
     }),
   );

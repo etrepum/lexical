@@ -76,7 +76,6 @@ function peer(id: number, update: Uint8Array | null, blockIds: boolean) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: `peer${id}`,
       nodes: NODES,
       onError: e => {

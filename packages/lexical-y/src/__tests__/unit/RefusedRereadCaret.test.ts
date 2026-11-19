@@ -58,7 +58,6 @@ for (const gc of [false, true])
                 }),
                 ...(ids ? [BlockIdExtension] : []),
               ],
-              disableLegacyImport: false,
               name: 'R6/caret/' + id,
               nodes: NODES,
               onError: e => {

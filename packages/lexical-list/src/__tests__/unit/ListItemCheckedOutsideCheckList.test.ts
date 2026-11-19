@@ -32,7 +32,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
-      disableLegacyImport: false,
       name: 'list-item-checked-host',
     }),
   );

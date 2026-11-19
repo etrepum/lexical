@@ -54,7 +54,6 @@ function build(rows: Spec) {
         return () => root.remove();
       },
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: '[ragged-table-selection-commands]',
       // Lexical clipboard data pastes into an editor of the same namespace.
       namespace: 'ragged-table-selection-commands',

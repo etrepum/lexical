@@ -74,7 +74,6 @@ function peer(name: string, clientID: number): P {
         // Ids each client makes differently, as random ids are.
         configExtension(BlockIdExtension, {generateId: () => `${name}${++n}`}),
       ],
-      disableLegacyImport: false,
       name: 'block-ids-' + name,
       nodes: NODES,
       onError: (e: Error) => {
@@ -237,7 +236,6 @@ describe('@lexical/y with BlockIdExtension', () => {
               schemaVersion: 1,
             }),
           ],
-          disableLegacyImport: false,
           name: 'block-ids-without',
           nodes: NODES,
           onError: (e: Error) => {

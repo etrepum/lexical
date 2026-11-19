@@ -44,7 +44,6 @@ function importText(
   detached: boolean,
 ) {
   const editor = createHeadlessEditor({
-    disableLegacyImport: false,
     nodes: [LinkNode],
     onError(error) {
       throw error;

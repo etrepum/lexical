@@ -109,7 +109,6 @@ function App({
   return (
     <LexicalComposer
       initialConfig={{
-        disableLegacyImport: false,
         namespace: 'test-auto-embed',
         nodes: [LinkNode, AutoLinkNode, QuoteNode],
         onError,

@@ -395,7 +395,6 @@ describe('a lookup table declaration', () => {
       json: {readonly [key: string]: unknown},
     ) => LimitNode;
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       nodes: [LimitNode],
       onError: err => {

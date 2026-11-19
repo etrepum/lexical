@@ -29,7 +29,6 @@ for (const gc of [false, true])
     const doc = createYDoc(null, {gc});
     doc.clientID = 7;
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: 'test',
       nodes: NODES,
       onError: e => {

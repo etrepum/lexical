@@ -56,7 +56,6 @@ describe('CheckListExtension mobile tap toggle', () => {
       $getRoot().append(list);
     },
     dependencies: [CheckListExtension, RichTextExtension],
-    disableLegacyImport: false,
     name: '[checklist-test]',
   });
 
@@ -299,7 +298,6 @@ describe('CheckListExtension Space after a click on a check mark', () => {
       );
     },
     dependencies: [CheckListExtension, RichTextExtension],
-    disableLegacyImport: false,
     name: '[checklist-space-test]',
   });
 

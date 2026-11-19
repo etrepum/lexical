@@ -62,7 +62,6 @@ afterEach(() => {
 /** A mounted editor with one paragraph, and the texts its transform saw. */
 function mount(): {editor: LexicalEditor; seen: string[]} {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'skip-transforms-mutation-revert',
     nodes: [ParagraphNode, TextNode, BadgeNode],
     onError: e => {

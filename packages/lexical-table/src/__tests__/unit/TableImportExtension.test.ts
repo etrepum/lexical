@@ -36,8 +36,6 @@ function buildEditor() {
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
       dependencies: [TableExtension],
-
-      disableLegacyImport: false,
       name: 'table-host',
       theme: {tableScrollableWrapper: ''},
     }),

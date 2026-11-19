@@ -145,7 +145,6 @@ const CLASSES: Klass<TextNode>[] = [
 /** What `klass` shows for `format`, in an editor without collaboration. */
 function shownBy(klass: Klass<TextNode>, format: number): number {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [klass],
     onError: e => {
       throw e;

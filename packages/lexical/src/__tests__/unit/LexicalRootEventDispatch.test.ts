@@ -62,10 +62,7 @@ test.each<[string, boolean, AnyLexicalCommand]>([
 ])(
   'a %s event dispatches its command, also while read-only: %s',
   (type, isReadOnlyDispatched, command) => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     const root = mount(editor);
     const listener = vi.fn<CommandListener<unknown>>(() => true);
     editor.registerCommand(command, listener, COMMAND_PRIORITY_CRITICAL);
@@ -91,14 +88,8 @@ test.each<[string, AnyLexicalCommand]>([
 ])(
   'a %s event in a nested root element reaches only the nested editor',
   (type, command) => {
-    using outer = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
-    using inner = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using outer = buildEditorFromExtensions();
+    using inner = buildEditorFromExtensions();
     const innerRoot = mount(inner);
     mount(outer).appendChild(innerRoot);
     const outerListener = vi.fn(() => false);

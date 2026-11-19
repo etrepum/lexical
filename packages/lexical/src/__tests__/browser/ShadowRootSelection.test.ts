@@ -86,7 +86,6 @@ function setUpShadowEditor(text = 'Hello world'): ShadowEditor {
   const editor = buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: () => $prepopulate(text),
-      disableLegacyImport: false,
       name: 'shadow-root-selection',
       onError: error => {
         throw error;
@@ -226,7 +225,6 @@ describe('DOM shadow root selection (browser)', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: () => $prepopulate('Hello world'),
-        disableLegacyImport: false,
         name: 'light',
         onError: error => {
           throw error;
@@ -416,7 +414,6 @@ describe('DOM shadow root selection (browser)', () => {
       const editor = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $prepopulate('Hi'),
-          disableLegacyImport: false,
           name: 'web-component',
           onError: error => {
             throw error;
@@ -469,7 +466,6 @@ describe('DOM shadow root selection (browser)', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: () => $prepopulate('Hello world'),
-        disableLegacyImport: false,
         name: 'iframe',
         onError: error => {
           throw error;
@@ -534,7 +530,6 @@ describe('DOM shadow root selection (browser)', () => {
       const editor = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $prepopulate('Hello world'),
-          disableLegacyImport: false,
           name: 'iframe-shadow',
           onError: error => {
             throw error;
@@ -994,7 +989,6 @@ describe('DOM shadow root selection (browser)', () => {
       const outerEditor = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $prepopulate('Outer light DOM'),
-          disableLegacyImport: false,
           name: 'shadow-attribution-outer',
           onError: error => {
             throw error;
@@ -1016,7 +1010,6 @@ describe('DOM shadow root selection (browser)', () => {
       const innerEditor = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $prepopulate('Inner shadow root'),
-          disableLegacyImport: false,
           name: 'shadow-attribution-inner',
           onError: error => {
             throw error;

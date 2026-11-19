@@ -80,7 +80,6 @@ function trap(container: HTMLElement, options?: FocusTrapOptions) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [FocusTrapExtension, RichTextExtension, LinkExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

@@ -110,7 +110,6 @@ function clients(gc: boolean, ids: [number, number]) {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `restored-run/${name}`,
         onError: e => {
           throw e;

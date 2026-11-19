@@ -24,7 +24,6 @@ function createEditor() {
           tokenizer: {...ShikiTokenizer, defaultLanguage: null},
         }),
       ],
-      disableLegacyImport: false,
       name: 'shiki-default-null',
     }),
   );

@@ -26,7 +26,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 describe('LexicalExtensionComposer', () => {
   const extension = defineExtension({
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[root]',
   });
   function MyEditor({children}: {children?: React.ReactNode}) {
@@ -77,7 +76,6 @@ describe('LexicalExtensionComposer', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [PlainTextExtension, AutoFocusExtension],
-        disableLegacyImport: false,
         name: '[test]',
       }),
     );

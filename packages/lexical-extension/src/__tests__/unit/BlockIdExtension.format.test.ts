@@ -74,7 +74,6 @@ function loaded() {
   const editor = buildEditorFromExtensions({
     $initialEditorState: null,
     dependencies: [RichTextExtension, BlockIdExtension],
-    disableLegacyImport: false,
     name: '[format]',
   });
   editor.setEditorState(editor.parseEditorState(STORED));
@@ -225,7 +224,6 @@ describe('block id format', () => {
     const editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: '[format-dup]',
     });
     const paragraph = (text: string, id: string) => ({
@@ -296,7 +294,6 @@ describe('block id format', () => {
     const editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, ListExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: '[format-vector]',
     });
     editor.setEditorState(editor.parseEditorState(stored));

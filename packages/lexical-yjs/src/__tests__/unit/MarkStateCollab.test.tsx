@@ -157,7 +157,6 @@ class Client implements Provider {
       dependencies: this.withMarkState
         ? [RichTextExtension, MarkStateExtension]
         : [RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
       onError: (error: Error) => {
         throw error;

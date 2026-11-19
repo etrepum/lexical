@@ -21,7 +21,6 @@ function buildEditor(hasHorizontalScroll: boolean) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(TableExtension, {hasHorizontalScroll})],
-      disableLegacyImport: false,
       name: 'table-export-attributes-host',
       theme: {tableScrollableWrapper: 'scroll-wrapper'},
     }),

@@ -77,7 +77,6 @@ function seed(): Uint8Array {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'prod-undo-node-seed',
       nodes: NODES,
     }),
@@ -111,7 +110,6 @@ function openY(state: Uint8Array): LexicalEditor {
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'prod-undo-node',
       nodes: NODES,
       onError: e => {
@@ -133,7 +131,6 @@ function openHistory(): LexicalEditor {
         RichTextExtension,
         configExtension(HistoryExtension, {delay: 0}),
       ],
-      disableLegacyImport: false,
       name: 'prod-undo-node-history',
       nodes: NODES,
       onError: e => {

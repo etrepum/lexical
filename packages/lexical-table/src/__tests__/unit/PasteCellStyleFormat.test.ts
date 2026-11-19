@@ -39,7 +39,6 @@ function pasteRow(cells: string): string[] {
         RichTextExtension,
         configExtension(TableExtension, {hasHorizontalScroll: false}),
       ],
-      disableLegacyImport: false,
       name: 'paste-cell-style-format',
       onError: e => {
         throw e;

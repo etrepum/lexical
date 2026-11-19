@@ -26,7 +26,6 @@ import {describe, expect, test} from 'vitest';
 
 function setUp(record: boolean) {
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: e => {
       throw e;
     },

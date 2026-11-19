@@ -20,10 +20,7 @@ import {
 import {expect, test} from 'vitest';
 
 test.each(['next', 'previous'] as const)('split a %s text slice', direction => {
-  using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'caret-selection-test',
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   editor.update(
     () => {
       const text = $createTextNode('abcde')
@@ -53,10 +50,7 @@ test.each(['next', 'previous'] as const)('split a %s text slice', direction => {
 });
 
 test('empty and full text slices leave the node intact', () => {
-  using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'caret-selection-test',
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   editor.update(
     () => {
       const text = $createTextNode('abcde');

@@ -38,7 +38,6 @@ const DateTimeTestExtension = defineExtension({
     return () => editor.setRootElement(null);
   },
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[test-datetime]',
   nodes: [DateTimeNode],
 });

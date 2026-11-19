@@ -279,7 +279,6 @@ function buildHeadlessEditor(
   const editor: LexicalEditorWithDispose = buildEditorFromExtensions(
     defineExtension({
       dependencies: options.extensions ? [...options.extensions] : [],
-      disableLegacyImport: false,
       name: '@lexical/y/headless',
       nodes: options.nodes,
       onError,

@@ -133,7 +133,6 @@ for (const marks of [false, true]) {
           }),
           ...(marks ? [MarkStateExtension] : []),
         ],
-        disableLegacyImport: false,
         name: 'newline-mark',
         onError: e => {
           throw e;
@@ -228,7 +227,6 @@ test('a text node holding 300,000 line feeds', async () => {
   const make = (id: number) => {
     const errors: unknown[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       onError: e => {
         errors.push(e);
       },

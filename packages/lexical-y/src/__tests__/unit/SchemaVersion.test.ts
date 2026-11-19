@@ -73,7 +73,6 @@ function client(
   const doc = createYDoc(null, {gc: false});
   const warnings: LexicalWarning[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'schema',
     nodes,
     onError: e => {
@@ -791,7 +790,6 @@ describe('schema version: required', () => {
               schemaVersion: 1,
             }),
           ],
-          disableLegacyImport: false,
           name: 'test-doc-required',
         }),
       ),
@@ -813,7 +811,6 @@ describe('schema version: required', () => {
                   : {doc: createYDoc(), schemaVersion}) as never,
               ),
             ],
-            disableLegacyImport: false,
             name: 'test-schema-required',
           }),
         ),
@@ -835,7 +832,6 @@ describe('schema version: required', () => {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: 'test-schema-given',
       }),
     );
@@ -846,7 +842,7 @@ describe('schema version: required', () => {
   });
 
   test('YBinding and the headless config throw without schemaVersion', () => {
-    const editor = createEditor({disableLegacyImport: false, nodes: NODES});
+    const editor = createEditor({nodes: NODES});
     // @ts-expect-error schemaVersion is required
     expect(() => new YBinding(editor, createYDoc())).toThrow(
       `YBinding needs options.schemaVersion (got undefined): ${FIX}`,

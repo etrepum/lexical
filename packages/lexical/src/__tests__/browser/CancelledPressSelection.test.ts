@@ -70,7 +70,6 @@ test.each(['pointerdown', 'mousedown'])(
           $getRoot().clear().append($createParagraphNode().append(text), box);
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '[cancelled-press-selection]',
         nodes: [BoxNode],
       }),

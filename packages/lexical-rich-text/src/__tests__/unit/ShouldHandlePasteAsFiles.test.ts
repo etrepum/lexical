@@ -73,7 +73,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
     // consumers (e.g. the playground) don't silently change behavior.
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-default',
     });
 
@@ -94,7 +93,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
       ],
-      disableLegacyImport: false,
       name: 'test-override',
     });
 
@@ -120,7 +118,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
       ],
-      disableLegacyImport: false,
       name: 'test-unhandled-file',
     });
 
@@ -155,7 +152,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
       ],
-      disableLegacyImport: false,
       name: 'test-no-file',
     });
 
@@ -174,7 +170,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
     // regression guard that our new parameter didn't break it.
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-file-only',
     });
 
@@ -189,7 +184,6 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
   test('shouldHandlePasteAsFiles can be modified as a signal after the editor is built', () => {
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-signal',
     });
 

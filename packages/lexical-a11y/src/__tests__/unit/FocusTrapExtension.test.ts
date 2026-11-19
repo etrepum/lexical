@@ -41,7 +41,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -57,7 +56,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -70,7 +68,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -85,7 +82,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -105,7 +101,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -134,7 +129,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -155,7 +149,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -181,7 +174,6 @@ describe('FocusTrapExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusTrapExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

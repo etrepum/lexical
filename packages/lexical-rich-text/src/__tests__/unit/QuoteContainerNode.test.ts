@@ -66,11 +66,7 @@ function createEditor(
   ...dependencies: AnyLexicalExtensionArgument[]
 ): LexicalEditorWithDispose {
   const editor = buildEditorFromExtensions(
-    defineExtension({
-      dependencies,
-      disableLegacyImport: false,
-      name: 'quote-container-host',
-    }),
+    defineExtension({dependencies, name: 'quote-container-host'}),
   );
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -214,7 +210,6 @@ describe('QuoteContainerNode', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [QuoteContainerExtension],
-        disableLegacyImport: false,
         name: 'themed',
         theme: {quote: 'my-quote'},
       }),
@@ -538,7 +533,6 @@ describe('QuoteNode replaced by QuoteContainerNode', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: 'by-hand',
         nodes: () => [
           QuoteContainerNode,

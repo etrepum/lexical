@@ -59,10 +59,7 @@ function $createFixture(): Fixture {
 test.each(['previous', 'next'] as const)(
   'replacement with an existing %s sibling preserves both links',
   direction => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-mutation-links',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-mutation-links'});
     let fixture!: Fixture;
     editor.update(
       () => {
@@ -88,10 +85,7 @@ for (const direction of ['previous', 'next'] as const) {
     test.each([0, 1, 2, 3].filter(index => index !== originIndex))(
       `moving sibling %s ${direction} from ${originIndex} preserves committed links`,
       sourceIndex => {
-        using editor = buildEditorFromExtensions({
-          disableLegacyImport: false,
-          name: 'caret-mutation-move',
-        });
+        using editor = buildEditorFromExtensions({name: 'caret-mutation-move'});
         let fixture!: Fixture;
         editor.update(
           () => {
@@ -133,10 +127,7 @@ test.each([
 ])(
   'splice($start, $count, $insert) repairs both boundary links',
   ({start, count, insert, expected}) => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-mutation-splice',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-mutation-splice'});
     let fixture!: Fixture;
     editor.update(
       () => {
@@ -174,10 +165,7 @@ test.each([
 test.each(['previous', 'next'] as const)(
   'caret insertion dispatches to the %s node method',
   direction => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-mutation-dispatch',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-mutation-dispatch'});
     const spy = vi.spyOn(
       TextNode.prototype,
       direction === 'next' ? 'insertAfter' : 'insertBefore',
@@ -206,10 +194,7 @@ test.each(
 )(
   'moving a text endpoint beside its parent endpoint ($operation, backward=$backward, offset=$offset)',
   ({operation, backward, offset}) => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'move-mixed-endpoints',
-    });
+    using editor = buildEditorFromExtensions({name: 'move-mixed-endpoints'});
     editor.update(
       () => {
         const first = $createTextNode('first').toggleUnmergeable();
@@ -253,10 +238,7 @@ test.each(
 test.each(['insertBefore', 'insertAfter'] as const)(
   'invalidates text-only selection direction after %s reorders siblings',
   operation => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'move-text-endpoints',
-    });
+    using editor = buildEditorFromExtensions({name: 'move-text-endpoints'});
     editor.update(
       () => {
         const first = $createTextNode('first').toggleUnmergeable();

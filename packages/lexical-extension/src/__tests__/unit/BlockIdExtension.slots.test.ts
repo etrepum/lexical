@@ -115,7 +115,6 @@ function build(
             generateId: counter(),
           }),
         ],
-        disableLegacyImport: false,
         name: '[block-id-slots-test]',
         nodes: [SlotContainerNode],
       }),

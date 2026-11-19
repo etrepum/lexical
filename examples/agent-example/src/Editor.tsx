@@ -61,7 +61,6 @@ function createEditorExtension(createWorker: () => Worker) {
       configExtension(AIExtension, {createWorker}),
       ToolbarExtension,
     ],
-    disableLegacyImport: false,
     name: '@lexical/agent-example/editor',
     namespace: '@lexical/agent-example/editor',
     theme,

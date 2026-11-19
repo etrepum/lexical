@@ -60,7 +60,6 @@ test('insert-paragraph on every text of every slot host: no throw; a no-op insid
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [catalogAppExtension({blockIds: 'absent'})],
-        disableLegacyImport: false,
         name: 'catalog-ops',
         onError: e => {
           throw e;

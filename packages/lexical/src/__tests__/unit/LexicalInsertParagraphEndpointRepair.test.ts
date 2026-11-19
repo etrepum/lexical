@@ -25,7 +25,6 @@ import {$assertNodeType} from '../utils';
 
 const testExtension = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: 'insert-paragraph-endpoint-repair',
   nodes: [LinkNode],
 });

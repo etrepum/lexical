@@ -67,7 +67,6 @@ describe('C1: text content listeners see every change of the text', () => {
         const editor = buildEditorFromExtensions(
           defineExtension({
             dependencies: [catalogAppExtension(DEFAULT_CONFIG)],
-            disableLegacyImport: false,
             name: 'catalog-text-content',
             onError: e => {
               throw e;

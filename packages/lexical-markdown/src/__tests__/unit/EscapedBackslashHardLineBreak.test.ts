@@ -25,10 +25,7 @@ const TWO = 'foo\\\\';
 const THREE = 'foo\\\\\\';
 
 function importText(markdown: string): string {
-  using editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    [MarkdownTestExtension],
-  );
+  using editor = buildEditorFromExtensions([MarkdownTestExtension]);
   let text = '';
   editor.update(
     () => {

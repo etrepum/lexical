@@ -203,7 +203,6 @@ function unboundText(shapes: readonly NodeShape[]): string {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(DEFAULT_CONFIG)],
-      disableLegacyImport: false,
       name: 'catalog-read-only-text',
       onError: e => {
         throw e;

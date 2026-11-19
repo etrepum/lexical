@@ -167,7 +167,6 @@ describe('useExtensionSignalValue', () => {
   test('subscribes to extension signal property', async () => {
     const TestExtension = defineExtension({
       build: () => ({count: signal(10)}),
-      disableLegacyImport: false,
       name: 'test',
     });
 
@@ -195,7 +194,6 @@ describe('useExtensionSignalValue', () => {
 
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, TestExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
 
@@ -236,7 +234,6 @@ describe('useExtensionSignalValue', () => {
         enabled: signal(true),
         name: signal('test'),
       }),
-      disableLegacyImport: false,
       name: 'test',
     });
 
@@ -268,7 +265,6 @@ describe('useExtensionSignalValue', () => {
         count: signal(5),
         staticValue: 'static',
       }),
-      disableLegacyImport: false,
       name: 'test',
     });
 
@@ -296,7 +292,6 @@ describe('useExtensionSignalValue', () => {
 
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, TestExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
 
@@ -356,7 +351,6 @@ describe('useExtensionSignalValue', () => {
 
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, TestExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
 
@@ -406,7 +400,6 @@ describe('useExtensionSignalValue', () => {
 
     using editor = buildEditorFromExtensions({
       dependencies: [ReactPluginHostExtension, TestExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
 

@@ -249,7 +249,6 @@ describe('$insertNodeToNearestRootAtCaret edge cases', () => {
               defineExtension({
                 $initialEditorState: () => scenario.$run(kind, variant.options),
                 dependencies: [RichTextExtension],
-                disableLegacyImport: false,
                 name: '[insert-to-nearest-root]',
               }),
             );

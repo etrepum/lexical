@@ -52,8 +52,6 @@ function editorReadingAgainOnce() {
       // A dependency registers first, so its listener runs ahead of the
       // shortcut listener, which then reads a node the editor no longer has.
       dependencies: [MarkdownTestExtension, ReadAgainExtension],
-
-      disableLegacyImport: false,
       name: 'test/markdown-shortcuts-read-again',
       onError: error => {
         errors.push(error);

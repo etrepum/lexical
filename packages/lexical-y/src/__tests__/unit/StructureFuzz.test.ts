@@ -176,7 +176,6 @@ for (let seed = FIRST; seed < FIRST + SEEDS; seed++) {
               synced: true,
             }),
           ],
-          disableLegacyImport: false,
           name: `structure/${i}`,
           onError: e => errors.push(e),
           onWarn: e => warnings.push(String(e && (e as Error).message)),

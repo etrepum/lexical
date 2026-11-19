@@ -61,7 +61,6 @@ test('code highlight nodes turned back into text when they leave a code block ke
     defineExtension({
       $initialEditorState: null,
       dependencies: [RichTextExtension, CodePrismExtension],
-      disableLegacyImport: false,
       name: 'leave-code-node-state',
       onError: (error: Error) => {
         throw error;
@@ -100,7 +99,6 @@ test('the copy includes flat states and keeps the state of a TextNode replacemen
     defineExtension({
       $initialEditorState: null,
       dependencies: [RichTextExtension, CodePrismExtension],
-      disableLegacyImport: false,
       name: 'leave-code-flat-node-state',
       nodes: () => [
         FlatHighlightNode,

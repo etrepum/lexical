@@ -104,7 +104,6 @@ function setUp(withIds: boolean, json: string): Subject {
       RichTextExtension,
       ...(withIds ? [configExtension(BlockIdExtension, {})] : []),
     ],
-    disableLegacyImport: false,
     name: '[block-id-perf]',
   });
   const start = performance.now();

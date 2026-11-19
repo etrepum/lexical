@@ -56,7 +56,6 @@ function peer(id: number) {
         }),
         MarkStateExtension,
       ],
-      disableLegacyImport: false,
       name: 'type-over/' + id,
       onError: e => {
         throw e;

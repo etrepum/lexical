@@ -101,7 +101,6 @@ function clients(
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `own-format-items-${n}`,
         onError: e => {
           throw e;

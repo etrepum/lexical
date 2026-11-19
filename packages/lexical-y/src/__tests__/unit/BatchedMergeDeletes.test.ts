@@ -66,7 +66,6 @@ function peer(id: number) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'batched-merge/' + id,
       onError: e => {
         errors.push(e);

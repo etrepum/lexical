@@ -23,7 +23,6 @@ import {afterEach, describe, expect, test, vi} from 'vitest';
 
 function createHeadlessEditor(paragraphs: number): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: e => {
       throw e;
     },

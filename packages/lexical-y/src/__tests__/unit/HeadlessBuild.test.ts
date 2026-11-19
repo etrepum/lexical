@@ -52,7 +52,6 @@ function headless(doc: YDoc) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/headless-build',
       nodes: [ListNode, ListItemNode],
       onError: e => {

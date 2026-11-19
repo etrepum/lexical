@@ -90,7 +90,6 @@ function peer(container: Container, seed: Uint8Array, id: number): Peer {
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: `paste-remade-${id}`,
       onError: (e: Error) => {
         throw e;

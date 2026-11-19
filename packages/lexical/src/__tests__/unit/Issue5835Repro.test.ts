@@ -76,7 +76,6 @@ class HostNode extends ElementNode {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension, ListExtension, CodeExtension],
-  disableLegacyImport: false,
   name: '[5835]',
   nodes: [StubbornNode, HostNode, TestShadowRootNode],
 });

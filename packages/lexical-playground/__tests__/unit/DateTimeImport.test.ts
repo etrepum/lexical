@@ -21,7 +21,6 @@ import {DateTimeExtension} from '../../src/plugins/DateTimeExtension';
 const DateTimeImportTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [PlaygroundImportExtension, DateTimeExtension],
-  disableLegacyImport: false,
   name: '[test-datetime-import]',
 });
 

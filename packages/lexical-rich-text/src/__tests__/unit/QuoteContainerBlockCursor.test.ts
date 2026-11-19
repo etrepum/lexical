@@ -57,7 +57,6 @@ function createEditor() {
         );
     },
     dependencies: [QuoteContainerExtension],
-    disableLegacyImport: false,
     name: 'quote-container-block-cursor',
     nodes: [TestDecoratorNode],
   });

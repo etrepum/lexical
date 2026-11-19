@@ -19,7 +19,6 @@ import {SubmitOnEnterPlugin} from './plugins/SubmitOnEnterPlugin';
 
 const chatInputExtension = defineExtension({
   dependencies: [RichTextExtension, HistoryExtension, ClearEditorExtension],
-  disableLegacyImport: false,
   name: '@lexical/website/chat-input-editor',
   namespace: '@lexical/website/chat-input-editor',
   theme: {

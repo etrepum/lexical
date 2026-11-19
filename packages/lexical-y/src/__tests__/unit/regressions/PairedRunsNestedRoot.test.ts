@@ -34,7 +34,6 @@ const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode];
 
 function client(doc: Y.Doc, root: Y.Node, text: string | null) {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

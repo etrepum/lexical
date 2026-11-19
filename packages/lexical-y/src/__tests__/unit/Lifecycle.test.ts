@@ -55,7 +55,6 @@ const objState = createState('obj', {
 
 function mkEditor(warnings: string[]) {
   return createEditor({
-    disableLegacyImport: false,
     namespace: 'p',
     nodes: NODES,
     onError: e => {

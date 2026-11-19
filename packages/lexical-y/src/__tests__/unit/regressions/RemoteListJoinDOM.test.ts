@@ -74,7 +74,6 @@ test('a remote join of a nested list item into the previous item renders in a DO
   expect(shape(b)).toEqual(shape(f));
   // b's DOM is the DOM a fresh editor renders for the same state.
   const fresh = createEditor({
-    disableLegacyImport: false,
     namespace: 'remote-list-join-fresh',
     nodes: NODES,
     onError: (e: Error) => {

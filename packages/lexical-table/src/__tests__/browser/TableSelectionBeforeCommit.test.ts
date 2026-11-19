@@ -40,7 +40,6 @@ function mount() {
   document.body.appendChild(root);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension, TableExtension],
-    disableLegacyImport: false,
     name: 'test/table-before-commit',
     theme: {tableCellSelected: 'selected-cell', tableScrollableWrapper: ''},
   });

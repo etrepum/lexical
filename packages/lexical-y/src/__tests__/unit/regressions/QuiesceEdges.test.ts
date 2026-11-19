@@ -89,7 +89,6 @@ function bind(gc: boolean, onWarn?: (w: Error) => void) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'quiesce-edges',
       nodes: [ReusingText, ThrowingText],
       onError: e => {

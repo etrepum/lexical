@@ -91,7 +91,6 @@ const StickyEditorExtension = defineExtension({
       ),
     }),
   ],
-  disableLegacyImport: false,
   name: '@lexical/playground/StickyEditor',
   namespace: '@lexical/playground/StickyEditor',
   theme: StickyEditorTheme,

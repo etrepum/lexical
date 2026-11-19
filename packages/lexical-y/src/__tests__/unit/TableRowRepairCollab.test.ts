@@ -75,7 +75,6 @@ class Peer {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `[table-${name}]`,
         onError: e => {
           throw e;

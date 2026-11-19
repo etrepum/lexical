@@ -39,13 +39,12 @@ import {selBase} from './sel';
 
 /**
  * Configuration for {@link DOMImportExtension}.
- *
- * @experimental
  */
 export interface DOMImportConfig {
   /**
    * Disable the legacy `importDOM` / `html.import` pipeline. Defaults to
-   * `null`, which keeps it enabled with a one-time development warning.
+   * `null`, which keeps it enabled with a one-time development warning on
+   * first use.
    * Set to `false` to explicitly keep legacy import enabled without warning.
    *
    * Set to `true` after migrating custom conversions, direct imports, and
@@ -53,7 +52,8 @@ export interface DOMImportConfig {
    * legacy converter initialization and makes the legacy
    * `$generateNodesFromDOM` throw. Nonempty `html.import` overrides must be
    * migrated first; they are rejected rather than silently discarded.
-   * This does not change which pipeline any caller uses.
+   * The cache is created only on first legacy import, even without this
+   * opt-out. This setting does not change which pipeline any caller uses.
    */
   readonly disableLegacyImport?: boolean | null;
   /**
@@ -168,8 +168,6 @@ export const DefaultHoistRule = defineImportRule({
 });
 
 /**
- * @experimental
- *
  * Extension-based replacement for the legacy `importDOM` / `DOMConversion`
  * machinery. Rules are contributed via configuration (see
  * {@link DOMImportConfig.rules}), compiled into a tag-bucketed dispatcher at

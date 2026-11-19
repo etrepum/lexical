@@ -51,7 +51,6 @@ const NODE_CLASSES: Klass<LexicalNode>[] = [
 
 function buildEditor() {
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'lexical-reconciler-rebuilt-dom-children',
     nodes: [TestElementNode, TestUpdateDOMTrueHostNode, TestDecoratorNode],
     onError: (error: Error) => {
@@ -304,7 +303,6 @@ describe('LexicalReconciler: children of a node whose DOM is built anew', () => 
 
   test('the DOM map is cleaned also when no mutation listener is registered', () => {
     const editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
       name: 'lexical-reconciler-rebuilt-dom-children-no-listeners',
       nodes: [TestUpdateDOMTrueHostNode],
       onError: (error: Error) => {

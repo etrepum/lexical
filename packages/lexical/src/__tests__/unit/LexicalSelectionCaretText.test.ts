@@ -20,10 +20,7 @@ import {expect, test} from 'vitest';
 test.each([false, true])(
   'selected text ends at the same boundary for an element or text point (backward=%s)',
   backward => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-selection-test',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const first = $createTextNode('abcd');
@@ -53,10 +50,7 @@ test.each([false, true])(
 test.each([false, true])(
   'equivalent mixed text and element points contain no selected text (backward=%s)',
   backward => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-selection-test',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const first = $createTextNode('abcd');
@@ -82,10 +76,7 @@ test.each([false, true])(
 test.each([0, 1])(
   'collapsed element point beside a slot host contains no text (offset=%s)',
   offset => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-selection-test',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
     editor.update(
       () => {
         const root = $getRoot();

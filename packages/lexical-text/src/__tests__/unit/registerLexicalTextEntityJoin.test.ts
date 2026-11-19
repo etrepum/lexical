@@ -64,7 +64,6 @@ const note = createState('note', {
 
 function createHashtagEditor(): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [HashtagNode, ListNode, ListItemNode],
     onError: e => {
       throw e;
@@ -250,7 +249,6 @@ describe('with MarkStateExtension comments (#9704)', () => {
           MarkExtension,
           MarkStateExtension,
         ],
-        disableLegacyImport: false,
         name: 'test',
         onError: (e: Error) => {
           throw e;
@@ -368,7 +366,6 @@ describe('entities of two registrations that touch', () => {
         return getMatch(text);
       };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [HashtagNode, MentionNode, SegmentedNode],
       onError: e => {
         throw e;
@@ -441,7 +438,6 @@ describe('an entity that may not be kept does not grow', () => {
     'after text with %i earlier matches, a later match in the text after it is still made',
     repeat => {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [HashtagNode],
         onError: e => {
           throw e;
@@ -501,7 +497,6 @@ describe('an entity that may not be kept does not grow', () => {
     'after text with %i earlier matches, the text after it keeps its format and NodeState',
     repeat => {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [HashtagNode, PhraseNode],
         onError: e => {
           throw e;

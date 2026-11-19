@@ -28,10 +28,7 @@ test('native events still notify a dirty but unchanged selection', async () => {
   const root = document.createElement('div');
   root.contentEditable = 'true';
   document.body.appendChild(root);
-  const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'test/LegacyImportConfig',
-  });
+  const editor = buildEditorFromExtensions();
   editor.setRootElement(root);
   onTestFinished(() => {
     editor.dispose();
@@ -74,10 +71,7 @@ test.each(['typing', 'backspace', 'format', 'style', 'clear'])(
     const root = document.createElement('div');
     root.contentEditable = 'true';
     document.body.append(root);
-    const editor = buildEditorFromExtensions(
-      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-      RichTextExtension,
-    );
+    const editor = buildEditorFromExtensions(RichTextExtension);
     editor.setRootElement(root);
     onTestFinished(() => {
       editor.dispose();
@@ -134,10 +128,7 @@ test.each([false, true])(
     const root = document.createElement('div');
     root.contentEditable = 'true';
     document.body.appendChild(root);
-    const editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    const editor = buildEditorFromExtensions();
     editor.setRootElement(root);
     onTestFinished(() => {
       editor.dispose();

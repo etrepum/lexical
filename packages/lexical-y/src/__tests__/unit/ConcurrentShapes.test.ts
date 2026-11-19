@@ -141,7 +141,6 @@ function client(id: number, state?: Uint8Array) {
     Y.applyUpdate(doc, state, 'load');
   }
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'concurrent-shapes',
     nodes: NODES,
     onError: e => {

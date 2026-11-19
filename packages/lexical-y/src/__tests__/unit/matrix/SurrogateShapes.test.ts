@@ -142,7 +142,6 @@ describe.each([false, true])('lone halves in every node shape (gc %s)', gc => {
       // editor without collaboration: what every client must show (computed
       // without the binding, so that no binding bug can change it).
       const plain = createEditor({
-        disableLegacyImport: false,
         namespace: 'expected',
         nodes: [...CATALOG_NODES],
         onError: e => {

@@ -31,6 +31,5 @@ export const MarkdownTestExtension = defineExtension({
     LinkExtension,
     CodeExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/markdown/test',
 });

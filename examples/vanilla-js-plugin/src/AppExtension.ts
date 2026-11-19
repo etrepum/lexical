@@ -32,7 +32,6 @@ export const AppExtension = defineExtension({
     configExtension(HistoryExtension, {delay: 300}),
     EmojiExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/examples/vanilla-js-plugin',
   namespace: 'Vanilla JS Emoji Demo',
   register(editor) {

@@ -52,7 +52,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: null,
-      disableLegacyImport: false,
       name: '[can-show-placeholder]',
       nodes: [InlineDecoratorNode],
     }),

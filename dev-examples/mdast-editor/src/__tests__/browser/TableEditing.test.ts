@@ -37,7 +37,6 @@ function mountEditor(markdown: string) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [MdastEditorExtension],
-      disableLegacyImport: false,
       name: '[root]',
       theme: {tableScrollableWrapper: 'table-wrapper'},
     }),

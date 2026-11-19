@@ -263,7 +263,6 @@ function bind(seed: Uint8Array, how: Bind) {
   if (how === 'binding') {
     const built = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         ...editorConfig,
         dependencies: [AppExtension],
         name: 'test-host',
@@ -282,7 +281,6 @@ function bind(seed: Uint8Array, how: Bind) {
   } else {
     const built = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         ...editorConfig,
         dependencies: [
           AppExtension,
@@ -336,11 +334,7 @@ const DOCS: Record<string, () => void> = {
 /** What an editor with no binding derives for the same content. */
 function derivedWithoutCollab($build: () => void): unknown[] {
   const editor = buildEditorFromExtensions(
-    defineExtension({
-      dependencies: [AppExtension],
-      disableLegacyImport: false,
-      name: 'test-plain',
-    }),
+    defineExtension({dependencies: [AppExtension], name: 'test-plain'}),
   );
   cleanups.push(() => editor.dispose());
   editor.update($build, {discrete: true});
@@ -411,7 +405,6 @@ describe('a remote change that turns the binding read only', () => {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: 'test-peer',
         nodes: [NewerBlockNode],
       }),

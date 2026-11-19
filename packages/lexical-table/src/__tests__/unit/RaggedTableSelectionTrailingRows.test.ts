@@ -50,7 +50,6 @@ function build(rows: Spec) {
         return () => root.remove();
       },
       dependencies: [configExtension(TableExtension, {hasNestedTables: true})],
-      disableLegacyImport: false,
       name: '[ragged-table-selection-trailing-rows]',
       // Lexical clipboard data pastes into an editor of the same namespace.
       namespace: 'ragged-table-selection-trailing-rows',

@@ -150,7 +150,6 @@ describe('@lexical/y and the focus', () => {
           }
           replied = true;
           const source = createEditor({
-            disableLegacyImport: false,
             nodes: NODES,
             onError: e => {
               throw e;

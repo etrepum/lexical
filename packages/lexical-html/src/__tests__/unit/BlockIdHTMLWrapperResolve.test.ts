@@ -63,7 +63,6 @@ test('a list that grows by one item per element around it is resolved in linear 
         BlockIdHTMLExtension,
         configExtension(DOMImportExtension, {rules: [growRule]}),
       ],
-      disableLegacyImport: false,
       name: 'test-changing-count',
       onError: e => {
         throw e;
@@ -146,7 +145,6 @@ function buildPopulate(mode: 'parent-growth' | 'holder-growth') {
       BlockIdHTMLExtension,
       configExtension(DOMImportExtension, {rules: [buildRule, populateRule]}),
     ],
-    disableLegacyImport: false,
     name: 'test-late-populate',
     onError: e => {
       throw e;

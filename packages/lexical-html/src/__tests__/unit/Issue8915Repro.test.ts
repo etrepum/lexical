@@ -39,7 +39,6 @@ const CAPITALIZATION_FORMATS: TextFormatType[] = [
 const extension = defineExtension({
   $initialEditorState: null,
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[issue-8915]',
 });
 

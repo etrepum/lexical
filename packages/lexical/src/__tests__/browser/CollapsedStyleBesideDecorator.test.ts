@@ -97,7 +97,6 @@ test('a style set at the caret after a decorator in an element with a leading ma
           );
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[collapsed-style-beside-decorator]',
       nodes: [InlineDecoratorNode, LeadingMarkerElementNode],
     }),

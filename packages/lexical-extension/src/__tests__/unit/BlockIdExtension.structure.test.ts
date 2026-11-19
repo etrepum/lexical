@@ -83,7 +83,6 @@ function build(
                 configExtension(NodeStructureExtension, {disabled: true}),
               ]),
     ],
-    disableLegacyImport: false,
     name: '[block-id-structure-test]',
   });
   if (order === 'structure enabled later') {
@@ -339,7 +338,6 @@ function storedJSON($build: () => void): string {
   using writer = buildEditorFromExtensions({
     $initialEditorState: null,
     dependencies: [RichTextExtension, ListExtension, LinkExtension],
-    disableLegacyImport: false,
     name: '[block-id-structure-test-writer]',
   });
   writer.update($build, {discrete: true, skipTransforms: true});

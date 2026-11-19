@@ -14,12 +14,6 @@ import {act} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 
-const TestExtension = {
-  dependencies: [RovingTabIndexExtension],
-  disableLegacyImport: false,
-  name: 'test/RovingTabIndexExtension',
-};
-
 function Group({
   count = 3,
   orientation,
@@ -43,7 +37,7 @@ function Group({
 
 function WithExtension({children}: {children: React.ReactNode}) {
   return (
-    <LexicalExtensionComposer extension={TestExtension}>
+    <LexicalExtensionComposer extension={RovingTabIndexExtension}>
       {children}
     </LexicalExtensionComposer>
   );

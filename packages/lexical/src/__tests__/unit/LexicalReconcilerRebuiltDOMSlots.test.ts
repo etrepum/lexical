@@ -44,7 +44,6 @@ afterEach(() => {
 
 function setup(parentEditor?: LexicalEditor) {
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'lexical-reconciler-rebuilt-dom-slots',
     nodes: [TestElementNode, TestUpdateDOMTrueHostNode, TestDecoratorNode],
     onError: (error: Error) => {

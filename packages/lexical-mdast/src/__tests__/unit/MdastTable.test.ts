@@ -93,7 +93,6 @@ function createEditor(
         MdastTableExtension,
         ...extensions,
       ],
-      disableLegacyImport: false,
       name: '[root]',
       theme: {tableScrollableWrapper: 'table-wrapper'},
     }),
@@ -612,7 +611,6 @@ describe('MdastTableExtension', () => {
           MdastAutolinkLiteralExtension,
           MdastTableExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -663,7 +661,6 @@ describe('MdastTableExtension', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -832,7 +829,6 @@ describe('MdastTableExtension', () => {
           }),
           MdastTableExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

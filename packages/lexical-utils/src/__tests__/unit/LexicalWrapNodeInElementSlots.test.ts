@@ -41,7 +41,6 @@ describe('$wrapNodeInElement and named slots', () => {
         $getRoot().append(host);
         $setSlot(host, 'title', slot);
       },
-      disableLegacyImport: false,
       name: '[wrap-slots]',
       nodes: [TestShadowRootNode],
     });

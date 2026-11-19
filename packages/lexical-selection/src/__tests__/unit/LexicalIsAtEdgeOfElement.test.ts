@@ -45,10 +45,7 @@ function runInEditor(
     name: '@isAtEdgeOfElement-test',
   },
 ): void {
-  using editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    spec,
-  );
+  using editor = buildEditorFromExtensions(spec);
   editor.update(fn, {discrete: true});
 }
 

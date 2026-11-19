@@ -46,7 +46,6 @@ function setUpEditor() {
         };
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

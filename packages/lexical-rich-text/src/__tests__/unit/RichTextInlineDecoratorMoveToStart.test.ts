@@ -56,7 +56,6 @@ describe('MOVE_TO_START on a leading inline DecoratorNode (Issue #8555)', () => 
         text.select(3, 3);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -82,7 +81,6 @@ describe('MOVE_TO_START on a leading inline DecoratorNode (Issue #8555)', () => 
         text.select(5, 5);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -110,7 +108,6 @@ describe('MOVE_TO_START on a leading inline DecoratorNode (Issue #8555)', () => 
         text.select(2, 2);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -162,7 +159,6 @@ describe('MOVE_TO_START no-op cases (Issue #8555)', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: setup,
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -185,7 +181,6 @@ describe('MOVE_TO_START with no leading text (Issue #8601)', () => {
         paragraph.select(1, 1);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -218,7 +213,6 @@ describe('MOVE_TO_START with no leading text (Issue #8601)', () => {
         text.select(2, 2);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -251,7 +245,6 @@ describe('MOVE_TO_START with no leading text (Issue #8601)', () => {
         text.select(3, 3);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });
@@ -338,7 +331,6 @@ describe('MOVE_TO_START on a NodeSelection (Issue #8604)', () => {
   ])('$label', ({setup, expected}) => {
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode],
     });

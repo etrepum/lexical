@@ -245,7 +245,6 @@ describe('C9: a highlighted code line made again with one token changed', () => 
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: `c9-code/${id}`,
         onError: (e: Error) => {
           throw e;

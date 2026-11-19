@@ -109,7 +109,6 @@ function buildEditor() {
         matchers: [autoLinkUrlMatcher, autoLinkEmailMatcher],
       }),
     ],
-    disableLegacyImport: false,
     name: '[test autolink samples]',
   });
 }

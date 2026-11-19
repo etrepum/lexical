@@ -302,7 +302,6 @@ describe('a session on a real IndexedDB', () => {
           catalogAppExtension(IDS),
           yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
         ],
-        disableLegacyImport: false,
         name: 'offline-browser-test',
         onError: error => {
           throw error;

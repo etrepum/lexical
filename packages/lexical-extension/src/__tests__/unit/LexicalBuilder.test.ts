@@ -26,7 +26,6 @@ const InitialStateExtensionName = '@lexical/extension/InitialState';
 describe('LexicalBuilder', () => {
   const ConfigExtension = defineExtension({
     config: safeCast<{a: 1; b: string | null}>({a: 1, b: 'b'}),
-    disableLegacyImport: false,
     name: 'Config',
   });
   it('merges extension configs (siblings)', () => {
@@ -47,7 +46,6 @@ describe('LexicalBuilder', () => {
       buildEditorFromExtensions(
         defineExtension({
           dependencies: [configExtension(ConfigExtension, {b: null})],
-          disableLegacyImport: false,
           name: 'parent',
         }),
       ),
@@ -67,7 +65,6 @@ describe('LexicalBuilder', () => {
             defineExtension({dependencies: [ConfigExtension], name: 'parent'}),
             configExtension(ConfigExtension, {b: null}),
           ],
-          disableLegacyImport: false,
           name: 'grandparent',
         }),
       ),
@@ -87,7 +84,6 @@ describe('LexicalBuilder', () => {
             configExtension(ConfigExtension, {b: null}),
             defineExtension({dependencies: [ConfigExtension], name: 'parent'}),
           ],
-          disableLegacyImport: false,
           name: 'grandparent',
         }),
       ),
@@ -110,11 +106,7 @@ describe('LexicalBuilder', () => {
     const configOf = (...dependencies: AnyLexicalExtensionArgument[]) => {
       const builder = LexicalBuilder.fromEditor(
         buildEditorFromExtensions(
-          defineExtension({
-            dependencies,
-            disableLegacyImport: false,
-            name: 'root',
-          }),
+          defineExtension({dependencies, name: 'root'}),
         ),
       );
       const rep = builder
@@ -159,11 +151,7 @@ describe('LexicalBuilder', () => {
   });
 
   it('handles circular dependencies', () => {
-    const ExtensionA = defineExtension({
-      dependencies: [],
-      disableLegacyImport: false,
-      name: 'A',
-    });
+    const ExtensionA = defineExtension({dependencies: [], name: 'A'});
     const ExtensionB = defineExtension({dependencies: [ExtensionA], name: 'B'});
     const ExtensionC = defineExtension({dependencies: [ExtensionB], name: 'C'});
     // This is silly and hard to do but why not prevent it
@@ -174,7 +162,6 @@ describe('LexicalBuilder', () => {
   });
   describe('nodes configuration', () => {
     const ExtDefer = defineExtension({
-      disableLegacyImport: false,
       name: 'A',
       nodes: () => [NodeA],
     });
@@ -215,7 +202,6 @@ describe('LexicalBuilder', () => {
   });
   describe('handles peer dependency configuration', () => {
     const ExtensionA = defineExtension({
-      disableLegacyImport: false,
       name: 'A',
       peerDependencies: [
         declarePeerDependency<typeof ConfigExtension>('Config', {b: 'A'}),

@@ -113,7 +113,6 @@ function peer(id: number) {
         }),
         MarkStateExtension,
       ],
-      disableLegacyImport: false,
       name: 'format-only/' + id,
       nodes: [
         LinkNode,

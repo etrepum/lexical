@@ -209,7 +209,6 @@ describe('a relabeled seed stores the bytes of a seed written twice', () => {
                 schemaVersion: 1,
               }),
             ],
-            disableLegacyImport: false,
             name: 'seed-relabel-init',
             onError: (e: Error) => {
               throw e;

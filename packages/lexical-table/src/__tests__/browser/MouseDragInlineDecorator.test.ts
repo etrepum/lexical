@@ -122,7 +122,6 @@ function mount(Decorator: typeof InlineImageNode = InlineImageNode) {
           );
       },
       dependencies: [RichTextExtension, TableExtension],
-      disableLegacyImport: false,
       name: '[table-mouse-drag]',
       nodes: [InlineImageNode, InlineChipNode],
       theme: {tableScrollableWrapper: ''},

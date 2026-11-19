@@ -22,7 +22,6 @@ import {
 
 const TestExtension = defineExtension({
   dependencies: [MdastCommonMarkExtension, MdastExtension],
-  disableLegacyImport: false,
   name: '[root]',
 });
 

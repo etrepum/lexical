@@ -144,7 +144,6 @@ class Peer {
     this.editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [ListExtension, TableExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: `[v2-table-${name}]`,
       nodes: () => [
         LinkNode,

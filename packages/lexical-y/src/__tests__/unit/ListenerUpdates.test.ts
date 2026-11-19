@@ -107,7 +107,6 @@ function client(
             ]
           : []),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/listener-updates',
       nodes: [...NODES, OverflowNode],
       onError: e => {

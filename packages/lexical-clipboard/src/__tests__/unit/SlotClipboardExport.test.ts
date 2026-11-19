@@ -110,7 +110,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-exclude]',
         nodes: [ExcludedShadowRootNode],
       }),
@@ -134,7 +133,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-exclude]',
         nodes: [ExcludedShadowRootNode],
       }),
@@ -178,7 +176,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-roundtrip]',
         nodes: [PlainShadowRootNode],
       }),
@@ -211,7 +208,6 @@ describe('slot clipboard export', () => {
     using editor2 = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-roundtrip]',
         nodes: [PlainShadowRootNode],
       }),
@@ -249,7 +245,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-inner-copy]',
         nodes: [PlainShadowRootNode],
       }),
@@ -296,7 +291,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-partial-range]',
         nodes: [CardLikeNode, PlainShadowRootNode],
       }),
@@ -359,7 +353,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-node-selection]',
         nodes: [PlainShadowRootNode],
       }),
@@ -407,7 +400,6 @@ describe('slot clipboard export', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-exclude-one-child]',
         nodes: [ExcludedShadowRootNode],
       }),

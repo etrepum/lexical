@@ -54,7 +54,6 @@ describe('syncChildrenFromLexical: moving children among siblings', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[sync-children-move]',
         onError: (error: Error) => {
           throw error;

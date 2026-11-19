@@ -119,7 +119,6 @@ function editorWithParagraphs(
       };
     },
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[test]',
   });
 }

@@ -133,7 +133,6 @@ function client(
               }),
             ]),
       ],
-      disableLegacyImport: false,
       name: 'wrapper-ids-' + id,
       namespace: 'wrapper-ids',
       nodes: [ParagraphNode, TextNode, ListNode, ListItemNode],

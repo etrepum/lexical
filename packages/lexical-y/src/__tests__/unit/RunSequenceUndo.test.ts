@@ -77,7 +77,6 @@ function client(seed: Uint8Array, id: number) {
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'c' + id,
     }),
   );

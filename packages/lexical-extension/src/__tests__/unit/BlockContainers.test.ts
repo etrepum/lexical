@@ -758,7 +758,6 @@ function buildEditor(structure: boolean) {
         HorizontalRuleExtension,
         ...(structure ? [NodeStructureExtension] : []),
       ],
-      disableLegacyImport: false,
       name: 'block-containers',
       nodes: () => [
         PlainBoxNode,
@@ -891,7 +890,6 @@ describe('$isBlockContainer', () => {
                   }),
                 ]),
           ],
-          disableLegacyImport: false,
           name: 'is-block-container',
           nodes: () => [
             PlainBoxNode,
@@ -1244,7 +1242,6 @@ describe('@lexical/mdast shortcuts in block containers', () => {
           MdastShortcutsExtension,
           ...(structure ? [NodeStructureExtension] : []),
         ],
-        disableLegacyImport: false,
         name: 'block-containers-mdast',
         nodes: () => [PlainBoxNode, DeclaredBoxNode, ShadowBoxNode],
         onError: (e: Error) => {
@@ -1462,7 +1459,6 @@ describe("the character limit's OverflowNode", () => {
           ListExtension,
           ...(structure ? [NodeStructureExtension] : []),
         ],
-        disableLegacyImport: false,
         name: 'block-containers-overflow',
         nodes: () => [OverflowNode, PlainBoxNode],
         onError: (e: Error) => {

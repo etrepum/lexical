@@ -38,7 +38,6 @@ function deleteWholeTable(kind: 'row' | 'column'): {
   using editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: `delete-all-${kind}-host`,
       theme: {tableScrollableWrapper: ''},
     }),

@@ -95,19 +95,16 @@ class TestXDecoratorNode extends TestDecoratorNode {
 }
 
 const TestDecoratorExtension = defineExtension({
-  disableLegacyImport: false,
   name: '@lexical/markdown/test-decorator',
   nodes: [TestDecoratorNode, TestXDecoratorNode],
 });
 
 const AutoLinkNodeExtension = defineExtension({
-  disableLegacyImport: false,
   name: '@lexical/markdown/test-autolink',
   nodes: [AutoLinkNode],
 });
 
 const TestInlineExtension = defineExtension({
-  disableLegacyImport: false,
   name: '@lexical/markdown/test-inline',
   nodes: [TestInlineNode],
 });

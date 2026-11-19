@@ -47,7 +47,6 @@ async function setup(charset: 'UTF-8' | 'UTF-16', isRichText: boolean) {
         isRichText ? RichTextExtension : PlainTextExtension,
         ReactPluginHostExtension,
       ],
-      disableLegacyImport: false,
       name: '[character-limit-browser]',
       nodes: () => [OverflowNode],
       theme,

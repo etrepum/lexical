@@ -133,7 +133,6 @@ function run(
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `repro/${id}`,
       }),
     );

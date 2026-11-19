@@ -44,7 +44,6 @@ export const AppExtension = defineExtension({
     HistoryExtension,
     ClipboardDOMImportExtension,
   ],
-  disableLegacyImport: true,
   name: '@lexical/examples/node-state-review',
   namespace: 'Paragraph Review',
   register(editor) {

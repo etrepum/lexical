@@ -58,7 +58,6 @@ test.each(['starts', 'ends'])(
           HorizontalRuleExtension,
           PagesExtension,
         ],
-        disableLegacyImport: false,
         name: '[pages-block-decorator-overflow]',
         onError: error => {
           errors.push(error.message);

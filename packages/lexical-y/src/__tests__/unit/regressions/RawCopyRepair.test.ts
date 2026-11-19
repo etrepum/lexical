@@ -179,7 +179,6 @@ function runRW(spec: any, mode: string, gcOn: boolean, mixed = false) {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `rw-${n}`,
         onError: e => {
           throw e;

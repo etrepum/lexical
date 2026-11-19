@@ -94,7 +94,6 @@ function editorWith(
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG), dependency],
-      disableLegacyImport: false,
       name: 'layout-upgrade',
       onWarn: w => {
         warnings.push(w as Warning);
@@ -310,7 +309,6 @@ describe('the handle', () => {
               schemaVersion: 1,
             }),
           ],
-          disableLegacyImport: false,
           name: 'fake-handle',
         }),
       ),

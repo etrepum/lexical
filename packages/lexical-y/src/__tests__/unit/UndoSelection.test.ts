@@ -56,11 +56,7 @@ const EXTENSIONS = [RichTextExtension, ListExtension, CheckListExtension];
 /** A document written by another client, as a stored state. */
 function seed($build: () => void): Uint8Array {
   const editor = buildEditorFromExtensions(
-    defineExtension({
-      dependencies: EXTENSIONS,
-      disableLegacyImport: false,
-      name: 'undo-selection-seed',
-    }),
+    defineExtension({dependencies: EXTENSIONS, name: 'undo-selection-seed'}),
   );
   editor.update(
     () => {
@@ -101,7 +97,6 @@ function open(
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'undo-selection',
       onError: e => {
         throw e;
@@ -319,7 +314,6 @@ function openWithPictures(
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'undo-selection-picture',
       nodes: () => [PictureNode],
       onError: e => {

@@ -66,7 +66,6 @@ function mountEditor(): {editor: LexicalEditor; input: HTMLInputElement} {
         );
     },
     dependencies: [PlainTextExtension],
-    disableLegacyImport: false,
     name: 'test',
     nodes: [TestInputNode],
   });

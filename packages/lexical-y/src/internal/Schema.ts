@@ -216,7 +216,6 @@ function hasUndeclaredFields(
   let found = false;
   try {
     const probe = createEditor({
-      disableLegacyImport: false,
       namespace: '@lexical/y schema probe',
       nodes: [klass, declaring],
       onError: () => {},

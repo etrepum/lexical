@@ -33,7 +33,6 @@ function mountEditor() {
         $createParagraphNode().append($createTextNode('hello')),
       );
     },
-    disableLegacyImport: false,
     name: '[9221-focus-read-only-warning]',
   });
   editor.setRootElement(rootElement);

@@ -51,7 +51,6 @@ const extension = defineExtension({
     ReactReviewExtension,
     ReactPluginHostExtension,
   ],
-  disableLegacyImport: false,
   name: '[slot-host-navigation]',
   nodes: () => [CardNode, PullQuoteNode, SlotContainerNode],
   theme,

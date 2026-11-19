@@ -95,7 +95,6 @@ function peer(
   doc.clientID = clientID;
   const seen: Seen[] = [];
   const editor: LexicalEditor = createEditor({
-    disableLegacyImport: false,
     namespace: 'w',
     nodes: NODES,
     onError: e => {
@@ -465,7 +464,6 @@ describe('@lexical/y warnings: every code and its data', () => {
     const doc = createYDoc();
     const writer = new YBinding(
       createEditor({
-        disableLegacyImport: false,
         namespace: 'w',
         nodes: NODES,
         onError: e => {
@@ -489,7 +487,6 @@ describe('@lexical/y warnings: every code and its data', () => {
     const seen: LexicalWarning[] = [];
     const reader = new YBinding(
       createEditor({
-        disableLegacyImport: false,
         namespace: 'r',
         nodes: NODES.filter(k => k !== BoxNode),
         onError: e => {
@@ -550,7 +547,6 @@ describe('@lexical/y warnings: every code and its data', () => {
       const seen: [string, unknown][] = [];
       reports.push(seen);
       const editor = createEditor({
-        disableLegacyImport: false,
         namespace: 'v' + i,
         nodes: [...NODES, OwnMergeLink],
         onError: e => {

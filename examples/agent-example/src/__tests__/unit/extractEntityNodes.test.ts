@@ -73,7 +73,6 @@ function createTestEditor(
     defineExtension({
       $initialEditorState,
       dependencies: [TestEntityExtension],
-      disableLegacyImport: false,
       name: 'test-root',
       namespace: 'test',
     }),

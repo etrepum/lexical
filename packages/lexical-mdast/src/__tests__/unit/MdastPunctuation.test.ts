@@ -56,7 +56,6 @@ function createEditor(
           importPunctuation,
         }),
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -631,11 +630,7 @@ describe('Mdast punctuation modes', () => {
 
   it('writes no reference beside `~` without strikethrough', () => {
     const editor = buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [MdastExtension],
-        disableLegacyImport: false,
-        name: '[root]',
-      }),
+      defineExtension({dependencies: [MdastExtension], name: '[root]'}),
     );
     onTestFinished(() => editor.dispose());
     editor.update(

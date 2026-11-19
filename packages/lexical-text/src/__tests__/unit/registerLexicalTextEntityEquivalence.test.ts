@@ -290,7 +290,6 @@ type Register = typeof registerLexicalTextEntity;
 
 function makeEditor(register: Register, record: boolean) {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [TagNode, KeywordNode],
     onError: e => {
       throw e;
@@ -591,7 +590,6 @@ describe('the edge cases where a change of the calls would differ', () => {
     resetRandomKey();
     const errors: string[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode, EntityNode],
       onError: e => {
         errors.push(e.message);

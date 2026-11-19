@@ -52,7 +52,6 @@ const editorExtension = defineExtension({
     ClickAfterLastBlockExtension,
     SelectBlockExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/website/notion-like-editor',
   namespace: '@lexical/website/notion-like-editor',
   theme,

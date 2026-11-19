@@ -64,7 +64,6 @@ function reader(doc: YDoc) {
           selfCheck: false,
         }),
       ],
-      disableLegacyImport: false,
       name: 'numbering',
       nodes: NODES,
       onError: e => {

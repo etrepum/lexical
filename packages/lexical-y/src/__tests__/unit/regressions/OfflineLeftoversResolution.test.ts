@@ -91,7 +91,6 @@ function tab(bytes: Uint8Array, swallow = false) {
         BlockIdExtension,
         yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
       ],
-      disableLegacyImport: false,
       name: 'lv-review',
       onError: e => {
         errors.push(e);

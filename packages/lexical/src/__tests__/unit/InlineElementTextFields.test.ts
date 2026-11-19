@@ -63,7 +63,6 @@ function withEditor(fn: () => void): void {
   using editor = buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: null,
-      disableLegacyImport: false,
       name: '[inline-element-text-fields]',
       nodes: [InlineWrapperNode, CloneReadsJSONNode],
     }),
@@ -232,7 +231,6 @@ describe('serializing inline elements nested inside each other', () => {
         using editor = buildEditorFromExtensions(
           defineExtension({
             $initialEditorState: null,
-            disableLegacyImport: false,
             name: '[inline-element-text-fields-depth]',
             nodes: [InlineWrapperNode],
           }),
@@ -301,7 +299,6 @@ describe('serializing inline elements nested inside each other', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[inline-element-text-fields-clone]',
         nodes: [InlineWrapperNode, CloneReadsJSONNode],
       }),

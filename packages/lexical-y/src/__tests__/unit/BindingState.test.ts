@@ -53,7 +53,6 @@ function client(id: number, blockIds: boolean, doc = createYDoc()) {
         }),
         ...(blockIds ? [BlockIdExtension] : []),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/binding-state',
       nodes: NODES,
       onError: e => {
@@ -191,7 +190,6 @@ for (const how of ['another editor', 'the same editor'] as const) {
         // A state built from the saved one keeps the objects of the nodes it
         // did not change (the box), though their descendants changed.
         const fork = createEditor({
-          disableLegacyImport: false,
           nodes: NODES,
           onError: e => {
             throw e;

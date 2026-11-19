@@ -41,7 +41,6 @@ describe('FocusManagerExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusManagerExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -60,7 +59,6 @@ describe('FocusManagerExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusManagerExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -78,7 +76,6 @@ describe('FocusManagerExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusManagerExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -105,7 +102,6 @@ describe('FocusManagerExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [FocusManagerExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

@@ -142,7 +142,6 @@ describe('TestRecorderPlugin offsets in the DOM the editor renders', () => {
           );
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[test-recorder-offsets]',
       nodes: [InlineDecoratorNode, BlockDecoratorNode],
     });

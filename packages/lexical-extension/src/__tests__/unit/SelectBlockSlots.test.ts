@@ -110,8 +110,6 @@ function setUpSlotEditor(
           disabled,
         }),
       ],
-
-      disableLegacyImport: false,
       name: 'select-block-slots-test',
       nodes: [SlotContainerNode],
       register: editor => {
@@ -337,7 +335,6 @@ describe('SelectBlockExtension with named slots', () => {
             disabled: false,
           }),
         ],
-        disableLegacyImport: false,
         name: 'select-block-line-slot-test',
         nodes: [],
         register: editor_ => {

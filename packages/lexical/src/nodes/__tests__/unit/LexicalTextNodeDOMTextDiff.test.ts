@@ -52,7 +52,6 @@ function setUpEditor(): LexicalEditor {
       );
     },
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: 'test',
   });
   editor.setRootElement(container);

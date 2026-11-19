@@ -69,7 +69,6 @@ function createPeer(version: 1 | 2, clientID: number): Peer {
   const doc = new Y.Doc({gc: false});
   doc.clientID = clientID;
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'peer' + clientID,
     onError: e => {
       throw e;

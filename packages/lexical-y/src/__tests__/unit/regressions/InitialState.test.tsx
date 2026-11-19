@@ -75,7 +75,6 @@ const $appendTemplate = () => {
 
 function templateState() {
   const source = createEditor({
-    disableLegacyImport: false,
     onError: error => {
       throw error;
     },
@@ -131,7 +130,6 @@ function open(
         }),
         ...(options.dependencies ?? []),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/initial-state',
       namespace: 'initial-state',
       onError: error => {
@@ -168,7 +166,6 @@ function stored(doc: Y.Doc): string {
   const copy = createYDoc();
   Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: error => {
       throw error;
     },
@@ -299,7 +296,6 @@ describe('S7-23: the initial state on a document that has content', () => {
     const source = await documentWithContent($appendTemplate);
     const doc = createYDoc();
     const editor = createEditor({
-      disableLegacyImport: false,
       onError: error => {
         throw error;
       },
@@ -333,7 +329,6 @@ describe('S7-23: the initial state on a document that has content', () => {
     const doc = createYDoc();
     const warned: string[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       onError: error => {
         throw error;
       },
@@ -462,7 +457,6 @@ describe('S7-23: the initial state on a document that has content', () => {
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/initial-state-react',
       onError: error => {
         throw error;

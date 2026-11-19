@@ -20,7 +20,6 @@ import {describe, expect, test} from 'vitest';
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[paragraph-collapse-at-start]',
 });
 

@@ -127,7 +127,6 @@ describe('Block IDs documentation examples', () => {
     // ## Setup
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'my-editor',
     });
     editor.update(
@@ -226,7 +225,6 @@ describe('Block IDs documentation examples', () => {
     ] as const) {
       using editor = buildEditorFromExtensions({
         dependencies: [RichTextExtension, BlockIdExtension],
-        disableLegacyImport: false,
         name: 'my-editor',
       });
       editor.update(
@@ -284,7 +282,6 @@ describe('Block IDs documentation examples', () => {
         );
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'writer',
     });
     writer.read(() => {});
@@ -293,7 +290,6 @@ describe('Block IDs documentation examples', () => {
     using pipeline = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'docs-pipeline',
     });
 
@@ -321,7 +317,6 @@ describe('Block IDs documentation examples', () => {
     ]) {
       using editor = buildEditorFromExtensions({
         dependencies: [RichTextExtension, TableExtension, extension],
-        disableLegacyImport: false,
         name: 'predicates',
       });
       editor.read(() => {
@@ -338,7 +333,6 @@ describe('Block IDs documentation examples', () => {
         configExtension(BlockIdExtension, {generateId: () => `b${++n}`}),
         configExtension(BlockIdHTMLExtension, {export: false}),
       ],
-      disableLegacyImport: false,
       name: 'html',
     });
     // The first content of an empty editor is a load (positional ids);
@@ -366,7 +360,6 @@ describe('Block IDs documentation examples', () => {
         }
       },
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'my-editor',
     });
 
@@ -481,7 +474,6 @@ describe('Block IDs documentation examples', () => {
         BlockIdExtension,
         EmptyInlineExtension,
       ],
-      disableLegacyImport: false,
       name: 'set-block-text-refuses',
     });
     editor.update(
@@ -536,7 +528,6 @@ describe('Block IDs documentation examples', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, LinkExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'set-block-text-slots',
     });
     editor.update(
@@ -590,7 +581,6 @@ describe('Block IDs documentation examples', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'set-block-text-special',
     });
     editor.update(
@@ -633,7 +623,6 @@ describe('Block IDs documentation examples', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, LinkExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'set-block-text-link-edges',
     });
     const cases: [string, string, [string, string][]][] = [
@@ -740,7 +729,6 @@ describe('Block IDs documentation examples', () => {
         MarkExtension,
         BlockIdExtension,
       ],
-      disableLegacyImport: false,
       name: 'set-block-text-mark-link',
     });
     for (const [next, after] of [
@@ -833,7 +821,6 @@ describe('Block IDs documentation examples', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, LinkExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'set-block-text-link',
     });
     editor.update(
@@ -899,7 +886,6 @@ describe('Block IDs documentation examples', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'set-block-text',
     });
     const cases: [string[], string, string[]][] = [
@@ -959,7 +945,6 @@ describe('Block IDs documentation examples', () => {
         $getRoot().append(node);
       },
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: 'my-editor',
     });
     const shown = editor.read(() => $getBlockHandles());
@@ -993,7 +978,6 @@ describe('Block IDs documentation examples', () => {
         BlockIdExtension,
         configExtension(BlockIdHTMLExtension, {handles: true}),
       ],
-      disableLegacyImport: false,
       name: 'my-editor',
     });
     const output = getExtensionDependencyFromEditor(

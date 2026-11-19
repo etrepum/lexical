@@ -56,7 +56,6 @@ function bind(state: Uint8Array | null, gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'requirements',
       onError: e => {
         throw e;

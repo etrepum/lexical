@@ -689,7 +689,6 @@ describe('the layout record', () => {
     const root = new Y.Node('editor-root');
     doc.get('app').setAttr('editor', root);
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;

@@ -284,7 +284,6 @@ describe('another binding writing meanwhile', () => {
     const warnings: string[] = [];
     const bind = (name: string) => {
       const editor = createEditor({
-        disableLegacyImport: false,
         namespace: name,
         nodes: NODES,
         onError: e => {
@@ -363,7 +362,6 @@ test('another editor on the same root keeps its selection', async () => {
     const bind = (namespace: string) => {
       const warnings: string[] = [];
       const editor = createEditor({
-        disableLegacyImport: false,
         namespace,
         nodes: NODES,
         onError: e => {
@@ -420,7 +418,6 @@ test('a change another binding writes while the remote change is applied is not 
   const warnings: string[] = [];
   const bind = (namespace: string) => {
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace,
       nodes: NODES,
       onError: e => {
@@ -484,7 +481,6 @@ test.fails(
     doc.clientID = 1;
     const bind = (namespace: string) => {
       const editor = createEditor({
-        disableLegacyImport: false,
         namespace,
         nodes: NODES,
         onError: e => {

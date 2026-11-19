@@ -41,7 +41,6 @@ function client(id: number, state?: Uint8Array) {
   }
   const warnings: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

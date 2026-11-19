@@ -109,7 +109,6 @@ describe('named-slots: selection containment (slot isolation)', () => {
           keys.body = body.getKey();
           keys.bodyText = bodyText.getKey();
         },
-        disableLegacyImport: false,
         name: '[slot-selection-poc]',
         nodes: [TestShadowRootNode],
       }),
@@ -505,7 +504,6 @@ describe('named-slots: selection across a root slot', () => {
           keys.footnotes = footnotes.getKey();
           keys.footnoteText = footnoteText.getKey();
         },
-        disableLegacyImport: false,
         name: '[root-slot-selection]',
         nodes: [TestShadowRootNode],
       }),
@@ -659,7 +657,6 @@ describe('named-slots: selection across nested slots', () => {
           keys.deep = deep.getKey();
           keys.deepText = deepText.getKey();
         },
-        disableLegacyImport: false,
         name: '[nested-slot-selection]',
         nodes: [TestShadowRootNode],
       }),
@@ -872,7 +869,6 @@ describe('named-slots: Point.set rejects decorator key targets', () => {
           keys.body = body.getKey();
           keys.bodyText = bodyText.getKey();
         },
-        disableLegacyImport: false,
         name: '[slot-selection-decorator-key-reject]',
         nodes: [TestShadowRootNode, TestDecoratorNode],
       }),

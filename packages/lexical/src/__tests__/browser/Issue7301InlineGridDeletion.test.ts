@@ -60,7 +60,6 @@ function mountEditor($initialEditorState?: () => void) {
 
   const editor = buildEditorFromExtensions({
     $initialEditorState,
-    disableLegacyImport: false,
     ...ext,
   });
   editor.setRootElement(contentEditable);

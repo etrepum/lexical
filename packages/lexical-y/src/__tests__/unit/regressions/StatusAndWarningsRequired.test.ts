@@ -56,7 +56,6 @@ function build(
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(YCollabExtension, config as never)],
-      disableLegacyImport: false,
       name: 'status-required',
       nodes: NODES,
       onError: error => {
@@ -80,7 +79,7 @@ test('YCollabExtension refuses a config without onYStatus, naming the fix', () =
 });
 
 test('YBinding refuses options without onStatus (JavaScript), naming the fix', () => {
-  const editor = createEditor({disableLegacyImport: false, nodes: NODES});
+  const editor = createEditor({nodes: NODES});
   expect(
     () => new YBinding(editor, createYDoc(), {schemaVersion: 1} as never),
   ).toThrow(/YBinding needs options\.onStatus/);

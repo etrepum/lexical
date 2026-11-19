@@ -99,7 +99,6 @@ function createTestEditor(
   config: CreateEditorArgs | undefined = {},
 ): LexicalEditor {
   return createHeadlessEditor({
-    disableLegacyImport: false,
     nodes: [HeadingNode, ListNode, ListItemNode, QuoteNode, CodeNode, LinkNode],
     ...config,
     onError(error) {
@@ -5461,7 +5460,6 @@ describe('emphasis next to Unicode punctuation and symbols', () => {
       const mdastEditor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [MdastGfmExtension],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -5671,7 +5669,6 @@ describe('emphasis next to Unicode punctuation and symbols', () => {
     const mdastEditor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastGfmExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -5849,7 +5846,6 @@ describe('emphasis next to Unicode punctuation and symbols', () => {
     const mdastEditor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastGfmExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

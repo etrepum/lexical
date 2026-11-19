@@ -137,6 +137,8 @@ export type {
   RenderStateConfig,
 } from './internal/types';
 
+type DOMConversionCache = NonNullable<LexicalEditor['_htmlConversions']>;
+
 const IGNORE_TAGS = new Set(['STYLE', 'SCRIPT']);
 
 /**
@@ -152,8 +154,9 @@ export function $generateNodesFromDOM(
   editor: LexicalEditor,
   dom: Document | ParentNode,
 ): LexicalNode[] {
+  const conversions = editor._htmlConversions;
   invariant(
-    editor._htmlConversions !== null,
+    conversions !== null,
     'Legacy DOM import is disabled. Use $generateNodesFromDOMViaExtension(dom) inside an editor update, and ClipboardDOMImportExtension for HTML clipboard imports.',
   );
   $inlineStylesFromStyleSheetsDOM(dom);
@@ -167,7 +170,7 @@ export function $generateNodesFromDOM(
     if (!IGNORE_TAGS.has(element.nodeName)) {
       const lexicalNode = $createNodesFromDOM(
         element,
-        editor,
+        conversions,
         allArtificialNodes,
         false,
       );
@@ -464,14 +467,11 @@ export function $appendNodeToHTML(
 
 function getConversionFunction(
   domNode: Node,
-  editor: LexicalEditor,
+  conversions: DOMConversionCache,
 ): DOMConversionFn | null {
   const {nodeName} = domNode;
 
-  const conversions = editor._htmlConversions;
-  const cachedConversions = conversions
-    ? conversions.get(nodeName.toLowerCase())
-    : undefined;
+  const cachedConversions = conversions.get(nodeName.toLowerCase());
 
   let currentConversion: DOMConversion | null = null;
 
@@ -495,7 +495,7 @@ function getConversionFunction(
 
 function $createNodesFromDOM(
   node: Node,
-  editor: LexicalEditor,
+  conversions: DOMConversionCache,
   allArtificialNodes: ArtificialNode__DO_NOT_USE[],
   hasBlockAncestorLexicalNode: boolean,
   forChildMap: Map<string, DOMChildConversion> = new Map(),
@@ -508,7 +508,7 @@ function $createNodesFromDOM(
   }
 
   let currentLexicalNode = null;
-  const transformFunction = getConversionFunction(node, editor);
+  const transformFunction = getConversionFunction(node, conversions);
   const transformOutput = transformFunction
     ? transformFunction(node as HTMLElement)
     : null;
@@ -576,7 +576,7 @@ function $createNodesFromDOM(
     childLexicalNodes.push(
       ...$createNodesFromDOM(
         children[i],
-        editor,
+        conversions,
         allArtificialNodes,
         hasBlockAncestorLexicalNodeForChildren,
         new Map(forChildMap),

@@ -39,7 +39,6 @@ describe('CollapsibleContainerNode toggle event', () => {
         defineExtension({
           $initialEditorState: null,
           dependencies: [CollapsibleExtension],
-          disableLegacyImport: false,
           name: '[test-collapsible-toggle-removed]',
           onError: (error: Error) => {
             errors.push(error);
@@ -106,7 +105,6 @@ describe('CollapsibleContainerNode toggle event', () => {
       defineExtension({
         $initialEditorState: null,
         dependencies: [CollapsibleExtension],
-        disableLegacyImport: false,
         name: '[test-collapsible-toggle-live]',
       }),
     );

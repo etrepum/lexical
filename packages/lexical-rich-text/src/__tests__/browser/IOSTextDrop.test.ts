@@ -40,7 +40,6 @@ function mountEditor(plainText = false, withPlayground = false) {
       plainText ? PlainTextExtension : RichTextExtension,
       ...(withPlayground ? [DragDropPasteExtension] : []),
     ],
-    disableLegacyImport: false,
     name: '[ios-text-drop]',
   });
   editor.setRootElement(rootElement);

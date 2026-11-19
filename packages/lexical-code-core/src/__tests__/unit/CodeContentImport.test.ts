@@ -94,7 +94,6 @@ function buildEditor(
         CodeExtension,
         configExtension(DOMImportExtension, {rules}),
       ],
-      disableLegacyImport: false,
       name: '[code-content-import]',
       nodes: () => [
         SemanticParagraphNode,

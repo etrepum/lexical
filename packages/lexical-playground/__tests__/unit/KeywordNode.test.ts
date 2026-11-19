@@ -24,7 +24,6 @@ import {$createKeywordNode, KeywordNode} from '../../src/nodes/KeywordNode';
 const KeywordThemeTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[test-keyword-theme]',
   nodes: [KeywordNode],
   theme: {text: {bold: 'theme-bold', underline: 'theme-underline'}},

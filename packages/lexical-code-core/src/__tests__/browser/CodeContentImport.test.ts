@@ -34,7 +34,6 @@ test('HTML code paste flattens rich blocks into code lines in the DOM', () => {
       CodeExtension,
       ClipboardDOMImportExtension,
     ],
-    disableLegacyImport: false,
     name: 'code-content-import',
   });
   editor.setRootElement(contentEditable);

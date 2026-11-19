@@ -67,7 +67,6 @@ function buildEditor(doc: YDoc | null) {
             ]
           : []),
       ],
-      disableLegacyImport: false,
       name: 'table-paste-across-cells',
       onError: e => {
         throw e;

@@ -81,7 +81,6 @@ function expectCloneCarriesSchemaFields<T extends LexicalNode>(
   } = {},
 ): void {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'clone-property',
     nodes: [klass, ...(options.nodes || [])],
     onError(error) {

@@ -47,7 +47,6 @@ const LINES = Math.ceil(argumentLimit() / 2) + 2_048;
 
 test(`a fenced code block of ${LINES} lines imports, a LineBreakNode between lines`, () => {
   const editor = createHeadlessEditor({
-    disableLegacyImport: false,
     nodes: [CodeNode, HeadingNode, LinkNode, ListItemNode, ListNode, QuoteNode],
     onError: error => {
       throw error;

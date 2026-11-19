@@ -38,7 +38,6 @@ import {getLocalDateValue} from '../../utils/dateTime.mjs';
 const DateTimeChildExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [DateTimeExtension],
-  disableLegacyImport: false,
   name: '[test-datetime-time-zone-child]',
 });
 

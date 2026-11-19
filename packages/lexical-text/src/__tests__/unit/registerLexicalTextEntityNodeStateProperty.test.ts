@@ -82,7 +82,6 @@ function rng(seed: number): () => number {
 
 function createEntityEditor(kind: Kind): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [HashtagNode, MentionNode, MarkNode],
     onError: e => {
       throw e;

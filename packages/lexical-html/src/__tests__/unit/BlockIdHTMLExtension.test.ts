@@ -105,7 +105,6 @@ function build(
           ? []
           : [configExtension(BlockIdHTMLExtension, options.html || {})]),
       ],
-      disableLegacyImport: false,
       name: '[block-id-html]',
     }),
   );

@@ -317,7 +317,6 @@ describe('a replaced type stored another way', () => {
   test('the collab status names the replacement', async () => {
     const state = await storedRoom($quoteRoom);
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: 'replaced',
       nodes: REPLACED_QUOTE,
       onError: e => {

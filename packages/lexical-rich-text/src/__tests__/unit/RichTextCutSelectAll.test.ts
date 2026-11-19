@@ -25,7 +25,6 @@ import {describe, expect, onTestFinished, test} from 'vitest';
 
 const ext = defineExtension({
   dependencies: [RichTextExtension, ListExtension],
-  disableLegacyImport: false,
   name: '[5835-cut]',
 });
 

@@ -156,7 +156,6 @@ function client(state: Uint8Array | null) {
         catalogAppExtension(IDS),
         yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
       ],
-      disableLegacyImport: false,
       name: 'offline-review-regressions',
       onError: error => {
         throw error;

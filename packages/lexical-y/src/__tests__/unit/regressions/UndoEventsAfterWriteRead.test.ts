@@ -52,7 +52,6 @@ function setUp() {
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/undo-events',
       onError: e => {
         throw e;

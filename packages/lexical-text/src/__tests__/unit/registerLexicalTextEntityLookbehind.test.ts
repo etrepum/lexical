@@ -57,7 +57,6 @@ const getMatch = (text: string) => {
 // their NodeState.
 const typeIntoRun = () => {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [HashtagNode, Letter],
     onError: error => {
       throw error;

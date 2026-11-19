@@ -120,7 +120,6 @@ function bind(state: Uint8Array, gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'epoch-gate',
       onError: e => {
         throw e;

@@ -41,7 +41,6 @@ function createEditor() {
         ListExtension,
         configExtension(TabIndentationExtension, {maxIndent: 7}),
       ],
-      disableLegacyImport: false,
       name: 'IndentationLimits',
     }),
   );

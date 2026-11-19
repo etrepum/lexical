@@ -40,7 +40,6 @@ afterEach(() => {
 
 function setup() {
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'lexical-reconciler-rebuilt-dom-decorators',
     nodes: [TestDecoratorNode, TestElementNode, TestUpdateDOMTrueHostNode],
     onError: (error: Error) => {

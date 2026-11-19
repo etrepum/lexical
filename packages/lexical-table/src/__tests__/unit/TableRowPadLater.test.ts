@@ -53,7 +53,6 @@ for (const change of ['append', 'span'] as const) {
       defineExtension({
         $initialEditorState: null,
         dependencies: [TableExtension],
-        disableLegacyImport: false,
         name: 'table-row-pad-later',
         onError: e => {
           throw e;

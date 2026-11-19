@@ -150,7 +150,6 @@ function buildEditor(highlighting = false): LexicalEditor {
         highlighting ? CodePrismExtension : CodeExtension,
         MarkStateExtension,
       ],
-      disableLegacyImport: false,
       name: 'block-conversion',
       onError: (e: Error) => {
         throw e;

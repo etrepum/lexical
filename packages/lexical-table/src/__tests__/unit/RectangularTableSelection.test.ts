@@ -51,7 +51,6 @@ function build(rows: Spec) {
         return () => root.remove();
       },
       dependencies: [configExtension(TableExtension, {hasNestedTables: true})],
-      disableLegacyImport: false,
       name: '[rectangular-table-selection]',
       // Lexical clipboard data pastes into an editor of the same namespace.
       namespace: 'rectangular-table-selection',

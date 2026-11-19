@@ -111,7 +111,6 @@ for (const gc of [false, true]) {
     root.insert(0, 'abc');
     root.insert(3, [new Y.Node('¶')]);
     const e = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: x => {
         throw x;

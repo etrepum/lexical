@@ -36,7 +36,6 @@ describe('NormalizeInlineElements', () => {
         );
       },
       dependencies: [configExtension(NormalizeInlineElementsExtension)],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestInlineElementNode],
     });
@@ -88,7 +87,6 @@ describe('NormalizeInlineElements', () => {
       dependencies: [
         configExtension(NormalizeInlineElementsExtension, {disabled: true}),
       ],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestInlineElementNode],
     });

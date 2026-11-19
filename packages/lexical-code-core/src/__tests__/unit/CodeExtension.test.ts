@@ -42,7 +42,6 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
 
@@ -69,7 +68,6 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root-escape]',
     });
 
@@ -114,7 +112,6 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root-one-blank]',
     });
 
@@ -153,7 +150,6 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[tab-format]',
     });
     using editor = buildEditorFromExtensions(ext);
@@ -187,7 +183,6 @@ describe('CodeExtension', () => {
         $getRoot().append(codeNode);
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root-middle]',
     });
 
@@ -252,7 +247,6 @@ describe('CodeExtension', () => {
           );
         },
         dependencies: [CodeExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root-indent]',
       });
 
@@ -313,7 +307,6 @@ describe('CodeExtension', () => {
           );
         },
         dependencies: [CodeExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root-indent-caret]',
       });
 
@@ -363,7 +356,6 @@ describe('CodeExtension', () => {
           );
         },
         dependencies: [CodeExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root-paste]',
       });
 
@@ -397,7 +389,6 @@ describe('CodeExtension', () => {
         $getRoot().append($createCodeNode('javascript'));
       },
       dependencies: [CodeExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root-insert]',
     });
 

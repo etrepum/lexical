@@ -180,7 +180,6 @@ function run(spec: any, gcOn: boolean) {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `ops-${n}`,
         onError: e => {
           throw e;

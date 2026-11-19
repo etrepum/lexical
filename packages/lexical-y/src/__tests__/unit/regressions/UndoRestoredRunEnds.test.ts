@@ -177,7 +177,6 @@ function clients(gc: boolean, ids: number[]) {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `undo-restored-run-ends/${id}`,
         onError: error => {
           throw error;

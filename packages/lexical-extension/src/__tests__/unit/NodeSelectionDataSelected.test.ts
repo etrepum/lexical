@@ -50,7 +50,6 @@ function setUpEditor() {
           nodes: [HostNode],
         }),
       ],
-      disableLegacyImport: false,
       name: 'node-selection-data-selected-test',
       nodes: [HostNode, HostSubclassNode],
       register: editor => {
@@ -169,7 +168,6 @@ describe('NodeSelectionDataSelectedExtension', () => {
           }),
           ProbeExtension,
         ],
-        disableLegacyImport: false,
         name: 'initial-sync-test',
         nodes: [HostNode, HostSubclassNode],
       }),
@@ -210,7 +208,6 @@ describe('NodeSelectionDataSelectedExtension', () => {
               nodes: [HostNode],
             }),
           ],
-          disableLegacyImport: false,
           name: 'unregistered-node-test',
           // HostNode deliberately not in `nodes`.
         }),

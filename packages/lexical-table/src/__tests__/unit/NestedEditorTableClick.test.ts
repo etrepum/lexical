@@ -81,7 +81,6 @@ describe('a table in an editor nested in a decorator (#9355)', () => {
     parentEditor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [TableExtension],
-        disableLegacyImport: false,
         name: 'nested-table-parent',
         nodes: [NestedEditorHostNode],
         onError: error => {
@@ -96,7 +95,6 @@ describe('a table in an editor nested in a decorator (#9355)', () => {
       buildEditorFromExtensions(
         defineExtension({
           dependencies: [NestedEditorExtension, TableExtension],
-          disableLegacyImport: false,
           name: 'nested-table-child',
           onError: error => {
             childErrors.push(error);

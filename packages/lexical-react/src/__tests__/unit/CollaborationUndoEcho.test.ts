@@ -117,7 +117,6 @@ function makePeer(name: string, clientID: number): Peer {
   // Deterministic client ids: Yjs conflict resolution depends on them.
   doc.clientID = clientID;
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: name,
     onError: (e: Error) => {
       throw e;
@@ -219,11 +218,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 function persistedParagraphCount(peer: Peer): number {
   const doc2 = new Y.Doc({gc: false});
   Y.applyUpdate(doc2, Y.encodeStateAsUpdate(peer.doc));
-  const editor = createEditor({
-    disableLegacyImport: false,
-    namespace: 'reload',
-    onError: () => {},
-  });
+  const editor = createEditor({namespace: 'reload', onError: () => {}});
   const binding = createBinding(
     editor,
     makeProvider(new Awareness(doc2.clientID, 'reload')),

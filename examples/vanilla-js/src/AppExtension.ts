@@ -28,7 +28,6 @@ export const AppExtension = defineExtension({
     ClipboardDOMImportExtension,
     configExtension(HistoryExtension, {delay: 300}),
   ],
-  disableLegacyImport: false,
   name: '@lexical/examples/vanilla-js',
   namespace: 'Vanilla JS Demo',
   register(editor) {

@@ -132,7 +132,6 @@ function build(
   }
   const editor = buildEditorFromExtensions({
     dependencies: deps,
-    disableLegacyImport: false,
     name: 'node-structure-property',
     nodes: [AutoLinkNode, CodeNode, MarkNode, OverflowNode],
     onError: e => {

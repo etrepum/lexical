@@ -42,7 +42,6 @@ const extension = defineExtension({
       );
   },
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[mark-clipboard]',
   nodes: [MarkNode],
 });

@@ -182,7 +182,6 @@ describe('the node catalog', () => {
   test("a shape's tags say what it builds (lists, slots, tables)", () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'catalog-tags',
         nodes: () => [...CATALOG_NODES],
         onError: e => {
@@ -250,7 +249,6 @@ describe('the node catalog', () => {
   test('every shape builds, and holds the classes it names', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'catalog-completeness',
         nodes: () => [...CATALOG_NODES],
         onError: e => {

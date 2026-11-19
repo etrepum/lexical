@@ -84,7 +84,6 @@ describe.each([RichTextExtension, PlainTextExtension])('$name', extension => {
           (isBackward ? right : left).select(2, 2);
         },
         dependencies: [extension],
-        disableLegacyImport: false,
         name: '[inline-decorator-line-deletion]',
         nodes: [InlineDecoratorNode],
       });
@@ -194,7 +193,6 @@ describe.each([RichTextExtension, PlainTextExtension])(
             (isBackward ? right : left).select(2, 2);
           },
           dependencies: [extension],
-          disableLegacyImport: false,
           name: '[soft-wrap-line-deletion]',
           nodes: [InlineDecoratorNode],
         });
@@ -285,7 +283,6 @@ describe.each([RichTextExtension, PlainTextExtension])(
             }
           },
           dependencies: [extension],
-          disableLegacyImport: false,
           name: '[repeated-image-line-deletion]',
           nodes: [InlineDecoratorNode],
         });

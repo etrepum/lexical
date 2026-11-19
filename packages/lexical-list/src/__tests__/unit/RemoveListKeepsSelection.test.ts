@@ -41,7 +41,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
-      disableLegacyImport: false,
       name: 'remove-list-selection-host',
       nodes: [TestDecoratorNode],
     }),

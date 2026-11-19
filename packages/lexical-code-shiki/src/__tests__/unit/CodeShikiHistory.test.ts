@@ -27,7 +27,6 @@ function createEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, HistoryExtension, CodeShikiExtension],
-      disableLegacyImport: false,
       name: 'code-shiki-history-test',
     }),
   );

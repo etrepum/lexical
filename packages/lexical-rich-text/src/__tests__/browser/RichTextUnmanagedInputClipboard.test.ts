@@ -67,7 +67,6 @@ function mountEditor(klass: Klass<LexicalNode>) {
       RichTextExtension,
       configExtension(DOMRenderExtension, {overrides: [fieldOverride(klass)]}),
     ],
-    disableLegacyImport: false,
     name: 'test',
   });
   editor.setRootElement(rootElement);

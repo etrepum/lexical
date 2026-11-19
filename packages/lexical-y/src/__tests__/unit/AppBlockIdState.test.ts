@@ -74,7 +74,6 @@ function client(id: number, state: Uint8Array | null = null): Client {
     }
   });
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'app-block-id',
     nodes: [ParagraphNode, TextNode, ListNode, ListItemNode],
     onError: e => {

@@ -32,7 +32,6 @@ const TRANSFORMED_TEXT = 'VARIABLE';
 function buildEditor(onTransform?: (node: TextNode) => void) {
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: 'issue-7876-repro',
     onError: e => {
       throw e;

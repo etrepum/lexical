@@ -53,10 +53,7 @@ test.each(
 )(
   'repeatedly styles a detached text range (active=$active, backward=$backward, partial=$partial)',
   ({active, backward, partial}) => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'detached-style-range',
-    });
+    using editor = buildEditorFromExtensions({name: 'detached-style-range'});
     editor.update(
       () => {
         const {text, paragraph, $expectActiveUnchanged} =
@@ -114,10 +111,7 @@ test.each(
 test.each(ACTIVE_SELECTIONS)(
   'styles a detached caret without styling active text (%s)',
   active => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'detached-style-caret',
-    });
+    using editor = buildEditorFromExtensions({name: 'detached-style-caret'});
     editor.update(
       () => {
         const {text, $expectActiveUnchanged} = $createFixture(active);
@@ -137,10 +131,7 @@ test.each(ACTIVE_SELECTIONS)(
 test.each(ACTIVE_SELECTIONS)(
   'styles a detached node selection (%s)',
   active => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'detached-style-node',
-    });
+    using editor = buildEditorFromExtensions({name: 'detached-style-node'});
     editor.update(
       () => {
         const {text, $expectActiveUnchanged} = $createFixture(active);

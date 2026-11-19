@@ -49,7 +49,6 @@ describe('block handle cache', () => {
           generateId: () => (n < ids.length ? ids[n++] : `zz${n++}`),
         }),
       ],
-      disableLegacyImport: false,
       name: '[block-handle-cache]',
     });
     const options = {discrete: true, tag: HISTORY_MERGE_TAG} as const;

@@ -368,7 +368,6 @@ function $positionOf(
 /** An editor with a DOM root, for one side of the comparison. */
 function mount(): {editor: LexicalEditor; host: HTMLElement} {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'boundary',
     nodes: [LinkNode, Inline, Closed, Chip, Switch, SwitchParagraph],
     onError: e => {

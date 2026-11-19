@@ -60,7 +60,6 @@ function setUpEditor(): LexicalEditor {
           );
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[inline-element-edge-typing]',
       nodes: [AllowTextInlineNode],
     }),

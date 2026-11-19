@@ -112,7 +112,6 @@ export class CatalogPeer {
       defineExtension({
         $initialEditorState: null,
         dependencies: [catalogAppExtension(DEFAULT_CONFIG)],
-        disableLegacyImport: false,
         name: `catalog-peer-${name}`,
         onError: (e: Error) => {
           this.errors.push(e);

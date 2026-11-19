@@ -66,7 +66,6 @@ function mount(
       richText ? RichTextExtension : PlainTextExtension,
       ...(options.history ? [HistoryExtension] : []),
     ],
-    disableLegacyImport: false,
     name: 'safari-composition-test',
     nodes: [CustomTextNode],
   });

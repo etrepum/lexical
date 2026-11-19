@@ -44,7 +44,6 @@ import {
 const CollapsibleImportTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [CollapsibleExtension, PlaygroundImportExtension],
-  disableLegacyImport: false,
   name: '[test-collapsible-import]',
 });
 
@@ -292,16 +291,12 @@ describe('CollapsibleContainerNode HTML import (issue #8407)', () => {
 
 describe('CollapsibleExtension transforms', () => {
   const TestDecoratorExtension = defineExtension({
-    disableLegacyImport: false,
     name: 'TestDecorator',
     nodes: [TestDecoratorNode],
   });
 
   it('wraps inline content children in paragraphs', () => {
-    using editor = buildEditorFromExtensions(
-      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-      CollapsibleExtension,
-    );
+    using editor = buildEditorFromExtensions(CollapsibleExtension);
 
     editor.update(
       () => {
@@ -331,10 +326,7 @@ describe('CollapsibleExtension transforms', () => {
   });
 
   it('adds a paragraph to empty content loaded from serialized state', () => {
-    using editor = buildEditorFromExtensions(
-      {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-      CollapsibleExtension,
-    );
+    using editor = buildEditorFromExtensions(CollapsibleExtension);
 
     const state = editor.parseEditorState(
       JSON.stringify({

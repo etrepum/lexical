@@ -58,7 +58,6 @@ class SectionNode extends ElementNode {
 
 const TestExtension = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: 'TableOfContentsTest',
   nodes: [EditorReadingTextNode, SectionNode],
 });

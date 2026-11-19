@@ -3,7 +3,10 @@
 '@lexical/extension': patch
 '@lexical/html': patch
 '@lexical/react': patch
-'@lexical/y': patch
 ---
 
-[feature] Deprecate legacy DOM import and let migrated editors skip initializing legacy node converters with `disableLegacyImport: true`. Legacy import still works by default, with a one-time development warning. Set `disableLegacyImport: false` to keep it enabled without a warning while migrating to `DOMImportExtension`.
+[deprecation] Deprecate static `importDOM`, `$config().importDOM`, `html.import` conversion maps, and `$generateNodesFromDOM`. Legacy import remains enabled by default. The first legacy conversion builds the editor's cache and emits a one-time development warning; editor creation does neither.
+
+Replacement: Contribute rules to `DOMImportExtension`, call `$generateNodesFromDOMViaExtension` for direct imports, and install `ClipboardDOMImportExtension` for HTML pastes and drops. Set `disableLegacyImport: true` once all paths have migrated, or `false` to keep legacy import without the warning.
+
+Removal: not scheduled.

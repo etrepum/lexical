@@ -56,7 +56,6 @@ function peer(id: number) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'reserve/' + id,
       onError: e => {
         errors.push(e);

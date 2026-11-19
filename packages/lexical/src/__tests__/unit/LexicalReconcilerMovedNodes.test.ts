@@ -75,7 +75,6 @@ class TextAnchoredElementNode extends AnchoredElementNode {
 function setup() {
   const errors: string[] = [];
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'reconciler-moved-nodes',
     nodes: [
       AnchoredElementNode,
@@ -370,7 +369,6 @@ test('a moved decorator preserves its mounted nested editor', () => {
     json?: string,
   ) => {
     const nested = createEditor({
-      disableLegacyImport: false,
       namespace: 'reconciler-moved-nodes-nested',
       onError: e => {
         owner.errors.push(e.message);

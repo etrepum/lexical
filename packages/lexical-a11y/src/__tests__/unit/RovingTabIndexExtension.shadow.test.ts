@@ -51,7 +51,6 @@ function buildRovingEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RovingTabIndexExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

@@ -196,7 +196,6 @@ function run(spec: Spec, gcOn: boolean) {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `ops-${n}`,
         onError: e => {
           throw e;

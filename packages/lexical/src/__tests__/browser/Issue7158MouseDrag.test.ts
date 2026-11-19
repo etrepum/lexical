@@ -428,7 +428,6 @@ function mountEditor(
           .append(...$children());
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[7158-mouse]',
       nodes: NODES,
       // As by default, except for the error the editor recovers from.
@@ -1276,7 +1275,6 @@ describe('Issue #7158: mouse drag over inline decorators that hold a nested edit
         const nested = buildEditorFromExtensions(
           defineExtension({
             dependencies: [RichTextExtension],
-            disableLegacyImport: false,
             name: '[7158-mouse-nested]',
           }),
         );

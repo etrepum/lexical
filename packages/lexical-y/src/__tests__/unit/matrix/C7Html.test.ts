@@ -50,7 +50,6 @@ function build(exp: Export) {
     defineExtension({
       $initialEditorState: null,
       dependencies: deps,
-      disableLegacyImport: false,
       name: `catalog-html-${exp}`,
       onError: e => {
         throw e;

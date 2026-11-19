@@ -284,7 +284,6 @@ describe('@lexical/y/headless', () => {
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: 'client',
         nodes: NODES,
       }),
@@ -520,7 +519,6 @@ describe('@lexical/y/headless', () => {
           }),
           BlockIdExtension,
         ],
-        disableLegacyImport: false,
         name: 'test-client',
       }),
     );
@@ -948,7 +946,7 @@ describe('@lexical/y/headless', () => {
         .map(([type, registered]) => `${type}:${registered.transforms.size}`),
     ];
     const bareEditor = buildEditorFromExtensions(
-      defineExtension({disableLegacyImport: false, name: 'bare', nodes: NODES}),
+      defineExtension({name: 'bare', nodes: NODES}),
     );
     bareEditor.dispose();
     const expectedEditor = editorListeners(bareEditor);
@@ -1289,7 +1287,6 @@ describe('@lexical/y/headless', () => {
     const codes: string[] = [];
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'client',
         nodes: NODES,
         onWarn: warning =>
@@ -1311,11 +1308,7 @@ describe('@lexical/y/headless', () => {
     // it holds), seeds that content and merges the seed into the stored
     // document.
     const source = buildEditorFromExtensions(
-      defineExtension({
-        disableLegacyImport: false,
-        name: 'source',
-        nodes: NODES,
-      }),
+      defineExtension({name: 'source', nodes: NODES}),
     );
     source.update(() => $getRoot().clear().append($p('converted')), {
       discrete: true,

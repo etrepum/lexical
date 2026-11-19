@@ -17,7 +17,6 @@ describe('ReactExtension', () => {
     expect(() =>
       buildEditorFromExtensions({
         dependencies: [ReactExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     ).toThrow(
@@ -28,7 +27,6 @@ describe('ReactExtension', () => {
     expect(
       buildEditorFromExtensions({
         dependencies: [ReactExtension, ReactPluginHostExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     ).toBeDefined();

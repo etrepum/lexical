@@ -69,7 +69,6 @@ function build() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [HorizontalRuleExtension],
-      disableLegacyImport: false,
       name: 'wrap-block-leaf',
       nodes: [BoxNode, QuoteNode],
     }),

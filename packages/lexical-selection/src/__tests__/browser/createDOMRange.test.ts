@@ -111,7 +111,6 @@ function mount($children: () => LexicalNode[]): LexicalEditor {
           .append(...$children());
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[create-dom-range]',
       nodes: [
         InlineDecoratorNode,

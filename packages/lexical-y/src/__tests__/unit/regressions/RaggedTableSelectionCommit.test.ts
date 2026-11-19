@@ -63,7 +63,6 @@ test('a commit while a table selection spans a short row is stored', async () =>
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'ragged-table-selection-commit',
       onError: (e: Error) => {
         errors.push(e);

@@ -38,7 +38,6 @@ function mount() {
   document.body.appendChild(root);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[keydown-dom-selection]',
   });
   editor.setRootElement(root);

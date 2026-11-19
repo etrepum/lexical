@@ -24,7 +24,6 @@ import {$createMentionNode, MentionNode} from '../../src/nodes/MentionNode';
 const MentionThemeTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[test-mention-theme]',
   nodes: [MentionNode],
   // Only underline gets a class: bold changes the HTML tag instead, which is

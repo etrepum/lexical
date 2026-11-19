@@ -102,7 +102,6 @@ function clients() {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `repro/${name}`,
       }),
     );

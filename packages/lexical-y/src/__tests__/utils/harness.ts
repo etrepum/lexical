@@ -556,7 +556,6 @@ export const $p = (text: string) =>
 export function mainNormalizes(peer: Peer): string | null {
   const json = peer.json();
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'oracle',
     nodes: [...peer.editor._nodes.values()].map(({klass}) => klass),
     onError: e => {
@@ -605,7 +604,6 @@ export function createBoundEditor(
 ): {editor: LexicalEditor; binding: YBinding; start: () => () => void} {
   if (!(config.withBlockIds ?? WITH_BLOCK_IDS)) {
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: config.namespace,
       nodes: [...config.nodes],
       onError: config.onError,
@@ -629,7 +627,6 @@ export function createBoundEditor(
         }),
         BlockIdExtension,
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/' + config.namespace,
       namespace: config.namespace,
       nodes: () => [...config.nodes],

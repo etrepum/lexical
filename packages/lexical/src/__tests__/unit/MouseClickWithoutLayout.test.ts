@@ -41,7 +41,6 @@ test.each([
           .append($createParagraphNode().append($createTextNode('abc')));
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[mouse-click-without-layout]',
       onError: error => {
         errors.push(error);

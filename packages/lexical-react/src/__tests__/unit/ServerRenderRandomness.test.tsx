@@ -46,7 +46,6 @@ describe('server render without Math.random', () => {
     const html = renderToString(
       <LexicalComposer
         initialConfig={{
-          disableLegacyImport: false,
           editorState: () => {
             $getRoot().append($createParagraphNode());
           },
@@ -84,7 +83,6 @@ describe('server render without Math.random', () => {
         );
       },
       dependencies: [RichTextExtension, HistoryExtension],
-      disableLegacyImport: false,
       name: '[root]',
     });
     const html = renderToString(
@@ -121,9 +119,7 @@ describe('server render without Math.random', () => {
 
   it('gives each editor a distinct key and namespace', async () => {
     const {createEditor} = await import('lexical');
-    const editors = Array.from({length: 3}, () =>
-      createEditor({disableLegacyImport: false}),
-    );
+    const editors = Array.from({length: 3}, () => createEditor());
     expect(new Set(editors.map(e => e.getKey())).size).toBe(3);
     expect(new Set(editors.map(e => e._config.namespace)).size).toBe(3);
     expect(lexicalCalls).toEqual([]);

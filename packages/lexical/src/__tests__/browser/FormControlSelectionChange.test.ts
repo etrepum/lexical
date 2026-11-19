@@ -35,7 +35,6 @@ describe('form-control selectionchange (#9471)', () => {
 
       const editor = buildEditorFromExtensions({
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: 'form-control-selectionchange',
       });
       editor.setRootElement(contentEditable);

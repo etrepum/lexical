@@ -45,7 +45,6 @@ function bind(gc: boolean, state: Uint8Array = rawDoc(SEED)) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'refused-at-write',
       onError: e => {
         throw e;

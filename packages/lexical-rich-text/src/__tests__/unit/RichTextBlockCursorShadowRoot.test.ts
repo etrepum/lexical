@@ -76,7 +76,6 @@ function createDecoratorShadowRootEditor() {
       $getRoot().clear().append(decorator1, shadow, decorator2);
     },
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: 'test',
     nodes: [TestDecoratorNode, TestShadowRootNode],
   });
@@ -366,7 +365,6 @@ describe('nested shadow root exit (#8736)', () => {
         $getRoot().clear().append(decorator1, outer, decorator2);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode, TestShadowRootNode],
     });
@@ -411,7 +409,6 @@ describe('nested shadow root exit (#8736)', () => {
         $getRoot().clear().append(decorator1, outer, decorator2);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode, TestShadowRootNode],
     });
@@ -467,7 +464,6 @@ describe('no block cursor between sibling shadow roots inside a shadow root pare
         $getRoot().clear().append(outer);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
       nodes: [TestDecoratorNode, TestShadowRootNode],
     });
@@ -590,7 +586,6 @@ describe('$updateDOMBlockCursorElement — block cursor beside decorator with ed
   function createBlockCursorEditor() {
     const editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-block-cursor',
       nodes: [TestDecoratorNode],
     });

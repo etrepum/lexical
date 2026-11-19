@@ -76,7 +76,6 @@ function peer(id: number, state: Uint8Array, blockIds: boolean) {
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: `remote-apply-${id}`,
       nodes: () => NODES,
       onError: (e: Error) => {

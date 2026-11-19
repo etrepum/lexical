@@ -53,7 +53,6 @@ function build() {
       BlockIdHTMLExtension,
       configExtension(DOMImportExtension, {rules: [reenter]}),
     ],
-    disableLegacyImport: false,
     name: 'block-wrapper-id-import',
     onError: e => {
       throw e;
@@ -189,7 +188,6 @@ test('an unknown element that hoists the same list again does not make import lo
         BlockIdExtension,
         BlockIdHTMLExtension,
       ],
-      disableLegacyImport: false,
       name: 'block-wrapper-id-hoist',
       onError: e => {
         throw e;
@@ -246,7 +244,6 @@ test('wrapper ids inside many unknown elements are looked at a bounded number of
         BlockIdExtension,
         BlockIdHTMLExtension,
       ],
-      disableLegacyImport: false,
       name: 'block-wrapper-id-deep',
       onError: e => {
         throw e;

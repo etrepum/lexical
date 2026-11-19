@@ -51,7 +51,6 @@ function peer() {
         }),
         MarkStateExtension,
       ],
-      disableLegacyImport: false,
       name: 'type-at-mark-start',
       onError: e => {
         throw e;

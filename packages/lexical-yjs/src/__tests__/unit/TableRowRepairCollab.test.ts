@@ -89,7 +89,6 @@ class Peer {
         RichTextExtension,
         configExtension(TableExtension, {hasHorizontalScroll: false}),
       ],
-      disableLegacyImport: false,
       name: `[table-${name}]`,
       onError: e => {
         throw e;

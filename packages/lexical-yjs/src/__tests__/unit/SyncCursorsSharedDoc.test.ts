@@ -98,7 +98,6 @@ function createTestEditor(
     on: () => {},
   } as unknown as Provider;
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: rootName,
     onError: error => {
       throw error;

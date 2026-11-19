@@ -41,7 +41,6 @@ import {
 function makeEditor(): LexicalEditor {
   const editor = buildEditorFromExtensions({
     dependencies: [OverflowExtension],
-    disableLegacyImport: false,
     name: 'character-limit-test',
     nodes: [TestDecoratorNode],
   });

@@ -43,7 +43,6 @@ import {
 const EQUATION_TRANSFORMERS = [BLOCK_EQUATION, EQUATION];
 const MarkdownShortcutTestExtension = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: 'MarkdownShortcutTest',
   nodes: [EquationNode],
   register: editor => registerMarkdownShortcuts(editor, EQUATION_TRANSFORMERS),
@@ -64,10 +63,7 @@ function typeMarkdown(editor: LexicalEditor, text: string) {
 
 describe('playground EQUATION markdown transformer', () => {
   it('exports inline equations with single dollar delimiters', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -86,10 +82,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('exports block equations with double dollar delimiters', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -106,10 +99,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('imports multiline double dollar equations as block equations', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -130,10 +120,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('imports single dollar equations as inline equations', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -157,10 +144,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('imports escaped dollars inside inline equations', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -184,10 +168,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('exports inline equations without creating block-equation ambiguity', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -208,10 +189,7 @@ describe('playground EQUATION markdown transformer', () => {
 
     expect(markdown).toBe('$$x^2 + y^2 = z^2$$');
 
-    const nextEditor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const nextEditor = createEditor({nodes: [EquationNode]});
     nextEditor.update(
       () => {
         $convertFromMarkdownString(markdown, EQUATION_TRANSFORMERS);
@@ -237,10 +215,7 @@ describe('playground EQUATION markdown transformer', () => {
   });
 
   it('exports inline equations containing dollar signs without block-equation ambiguity', () => {
-    const editor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const editor = createEditor({nodes: [EquationNode]});
 
     editor.update(
       () => {
@@ -257,10 +232,7 @@ describe('playground EQUATION markdown transformer', () => {
 
     expect(markdown).toBe('$price = \\$5$');
 
-    const nextEditor = createEditor({
-      disableLegacyImport: false,
-      nodes: [EquationNode],
-    });
+    const nextEditor = createEditor({nodes: [EquationNode]});
     nextEditor.update(
       () => {
         $convertFromMarkdownString(markdown, EQUATION_TRANSFORMERS);
@@ -297,7 +269,6 @@ describe('playground EQUATION markdown transformer', () => {
 
 const ImageMarkdownTestExtension = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: 'ImageMarkdownTest',
   nodes: [ImageNode],
 });

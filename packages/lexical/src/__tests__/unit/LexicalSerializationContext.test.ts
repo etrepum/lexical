@@ -57,7 +57,6 @@ describe('compact export', () => {
 
   beforeEach(() => {
     editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       onError: err => {
         throw err;
@@ -205,7 +204,6 @@ describe('compact export: slot hosts', () => {
           $getRoot().clear().append(host);
           $setSlot(host, 'body', slot);
         },
-        disableLegacyImport: false,
         name: '[serialization-slots]',
         nodes: [TestDecoratorNode, TestShadowRootNode],
       }),
@@ -232,7 +230,6 @@ describe('editorState.toJSON states its form at the call site', () => {
             .clear()
             .append($createParagraphNode().append($createTextNode('hi')));
         },
-        disableLegacyImport: false,
         name: '[serialization-tojson]',
       }),
     );
@@ -312,7 +309,6 @@ describe('$isCompactExport reports the walk, not a single node', () => {
             .clear()
             .append($createParagraphNode().append($createTextNode('hi')));
         },
-        disableLegacyImport: false,
         name: '[serialization-iscompact]',
       }),
     );
@@ -371,7 +367,6 @@ describe('$isCompactExport reports the walk, not a single node', () => {
               ),
             );
         },
-        disableLegacyImport: false,
         name: '[serialization-probe]',
         nodes: [ProbeNode],
       }),
@@ -439,7 +434,6 @@ describe('export with the editor active', () => {
   test('exports with the editor active', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'editor-reading-export',
         nodes: [EditorReadingTextNode],
       }),
@@ -461,7 +455,6 @@ describe('export with the editor active', () => {
   test('EditorState.toJSON exports with the editor of the read it is in', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'editor-reading-state-export',
         nodes: [EditorReadingTextNode],
       }),
@@ -494,7 +487,6 @@ describe('EditorState.toJSON options', () => {
   test('exports with the given editor, in the form `compact` states', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'editor-reading-state-options',
         nodes: [EditorReadingTextNode],
       }),

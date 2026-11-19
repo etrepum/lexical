@@ -50,7 +50,6 @@ function backspaceEvent(): KeyboardEvent {
 
 const testExtension = defineExtension({
   dependencies: [ListExtension],
-  disableLegacyImport: false,
   name: '[root]',
   nodes: [TestDecoratorNode, IsolatedTestDecoratorNode],
 });

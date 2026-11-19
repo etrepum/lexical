@@ -43,7 +43,6 @@ function editorOf(warnings: string[] = []): LexicalEditor {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'migrate-gate',
       onError: e => {
         throw e;

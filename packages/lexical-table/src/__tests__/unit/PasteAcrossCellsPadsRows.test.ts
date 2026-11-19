@@ -109,7 +109,6 @@ describe.each([
           ListExtension,
           configExtension(TableExtension, {hasHorizontalScroll: false}),
         ],
-        disableLegacyImport: false,
         name: 'paste-across-cells',
         onError: e => {
           throw e;
@@ -133,7 +132,6 @@ test('a change to one row pads that row only, not the other short rows', () => {
         RichTextExtension,
         configExtension(TableExtension, {hasHorizontalScroll: false}),
       ],
-      disableLegacyImport: false,
       name: 'pad-changed-row',
       onError: e => {
         throw e;
@@ -178,7 +176,6 @@ test.each([false, true])(
           RichTextExtension,
           configExtension(TableExtension, {hasHorizontalScroll: false}),
         ],
-        disableLegacyImport: false,
         name: 'pad-after-row-added',
         onError: e => {
           throw e;

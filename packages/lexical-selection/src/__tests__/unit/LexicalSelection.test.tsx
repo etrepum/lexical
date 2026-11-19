@@ -3199,7 +3199,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3226,7 +3225,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3255,7 +3253,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3286,7 +3283,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension, LinkExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3312,7 +3308,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3340,7 +3335,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3372,7 +3366,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3438,7 +3431,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3466,7 +3458,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3501,7 +3492,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3537,7 +3527,6 @@ describe('LexicalSelection tests', () => {
           $setBlocksType(selection, () => $createHeadingNode('h1'));
         },
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {
@@ -3580,7 +3569,6 @@ describe('LexicalSelection tests', () => {
           RichTextExtension,
           defineExtension({name: '@test/slot-host', nodes: [TestSlotHost]}),
         ],
-        disableLegacyImport: false,
         name: '@test',
       });
       testEditor.read(() => {

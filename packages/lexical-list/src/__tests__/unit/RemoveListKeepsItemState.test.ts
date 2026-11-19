@@ -30,7 +30,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
-      disableLegacyImport: false,
       name: 'remove-list-state-host',
     }),
   );

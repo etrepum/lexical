@@ -110,7 +110,6 @@ type TestNodeClass = Klass<LexicalNode> & {
 
 describe('@lexical/fast-check', () => {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'fast-check',
     nodes: [MergeNode, FlatStateNode],
     onError: error => {
@@ -419,7 +418,6 @@ describe('a flat set-valued NodeState', () => {
       seed: 1,
     });
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TaggedNode],
       onError: error => {
         throw error;

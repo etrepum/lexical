@@ -63,7 +63,6 @@ function exportState(editor: ReturnType<typeof createEditor>) {
 
 function makeEditor() {
   return createEditor({
-    disableLegacyImport: false,
     nodes: [ParagraphNode],
     onError: e => {
       throw e;

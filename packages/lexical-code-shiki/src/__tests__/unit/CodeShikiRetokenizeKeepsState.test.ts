@@ -68,7 +68,6 @@ function editorWithCode(): LexicalEditor & Disposable {
     defineExtension({
       $initialEditorState: null,
       dependencies: [RichTextExtension, CodeShikiExtension],
-      disableLegacyImport: false,
       name: 'retokenize-keeps-state',
       onError: (error: Error) => {
         throw error;
@@ -305,7 +304,6 @@ function editorWithCreatedText(): LexicalEditor & Disposable {
     defineExtension({
       $initialEditorState: null,
       dependencies: [RichTextExtension, CodeShikiExtension],
-      disableLegacyImport: false,
       name: 'retokenize-keeps-state-created-text',
       nodes: () => [
         CreatedTextNode,
@@ -332,7 +330,6 @@ function editorWithCreatedHighlight(): LexicalEditor & Disposable {
     defineExtension({
       $initialEditorState: null,
       dependencies: [RichTextExtension, CodeShikiExtension],
-      disableLegacyImport: false,
       name: 'retokenize-keeps-state-created-highlight',
       nodes: () => [
         CreatedHighlightNode,
@@ -614,7 +611,6 @@ function editorWithAppHighlight(
           ? CodeShikiExtension
           : configExtension(CodeShikiExtension, {tokenizer}),
       ],
-      disableLegacyImport: false,
       name: 'retokenize-keeps-state-app-highlight',
       nodes: () => [AppHighlightNode],
       onError: (error: Error) => {

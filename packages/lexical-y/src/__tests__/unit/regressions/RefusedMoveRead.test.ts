@@ -61,7 +61,6 @@ function client(schemaVersion: number, selfCheck: boolean) {
           selfCheck,
         }),
       ],
-      disableLegacyImport: false,
       name: `@lexical/y/test/refused-move-${schemaVersion}`,
       onError: e => {
         throw e;

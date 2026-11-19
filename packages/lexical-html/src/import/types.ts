@@ -444,8 +444,6 @@ export type DOMPreprocessFn = (
 
 /**
  * Per-call options to the extension's `$generateNodesFromDOM`.
- *
- * @experimental
  */
 export interface GenerateNodesFromDOMOptions {
   /**
@@ -465,8 +463,6 @@ export interface GenerateNodesFromDOMOptions {
 
 /**
  * Output of {@link DOMImportExtension}.
- *
- * @experimental
  */
 export interface DOMImportExtensionOutput {
   /**

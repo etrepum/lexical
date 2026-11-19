@@ -65,7 +65,6 @@ const editor = buildEditorFromExtensions(
           'block bg-gray-800 text-white text-xs p-2 whitespace-pre-wrap rounded',
       }),
     ],
-    disableLegacyImport: false,
     name: '@lexical/extension-vanilla-react-plugin-host-example',
     namespace: '@lexical/extension-vanilla-react-plugin-host-example',
   }),

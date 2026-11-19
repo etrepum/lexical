@@ -70,11 +70,7 @@ export class CalloutNode extends ElementNode {
 describe('the CalloutNode from docs/concepts/nodes.mdx', () => {
   test('does what the section claims it does', () => {
     const editor = buildEditorFromExtensions(
-      defineExtension({
-        disableLegacyImport: false,
-        name: '[doc-callout]',
-        nodes: [CalloutNode],
-      }),
+      defineExtension({name: '[doc-callout]', nodes: [CalloutNode]}),
     );
     editor.update(
       () => {

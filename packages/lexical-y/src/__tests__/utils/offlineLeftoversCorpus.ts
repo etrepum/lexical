@@ -189,7 +189,6 @@ export function describeLeftoversCorpus(
           catalogAppExtension(IDS),
           yCollab({doc, onStatus: () => {}, schemaVersion: 1, synced: true}),
         ],
-        disableLegacyImport: false,
         name: 'offline-leftovers-corpus',
         onError: error => {
           throw error;

@@ -73,7 +73,7 @@ Framework-agnostic accessibility extensions. See [Keyboard Accessibility](/docs/
 
 - [BlockIdHTMLExtension](/docs/api/modules/lexical_html/BlockIdHTMLExtension#blockidhtmlextension) - Exports block ids as `data-block-id` and reads them back on import, through the uniqueness rule (experimental)
 - [CoreImportExtension](/docs/api/modules/lexical_html#coreimportextension) - DOM import rules for the core nodes, included implicitly by node-providing extensions (experimental)
-- [DOMImportExtension](/docs/api/modules/lexical_html#domimportextension) - Extension-based replacement for `importDOM`/`DOMConversion`, rules are compiled into a dispatcher at editor build time (experimental)
+- [DOMImportExtension](/docs/api/modules/lexical_html#domimportextension) - Extension-based replacement for `importDOM`/`DOMConversion`, rules are compiled into a dispatcher at editor build time
 - [DOMRenderExtension](/docs/api/modules/lexical_html#domrenderextension) - Overrides the DOM render and export behavior for an editor (experimental)
 
 [@lexical/link](/docs/api/modules/lexical_link)

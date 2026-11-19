@@ -108,7 +108,6 @@ async function boundRead(input: Input, gc: boolean): Promise<unknown> {
         synced: true,
       }),
     ],
-    disableLegacyImport: false,
     name: `below-floor-${input.name}`,
     onError: e => {
       throw e;

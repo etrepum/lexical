@@ -46,7 +46,6 @@ function mountEditor() {
       $setTaskListItemChecked($items()[1], false);
     },
     dependencies: [CheckListExtension, RichTextExtension],
-    disableLegacyImport: false,
     name: 'task-list-item-keys',
   });
   editor.setRootElement(rootElement);

@@ -74,7 +74,6 @@ function createPeer(clientID: number) {
   const doc = new Y.Doc();
   doc.clientID = clientID;
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'peer' + clientID,
     nodes: [EditorReadingTextNode],
     onError: e => {
@@ -172,7 +171,6 @@ function dispatchingProvider(getEditor: () => LexicalEditor) {
 function awarenessEditor(version: 'v1' | 'v2') {
   const doc = new Y.Doc();
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'awareness-' + version,
     onError: e => {
       throw e;

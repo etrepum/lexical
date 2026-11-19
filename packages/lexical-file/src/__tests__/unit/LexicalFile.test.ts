@@ -36,7 +36,6 @@ describe('serializedDocumentFromEditorState', () => {
   test('exports with the given editor active', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'editor-reading-file',
         nodes: [EditorReadingTextNode],
       }),

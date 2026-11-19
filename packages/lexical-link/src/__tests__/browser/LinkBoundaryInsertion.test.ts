@@ -24,7 +24,6 @@ import {$createLinkNode, $isLinkNode, LinkExtension} from '../../index';
 
 const extension = defineExtension({
   dependencies: [RichTextExtension, LinkExtension],
-  disableLegacyImport: false,
   name: 'LinkBoundaryInsertion',
   namespace: 'Playground',
 });

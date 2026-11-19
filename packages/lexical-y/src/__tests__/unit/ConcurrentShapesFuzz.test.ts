@@ -69,7 +69,6 @@ function peer(id: number, state?: Uint8Array): P {
   }
   const warnings: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'shape-fuzz',
     nodes: NODES,
     onError: e => {

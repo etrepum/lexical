@@ -36,7 +36,6 @@ function setup(gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'quiesce-draft',
       onError: e => {
         throw e;

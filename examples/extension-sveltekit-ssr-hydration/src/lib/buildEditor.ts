@@ -135,7 +135,6 @@ export function buildEditor(
 	hot: null | ViteHotContext = null
 ) {
 	return buildEditorFromExtensions({
-		disableLegacyImport: false,
 		name: '[root]',
 		$initialEditorState,
 		editable: false,

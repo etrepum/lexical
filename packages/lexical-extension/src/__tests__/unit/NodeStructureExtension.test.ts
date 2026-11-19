@@ -113,7 +113,6 @@ function build($init: () => void, withStructure: boolean) {
   return buildEditorFromExtensions({
     $initialEditorState: $init,
     dependencies: deps,
-    disableLegacyImport: false,
     name: 'node-structure-test',
     nodes: [CodeNode, OverflowNode],
     onError: e => {
@@ -231,7 +230,6 @@ describe('declarations', () => {
       }
     }
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [Chip, Box],
       onError: e => {
         throw e;
@@ -257,9 +255,7 @@ describe('validation at editor creation', () => {
         });
       }
     }
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [Bad]}),
-    ).toThrow(/not a schema field/);
+    expect(() => createEditor({nodes: [Bad]})).toThrow(/not a schema field/);
   });
 
   test('mergeAdjacent.by names a derived field or state', () => {
@@ -272,9 +268,7 @@ describe('validation at editor creation', () => {
         });
       }
     }
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [Bad]}),
-    ).toThrow(/derived/);
+    expect(() => createEditor({nodes: [Bad]})).toThrow(/derived/);
   });
 
   test('declared inline disagrees with isInline()', () => {
@@ -289,9 +283,7 @@ describe('validation at editor creation', () => {
         return false;
       }
     }
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [Bad]}),
-    ).toThrow(/isInline/);
+    expect(() => createEditor({nodes: [Bad]})).toThrow(/isInline/);
   });
 
   test("a merging group's children must hold inline content", () => {
@@ -312,9 +304,9 @@ describe('validation at editor creation', () => {
         });
       }
     }
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [Item, Group]}),
-    ).toThrow(/hold inline content/);
+    expect(() => createEditor({nodes: [Item, Group]})).toThrow(
+      /hold inline content/,
+    );
   });
 });
 
@@ -358,16 +350,12 @@ describe('existing subclasses that inherit a declaration', () => {
         );
       },
       dependencies: [RichTextExtension, ListExtension, LinkExtension],
-      disableLegacyImport: false,
       name: 'block-link',
       nodes: [BlockLinkNode],
       onError: strict,
     });
     expect(() =>
-      createEditor({
-        disableLegacyImport: false,
-        nodes: [...nodes, BlockLinkNode],
-      }),
+      createEditor({nodes: [...nodes, BlockLinkNode]}),
     ).not.toThrow();
     const declared = getDeclaredNodeStructure(BlockLinkNode);
     expect(declared.inline).toBeUndefined();
@@ -422,7 +410,6 @@ describe('existing subclasses that inherit a declaration', () => {
       }
     }
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [...nodes, LabeledListNode],
       onError: strict,
     });
@@ -443,7 +430,6 @@ describe('existing subclasses that inherit a declaration', () => {
       type: 'test-labeled-list',
     });
     const restored = createEditor({
-      disableLegacyImport: false,
       nodes: [...nodes, LabeledListNode],
       onError: strict,
     });
@@ -467,7 +453,6 @@ describe('existing subclasses that inherit a declaration', () => {
       }
     }
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [...nodes, InlineParagraphNode],
       onError: strict,
     });
@@ -496,9 +481,7 @@ describe('existing subclasses that inherit a declaration', () => {
         return true;
       }
     }
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [LinkNode, Bad]}),
-    ).toThrow(/isInline/);
+    expect(() => createEditor({nodes: [LinkNode, Bad]})).toThrow(/isInline/);
   });
 
   test('isInline() is synthesized only for a class that declares inline itself', () => {
@@ -526,7 +509,6 @@ describe('existing subclasses that inherit a declaration', () => {
       }
     }
     createEditor({
-      disableLegacyImport: false,
       nodes: [Chip, SubChip, LinkNode, ModernLink, PlainBox, BlockLinkNode],
       onError: strict,
     });
@@ -878,7 +860,6 @@ describe('NodeStructureExtension', () => {
         );
       },
       dependencies: [RichTextExtension, LinkExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'override',
       nodes: [NoMergeLink],
     });
@@ -928,7 +909,6 @@ describe('NodeStructureExtension', () => {
         );
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'tags',
       nodes: [TagNode, SubTagNode],
     });
@@ -1116,7 +1096,6 @@ describe('NodeStructureExtension', () => {
         RichTextExtension,
         configExtension(NodeStructureExtension, {disabled: true}),
       ],
-      disableLegacyImport: false,
       name: 'order',
       nodes: [CodeNode],
     });
@@ -1268,7 +1247,6 @@ describe('NodeStructureExtension', () => {
         );
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'mark',
       nodes: [MarkNode],
     });
@@ -1283,11 +1261,9 @@ describe('NodeStructureExtension', () => {
     using off = build(() => {}, false);
     expect(INTERNAL_isNodeStructureEnforced(on)).toBe(true);
     expect(INTERNAL_isNodeStructureEnforced(off)).toBe(false);
-    expect(
-      INTERNAL_isNodeStructureEnforced(
-        createEditor({disableLegacyImport: false, nodes: []}),
-      ),
-    ).toBe(false);
+    expect(INTERNAL_isNodeStructureEnforced(createEditor({nodes: []}))).toBe(
+      false,
+    );
   });
 
   test('normalization is a pure function of the document', () => {
@@ -1323,7 +1299,6 @@ describe('merging', () => {
           dependencies: withStructure
             ? [RichTextExtension, ListExtension, NodeStructureExtension]
             : [RichTextExtension, ListExtension],
-          disableLegacyImport: false,
           name: 'sub-list',
           nodes: [SubListNode],
           onError: e => {
@@ -1420,7 +1395,6 @@ describe('merging', () => {
         );
       },
       dependencies: [RichTextExtension, LinkExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'autolink',
       nodes: [AutoLinkNode],
     });
@@ -1460,7 +1434,6 @@ describe('merging', () => {
         }
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'clean-tag',
       nodes: [CleanTagNode],
     });
@@ -1495,7 +1468,6 @@ describe('merging', () => {
         );
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'color',
       nodes: [ColorNode],
     });
@@ -1541,10 +1513,7 @@ describe('merging', () => {
       }
     }
     expect(() =>
-      createEditor({
-        disableLegacyImport: false,
-        nodes: [Item, BlockItem, Group, BlockGroup],
-      }),
+      createEditor({nodes: [Item, BlockItem, Group, BlockGroup]}),
     ).not.toThrow();
     expect(getDeclaredNodeStructure(Group).mergeAdjacent).toEqual({
       by: ['format'],
@@ -1556,7 +1525,6 @@ describe('merging', () => {
 describe('registration', () => {
   test('registerNodeStructure: idempotent, and disposed by its last registration', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [HorizontalRuleNode],
       onError: e => {
         throw e;
@@ -1599,7 +1567,6 @@ describe('registration', () => {
         HorizontalRuleExtension,
         configExtension(NodeStructureExtension, {disabled: true}),
       ],
-      disableLegacyImport: false,
       name: 'disabled',
     });
     expect(rootShape(editor)).toEqual([
@@ -1620,7 +1587,6 @@ describe('registration', () => {
   test('each editor enforces its own registration (nested editors too)', () => {
     using parent = build(() => {}, true);
     const nested = createEditor({
-      disableLegacyImport: false,
       nodes: [HorizontalRuleNode],
       onError: e => {
         throw e;
@@ -1683,8 +1649,6 @@ describe('registration', () => {
           RichTextExtension,
           ...(withStructure ? [NodeStructureExtension] : []),
         ],
-
-        disableLegacyImport: false,
         name: 'cell',
         nodes: [ChipNode, TableNode, TableRowNode, TableCellNode],
       });
@@ -1735,7 +1699,6 @@ describe('registration', () => {
         );
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'overflow',
       nodes: [MyOverflowNode],
     });
@@ -1757,7 +1720,6 @@ describe('registration', () => {
         ]);
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'fake-overflow',
       nodes: [FakeOverflowNode],
     });
@@ -1783,7 +1745,6 @@ describe('registration', () => {
     // No extension: the code that changed the document calls it itself.
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension, HorizontalRuleExtension],
-      disableLegacyImport: false,
       name: 'internal',
       nodes: [BlockTagNode],
     });
@@ -1845,10 +1806,7 @@ describe('getDeclaredNodeStructure', () => {
       }
     }
     expect(() =>
-      createEditor({
-        disableLegacyImport: false,
-        nodes: [LinkNode, StatefulLinkNode],
-      }),
+      createEditor({nodes: [LinkNode, StatefulLinkNode]}),
     ).not.toThrow();
     expect(getDeclaredNodeStructure(StatefulLinkNode).inline).toBeUndefined();
     expect(getDeclaredNodeStructure(LinkNode).inline).toBe(true);
@@ -1871,9 +1829,9 @@ describe('getDeclaredNodeStructure', () => {
     expect(getDeclaredNodeStructure(CountedNode).derived).toEqual(
       new Set(['count']),
     );
-    expect(() =>
-      createEditor({disableLegacyImport: false, nodes: [CountedNode]}),
-    ).toThrow(/names count, which is derived/);
+    expect(() => createEditor({nodes: [CountedNode]})).toThrow(
+      /names count, which is derived/,
+    );
   });
 
   test('a custom group wraps a stray child in the first class it lists', () => {
@@ -1905,7 +1863,6 @@ describe('getDeclaredNodeStructure', () => {
         ]);
       },
       dependencies: [RichTextExtension, NodeStructureExtension],
-      disableLegacyImport: false,
       name: 'group',
       nodes: [Item, Group],
     });
@@ -1931,7 +1888,6 @@ describe('carets, empty inline elements and dirty order', () => {
         HorizontalRuleExtension,
         NodeStructureExtension,
       ],
-      disableLegacyImport: false,
       name: 'node-structure-carets',
       nodes: [MarkNode, OverflowNode],
       onError: e => {
@@ -2195,7 +2151,6 @@ describe('formatting, list seams, orphan list items and the root', () => {
         HorizontalRuleExtension,
         ...(withStructure ? [NodeStructureExtension] : []),
       ],
-      disableLegacyImport: false,
       name: 'node-structure-round-9',
       nodes: [MarkNode, OverflowNode],
       onError: e => {

@@ -108,7 +108,6 @@ function makeEditor(
   getMatch?: (text: string) => null | EntityMatch,
 ): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [KeywordNode, TagNode],
     onError: e => {
       throw e;
@@ -502,7 +501,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return word;
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;
@@ -527,7 +525,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;
@@ -554,7 +551,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
     };
     const make = () => {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [TagNode],
         onError: e => {
           throw e;
@@ -604,7 +600,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
   test('typing before a formatted node with a token or segmented match leaves it as it was', () => {
     for (const mode of ['token', 'segmented'] as const) {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [TagNode],
         onError: e => {
           throw e;
@@ -637,7 +632,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode],
       onError: e => {
         throw e;
@@ -676,7 +670,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode],
       onError: e => {
         throw e;
@@ -711,7 +704,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
         : {end: m.index + m[1].length + 8, start: m.index + m[1].length};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;
@@ -753,7 +745,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode],
       onError: e => {
         throw e;
@@ -786,7 +777,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode],
       onError: e => {
         throw e;
@@ -840,7 +830,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
   test('typing in text with a match before a formatted hashtag marks only that text dirty', () => {
     // With @lexical/hashtag's own matcher.
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [HashtagNode],
       onError: e => {
         throw e;
@@ -918,7 +907,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
   test('a token or segmented entity with text after it in its node settles', () => {
     for (const mode of ['token', 'segmented'] as const) {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [TagNode],
         onError: e => {
           throw e;
@@ -948,7 +936,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
   test('a token or segmented entity after a match left as text settles', () => {
     for (const mode of ['token', 'segmented'] as const) {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [TagNode],
         onError: e => {
           throw e;
@@ -983,7 +970,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
 
   test('an update that fails does not count toward the next one', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TagNode],
       onError: e => {
         throw e;
@@ -1041,7 +1027,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
     for (const mode of ['token', 'segmented'] as const) {
       for (const tokenFirst of [true, false]) {
         const editor = createEditor({
-          disableLegacyImport: false,
           nodes: [KeywordNode, TagNode],
           onError: e => {
             throw e;
@@ -1100,7 +1085,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
     };
     const settle = (runs: Run[], createText: (text: string) => string): Out => {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [KeywordNode],
         onError: e => {
           throw e;
@@ -1128,7 +1112,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
       return m === null ? null : {end: m.index + m[0].length, start: m.index};
     };
     const upper = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;
@@ -1161,7 +1144,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
     for (const repeat of [2000, 8000]) {
       let calls = 0;
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [KeywordNode],
         onError: e => {
           throw e;
@@ -1209,7 +1191,6 @@ describe('registerLexicalTextEntity between text nodes of other formats (#9637)'
 
   test('a createNode that changes the text still makes an entity, as before', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;

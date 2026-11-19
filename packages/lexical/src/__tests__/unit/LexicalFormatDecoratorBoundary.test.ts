@@ -33,7 +33,6 @@ test.each(
   'formatting a text edge and decorator (backward=$backward, active=$active, shape=$shape)',
   ({active, backward, shape}) => {
     using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
       name: 'format-decorator-boundary',
       nodes: [DecoratorTextNode],
     });

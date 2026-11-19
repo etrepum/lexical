@@ -53,7 +53,6 @@ function build(rows: Spec): LexicalEditor {
         return () => root.remove();
       },
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: '[table-selection-plain-paste-start]',
       onError(error: Error) {
         throw error;

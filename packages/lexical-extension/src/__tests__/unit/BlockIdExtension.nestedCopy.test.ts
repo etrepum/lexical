@@ -48,7 +48,6 @@ test('a list copied into a nested list item (where it nests) keeps no block id',
       ListExtension,
       configExtension(BlockIdExtension, {generateId: () => `g${++n}`}),
     ],
-    disableLegacyImport: false,
     name: 'test',
     onError: e => {
       throw e;

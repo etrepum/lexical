@@ -151,7 +151,6 @@ function setUpEditor(gutter: Gutter, lines: string[], scaling?: Scaling) {
         CodePrismExtension,
         ...gutter.dependencies,
       ],
-      disableLegacyImport: false,
       name: '[code-caret-scroll]',
       onError: (error: Error) => {
         throw error;

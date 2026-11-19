@@ -320,7 +320,6 @@ function createTestEditor(
           markableNodes: options.markableNodes ?? DEFAULT_MARKABLE_NODES,
         }),
       ],
-      disableLegacyImport: false,
       name: '[root]',
       nodes: () => [
         ChipNode,
@@ -772,7 +771,6 @@ describe('MarkStateExtension', () => {
                 MarkExtension,
                 ...(withMarkNode ? [] : [MarkStateExtension]),
               ],
-              disableLegacyImport: false,
               name: '[root]',
               nodes: () => [
                 ReplacementTextNode,
@@ -860,7 +858,6 @@ describe('MarkStateExtension', () => {
                 MarkExtension,
                 ...(withMarkNode ? [] : [MarkStateExtension]),
               ],
-              disableLegacyImport: false,
               name: '[root]',
             }),
           );
@@ -939,7 +936,6 @@ describe('MarkStateExtension', () => {
                 MarkExtension,
                 ...(withMarkNode ? [] : [MarkStateExtension]),
               ],
-              disableLegacyImport: false,
               name: '[root]',
             }),
           );
@@ -980,7 +976,6 @@ describe('MarkStateExtension', () => {
               MarkExtension,
               MarkStateExtension,
             ],
-            disableLegacyImport: false,
             name: '[root]',
           }),
         );
@@ -1027,7 +1022,6 @@ describe('MarkStateExtension', () => {
               MarkExtension,
               MarkStateExtension,
             ],
-            disableLegacyImport: false,
             name: '[root]',
           }),
         );
@@ -1071,7 +1065,6 @@ describe('MarkStateExtension', () => {
               MarkExtension,
               ...(withMarkNode ? [] : [MarkStateExtension]),
             ],
-            disableLegacyImport: false,
             name: '[root]',
           }),
         );
@@ -1163,7 +1156,6 @@ describe('MarkStateExtension', () => {
               MarkExtension,
               ...(withMarkNode ? [] : [MarkStateExtension]),
             ],
-            disableLegacyImport: false,
             name: '[root]',
           }),
         );
@@ -1193,7 +1185,6 @@ describe('MarkStateExtension', () => {
             MarkExtension,
             MarkStateExtension,
           ],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -1232,7 +1223,6 @@ describe('MarkStateExtension', () => {
                 MarkExtension,
                 ...(withMarkNode ? [] : [MarkStateExtension]),
               ],
-              disableLegacyImport: false,
               name: '[root]',
             }),
           );
@@ -1449,7 +1439,6 @@ describe('MarkStateExtension', () => {
             configExtension(HistoryExtension, {delay: 0}),
             MarkStateExtension,
           ],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -1500,7 +1489,6 @@ describe('MarkStateExtension', () => {
             configExtension(HistoryExtension, {delay: 0}),
             MarkStateExtension,
           ],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -2181,7 +2169,6 @@ describe('MarkStateExtension', () => {
             MarkExtension,
             ...(withMarkNode ? [] : [MarkStateExtension]),
           ],
-          disableLegacyImport: false,
           name: '[root]',
           nodes: () => [MentionNode],
           // Like a mentions plugin: "@name" is replaced by a new token node
@@ -3135,7 +3122,6 @@ describe('MarkStateExtension', () => {
             configExtension(HistoryExtension, {delay: 0}),
             MarkStateExtension,
           ],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -3594,11 +3580,7 @@ describe('MarkStateExtension', () => {
       const json = JSON.stringify(editor.getEditorState().toJSON());
 
       const plain = buildEditorFromExtensions(
-        defineExtension({
-          dependencies: [RichTextExtension],
-          disableLegacyImport: false,
-          name: '[root]',
-        }),
+        defineExtension({dependencies: [RichTextExtension], name: '[root]'}),
       );
       plain.setEditorState(plain.parseEditorState(json));
       update(plain, () => {
@@ -3722,7 +3704,6 @@ describe('MarkStateExtension', () => {
           : buildEditorFromExtensions(
               defineExtension({
                 dependencies: [RichTextExtension],
-                disableLegacyImport: false,
                 name: '[root]',
                 nodes: () => [FigureNode],
               }),

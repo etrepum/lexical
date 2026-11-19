@@ -274,7 +274,6 @@ function runDocument(
           generateId: () => `${'F'.repeat(28)}${++n}`,
         }),
       ],
-      disableLegacyImport: false,
       name: '[block-handle-property]',
     }),
   );
@@ -425,7 +424,6 @@ describe('block handles: property', () => {
           using editor = buildEditorFromExtensions({
             $initialEditorState: null,
             dependencies: [RichTextExtension, BlockIdExtension],
-            disableLegacyImport: false,
             name: '[block-handle-typo-rate]',
           });
           editor.setEditorState(

@@ -57,7 +57,6 @@ function setUpEditor(
       dependencies: [
         configExtension(SelectBlockExtension, {cascadeSelection, disabled}),
       ],
-      disableLegacyImport: false,
       name: 'select-block-test',
       nodes: [TestDecoratorNode],
       register: editor => {
@@ -112,7 +111,6 @@ function setUpNestedEditor(
           $getParentEditor: () => parentEditor,
         }),
       ],
-      disableLegacyImport: false,
       name: 'nested-editor-test',
       namespace: 'nested',
     }),

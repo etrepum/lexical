@@ -103,7 +103,6 @@ type Outcome = {
 
 function createTestEditor(): LexicalEditor {
   return createEditor({
-    disableLegacyImport: false,
     namespace: 'test',
     onError: (e: Error) => {
       throw e;

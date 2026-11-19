@@ -118,7 +118,6 @@ function createHashtagEditor(
   nodes: readonly (typeof TextNode | typeof MarkNode)[] = [],
 ): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [HashtagNode, ...nodes],
     onError: e => {
       throw e;
@@ -286,7 +285,6 @@ describe('registerLexicalTextEntity keeps NodeState', () => {
 
   test('state that createNode gives the entity wins over the text it replaces', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [HashtagNode],
       onError: e => {
         throw e;
@@ -417,7 +415,6 @@ describe('registerLexicalTextEntity keeps NodeState', () => {
 
   test('NodeState declared in the entity $config (nested and flat) is carried to the text', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [StatefulEntityNode],
       onError: e => {
         throw e;
@@ -497,7 +494,6 @@ describe('registerLexicalTextEntity keeps NodeState', () => {
       }
     }
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [
         TagEntityNode,
         TagTextNode,
@@ -564,7 +560,6 @@ describe('registerLexicalTextEntity keeps NodeState', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [HashtagExtension, HistoryExtension],
-        disableLegacyImport: false,
         name: 'test',
         onError: (e: Error) => {
           throw e;
@@ -611,7 +606,6 @@ describe('every path that turns an entity into text keeps NodeState', () => {
     // A keyword followed by a letter in another node: "cat" + "s" is no
     // keyword, so the text transform of "s" turns the keyword into text.
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [KeywordNode],
       onError: e => {
         throw e;
@@ -643,7 +637,6 @@ describe('every path that turns an entity into text keeps NodeState', () => {
   describe('the text transform: a token entity (mention-like) that text follows', () => {
     const createMentionEditor = () => {
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: [MentionNode],
         onError: e => {
           throw e;

@@ -296,7 +296,6 @@ describe('@lexical/y storage', () => {
     doc.get('lexical-y').setAttr('lexical-y:' + (LAYOUT_VERSION + 1), true);
     const warnings: string[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -319,7 +318,6 @@ describe('@lexical/y storage', () => {
     doc.get('root-v2').insert(0, 'old layout');
     const warnings: string[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -340,7 +338,6 @@ describe('@lexical/y storage', () => {
   test('nothing is written before initialization', async () => {
     const doc = createYDoc();
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -361,7 +358,6 @@ describe('@lexical/y storage', () => {
 
   test('headless writer and extension', async () => {
     const source = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -389,7 +385,6 @@ describe('@lexical/y storage', () => {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: 'reader',
         nodes: NODES,
       }),

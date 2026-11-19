@@ -124,7 +124,6 @@ function editorWithTextNode(
       };
     },
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: '[test]',
   });
 }

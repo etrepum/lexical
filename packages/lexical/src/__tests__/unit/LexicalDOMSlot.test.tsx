@@ -51,7 +51,7 @@ describe('ElementDOMSlot class', () => {
   ): T {
     let result: T | undefined;
     using editor = buildEditorFromExtensions(
-      defineExtension({disableLegacyImport: false, name: '[ElementDOMSlot]'}),
+      defineExtension({name: '[ElementDOMSlot]'}),
     );
     editor.update(
       () => {
@@ -324,7 +324,6 @@ describe('ElementDOMSlot integration: leading decoration (slot.after)', () => {
     document.body.appendChild(container);
     editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '[leading-decor]',
         nodes: [LeadingDecorElementNode, TestDecoratorNode],
       }),
@@ -565,7 +564,6 @@ describe('ElementDOMSlot integration: trailing decoration (slot.before)', () => 
     document.body.appendChild(container);
     editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '[trailing-decor]',
         nodes: [TrailingDecorElementNode, TestDecoratorNode],
       }),
@@ -756,7 +754,6 @@ describe('ElementDOMSlot integration: a removed trailing decoration', () => {
     document.body.appendChild(container);
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '[stored-trailing-decor]',
         nodes: [StoredTrailingDecorElementNode],
       }),
@@ -814,7 +811,6 @@ describe('ElementDOMSlot integration: a removed trailing decoration', () => {
       document.body.appendChild(container);
       const editor = buildEditorFromExtensions(
         defineExtension({
-          disableLegacyImport: false,
           name: '[stored-trailing-decor-anchors]',
           nodes: [StoredTrailingDecorElementNode, TestDecoratorNode],
         }),
@@ -874,7 +870,6 @@ describe('ElementDOMSlot integration: a removed trailing decoration', () => {
     container.focus();
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '[stored-trailing-decor-block-cursor]',
         nodes: [StoredTrailingDecorElementNode, TestDecoratorNode],
       }),
@@ -964,7 +959,6 @@ describe('ElementDOMSlot block cursor handling', () => {
   function createFocusedEditor() {
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '[block-cursor]',
         nodes: [InnerWrapElementNode, TestDecoratorNode],
       }),

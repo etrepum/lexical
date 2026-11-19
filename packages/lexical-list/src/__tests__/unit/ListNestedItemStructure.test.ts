@@ -50,7 +50,6 @@ function buildEditor(structure: boolean) {
         ListExtension,
         ...(structure ? [NodeStructureExtension] : []),
       ],
-      disableLegacyImport: false,
       name: 'nested-list-item-structure',
       onError: e => {
         throw e;

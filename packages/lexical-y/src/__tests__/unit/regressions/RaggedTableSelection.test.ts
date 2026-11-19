@@ -43,7 +43,6 @@ function peer(id: number, state?: Uint8Array): P {
     Y.applyUpdate(doc, state, 'load');
   }
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'ragged-table-selection',
     nodes: NODES,
     onError: e => {

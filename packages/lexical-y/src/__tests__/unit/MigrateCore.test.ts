@@ -92,7 +92,6 @@ function bind(
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'migrate-core',
       onError: (e: Error) => {
         errors.push(e);
@@ -314,7 +313,6 @@ describe.each([false, true])('the binding and layout migrations, gc %s', gc => {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: 'older-ext',
         onWarn: w => warnings.push(w as {code?: string; data?: unknown}),
       }),

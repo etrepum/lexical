@@ -305,7 +305,6 @@ function createEditor(withAsideExport = false): LexicalEditorWithDispose {
             ]
           : []),
       ],
-      disableLegacyImport: false,
       name: '[root]',
       nodes: [CalloutNode, KeyNode, RedactedNode],
     }),
@@ -889,7 +888,6 @@ describe('MdastHtmlExtension', () => {
               ],
             }),
           ],
-          disableLegacyImport: false,
           name: '[bridge-probe]',
         }),
       );
@@ -916,7 +914,6 @@ describe('MdastHtmlExtension', () => {
           MdastHtmlExtension,
           MdastTableExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -945,7 +942,6 @@ describe('MdastHtmlExtension', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -992,7 +988,6 @@ describe('MdastHtmlExtension', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -1034,7 +1029,6 @@ describe('MdastHtmlExtension', () => {
           MdastHtmlExtension,
           MdastTableExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -1059,7 +1053,6 @@ describe('MdastHtmlExtension', () => {
           MdastTableExtension,
           LinkExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -1093,7 +1086,6 @@ describe('MdastHtmlExtension', () => {
           MdastExtension,
           MdastTableExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
         nodes: [CalloutNode],
       }),
@@ -1157,7 +1149,6 @@ describe('MdastHtmlExtension', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
         nodes: [CalloutNode],
       }),
@@ -1207,7 +1198,6 @@ describe('MdastHtmlExtension', () => {
             exportRules: [{$export: $exportViaDOM, type: 'x-callout'}],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
         nodes: [CalloutNode],
       }),
@@ -1254,7 +1244,6 @@ describe('MdastHtmlExtension', () => {
             exportRules: [{$export: $exportViaDOM, type: 'x-callout'}],
           }),
         ],
-        disableLegacyImport: false,
         name: '[root]',
         nodes: [CalloutNode],
       }),

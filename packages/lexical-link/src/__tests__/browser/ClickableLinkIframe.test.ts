@@ -65,7 +65,6 @@ test.each([
             newTab,
           }),
         ],
-        disableLegacyImport: false,
         name: 'ClickableLinkIframe',
       }),
     );
@@ -144,7 +143,6 @@ test('registerClickableLink keeps the default for callers without a getWindow si
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, LinkExtension],
-      disableLegacyImport: false,
       name: 'LegacyClickableLink',
     }),
   );

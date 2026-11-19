@@ -78,7 +78,6 @@ function $block(index: number): ElementNode {
 
 function editorWith($build: () => void): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'size',
     nodes: [],
     onError: error => {

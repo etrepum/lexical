@@ -109,7 +109,6 @@ function unbound(shape: NodeShape): string[] {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(config)],
-      disableLegacyImport: false,
       name: 'c1-reconcile-plain',
       onError: e => {
         throw e;
@@ -136,7 +135,6 @@ function unbound(shape: NodeShape): string[] {
   const plain = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(config)],
-      disableLegacyImport: false,
       name: 'c1-reconcile-fresh',
       onError: e => {
         throw e;

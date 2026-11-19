@@ -65,7 +65,6 @@ function peer(id: number) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'r15a/' + id,
       onError: e => {
         errors.push(e);

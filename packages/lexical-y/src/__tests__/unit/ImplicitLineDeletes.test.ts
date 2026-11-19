@@ -57,7 +57,6 @@ function peer(id: number) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'r13a-impl/' + id,
       nodes: [WidgetNode],
       onError: e => {

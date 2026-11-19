@@ -45,7 +45,6 @@ function bound(gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'undo-events',
       onError: e => {
         throw e;

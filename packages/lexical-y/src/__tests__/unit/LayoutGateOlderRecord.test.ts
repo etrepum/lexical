@@ -50,7 +50,6 @@ for (const gc of [false, true]) {
     doc.get('lexical-y').setAttr('lexical-y:1', true);
     const warned: unknown[] = [];
     const e = createEditor({
-      disableLegacyImport: false,
       namespace: 'test',
       nodes: NODES,
       onError: x => {
@@ -121,7 +120,6 @@ for (const gc of [false, true]) {
       });
       const warnings: unknown[] = [];
       const editor = createEditor({
-        disableLegacyImport: false,
         namespace: 'test',
         nodes: NODES,
         onError: e => {

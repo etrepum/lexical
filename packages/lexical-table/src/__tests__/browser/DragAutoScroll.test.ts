@@ -32,7 +32,6 @@ function mount() {
   container.appendChild(root);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension, TableExtension],
-    disableLegacyImport: false,
     name: 'test/drag-auto-scroll',
     theme: {tableScrollableWrapper: ''},
   });

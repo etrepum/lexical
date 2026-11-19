@@ -58,7 +58,6 @@ function buildEditor(rows: CellSpec[][]) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(TableExtension, {hasNestedTables: true})],
-      disableLegacyImport: false,
       name: '[nested-table-selection-text]',
       onError: (error: Error) => {
         throw error;

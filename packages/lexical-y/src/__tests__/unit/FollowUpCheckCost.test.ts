@@ -68,7 +68,6 @@ function build(blocks: number): LexicalEditor {
         }),
         BlockIdExtension,
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/follow-up-cost',
       namespace: 'follow-up-cost',
       onError: e => {

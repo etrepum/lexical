@@ -29,7 +29,6 @@ function setUpEditor() {
         );
       },
       dependencies: [DragonExtension],
-      disableLegacyImport: false,
       name: 'dragon-test',
       register: editor => {
         const rootElement = document.createElement('div');
@@ -280,7 +279,6 @@ describe('DragonExtension', () => {
             );
           },
           dependencies: [DragonExtension],
-          disableLegacyImport: false,
           name: 'dragon-iframe-test',
           register: theEditor => {
             const rootElement = iframeDocument.createElement('div');

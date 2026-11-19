@@ -60,7 +60,6 @@ function createEditor(): LexicalEditor {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, LinkExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -75,7 +74,6 @@ function createMdastEditor(punctuation: PunctuationMode): LexicalEditor {
         MdastGfmExtension,
         configExtension(MdastExtension, {importPunctuation: punctuation}),
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

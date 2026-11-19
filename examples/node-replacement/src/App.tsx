@@ -30,7 +30,6 @@ const appExtension = defineExtension({
     CustomParagraphExtension,
     ToolbarExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/examples/node-replacement',
   namespace: 'Node Replacement Demo',
   theme: ExampleTheme,

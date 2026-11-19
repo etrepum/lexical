@@ -73,7 +73,6 @@ function client(id: number, state?: Uint8Array): Client {
   }
   const warnings: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [...NODES, BlockBox],
     onError: e => {
       throw e;
@@ -165,7 +164,6 @@ function initialized(
   }
   const warnings: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

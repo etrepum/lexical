@@ -47,7 +47,6 @@ describe('@lexical/y on a server', () => {
   test('the editor is not editable until the layout record is read', () => {
     const doc = createYDoc();
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;

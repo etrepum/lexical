@@ -28,12 +28,7 @@ export function setupEditor(dependencies: AnyLexicalExtensionArgument[]) {
   root.style.whiteSpace = 'pre-wrap';
   document.body.append(root);
   const editor = buildEditorFromExtensions(
-    defineExtension({
-      dependencies,
-      disableLegacyImport: false,
-      name: '[browser-test]',
-      theme,
-    }),
+    defineExtension({dependencies, name: '[browser-test]', theme}),
   );
   editor.setRootElement(root);
   onTestFinished(() => {

@@ -672,7 +672,6 @@ function freshEditorFor(state: State): {
   if (LexicalBuilder.maybeFromEditor(state.editor) !== undefined) {
     const built = buildEditorFromExtensions({
       $initialEditorState: null,
-      disableLegacyImport: false,
       name: '@lexical/y/self-check',
       namespace: '@lexical/y self-check',
       nodes: () => nodes,
@@ -682,7 +681,6 @@ function freshEditorFor(state: State): {
     return {dispose: () => built.dispose(), editor: built};
   }
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: '@lexical/y self-check',
     nodes,
     onError,

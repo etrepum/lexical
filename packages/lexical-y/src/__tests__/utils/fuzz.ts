@@ -343,13 +343,7 @@ export class FPeer {
     this.editor =
       bound !== null
         ? bound.editor
-        : createEditor({
-            disableLegacyImport: false,
-            namespace: 'fuzz',
-            nodes: NODES,
-            onError,
-            onWarn,
-          });
+        : createEditor({namespace: 'fuzz', nodes: NODES, onError, onWarn});
     registerCommentState(this.editor);
     // Lexical's table plugin, as an app with tables registers it: a table
     // command, or a local edit that marks a table dirty, pads a table that a

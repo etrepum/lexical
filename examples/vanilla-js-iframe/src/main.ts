@@ -34,7 +34,6 @@ const editor = buildEditorFromExtensions(
     $initialEditorState: $prepopulatedRichText,
     // RichTextExtension registers HeadingNode and QuoteNode
     dependencies: [RichTextExtension, HistoryExtension, DragonExtension],
-    disableLegacyImport: false,
     name: '@lexical/examples/vanilla-js-iframe',
     namespace: 'Vanilla JS iframe Demo',
     register: ed =>

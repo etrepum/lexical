@@ -115,7 +115,6 @@ function editorOf(warnings: string[], messages: string[]): LexicalEditor {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'history-gate',
       onError: e => {
         throw e;

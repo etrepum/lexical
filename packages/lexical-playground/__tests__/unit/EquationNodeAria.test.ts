@@ -23,7 +23,6 @@ describe('EquationNode ARIA attributes', () => {
     const errors: Error[] = [];
     const editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'equation-aria',
       nodes: [EquationNode],
       onError: e => {

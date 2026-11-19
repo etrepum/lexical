@@ -69,7 +69,6 @@ function createEditor(
         MdastShortcutsExtension,
         ...extensions,
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -766,7 +765,6 @@ describe('@lexical/mdast streaming shortcuts', () => {
               }),
               MdastShortcutsExtension,
             ],
-            disableLegacyImport: false,
             name: '[no horizontal rule]',
             onError: error => {
               errors.push(error);

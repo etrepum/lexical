@@ -56,7 +56,6 @@ class CaptionedNode extends DecoratorNode<null> {
       caption ||
       buildEditorFromExtensions({
         dependencies: [NestedEditorExtension],
-        disableLegacyImport: false,
         name: 'soak3/caption',
       });
   }
@@ -87,7 +86,6 @@ function build(doc: YDoc, warnings: string[]) {
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'soak3/s3-1',
       nodes: () => [CaptionedNode],
       onWarn: w => {

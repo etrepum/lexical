@@ -57,7 +57,6 @@ describe('CharacterLimitPlugin', () => {
       reactRoot.render(
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               $getRoot()
                 .clear()

@@ -88,7 +88,6 @@ function client(doc: YDoc): LexicalEditor {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'composition-code-segments',
       onError: (e: Error) => {
         throw e;

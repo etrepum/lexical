@@ -60,7 +60,6 @@ function setUp(
     $create(TagNode).setTextContent(node.getTextContent()),
 ) {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [TagNode],
     onError: e => {
       throw e;

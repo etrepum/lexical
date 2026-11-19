@@ -69,7 +69,6 @@ describe('Selection resolution for leaf nodes (resolveLeafPosition)', () => {
               ),
             );
         },
-        disableLegacyImport: false,
         name: '[bare-leaf-resolve]',
       }),
     );
@@ -154,7 +153,6 @@ describe('Selection resolution for leaf nodes (resolveLeafPosition)', () => {
               ],
             }),
           ],
-          disableLegacyImport: false,
           name: '[wrap-leaf-resolve]',
         }),
       );

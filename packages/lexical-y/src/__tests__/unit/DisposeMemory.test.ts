@@ -36,7 +36,6 @@ test('40 editors bound, edited and disposed in a synchronous loop hold no docume
     return least;
   };
   const source = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;
@@ -57,7 +56,6 @@ test('40 editors bound, edited and disposed in a synchronous loop hold no docume
     const doc = createYDoc();
     Y.applyUpdate(doc, stored);
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;

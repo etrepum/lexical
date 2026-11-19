@@ -406,14 +406,11 @@ export type LexicalNodeReplacement = {
 export type HTMLConfig = {
   export?: DOMExportOutputMap;
   /**
-   * Legacy DOM conversion overrides. Set to `false` to skip initializing
-   * all legacy conversions, including node `importDOM` methods. Calling
-   * the legacy `$generateNodesFromDOM` then throws.
+   * Legacy DOM conversion overrides.
    *
    * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`.
-   * Migrated editors can configure it with `{disableLegacyImport: true}`.
    */
-  import?: DOMConversionMap | false;
+  import?: DOMConversionMap;
 };
 
 /**
@@ -521,11 +518,11 @@ export interface EditorDOMRenderConfig {
 export interface CreateEditorArgs {
   /**
    * Controls the deprecated static `importDOM` / `html.import` pipeline.
-   * `null` (the default) enables it with a one-time development warning.
-   * `false` explicitly keeps it enabled without warning. `true` skips legacy
-   * converter initialization; migrate all import paths to DOMImportExtension
-   * before enabling it. Implicit nested editors created with `createEditor()`
-   * inherit the active editor's choice.
+   * `null` (the default) enables it with a one-time development warning on
+   * first use. `false` keeps it enabled without warning. `true` disables it;
+   * migrate all import paths to DOMImportExtension before opting out.
+   * Implicit nested editors created with `createEditor()` keep the default
+   * legacy importer so they can still paste HTML without extensions.
    */
   disableLegacyImport?: boolean | null;
   disableEvents?: boolean;
@@ -1045,21 +1042,11 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
   ];
   const {onError, onWarn, html} = config;
   const htmlImport = html ? html.import : undefined;
-  const disableLegacyImport =
-    htmlImport === false
-      ? true
-      : (config.disableLegacyImport ??
-        (editorConfig === undefined && activeEditor !== null
-          ? activeEditor._config.disableLegacyImport
-          : null) ??
-        null);
+  const disableLegacyImport = config.disableLegacyImport ?? null;
   invariant(
     !disableLegacyImport || !htmlImport || Object.keys(htmlImport).length === 0,
     'createEditor: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',
   );
-  if (disableLegacyImport === null) {
-    legacyImportDeprecation();
-  }
   const isEditable = config.editable !== undefined ? config.editable : true;
   let registeredNodes: RegisteredNodes;
 
@@ -1173,9 +1160,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     },
     onError ? onError : console.error,
     onWarn ? onWarn : defaultOnWarn,
-    disableLegacyImport
-      ? null
-      : initializeConversionCache(registeredNodes, htmlImport || undefined),
+    htmlImport,
     isEditable,
     editorConfig,
   );
@@ -1298,8 +1283,26 @@ export class LexicalEditor {
   _onError: ErrorHandler;
   /** @internal */
   _onWarn: ErrorHandler;
+  private _cachedHTMLConversions: DOMConversionCache | null;
+  private readonly _htmlImport: DOMConversionMap | undefined;
+
   /** @internal */
-  _htmlConversions: DOMConversionCache | null;
+  get _htmlConversions(): DOMConversionCache | null {
+    const {disableLegacyImport} = this._config;
+    if (disableLegacyImport === true) {
+      return null;
+    }
+    if (this._cachedHTMLConversions === null) {
+      if (disableLegacyImport == null) {
+        legacyImportDeprecation();
+      }
+      this._cachedHTMLConversions = initializeConversionCache(
+        this._nodes,
+        this._htmlImport,
+      );
+    }
+    return this._cachedHTMLConversions;
+  }
   /** @internal */
   _window: null | Window;
   /** @internal */
@@ -1334,7 +1337,7 @@ export class LexicalEditor {
     config: EditorConfig,
     onError: ErrorHandler,
     onWarn: ErrorHandler,
-    htmlConversions: DOMConversionCache | null,
+    htmlImport: DOMConversionMap | undefined,
     editable: boolean,
     createEditorArgs?: CreateEditorArgs,
   ) {
@@ -1387,7 +1390,8 @@ export class LexicalEditor {
 
     this._onError = onError;
     this._onWarn = onWarn;
-    this._htmlConversions = htmlConversions;
+    this._cachedHTMLConversions = null;
+    this._htmlImport = htmlImport;
     this._editable = editable;
     this._headless = parentEditor !== null && parentEditor._headless;
     this._recordNodeMoves = false;

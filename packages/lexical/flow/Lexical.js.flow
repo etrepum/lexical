@@ -437,9 +437,9 @@ export type HTMLConfig = {
     (editor: LexicalEditor, target: LexicalNode) => DOMExportOutput,
   >,
   /**
-   * @deprecated Use DOMImportExtension rules. Set false to disable legacy import.
+   * @deprecated Use DOMImportExtension rules.
    */
-  import?: DOMConversionMap | false,
+  import?: DOMConversionMap,
 };
 
 declare export function createEditor(editorConfig?: {

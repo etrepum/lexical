@@ -27,7 +27,6 @@ function buildParent() {
         maxDepth: PARENT_MAX_DEPTH,
       }),
     ],
-    disableLegacyImport: false,
     name: 'shared-max-depth-parent',
   });
 }
@@ -35,7 +34,6 @@ function buildParent() {
 function buildChild() {
   return buildEditorFromExtensions({
     dependencies: [SharedHistoryExtension],
-    disableLegacyImport: false,
     name: 'shared-max-depth-child',
   });
 }

@@ -19,7 +19,6 @@ import {ImagesExtension} from '../../src/plugins/ImagesExtension';
 
 const ImageTestExtension = defineExtension({
   dependencies: [ImagesExtension, PlaygroundDOMRenderExtension],
-  disableLegacyImport: false,
   name: '[test]',
 });
 

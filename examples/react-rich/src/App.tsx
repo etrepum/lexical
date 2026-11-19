@@ -42,7 +42,6 @@ const appExtension = defineExtension({
     }),
     TreeViewExtension,
   ],
-  disableLegacyImport: true,
   name: '@lexical/examples/react-rich',
   namespace: 'react-rich',
   theme: ExampleTheme,

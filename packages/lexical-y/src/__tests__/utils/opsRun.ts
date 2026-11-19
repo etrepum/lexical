@@ -180,7 +180,6 @@ export function run(spec: Run, gc: boolean): string {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: `edge-${n}`,
         onError: e => {
           throw e;

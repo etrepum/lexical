@@ -618,7 +618,6 @@ function open(mode: Mode, ctx: Ctx, inner: () => LexicalNode[]) {
           EditingApp,
           NodeStructureExtension,
         ],
-        disableLegacyImport: false,
         name: 'catalog-structure-unbound',
         onError: e => {
           throw e;

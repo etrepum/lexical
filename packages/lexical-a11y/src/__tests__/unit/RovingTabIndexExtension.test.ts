@@ -43,7 +43,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -59,7 +58,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -76,7 +74,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -93,7 +90,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -116,7 +112,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -135,7 +130,6 @@ describe('RovingTabIndexExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RovingTabIndexExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

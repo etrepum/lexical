@@ -86,7 +86,6 @@ describe('task items in bullet and number lists', () => {
           $setTaskListItemChecked(done, true);
         },
         dependencies: [CheckListExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[task-items-test]',
         theme: {
           list: {

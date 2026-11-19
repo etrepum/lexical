@@ -690,7 +690,6 @@ test.fails(
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: 'bound',
       }),
     );
@@ -698,7 +697,6 @@ test.fails(
       defineExtension({
         $initialEditorState: $build,
         dependencies: extensions,
-        disableLegacyImport: false,
         name: 'unbound',
       }),
     );

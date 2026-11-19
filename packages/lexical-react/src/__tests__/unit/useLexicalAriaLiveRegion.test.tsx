@@ -51,18 +51,9 @@ function WithExtension({
   children: React.ReactNode;
   politeness?: 'polite' | 'assertive';
 }) {
-  const ext = React.useMemo(
-    () => ({
-      dependencies: [
-        politeness
-          ? configExtension(AriaLiveRegionExtension, {politeness})
-          : AriaLiveRegionExtension,
-      ],
-      disableLegacyImport: false,
-      name: 'test/AriaLiveRegion',
-    }),
-    [politeness],
-  );
+  const ext = politeness
+    ? configExtension(AriaLiveRegionExtension, {politeness})
+    : AriaLiveRegionExtension;
   return (
     <LexicalExtensionComposer extension={ext}>
       {children}

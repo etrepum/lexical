@@ -44,7 +44,6 @@ function bind(gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'before-transaction',
       onError: e => {
         errors.push(e);
@@ -169,7 +168,6 @@ describe.each([false, true])('admission after beforeTransaction, gc %s', gc => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [catalogAppExtension({blockIds: 'absent'})],
-        disableLegacyImport: false,
         name: 'init-in-app-transaction',
         onError: e => {
           throw e;

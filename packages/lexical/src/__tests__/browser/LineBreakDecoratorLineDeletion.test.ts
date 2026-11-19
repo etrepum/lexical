@@ -71,7 +71,6 @@ describe.each([RichTextExtension, PlainTextExtension])('$name', extension => {
         $select(paragraph, text);
       },
       dependencies: [extension],
-      disableLegacyImport: false,
       name: '[line-break-decorator-line-deletion]',
       nodes: [InlineDecoratorNode],
     });

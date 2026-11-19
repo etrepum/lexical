@@ -41,7 +41,6 @@ describe('MdastShortcutsExtension reads nodes with the active editor', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [MdastCommonMarkExtension, MdastShortcutsExtension],
-        disableLegacyImport: false,
         name: '[root]',
         nodes: [EditorReadingTextNode],
       }),

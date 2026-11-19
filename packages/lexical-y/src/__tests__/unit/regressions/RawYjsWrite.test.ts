@@ -38,7 +38,6 @@ function bind(gc: boolean) {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'raw-writes',
       onWarn: w => {
         warnings.push(w as Warning);
@@ -146,7 +145,6 @@ describe.each([false, true])('raw Yjs writes, gc %s', gc => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [catalogAppExtension(CFG)],
-        disableLegacyImport: false,
         name: 'raw-writes-other',
       }),
     );

@@ -1001,10 +1001,7 @@ describe.each(CHANGES)('with %s', (_, change, found) => {
     const shared = doc.share.size;
     const ydoc = doc as unknown as ReturnType<typeof lexicalY.createYDoc>;
     const editor = extension.buildEditorFromExtensions(
-      extension.defineExtension({
-        disableLegacyImport: false,
-        name: '@lexical/y/test/yjs-contract',
-      }),
+      extension.defineExtension({name: '@lexical/y/test/yjs-contract'}),
     );
     expect(() => new lexicalY.YBinding(editor, ydoc, config)).toThrow(
       expect.objectContaining(expected),
@@ -1020,7 +1017,6 @@ describe.each(CHANGES)('with %s', (_, change, found) => {
               schemaVersion: 1,
             }),
           ],
-          disableLegacyImport: false,
           name: '@lexical/y/test/yjs-contract-extension',
         }),
       );
@@ -1138,7 +1134,6 @@ describe('with the supported @y/y', () => {
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: '@lexical/y/test/yjs-contract-ok',
       }),
     );
@@ -1183,10 +1178,7 @@ describe('with the supported @y/y', () => {
   test('a document or root from another copy of @y/y is refused', async () => {
     const {extension, lexicalY} = await loadWith(() => ({}));
     const editor = extension.buildEditorFromExtensions(
-      extension.defineExtension({
-        disableLegacyImport: false,
-        name: '@lexical/y/test/yjs-contract-copy',
-      }),
+      extension.defineExtension({name: '@lexical/y/test/yjs-contract-copy'}),
     );
     // Stand-ins for another copy's classes: not instances of the ones
     // @lexical/y loaded.

@@ -37,7 +37,6 @@ import {
 const DateTimeTestExtension = defineExtension({
   $initialEditorState: null,
   dependencies: [DateTimeExtension],
-  disableLegacyImport: false,
   name: '[test-datetime-node]',
 });
 

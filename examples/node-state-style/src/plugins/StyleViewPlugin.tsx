@@ -441,7 +441,6 @@ function StyleValueEditor(props: StyleValueEditorProps) {
         $patchParsedTextAtRoot(parseRawText(props.value));
       },
       dependencies: [PlainTextExtension],
-      disableLegacyImport: false,
       name: '@lexical/examples/node-state-style/StyleValue',
       namespace: 'style-view-value',
     }),

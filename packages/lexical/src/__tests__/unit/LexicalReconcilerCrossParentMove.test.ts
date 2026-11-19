@@ -33,7 +33,6 @@ import {describe, expect, test} from 'vitest';
 function buildEditor() {
   const errors: string[] = [];
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'lexical-reconciler-cross-parent-move',
     nodes: [TestElementNode, TestInlineElementNode],
     onError: (error: Error) => {

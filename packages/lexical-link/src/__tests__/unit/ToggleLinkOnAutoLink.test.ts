@@ -52,7 +52,6 @@ function buildEditor() {
         LinkExtension,
         configExtension(AutoLinkExtension, {matchers: [matcher]}),
       ],
-      disableLegacyImport: false,
       name: 'toggle-link-on-autolink-host',
     }),
   );
@@ -130,7 +129,6 @@ describe('$toggleLink inside an autolink', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: 'toggle-link-on-autolink-attrs-host',
       }),
     );

@@ -58,7 +58,6 @@ function buildEditor(doc: YDoc) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/mark-state-block-type',
       onError: (e: Error) => {
         throw e;

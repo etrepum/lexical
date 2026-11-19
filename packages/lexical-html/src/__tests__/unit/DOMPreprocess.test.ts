@@ -57,7 +57,6 @@ describe('DOMImportExtension preprocess', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [CoreImportExtension],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -88,7 +87,6 @@ describe('DOMImportExtension preprocess', () => {
           CoreImportExtension,
           configExtension(DOMImportExtension, {preprocess: [$stripScripts]}),
         ],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -139,7 +137,6 @@ describe('DOMImportExtension preprocess', () => {
             rules: [SourceAwareDivRule],
           }),
         ],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -190,7 +187,6 @@ describe('DOMImportExtension preprocess', () => {
             rules: [ArticleRule],
           }),
         ],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -225,7 +221,6 @@ describe('DOMImportExtension preprocess', () => {
             preprocess: [$innerPreprocess, $wrapperPreprocess],
           }),
         ],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -258,7 +253,6 @@ describe('DOMImportExtension preprocess', () => {
             preprocess: [$configPreprocess],
           }),
         ],
-        disableLegacyImport: false,
         name: 'host',
       }),
     );
@@ -308,7 +302,6 @@ describe('DOMImportExtension preprocess', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [CoreImportExtension, mid],
-        disableLegacyImport: false,
         name: 'preprocess-root',
       }),
     );

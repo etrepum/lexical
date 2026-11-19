@@ -138,7 +138,6 @@ describe('$wrapNodes keeps the inline content of the blocks it wraps (#9612)', (
             test(`${shape.join(' > ')}, ${where}, in the ${context}${structure ? ', NodeStructureExtension' : ''}${wrapping ? ', with a wrapping element' : ''}`, () => {
               using editor = buildEditorFromExtensions({
                 dependencies: structure ? [NodeStructureExtension] : [],
-                disableLegacyImport: false,
                 name: '@wrapNodes-inline-content-test',
                 nodes: [
                   LinkNode,
@@ -303,7 +302,6 @@ describe('$wrapNodes keeps a selection in a shadow root inside that scope', () =
           test(`${scope}, ${content}, ${where}${structure ? ', NodeStructureExtension' : ''}`, () => {
             using editor = buildEditorFromExtensions({
               dependencies: structure ? [NodeStructureExtension] : [],
-              disableLegacyImport: false,
               name: '@wrapNodes-shadow-scope-test',
               nodes: [
                 InlineShadowNode,
@@ -410,7 +408,6 @@ function parentLookups(
 ): {calls: number; nodes: number} {
   using editor = buildEditorFromExtensions({
     dependencies: [NodeStructureExtension],
-    disableLegacyImport: false,
     name: '@wrapNodes-depth-cost-test',
     nodes: [DeepInlineNode, QuoteNode, TestShadowRootNode],
   });
@@ -533,7 +530,6 @@ describe('$wrapNodes over a block container that mixes inline content and blocks
             test(`${container}, mix ${m}, ${span}${backward ? ', backward' : ''}${structure ? ', NodeStructureExtension' : ''}`, () => {
               using editor = buildEditorFromExtensions({
                 dependencies: structure ? [NodeStructureExtension] : [],
-                disableLegacyImport: false,
                 name: '@wrapNodes-mixed-container-test',
                 nodes: [
                   InlineShadowNode,
@@ -633,7 +629,6 @@ describe('$wrapNodes over a range from a list item to an element point on its li
           test(`item ${item}, list offset ${offset}${backward ? ', backward' : ''}${structure ? ', NodeStructureExtension' : ''}`, () => {
             using editor = buildEditorFromExtensions({
               dependencies: structure ? [NodeStructureExtension] : [],
-              disableLegacyImport: false,
               name: '@wrapNodes-list-point-test',
               nodes: [ListNode, ListItemNode, QuoteNode],
             });
@@ -700,7 +695,6 @@ describe('$wrapNodes over a range that starts at the end of a block', () => {
           test(`${first}, to ${end}${backward ? ', backward' : ''}${structure ? ', NodeStructureExtension' : ''}`, () => {
             using editor = buildEditorFromExtensions({
               dependencies: structure ? [NodeStructureExtension] : [],
-              disableLegacyImport: false,
               name: '@wrapNodes-start-at-block-end-test',
               nodes: [ListNode, ListItemNode, QuoteNode, TestShadowRootNode],
             });
@@ -774,7 +768,6 @@ describe('$wrapNodes leaves the selection inside the new tree', () => {
       test(`three root paragraphs, from the first text to the root's end${backward ? ', backward' : ''}${structure ? ', NodeStructureExtension' : ''}`, () => {
         using editor = buildEditorFromExtensions({
           dependencies: structure ? [NodeStructureExtension] : [],
-          disableLegacyImport: false,
           name: '@wrapNodes-selection-restore-test',
           nodes: [QuoteNode],
         });
@@ -831,7 +824,6 @@ describe('$wrapNodes over the whole root, with a wrapping element', () => {
       test(`root element points 0 to 3${backward ? ', backward' : ''}${structure ? ', NodeStructureExtension' : ''}`, () => {
         using editor = buildEditorFromExtensions({
           dependencies: structure ? [NodeStructureExtension] : [],
-          disableLegacyImport: false,
           name: '@wrapNodes-root-points-test',
           nodes: [QuoteNode, TestShadowRootNode],
         });

@@ -48,7 +48,6 @@ function createEditor(
       ...(textExtension ? [textExtension] : []),
       configExtension(HistoryExtension, {delay: 1000, now: () => 0}),
     ],
-    disableLegacyImport: false,
     name: 'test',
   });
 }

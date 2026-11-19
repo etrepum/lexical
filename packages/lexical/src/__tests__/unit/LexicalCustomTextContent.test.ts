@@ -49,7 +49,6 @@ class CustomSizedParagraphNode extends ParagraphNode {
 function createEditor() {
   const editor = buildEditorFromExtensions(
     defineExtension({
-      disableLegacyImport: false,
       name: 'CustomTextContent',
       nodes: [
         CustomSizedParagraphNode,
@@ -288,7 +287,6 @@ describe('custom getTextContent', () => {
   test('has the active editor when text content listeners are triggered', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'EditorReadingTextContent',
         nodes: [EditorReadingParagraphNode],
       }),

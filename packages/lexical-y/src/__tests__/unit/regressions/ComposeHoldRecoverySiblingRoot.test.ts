@@ -100,7 +100,6 @@ function client(
   const views = ['one', 'two'].map(key => {
     const errors: unknown[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [SiblingBox],
       onError: e => {
         errors.push(e);

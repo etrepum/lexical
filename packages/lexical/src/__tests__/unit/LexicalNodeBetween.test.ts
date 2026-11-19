@@ -22,7 +22,6 @@ test.each([false, true])(
   reverse => {
     using editor = buildEditorFromExtensions({
       dependencies: [LinkExtension],
-      disableLegacyImport: false,
       name: 'caret-node-between',
     });
     editor.update(
@@ -48,10 +47,7 @@ test.each([false, true])(
 );
 
 test('node traversal recognizes a stale target reference', () => {
-  using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'caret-selection-test',
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-selection-test'});
   let start: TextNode, end: TextNode;
   editor.update(
     () => {

@@ -32,7 +32,6 @@ import {describe, expect, test} from 'vitest';
 
 function runInEditor(fn: () => void): void {
   using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: '@formatList-slots-test',
     nodes: [ListNode, ListItemNode],
   });

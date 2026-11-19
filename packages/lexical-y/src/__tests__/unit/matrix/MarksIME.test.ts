@@ -101,7 +101,6 @@ function build(flavor: Flavor): LexicalEditor {
         catalogAppExtension({blockIds: 'absent', marks: flavor}),
         RichTextExtension,
       ],
-      disableLegacyImport: false,
       name: `catalog-ime-marks-${flavor}`,
       onError: e => {
         throw e;

@@ -45,7 +45,6 @@ describe('DraggableBlockPlugin_EXPERIMENTAL', () => {
     return (
       <LexicalComposer
         initialConfig={{
-          disableLegacyImport: false,
           namespace: 'draggable-block',
           onError: (error: Error) => {
             throw error;
@@ -102,7 +101,6 @@ describe('DraggableBlockPlugin_EXPERIMENTAL', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editable: false,
             namespace: 'draggable-block',
             onError: (error: Error) => {

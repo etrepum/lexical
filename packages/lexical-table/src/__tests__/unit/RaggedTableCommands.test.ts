@@ -78,7 +78,6 @@ function buildTableEditor(rows: (string | CellSpec)[][]) {
         }
         $getRoot().clear().append(table, $createParagraphNode());
       },
-      disableLegacyImport: false,
       name: '[ragged-table]',
       nodes: [TableNode, TableRowNode, TableCellNode],
       onError: (e: Error) => {

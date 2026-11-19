@@ -30,7 +30,6 @@ test("an item removed in the update that changes its list's type leaves the DOM 
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
-      disableLegacyImport: false,
       name: '[list-type-change-removed-item]',
       onError: (error: Error) => {
         throw error;

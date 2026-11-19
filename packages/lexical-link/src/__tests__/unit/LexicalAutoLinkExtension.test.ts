@@ -88,7 +88,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           matchers: [hashtagMatcher],
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -135,7 +134,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           matchers: [URL_MATCHER],
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -166,7 +164,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           matchers: [URL_MATCHER],
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -199,7 +196,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           matchers: [GH_TAG_MATCHER],
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -230,7 +226,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           separatorRegex: /[.,;:\s]/,
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -270,7 +265,6 @@ describe('LexicalAutoLinkExtension tests', () => {
           separatorRegex: /[.,;:\s]/,
         }),
       ],
-      disableLegacyImport: false,
       name: '[test override]',
     });
 
@@ -329,7 +323,6 @@ describe('LexicalAutoLinkExtension tests', () => {
             matchers: [ATTRIBUTE_MATCHER],
           }),
         ],
-        disableLegacyImport: false,
         name: '[test attributes]',
       });
     }
@@ -404,7 +397,6 @@ describe('LexicalAutoLinkExtension tests', () => {
             matchers: [ATTRIBUTE_MATCHER],
           }),
         ],
-        disableLegacyImport: false,
         name: '[test change handler]',
       });
       changes.length = 0;

@@ -185,7 +185,6 @@ for (const gc of [true, false]) {
                 synced: true,
               }),
             ],
-            disableLegacyImport: false,
             name: `undo-spread-2810-${n}`,
             onError: e => {
               throw e;

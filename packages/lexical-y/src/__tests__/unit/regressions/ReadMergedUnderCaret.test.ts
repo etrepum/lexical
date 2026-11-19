@@ -48,7 +48,6 @@ function client(id: number, state?: Uint8Array, dom = false) {
   const doc = createYDoc(null, {gc: false});
   doc.clientID = id;
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

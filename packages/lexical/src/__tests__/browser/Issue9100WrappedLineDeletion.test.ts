@@ -96,7 +96,6 @@ function mountEditor($initialEditorState: () => void): MountedEditor {
     defineExtension({
       $initialEditorState,
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[9100-browser]',
       nodes: [IsolatedInlineDecoratorNode],
     }),

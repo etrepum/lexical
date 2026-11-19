@@ -29,10 +29,7 @@ function mountEditor(markdown: string) {
   const root = document.createElement('div');
   root.contentEditable = 'true';
   document.body.appendChild(root);
-  const editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-    ToolbarStateExtension,
-  );
+  const editor = buildEditorFromExtensions(ToolbarStateExtension);
   editor.setRootElement(root);
   onTestFinished(() => {
     editor.dispose();

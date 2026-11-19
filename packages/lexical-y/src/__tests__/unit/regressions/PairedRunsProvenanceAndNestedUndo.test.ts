@@ -171,7 +171,6 @@ for (const gc of [false, true]) {
       const child = new Y.Node('editor');
       doc.transact(() => doc.get('app').setAttr('editor', child));
       const editor = createEditor({
-        disableLegacyImport: false,
         onError: e => {
           throw e;
         },
@@ -241,7 +240,6 @@ for (const gc of [false, true]) {
       um.undo();
       um.destroy();
       const e1 = createEditor({
-        disableLegacyImport: false,
         onError: e => {
           throw e;
         },
@@ -257,7 +255,6 @@ for (const gc of [false, true]) {
       const d3 = createYDoc(null, {gc});
       Y.applyUpdate(d3 as never, Y.encodeStateAsUpdate(d as never));
       const e3 = createEditor({
-        disableLegacyImport: false,
         onError: e => {
           throw e;
         },

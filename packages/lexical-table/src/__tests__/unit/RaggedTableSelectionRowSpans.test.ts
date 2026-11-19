@@ -53,7 +53,6 @@ function build(rows: Spec) {
         return () => root.remove();
       },
       dependencies: [configExtension(TableExtension, {hasNestedTables: true})],
-      disableLegacyImport: false,
       name: '[ragged-table-selection-row-spans]',
       // Lexical clipboard data pastes into an editor of the same namespace.
       namespace: 'ragged-table-selection-row-spans',

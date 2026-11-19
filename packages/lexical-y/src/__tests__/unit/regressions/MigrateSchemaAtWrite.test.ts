@@ -46,7 +46,6 @@ function editorOf(errors: Error[], warnings: string[]) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension({blockIds: 'absent'})],
-      disableLegacyImport: false,
       name: 'schema-at-write',
       onError: e => {
         errors.push(e);

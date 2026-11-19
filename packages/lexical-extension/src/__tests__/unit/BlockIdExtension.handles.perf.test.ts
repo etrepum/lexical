@@ -64,7 +64,6 @@ function build(withIds: boolean, disabled = false): LexicalEditorWithDispose {
       RichTextExtension,
       ...(withIds ? [configExtension(BlockIdExtension, {disabled})] : []),
     ],
-    disableLegacyImport: false,
     name: '[block-handle-perf]',
   });
 }

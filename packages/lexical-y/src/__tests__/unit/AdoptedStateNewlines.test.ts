@@ -135,7 +135,6 @@ function show(editor: LexicalEditor): string {
 
 const newEditor = (warnings: string[] = []) =>
   createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

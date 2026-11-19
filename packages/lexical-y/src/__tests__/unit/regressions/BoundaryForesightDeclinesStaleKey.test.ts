@@ -28,7 +28,6 @@ import {$nextUpdateSelection} from '../../../internal/Boundary';
 
 test('a stale DOM key makes the binding foresee nothing', () => {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'stale',
     nodes: [LinkNode],
     onError: e => {

@@ -27,7 +27,6 @@ function toggle(
   using editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: 'toggle-host',
       theme: {tableScrollableWrapper: 'table-scrollable-wrapper'},
     }),

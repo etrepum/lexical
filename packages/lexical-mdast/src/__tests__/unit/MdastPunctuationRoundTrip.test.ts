@@ -181,7 +181,6 @@ function createMdastEditor(
         MdastGfmExtension,
         configExtension(MdastExtension, {exportPunctuation, importPunctuation}),
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -200,11 +199,7 @@ it.each<
   (exportPunctuation, importPunctuation) => {
     const mdast = createMdastEditor(exportPunctuation, importPunctuation);
     const markdown = buildEditorFromExtensions(
-      defineExtension({
-        dependencies: [RichTextExtension],
-        disableLegacyImport: false,
-        name: '[root]',
-      }),
+      defineExtension({dependencies: [RichTextExtension], name: '[root]'}),
     );
     onTestFinished(() => markdown.dispose());
     const random = createRandom(1);

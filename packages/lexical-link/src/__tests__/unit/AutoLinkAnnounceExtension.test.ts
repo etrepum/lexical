@@ -77,7 +77,6 @@ function buildEditor(): LexicalEditorWithDispose {
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, withMatchers],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -301,7 +300,6 @@ describe('AutoLinkAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [RichTextExtension, withMatchers, HistoryExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -381,7 +379,6 @@ describe('AutoLinkAnnounceExtension', () => {
           withMatchers,
           configExtension(AutoLinkAnnounceExtension, {created: 'Linked'}),
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -411,7 +408,6 @@ describe('AutoLinkAnnounceExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

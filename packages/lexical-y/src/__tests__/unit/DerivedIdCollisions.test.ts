@@ -96,7 +96,6 @@ function peer(
           selfCheck,
         }),
       ],
-      disableLegacyImport: false,
       name: `peer${id}`,
       nodes: NODES,
       onError: e => {

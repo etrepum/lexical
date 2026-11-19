@@ -161,7 +161,6 @@ function build(options: BuildOptions = {}): LexicalEditorWithDispose {
         disabled: options.disabled || false,
       }),
     ],
-    disableLegacyImport: false,
     name: '[block-id-test]',
   });
   return options.fresh ? editor : asEdited(editor);
@@ -430,7 +429,6 @@ describe('BlockIdExtension: assignment', () => {
         RichTextExtension,
         configExtension(BlockIdExtension, {generateId: counter()}),
       ],
-      disableLegacyImport: false,
       name: '[opened]',
     });
     expect(blocks(editor)).toEqual(['paragraph:a:@0', 'paragraph:b:@1']);
@@ -445,7 +443,6 @@ describe('BlockIdExtension: assignment', () => {
           RichTextExtension,
           configExtension(BlockIdExtension, {generateId: counter()}),
         ],
-        disableLegacyImport: false,
         name: '[scratch]',
       });
       if (scratch) {
@@ -479,7 +476,6 @@ describe('BlockIdExtension: assignment', () => {
         $getRoot().append($paragraph('a'), $paragraph('b'));
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[plain]',
     });
     plain.read(() => {});
@@ -503,7 +499,6 @@ describe('BlockIdExtension: assignment', () => {
         RichTextExtension,
         configExtension(BlockIdExtension, {generateId: counter('id')}),
       ],
-      disableLegacyImport: false,
       name: '[server]',
     });
     editor.setEditorState(editor.parseEditorState(stored));
@@ -1615,7 +1610,6 @@ describe('BlockIdExtension: documents stored without ids', () => {
     };
     const make = ($initialEditorState?: () => void) =>
       buildEditorFromExtensions({
-        disableLegacyImport: false,
         ...($initialEditorState ? {$initialEditorState} : {}),
         dependencies: [RichTextExtension, BlockIdExtension],
         name: '[initial]',
@@ -1668,7 +1662,6 @@ describe('BlockIdExtension: documents stored without ids', () => {
         $getRoot().append($paragraph('a'), $createHeadingNode('h2'));
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[plain]',
     });
     plain.read(() => {});
@@ -1717,7 +1710,6 @@ describe('BlockIdExtension: documents stored without ids', () => {
           UNORDERED_LIST,
         ]),
       dependencies: [RichTextExtension, ListExtension],
-      disableLegacyImport: false,
       name: '[plain]',
     });
     plain.read(() => {});
@@ -1775,7 +1767,6 @@ describe('BlockIdExtension: the default predicate', () => {
           LinkExtension,
           configExtension(BlockIdExtension, {generateId: counter()}),
         ],
-        disableLegacyImport: false,
         name: '[block-id-default]',
         nodes: [BoxNode],
       }),
@@ -1958,7 +1949,6 @@ describe('BlockIdExtension: the index finds every identified block', () => {
         TableExtension,
         BlockIdExtension,
       ],
-      disableLegacyImport: false,
       name: '[block-id-initial]',
     });
     expect(ids(editor)).toEqual(['r1', 'r2', 'r3']);
@@ -2295,7 +2285,6 @@ describe('BlockIdExtension: more predicates and nesting', () => {
             ...($isIdentifiedBlock ? {$isIdentifiedBlock} : {}),
           }),
         ],
-        disableLegacyImport: false,
         name: '[block-id-predicates]',
         nodes: [InlineDecorator, BlockDecorator],
       }),

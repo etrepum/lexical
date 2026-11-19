@@ -22,7 +22,6 @@ import {MarkdownTestExtension} from '../utils';
 
 const extension = defineExtension({
   dependencies: [MarkdownTestExtension, HistoryExtension],
-  disableLegacyImport: false,
   name: 'MarkdownShortcutsBrowserTest',
   register: editor => registerMarkdownShortcuts(editor),
 });

@@ -140,7 +140,6 @@ export class Peer {
               }),
             ]),
       ],
-      disableLegacyImport: false,
       name: `[collab-${name}]`,
     });
     if (!options.fresh) {
@@ -431,7 +430,6 @@ export function readIds(
       ListExtension,
       configExtension(BlockIdExtension, options),
     ],
-    disableLegacyImport: false,
     name: '[reader]',
   });
   try {

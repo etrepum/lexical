@@ -280,7 +280,6 @@ describe.each([false, true])('loading across a clock gap, gc %s', gc => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [catalogAppExtension({blockIds: 'absent'})],
-        disableLegacyImport: false,
         name: 'load-across-gap-seed',
         onError: e => {
           throw e;

@@ -60,7 +60,6 @@ function setUpEditor(
           ...($shouldInsertAfter ? {$shouldInsertAfter} : {}),
         }),
       ],
-      disableLegacyImport: false,
       name: 'click-after-last-block-test',
       nodes: [TestDecoratorNode],
       register: editor => {

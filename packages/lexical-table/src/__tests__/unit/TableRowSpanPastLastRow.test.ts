@@ -60,7 +60,6 @@ function build(): {editor: LexicalEditor; errors: string[]} {
         return () => root.remove();
       },
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: '[table-row-span-past-last-row]',
       onError(e: Error) {
         errors.push(e.message);

@@ -30,8 +30,6 @@ function buildEditor() {
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
       dependencies: [LinkExtension],
-
-      disableLegacyImport: false,
       name: 'link-host',
     }),
   );
@@ -109,7 +107,6 @@ describe('LinkImportExtension — block children lifted out of inline parent', (
     return buildEditorFromExtensions(
       defineExtension({
         dependencies: [LinkExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: 'rich-link-host',
       }),
     );

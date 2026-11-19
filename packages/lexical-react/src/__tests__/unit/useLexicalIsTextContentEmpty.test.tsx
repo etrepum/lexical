@@ -67,7 +67,6 @@ describe('useLexicalIsTextContentEmpty', () => {
     const editor = React.useMemo(
       () =>
         createEditor({
-          disableLegacyImport: false,
           namespace: '',
           nodes: [ParagraphNode],
           onError: err => {
@@ -122,7 +121,6 @@ describe('useLexicalIsTextContentEmpty', () => {
   // read reaches the paragraph's own getTextContent.
   test('reads the text of an update with the active editor', async () => {
     const editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
       name: 'test',
       nodes: [EditorReadingParagraphNode],
     });

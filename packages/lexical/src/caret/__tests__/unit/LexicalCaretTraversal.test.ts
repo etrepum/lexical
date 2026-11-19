@@ -26,10 +26,7 @@ const indices = [-Infinity, -1, 0, 0.5, 1, 1.5, 2, 4, 5, Infinity, NaN];
 test.each(indices)(
   'child caret at %s preserves clamping and direction',
   index => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-index',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-index'});
     editor.update(
       () => {
         const children = ['a', 'b', 'c', 'd'].map(text =>
@@ -54,10 +51,7 @@ test.each(indices)(
 test.each(indices)(
   'child caret in an empty element at %s stays at its boundary',
   index => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'caret-empty-index',
-    });
+    using editor = buildEditorFromExtensions({name: 'caret-empty-index'});
     editor.update(
       () => {
         const parent = $createParagraphNode();
@@ -76,10 +70,7 @@ test.each(indices)(
 );
 
 test('node collectors and retained carets follow moved siblings in document order', () => {
-  using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'caret-collect',
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-collect'});
   editor.update(
     () => {
       const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(text =>
@@ -108,10 +99,7 @@ test('node collectors and retained carets follow moved siblings in document orde
 });
 
 test('indexed descendants distinguish child starts, document end and empty children', () => {
-  using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
-    name: 'caret-descendant-index',
-  });
+  using editor = buildEditorFromExtensions({name: 'caret-descendant-index'});
   editor.update(
     () => {
       const a = $createTextNode('a').toggleUnmergeable();

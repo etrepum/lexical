@@ -37,7 +37,6 @@ function setup() {
     defineExtension({
       $initialEditorState: null,
       dependencies: [CollapsibleExtension],
-      disableLegacyImport: false,
       name: '[test-collapsible-toggle-synchronization]',
     }),
   );

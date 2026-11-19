@@ -218,7 +218,6 @@ export function runKeyDownDispatchParityTests(isApple: boolean): void {
       const recorded: {command: AnyLexicalCommand; payload: unknown}[] = [];
       const editor = buildEditorFromExtensions(
         defineExtension({
-          disableLegacyImport: false,
           name: 'keydown-parity-test',
           register: editor2 => {
             const cleanups = OBSERVED_COMMANDS.map(([, command]) =>

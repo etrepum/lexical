@@ -34,7 +34,6 @@ function buildSeededEditor(override: Partial<GetClipboardDataConfig> = {}) {
     defineExtension({
       $initialEditorState,
       dependencies: [configExtension(GetClipboardDataExtension, override)],
-      disableLegacyImport: false,
       name: '[test-root]',
     }),
   );
@@ -173,7 +172,6 @@ describe('GetClipboardDataExtension', () => {
       using editor = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState,
-          disableLegacyImport: false,
           name: '[test-root]',
         }),
       );

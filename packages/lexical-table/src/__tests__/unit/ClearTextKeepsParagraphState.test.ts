@@ -36,7 +36,6 @@ beforeEach(() => {
   editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: 'clear-text-host',
       theme: {tableScrollableWrapper: ''},
     }),

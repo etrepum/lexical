@@ -43,7 +43,6 @@ function bind(
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(CFG)],
-      disableLegacyImport: false,
       name: 'raw-writes-joined',
       onError: e => {
         throw e;

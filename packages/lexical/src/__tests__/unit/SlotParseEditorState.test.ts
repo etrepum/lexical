@@ -42,7 +42,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       $initialEditorState: null,
-      disableLegacyImport: false,
       name: '[slot-parse-editor-state]',
       nodes: [SlotContainerNode],
     }),

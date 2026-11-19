@@ -93,7 +93,6 @@ function makeEditor() {
           ],
         }),
       ],
-      disableLegacyImport: false,
       name: 'test',
     }),
   );
@@ -185,7 +184,6 @@ describe('DOMRender conditional overrides', () => {
             ],
           }),
         ],
-        disableLegacyImport: false,
         name: 'decorate-test',
       }),
     );

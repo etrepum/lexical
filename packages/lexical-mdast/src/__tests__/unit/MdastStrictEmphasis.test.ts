@@ -44,7 +44,6 @@ it('reads emphasis with its own micromark-core-commonmark in a strict import', (
           importPunctuation: 'strict-commonmark',
         }),
       ],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

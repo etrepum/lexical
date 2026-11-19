@@ -288,7 +288,6 @@ test('an extension that registers a transform while editable: setEditable(true) 
           selfCheck: false,
         }),
       ],
-      disableLegacyImport: false,
       name: '@lexical/y/test/EditableRegistration',
       onError: e => {
         throw e;

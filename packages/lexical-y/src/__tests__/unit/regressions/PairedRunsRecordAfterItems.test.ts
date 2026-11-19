@@ -92,7 +92,6 @@ function bound(
           synced: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'reader',
       onError: e => {
         throw e;

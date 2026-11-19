@@ -97,7 +97,6 @@ const inner = (): Piece => marker({'s:blockId': nextId(), t: 'listitem'});
  */
 function storedDoc(pieces: Piece[]): Uint8Array {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;
@@ -152,7 +151,6 @@ function reader(id: number, update: Uint8Array, blockIdsLate: boolean) {
       dependencies: blockIdsLate
         ? [collab, blockIds, MarkStateExtension]
         : [blockIds, MarkStateExtension, collab],
-      disableLegacyImport: false,
       name: `reader${id}`,
       nodes: NODES,
       onError: e => {

@@ -32,7 +32,6 @@ import {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[8745]',
   nodes: [TestDecoratorNode, TestShadowRootNode],
 });

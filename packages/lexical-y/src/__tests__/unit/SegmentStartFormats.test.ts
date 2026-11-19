@@ -50,7 +50,6 @@ function peer(id: number) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'r13a-seg/' + id,
       onError: e => {
         errors.push(e);

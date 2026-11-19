@@ -27,7 +27,6 @@ function createEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, CodeShikiExtension],
-      disableLegacyImport: false,
       name: 'shiki-unknown-language',
     }),
   );

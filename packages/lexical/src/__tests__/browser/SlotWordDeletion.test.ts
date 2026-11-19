@@ -80,7 +80,6 @@ function mountEditor(layout: Layout) {
           ],
         }),
       ],
-      disableLegacyImport: false,
       name: '[slot-word-deletion]',
       nodes: [TestShadowRootNode],
     }),

@@ -58,7 +58,6 @@ for (const gc of [false, true])
       const doc = createYDoc(null, {gc});
       doc.clientID = 77;
       const e = createEditor({
-        disableLegacyImport: false,
         nodes: [SizeGated],
         onError: x => {
           throw x;

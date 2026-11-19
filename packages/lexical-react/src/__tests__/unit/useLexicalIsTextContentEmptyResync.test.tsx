@@ -39,7 +39,6 @@ describe('useLexicalIsTextContentEmpty re-derives its value', () => {
 
   function makeEditor(text: string): LexicalEditor {
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: 'is-text-content-empty',
       nodes: [ParagraphNode],
       onError: error => {

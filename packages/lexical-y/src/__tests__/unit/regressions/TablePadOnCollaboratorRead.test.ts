@@ -110,7 +110,6 @@ function createPeer(clientID: number): Peer {
           schemaVersion: 1,
         }),
       ],
-      disableLegacyImport: false,
       name: 'table-pad-on-collaborator-read',
       nodes: () => [BadgeNode],
       onError: (e: Error) => {

@@ -194,7 +194,6 @@ export class Client implements Provider {
         <LexicalCollaboration>
           <LexicalComposer
             initialConfig={{
-              disableLegacyImport: false,
               editorState: null,
               namespace: '',
               onError: e => {

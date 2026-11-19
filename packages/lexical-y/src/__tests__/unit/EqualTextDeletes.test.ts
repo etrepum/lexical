@@ -54,7 +54,6 @@ function peer(id: number) {
         }),
         MarkStateExtension,
       ],
-      disableLegacyImport: false,
       name: 'r13a/' + id,
       onError: e => {
         errors.push(e);

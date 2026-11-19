@@ -80,7 +80,6 @@ describe('HTML', () => {
   for (const {name, html, initializeEditorState} of HTML_SERIALIZE) {
     test(`[Lexical -> HTML]: ${name}`, () => {
       const editor = createHeadlessEditor({
-        disableLegacyImport: false,
         nodes: [
           HeadingNode,
           ListNode,
@@ -103,7 +102,6 @@ describe('HTML', () => {
 
   test(`[Lexical -> HTML]: Use provided selection`, () => {
     const editor = createHeadlessEditor({
-      disableLegacyImport: false,
       nodes: [
         HeadingNode,
         ListNode,
@@ -151,7 +149,6 @@ describe('HTML', () => {
 
   test(`[Lexical -> HTML]: Default selection (undefined) should serialize entire editor state`, () => {
     const editor = createHeadlessEditor({
-      disableLegacyImport: false,
       nodes: [
         HeadingNode,
         ListNode,
@@ -196,7 +193,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, don't overwrite from parent empty format`, () => {
-    const editor = createHeadlessEditor({disableLegacyImport: false});
+    const editor = createHeadlessEditor();
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div><p style="text-align: center;">Hello world!</p></div>';
@@ -226,7 +223,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, it should take precedence over its parent block alignment`, () => {
-    const editor = createHeadlessEditor({disableLegacyImport: false});
+    const editor = createHeadlessEditor();
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div style="text-align: right;"><p style="text-align: center;">Hello world!</p></div>';
@@ -257,7 +254,6 @@ describe('HTML', () => {
 
   test('It should output correctly nodes whose export is DocumentFragment', () => {
     const editor = createHeadlessEditor({
-      disableLegacyImport: false,
       html: {
         export: new Map([
           [
@@ -308,10 +304,7 @@ describe('HTML', () => {
 
   describe('$generateNodesFromDOM: CSS class style inlining', () => {
     test('HTML with <style> tags inlines styles by class', () => {
-      const editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      const editor = buildEditorFromExtensions();
       // workaround for https://github.com/jsdom/jsdom/issues/3179 - DOMParser does not work correctly
       const dom = new JSDOM(
         `<html><head><style>.highlight { font-weight: bold; }</style></head>` +
@@ -336,7 +329,7 @@ describe('HTML', () => {
     });
 
     test('existing inline styles are preserved after inlining pass', () => {
-      const editor = createHeadlessEditor({disableLegacyImport: false});
+      const editor = createHeadlessEditor();
       const parser = new DOMParser();
 
       editor.update(
@@ -358,7 +351,7 @@ describe('HTML', () => {
     });
 
     test('HTML without <style> tags works as before', () => {
-      const editor = createHeadlessEditor({disableLegacyImport: false});
+      const editor = createHeadlessEditor();
       const parser = new DOMParser();
 
       editor.update(
@@ -392,7 +385,7 @@ describe('HTML', () => {
     'small',
     'strike',
   ])('$generateNodesFromDOM keeps the spaces around an inline <%s>', tag => {
-    const editor = createHeadlessEditor({disableLegacyImport: false});
+    const editor = createHeadlessEditor();
     const dom = new DOMParser().parseFromString(
       `<p>is <${tag}>old</${tag}> now</p>`,
       'text/html',
@@ -409,7 +402,7 @@ describe('HTML', () => {
 
   test('$generateNodesFromDOM breaks the line at an empty block between two inline <font>s, as between two <span>s', () => {
     const lines = (html: string) => {
-      const editor = createHeadlessEditor({disableLegacyImport: false});
+      const editor = createHeadlessEditor();
       const dom = new DOMParser().parseFromString(html, 'text/html');
       editor.update(
         () => {
@@ -438,7 +431,7 @@ describe('HTML', () => {
   ] as const)(
     '$generateNodesFromDOM keeps %s from a <span> around another <span>',
     (style, format) => {
-      const editor = createHeadlessEditor({disableLegacyImport: false});
+      const editor = createHeadlessEditor();
       const dom = new DOMParser().parseFromString(
         `<p>a <span style="${style}"><span class="run">b</span></span> c</p>`,
         'text/html',
@@ -465,7 +458,7 @@ describe('HTML', () => {
   );
 
   test('$generateNodesFromDOM combines the formats of nested <span>s', () => {
-    const editor = createHeadlessEditor({disableLegacyImport: false});
+    const editor = createHeadlessEditor();
     const dom = new DOMParser().parseFromString(
       '<p><span style="font-style: italic"><span style="font-weight: bold">b</span></span></p>',
       'text/html',
@@ -502,7 +495,7 @@ describe('HTML', () => {
       ],
     ],
   ])('$generateNodesFromDOM with nested <span>s: %s', (_, html, expected) => {
-    const editor = createHeadlessEditor({disableLegacyImport: false});
+    const editor = createHeadlessEditor();
     const dom = new DOMParser().parseFromString(`<p>${html}</p>`, 'text/html');
     editor.update(
       () => {
@@ -523,7 +516,6 @@ describe('HTML', () => {
   describe('importDOM preserves dir attribute', () => {
     function importAndGetDirection(html: string): string | null {
       const editor = createHeadlessEditor({
-        disableLegacyImport: false,
         nodes: [HeadingNode, ListNode, ListItemNode, QuoteNode],
       });
       editor.update(
@@ -577,7 +569,6 @@ describe('HTML', () => {
 
   test('[Lexical -> HTML]: slots are not auto-serialized to HTML', () => {
     const editor = createHeadlessEditor({
-      disableLegacyImport: false,
       namespace: 'slot',
       nodes: [TestShadowRootNode],
     });

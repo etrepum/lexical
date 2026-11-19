@@ -39,7 +39,6 @@ afterEach(() => {
 
 function setup() {
   const editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'lexical-reconciler-rebuilt-dom-slot-sources',
     nodes: [TestElementNode, TestUpdateDOMTrueHostNode, TestDecoratorNode],
     onError: (error: Error) => {

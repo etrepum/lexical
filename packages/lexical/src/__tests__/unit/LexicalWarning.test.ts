@@ -46,10 +46,7 @@ describe('LexicalWarning', () => {
 
   test("is passed to the editor's onWarn as it is", () => {
     const seen: Error[] = [];
-    const editor = createEditor({
-      disableLegacyImport: false,
-      onWarn: error => seen.push(error),
-    });
+    const editor = createEditor({onWarn: error => seen.push(error)});
     const warning = new LexicalWarning('@example/pkg/thing', 'a thing');
     editor._onWarn(warning);
     expect(seen).toEqual([warning]);
@@ -58,7 +55,6 @@ describe('LexicalWarning', () => {
     const fromExtension: [Error, unknown][] = [];
     const built = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: '@example/app',
         onWarn: (error, ed) => fromExtension.push([error, ed]),
       }),

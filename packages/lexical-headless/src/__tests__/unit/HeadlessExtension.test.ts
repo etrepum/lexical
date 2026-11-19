@@ -22,7 +22,6 @@ function buildHeadlessEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [HeadlessExtension, RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );
@@ -67,10 +66,7 @@ describe('HeadlessExtension', () => {
 
   it('makes nested editors headless', () => {
     using editor = buildHeadlessEditor();
-    const nested = createEditor({
-      disableLegacyImport: false,
-      parentEditor: editor,
-    });
+    const nested = createEditor({parentEditor: editor});
     expect(nested._headless).toBe(true);
   });
 });

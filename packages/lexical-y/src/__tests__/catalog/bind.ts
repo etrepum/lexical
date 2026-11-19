@@ -208,7 +208,6 @@ export function bindFresh(
           ...(options.extraNodes || []),
           ...prepared,
         ],
-        disableLegacyImport: false,
         name: 'catalog-host',
         onError,
         onWarn,
@@ -239,7 +238,6 @@ export function bindFresh(
             synced: mode === 'extension',
           }),
         ],
-        disableLegacyImport: false,
         name: 'catalog-client',
         onError,
         onWarn,
@@ -379,7 +377,6 @@ export function unboundSnapshot(
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [catalogAppExtension(config)],
-      disableLegacyImport: false,
       name: 'catalog-plain',
       onError: e => {
         throw e;

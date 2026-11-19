@@ -55,7 +55,6 @@ for (const gc of [false, true])
     async () => {
       const doc = createYDoc(null, {gc});
       const e = createEditor({
-        disableLegacyImport: false,
         nodes: [LengthGated],
         onError: x => {
           throw x;

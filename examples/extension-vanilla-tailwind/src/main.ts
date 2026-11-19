@@ -94,7 +94,6 @@ const editor = buildEditorFromExtensions(
       StateViewExtension,
       LazyExtension,
     ],
-    disableLegacyImport: false,
     name: '@lexical/extension-vanilla-tailwind-example',
     namespace: '@lexical/extension-vanilla-tailwind-example',
   }),

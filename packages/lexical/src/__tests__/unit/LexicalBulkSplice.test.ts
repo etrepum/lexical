@@ -45,7 +45,6 @@ class ObservedTextNode extends TextNode {
 
 test('bulk removal preserves clone-hook traversal, detached links, and snapshots', () => {
   using editor = buildEditorFromExtensions({
-    disableLegacyImport: false,
     name: 'bulk-splice',
     nodes: [ObservedTextNode],
   });

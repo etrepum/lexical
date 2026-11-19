@@ -144,7 +144,6 @@ describe('an undo that ends a restored run', () => {
                 synced: true,
               }),
             ],
-            disableLegacyImport: false,
             name: `run-end-links/${i}`,
             onError: error => {
               throw error;

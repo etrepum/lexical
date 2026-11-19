@@ -68,7 +68,6 @@ describe.each([
         };
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[test]',
     });
     const root = editor.getRootElement()!;

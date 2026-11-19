@@ -46,7 +46,6 @@ function buildEditor(tabSize?: number) {
           : configExtension(CodeIndentExtension, {tabSize}),
         RichTextExtension,
       ],
-      disableLegacyImport: false,
       name: '[root-outdent]',
     }),
   );
@@ -119,7 +118,6 @@ describe('OUTDENT_CONTENT_COMMAND at the start of a code line', () => {
           configExtension(CodeIndentExtension, {tabSize: 2}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root-outdent-spaces]',
       }),
     );
@@ -146,7 +144,6 @@ describe('OUTDENT_CONTENT_COMMAND at the start of a code line', () => {
           $getRoot().append(code);
         },
         dependencies: [CodeIndentExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root-outdent-flat]',
       }),
     );

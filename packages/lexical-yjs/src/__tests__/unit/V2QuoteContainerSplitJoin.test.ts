@@ -83,7 +83,6 @@ class Peer {
     this.editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [QuoteContainerExtension],
-      disableLegacyImport: false,
       name: `[v2-quote-container-${clientID}]`,
       onError: e => {
         throw e;

@@ -173,7 +173,6 @@ describe('a document that loads a stored state before the binding (S7-14)', () =
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: '@lexical/y/test/stored-state',
         onWarn: warning => {
           warnings.push(warning);
@@ -328,7 +327,7 @@ describe('a document that loads a stored state before the binding (S7-14)', () =
   );
 
   test('the binding takes only a document createYDoc made, as a type too', () => {
-    const editor = createEditor({disableLegacyImport: false});
+    const editor = createEditor({});
     expect(() =>
       // @ts-expect-error - a plain Y.Doc may have run Yjs's format cleanup
       new YBinding(editor, new Y.Doc(), {
@@ -338,7 +337,6 @@ describe('a document that loads a stored state before the binding (S7-14)', () =
     ).not.toThrow();
     expect(() =>
       buildEditorFromExtensions(
-        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
         configExtension(YCollabExtension, {
           // @ts-expect-error - a plain Y.Doc may have run Yjs's format cleanup
           doc: new Y.Doc(),

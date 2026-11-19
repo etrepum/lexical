@@ -54,7 +54,6 @@ const $last = () => $textOf($getRoot().getLastChildOrThrow());
 function setUp(mode: Mode, configure?: (editor: LexicalEditor) => void) {
   const errors: Error[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: error => {
       errors.push(error);
       if (mode === 'rethrows') {
@@ -264,7 +263,6 @@ describe.each(MODES)(
       const reads: string[] = [];
       const errors: Error[] = [];
       const editor = createEditor({
-        disableLegacyImport: false,
         onError: error => {
           errors.push(error);
           reads.push(editor.read($text));
@@ -357,7 +355,6 @@ describe.each(MODES)(
     test('an update onError queues runs, also when restoring the editor throws', async () => {
       const errors: Error[] = [];
       const editor = createEditor({
-        disableLegacyImport: false,
         onError: error => {
           errors.push(error);
           if (error.message === 'app bug') {
@@ -403,10 +400,7 @@ describe.each(MODES)(
           COMMAND_PRIORITY_EDITOR,
         ),
       );
-      const other = createEditor({
-        disableLegacyImport: false,
-        onError: e => void errors.push(e),
-      });
+      const other = createEditor({onError: e => void errors.push(e)});
       other.update(() => void $getRoot().append($p('other')), {discrete: true});
       const otherState = editor.parseEditorState(
         other.getEditorState().toJSON(),

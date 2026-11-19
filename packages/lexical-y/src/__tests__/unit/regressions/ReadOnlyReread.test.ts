@@ -86,7 +86,6 @@ function client(schemaVersion: number, selfCheck: boolean): Client {
           selfCheck,
         }),
       ],
-      disableLegacyImport: false,
       name: `@lexical/y/test/read-only-reread-${schemaVersion}`,
       onError: e => {
         throw e;
@@ -247,7 +246,6 @@ describe('S9-3: an update queued while the binding opens a document', () => {
     }
     const warnings: Error[] = [];
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TableNode, TableRowNode, TableCellNode],
       onError: e => {
         throw e;

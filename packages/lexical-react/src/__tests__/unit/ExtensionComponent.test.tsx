@@ -197,7 +197,6 @@ describe('ExtensionComponent type compatibility', () => {
           <LexicalExtensionComposer
             extension={defineExtension({
               dependencies: [RequiredPropsExtension],
-              disableLegacyImport: false,
               name: '[root-dep]',
             })}>
             <Consumer />
@@ -224,7 +223,6 @@ describe('ExtensionComponent type compatibility', () => {
           <LexicalExtensionComposer
             extension={defineExtension({
               dependencies: [RequiredPropsExtension],
-              disableLegacyImport: false,
               name: '[root]',
             })}>
             <ExtensionComponent

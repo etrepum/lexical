@@ -151,7 +151,6 @@ function client(
           synced: options.synced ?? true,
         }),
       ],
-      disableLegacyImport: false,
       name: 'offline-test',
       onError: error => {
         throw error;

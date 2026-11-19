@@ -49,7 +49,6 @@ type SelectedTextJSON = SerializedPartial<SerializedTextNode>;
 function selectionJSON(compact = false): SelectedTextJSON[] {
   using editor = buildEditorFromExtensions({
     dependencies: [extension],
-    disableLegacyImport: false,
     name: '[root]',
     namespace: '',
     onError: err => {
@@ -114,7 +113,6 @@ describe('selection export honors the serialization context', () => {
 test('the serialized nodes parse back as a document without a cast', () => {
   using editor = buildEditorFromExtensions({
     dependencies: [extension],
-    disableLegacyImport: false,
     name: '[root]',
     namespace: '',
     onError: err => {

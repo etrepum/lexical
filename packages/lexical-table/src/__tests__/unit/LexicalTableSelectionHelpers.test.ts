@@ -48,7 +48,6 @@ import {
 
 const TableTestThemeExtension = defineExtension({
   dependencies: [TableExtension],
-  disableLegacyImport: false,
   name: 'TableTestThemeExtension',
   theme: {tableScrollableWrapper: ''},
 });

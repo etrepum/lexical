@@ -31,7 +31,6 @@ const RubyTestExtension = defineExtension({
     return () => editor.setRootElement(null);
   },
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[test-ruby]',
   nodes: [RubyNode],
   theme: {ruby: 'theme-ruby', text: {underline: 'theme-underline'}},

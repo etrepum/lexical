@@ -82,7 +82,6 @@ describe('LexicalNodeHelpers tests', () => {
         return (
           <LexicalComposer
             initialConfig={{
-              disableLegacyImport: false,
               editorState: $initialEditorState,
               namespace: '',
               nodes: plugin === 'PlainTextPlugin' ? [] : RICH_TEXT_NODES,
@@ -134,7 +133,6 @@ describe('LexicalNodeHelpers tests', () => {
         return (
           <LexicalComposer
             initialConfig={{
-              disableLegacyImport: false,
               editorState: initialEditorStateJson,
               namespace: '',
               nodes: plugin === 'PlainTextPlugin' ? [] : RICH_TEXT_NODES,
@@ -195,7 +193,6 @@ describe('LexicalNodeHelpers tests', () => {
         return (
           <LexicalComposer
             initialConfig={{
-              disableLegacyImport: false,
               namespace: '',
               nodes: plugin === 'PlainTextPlugin' ? [] : RICH_TEXT_NODES,
               onError: err => {

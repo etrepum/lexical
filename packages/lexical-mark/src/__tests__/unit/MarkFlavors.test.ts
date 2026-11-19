@@ -95,7 +95,6 @@ function createEditor(
         configExtension(HistoryExtension, {delay: 0}),
         ...dependencies,
       ],
-      disableLegacyImport: false,
       name: '[root]',
       onError: error => {
         throw error;

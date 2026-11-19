@@ -33,7 +33,6 @@ import {NODES} from '../../utils/harness';
 
 function bound(doc: YDoc, captureTimeout: number | null = 0) {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

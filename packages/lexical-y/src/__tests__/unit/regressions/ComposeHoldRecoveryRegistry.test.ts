@@ -71,7 +71,6 @@ type YDoc = ReturnType<typeof createYDoc>;
 
 function view(doc: YDoc, root: Y.Node, initialize: boolean): View {
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: [RegistryBox],
     onError: e => {
       throw e;

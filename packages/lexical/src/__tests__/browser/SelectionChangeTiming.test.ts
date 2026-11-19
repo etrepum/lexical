@@ -28,10 +28,7 @@ test.each(['native', 'range', 'node'])(
     const root = document.createElement('div');
     root.contentEditable = 'true';
     document.body.appendChild(root);
-    const editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    const editor = buildEditorFromExtensions();
     editor.setRootElement(root);
     onTestFinished(() => {
       editor.dispose();

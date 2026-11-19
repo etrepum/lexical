@@ -23,12 +23,6 @@ import {
   vi,
 } from 'vitest';
 
-const TestExtension = {
-  dependencies: [FocusManagerExtension],
-  disableLegacyImport: false,
-  name: 'test/FocusManagerExtension',
-};
-
 function Harness({onReady}: {onReady?: () => void}) {
   const [editor] = useLexicalComposerContext();
   const editorRootRef = React.useRef<HTMLDivElement>(null);
@@ -63,7 +57,7 @@ function Harness({onReady}: {onReady?: () => void}) {
 
 function WithExtension({children}: {children: React.ReactNode}) {
   return (
-    <LexicalExtensionComposer extension={TestExtension}>
+    <LexicalExtensionComposer extension={FocusManagerExtension}>
       {children}
     </LexicalExtensionComposer>
   );

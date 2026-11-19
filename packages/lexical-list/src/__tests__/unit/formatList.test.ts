@@ -639,7 +639,6 @@ describe('$handleOutdent', () => {
 
 const collapseTestExtension = defineExtension({
   dependencies: [ListExtension],
-  disableLegacyImport: false,
   name: '[root]',
 });
 

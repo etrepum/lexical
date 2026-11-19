@@ -52,7 +52,6 @@ function createEditor(opts?: {
         $getRoot().append($createParagraphNode());
       }),
     dependencies,
-    disableLegacyImport: false,
     name: 'test',
     nodes,
   });

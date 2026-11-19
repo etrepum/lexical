@@ -1434,7 +1434,6 @@ describe('S6-5: Enter inside a code token the highlighter makes again', () => {
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: `s6-5/${id}`,
         onError: (e: Error) => {
           throw e;

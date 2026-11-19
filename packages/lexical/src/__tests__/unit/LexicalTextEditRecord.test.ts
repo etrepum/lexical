@@ -40,7 +40,7 @@ function setUp(
     throw e;
   },
 ) {
-  const editor = createEditor({disableLegacyImport: false, onError});
+  const editor = createEditor({onError});
   editor._recordTextEdits = record;
   editor._recordNodeMoves = moves;
   const keys: NodeKey[] = [];

@@ -408,7 +408,6 @@ describe('@lexical/y a held-back insert survives a read that keeps the composed 
       Y.applyUpdate(doc, state, 'load');
     }
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: 'b1',
       nodes: NODES,
       onError: e => {

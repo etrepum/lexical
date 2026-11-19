@@ -37,7 +37,6 @@ function createEditor(inline: boolean) {
       $setSelection(selection);
     },
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: 'test',
     nodes: [TestDecoratorNode],
   });

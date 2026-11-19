@@ -97,7 +97,6 @@ describe('named-slots: $dfs traversal', () => {
 
   const slotTreeExtension = defineExtension({
     $initialEditorState: $buildTree,
-    disableLegacyImport: false,
     name: '[slot-dfs]',
     nodes: [TestShadowRootNode],
   });
@@ -229,7 +228,6 @@ describe('named-slots: $dfs traversal into a decorator host', () => {
 
   const decoratorSlotExtension = defineExtension({
     $initialEditorState: $buildTree,
-    disableLegacyImport: false,
     name: '[slot-dfs-decorator]',
     nodes: [TestShadowRootNode, TestDecoratorNode],
   });

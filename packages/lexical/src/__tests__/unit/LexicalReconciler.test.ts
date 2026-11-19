@@ -452,7 +452,6 @@ describe('LexicalReconciler', () => {
             // Prepare snapshots without reconciling DOM so setEditorState is
             // exercised independently of the editor.update reconciliation path.
             using stateEditor = buildEditorFromExtensions({
-              disableLegacyImport: false,
               name: 'reconciler-move-state',
             });
             let aKey = '';
@@ -483,7 +482,6 @@ describe('LexicalReconciler', () => {
             const beforeState = stateEditor.getEditorState();
             const errors: Error[] = [];
             using editor = buildEditorFromExtensions({
-              disableLegacyImport: false,
               name: 'reconciler-move-dom',
               onError: error => errors.push(error),
             });
@@ -547,7 +545,6 @@ describe('LexicalReconciler', () => {
             para.setIndent(3);
             $getRoot().clear().append(para);
           },
-          disableLegacyImport: false,
           name: 'set-element-indent-var',
         }),
       );
@@ -581,7 +578,6 @@ describe('LexicalReconciler', () => {
             para.setIndent(2);
             $getRoot().clear().append(para);
           },
-          disableLegacyImport: false,
           name: 'set-element-indent-clear',
         }),
       );
@@ -613,10 +609,7 @@ describe('LexicalReconciler', () => {
     function createReconcilerEditor() {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
-        defineExtension({
-          disableLegacyImport: false,
-          name: 'reconciler-suffix-test',
-        }),
+        defineExtension({name: 'reconciler-suffix-test'}),
       );
       editor.setRootElement(document.createElement('div'));
       return editor;
@@ -1303,10 +1296,7 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         LinkExtension,
-        defineExtension({
-          disableLegacyImport: false,
-          name: 'reconciler-suffix-test-with-link',
-        }),
+        defineExtension({name: 'reconciler-suffix-test-with-link'}),
       );
       editor.setRootElement(document.createElement('div'));
       return editor;
@@ -1659,7 +1649,6 @@ describe('LexicalReconciler', () => {
         RichTextExtension,
         LinkExtension,
         defineExtension({
-          disableLegacyImport: false,
           name: 'wrapper-audit',
           nodes: [WrapperElementNode],
         }),
@@ -1747,7 +1736,6 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
-          disableLegacyImport: false,
           name: 'block-wrapper-audit',
           nodes: [BlockWrapperElementNode],
         }),
@@ -1862,7 +1850,6 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
-          disableLegacyImport: false,
           name: 'block-wrapper-audit-b',
           nodes: [BlockWrapperElementNode, RerenderParagraphNode],
         }),
@@ -1986,7 +1973,6 @@ describe('LexicalReconciler', () => {
       const editor = buildEditorFromExtensions(
         RichTextExtension,
         defineExtension({
-          disableLegacyImport: false,
           name: 'same-size-rerender-audit',
           nodes: [RerenderParagraphNode],
         }),
@@ -2074,10 +2060,7 @@ describe('LexicalReconciler', () => {
     // wouldn't fail. The output sentinel still catches a broken splice
     // (e.g. wrong `oldSuffixLength`, off-by-one boundary).
     test('AUDIT-7: K=3 contiguous suffix with sizeDelta=+1 — output sentinel after helper bail', () => {
-      const editor = buildEditorFromExtensions(
-        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
-        RichTextExtension,
-      );
+      const editor = buildEditorFromExtensions(RichTextExtension);
       editor.setRootElement(document.createElement('div'));
 
       try {

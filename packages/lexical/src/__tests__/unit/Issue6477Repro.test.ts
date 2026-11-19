@@ -31,7 +31,6 @@ import {
 
 const ext = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[6477]',
   nodes: [LinkNode, TestDecoratorNode, TestInlineElementNode],
 });

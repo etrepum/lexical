@@ -139,7 +139,6 @@ function clients(
           }),
           ...(blockIds ? [BlockIdExtension] : []),
         ],
-        disableLegacyImport: false,
         name: `@lexical/y/test/drift-${i}`,
         nodes: () => [
           BoxNode,

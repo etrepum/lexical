@@ -26,7 +26,6 @@ function mountEditor(isPlainText: boolean, paragraphs = ['']) {
   root.style.whiteSpace = 'pre-wrap';
   document.body.append(root);
   const editor = buildEditorFromExtensions(
-    {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
     isPlainText ? PlainTextExtension : RichTextExtension,
   );
   editor.setRootElement(root);

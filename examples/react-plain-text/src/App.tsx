@@ -31,7 +31,6 @@ const appExtension = defineExtension({
     }),
     TreeViewExtension,
   ],
-  disableLegacyImport: false,
   name: '@lexical/examples/react-plain-text',
   namespace: 'react-plain-text',
   theme: ExampleTheme,

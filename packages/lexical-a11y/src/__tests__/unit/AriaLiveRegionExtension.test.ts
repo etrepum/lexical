@@ -37,7 +37,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -54,7 +53,6 @@ describe('AriaLiveRegionExtension', () => {
       using editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [AriaLiveRegionExtension, RichTextExtension],
-          disableLegacyImport: false,
           name: '[root]',
         }),
       );
@@ -75,7 +73,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -96,7 +93,6 @@ describe('AriaLiveRegionExtension', () => {
           configExtension(AriaLiveRegionExtension, {politeness: 'assertive'}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -110,7 +106,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -134,7 +129,6 @@ describe('AriaLiveRegionExtension', () => {
           configExtension(AriaLiveRegionExtension, {owner}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -146,7 +140,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -164,7 +157,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -206,7 +198,6 @@ describe('AriaLiveRegionExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [AriaLiveRegionExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );
@@ -240,7 +231,6 @@ describe('AriaLiveRegionExtension', () => {
           configExtension(AriaLiveRegionExtension, {owner}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root]',
       }),
     );

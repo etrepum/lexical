@@ -307,7 +307,6 @@ describe('LexicalCodeNode tests', () => {
             CodeShikiExtension,
             configExtension(CodeIndentExtension, {tabSize}),
           ],
-          disableLegacyImport: false,
           name: 'shiki-outdent',
         });
         const {text, cursor} = $runOutdentScenario(

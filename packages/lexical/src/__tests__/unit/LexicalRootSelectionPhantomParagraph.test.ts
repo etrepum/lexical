@@ -27,7 +27,6 @@ import {
 
 const testExtension = defineExtension({
   dependencies: [RichTextExtension],
-  disableLegacyImport: false,
   name: '[root]',
   nodes: [TestDecoratorNode, TestShadowRootNode],
 });

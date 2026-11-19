@@ -24,7 +24,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [ListExtension],
-      disableLegacyImport: false,
       name: 'insert-list-state-host',
     }),
   );

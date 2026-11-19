@@ -111,7 +111,6 @@ function run(c: Case, sameUpdate: boolean): string[] {
   using editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: 'delete-row-merged-cell-host',
       theme: {tableScrollableWrapper: ''},
     }),

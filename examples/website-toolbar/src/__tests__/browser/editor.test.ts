@@ -31,7 +31,6 @@ function setUpEditor(opts?: {$initialEditorState?: () => void}) {
           $getRoot().append($createParagraphNode());
         }),
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

@@ -146,7 +146,6 @@ function mountEditor(order: SlotOrder = 'model'): Fixture {
         nestedHostKey = nestedHost.getKey();
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[9363-browser]',
       nodes: [QuoteHostNode, SlotContainerNode],
     }),

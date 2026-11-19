@@ -27,7 +27,6 @@ function createEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension, CodePrismExtension],
-      disableLegacyImport: false,
       name: 'prism-unknown-language',
     }),
   );

@@ -67,7 +67,6 @@ function client(doc: YDoc, text: string | null, root?: Y.Node) {
   const warnings: string[] = [];
   const codes: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;
@@ -344,7 +343,6 @@ describe('@lexical/y initialization', () => {
             selfCheck: false,
           }),
         ],
-        disableLegacyImport: false,
         name: '@lexical/y/test/seeder',
         nodes: [ListNode, ListItemNode, HeadingNode],
         onError: e => {
@@ -695,7 +693,6 @@ describe('@lexical/y initialization', () => {
         // Built in another editor and set whole (unparsed): the line feed is
         // still text when the binding initializes.
         const source = createEditor({
-          disableLegacyImport: false,
           nodes: NODES,
           onError: e => {
             throw e;
@@ -767,7 +764,6 @@ describe('@lexical/y initialization', () => {
         doc.get('lexical-y').deleteAttr('used');
       }
       const editor = createEditor({
-        disableLegacyImport: false,
         nodes: SLOT_NODES,
         onError: e => {
           throw e;
@@ -876,7 +872,6 @@ describe('@lexical/y initialization', () => {
             synced: true,
           }),
         ],
-        disableLegacyImport: false,
         name: 'app',
         nodes: NODES,
       }),
@@ -898,7 +893,6 @@ describe('@lexical/y initialization', () => {
     const doc = createYDoc();
     doc.get('root-v2').insert(0, [new Y.Node('paragraph')]);
     const source = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -924,7 +918,6 @@ describe('@lexical/y initialization', () => {
             schemaVersion: 1,
           }),
         ],
-        disableLegacyImport: false,
         name: 'app',
         nodes: NODES,
         register: ed =>
@@ -961,7 +954,6 @@ describe('@lexical/y initialization', () => {
             }),
             HistoryExtension,
           ],
-          disableLegacyImport: false,
           name: 'conflict',
         }),
       ),

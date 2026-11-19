@@ -43,7 +43,6 @@ afterEach(() => {
 
 function bind(doc: Y.Doc, root: Y.Node, init?: () => void): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: e => {
       throw e;
     },

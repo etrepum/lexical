@@ -113,7 +113,6 @@ test('a YCollabInput with only its required keys configures the extension; the i
   const editor = buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(YCollabExtension, input)],
-      disableLegacyImport: false,
       name: 'collab-input',
     }),
   );
@@ -126,7 +125,6 @@ test('a YCollabInput with only its required keys configures the extension; the i
         dependencies: [
           configExtension(YCollabExtension, oldFullConfig(createYDoc())),
         ],
-        disableLegacyImport: false,
         name: 'collab-old-full-config',
       }),
     ),
@@ -139,7 +137,6 @@ test('a YCollabInput with only its required keys configures the extension; the i
           onYStatus: null,
         }),
       ],
-      disableLegacyImport: false,
       name: 'collab-old-full-config',
     }),
   );

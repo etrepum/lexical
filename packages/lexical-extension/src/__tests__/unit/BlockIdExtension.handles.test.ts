@@ -90,7 +90,6 @@ function build(
           generateId: fixedIds(ids),
         }),
       ],
-      disableLegacyImport: false,
       name: '[block-handle-test]',
     }),
   );
@@ -107,7 +106,6 @@ function load(
       RichTextExtension,
       configExtension(BlockIdExtension, {disabled: options.disabled || false}),
     ],
-    disableLegacyImport: false,
     name: '[block-handle-load]',
   });
   editor.setEditorState(
@@ -896,7 +894,6 @@ describe('without the index', () => {
         RichTextExtension,
         configExtension(BlockIdExtension, {disabled: true}),
       ],
-      disableLegacyImport: false,
       name: '[block-handle-disabled]',
     });
     disabled.setEditorState(
@@ -1083,7 +1080,6 @@ describe('headless and JSON-only use', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [HeadlessExtension, RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: '[block-handle-headless]',
     });
     editor.setEditorState(editor.parseEditorState(stored));
@@ -1112,7 +1108,6 @@ describe('headless and JSON-only use', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: '[block-handle-json]',
     });
     const state = editor.parseEditorState(JSON.stringify(stored));
@@ -1133,7 +1128,6 @@ describe('headless and JSON-only use', () => {
     using editor = buildEditorFromExtensions({
       $initialEditorState: null,
       dependencies: [RichTextExtension, BlockIdExtension],
-      disableLegacyImport: false,
       name: '[block-handle-positional]',
     });
     const withoutIds = JSON.parse(JSON.stringify(stored));

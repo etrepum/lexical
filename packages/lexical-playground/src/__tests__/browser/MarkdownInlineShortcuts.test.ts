@@ -43,7 +43,6 @@ const extension = defineExtension({
     // undo/redo test expects.
     configExtension(HistoryExtension, {delay: Infinity}),
   ],
-  disableLegacyImport: false,
   name: '[markdown-inline-test]',
   register: editor => registerMarkdownShortcuts(editor),
 });

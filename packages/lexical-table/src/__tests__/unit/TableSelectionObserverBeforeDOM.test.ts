@@ -44,11 +44,7 @@ function $getTableKey(): string | null {
 /** Serialized editor state holding one 2x2 table, made by a separate editor. */
 function tableStateJSON(): string {
   const source = buildEditorFromExtensions(
-    defineExtension({
-      dependencies: [TableExtension],
-      disableLegacyImport: false,
-      name: 'table-source',
-    }),
+    defineExtension({dependencies: [TableExtension], name: 'table-source'}),
   );
   source.update($appendTable, {discrete: true});
   const json = JSON.stringify(source.getEditorState().toJSON());
@@ -90,7 +86,6 @@ describe('table selection observer for tables that exist before their DOM', () =
     const editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [setStateOnRegister(tableStateJSON()), TableExtension],
-        disableLegacyImport: false,
         name: 'state-before-table',
       }),
     );
@@ -134,7 +129,6 @@ describe('table selection observer for tables that exist before their DOM', () =
 
   test('registerTableSelectionObserver accepts an unrendered table', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [TableNode, TableRowNode, TableCellNode],
       onError: error => {
         throw error;

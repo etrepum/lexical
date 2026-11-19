@@ -38,7 +38,6 @@ function mount(text: string) {
   document.body.append(root);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension],
-    disableLegacyImport: false,
     name: 'ios-composition-test',
   });
   editor.setRootElement(root);

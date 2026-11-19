@@ -59,7 +59,6 @@ const KINDS = [
 
 function make() {
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'init-node-selection',
     nodes: [ListNode, ListItemNode, LinkNode],
     onError: e => {

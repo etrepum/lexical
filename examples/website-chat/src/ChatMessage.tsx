@@ -31,7 +31,6 @@ export function ChatMessage({initialState}: ChatMessageProps) {
       defineExtension({
         $initialEditorState: initialState,
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         editable: false,
         name: '@lexical/website/chat-message',
         namespace: '@lexical/website/chat-message',

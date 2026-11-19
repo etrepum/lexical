@@ -75,7 +75,6 @@ test.each([
         };
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[test]',
     });
     const calls: [string, number, number][] = [];

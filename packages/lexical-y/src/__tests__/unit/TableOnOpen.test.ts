@@ -72,7 +72,6 @@ test.each(['YCollabExtension', 'TableExtension'] as const)(
           first === 'YCollabExtension'
             ? [RichTextExtension, collab, TableExtension]
             : [RichTextExtension, TableExtension, collab],
-        disableLegacyImport: false,
         name: '@lexical/y/test/table-on-open',
       }),
     );

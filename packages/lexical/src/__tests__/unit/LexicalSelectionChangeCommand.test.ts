@@ -48,10 +48,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   ] as const)(
     'reconciles a same-size child %s across selection notifications (normalize: %s)',
     (operation, normalize) => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -118,10 +115,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('explicit selection commands retain a fresh update-cascade budget', async () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     const onWarn = vi.spyOn(editor, '_onWarn').mockImplementation(() => {});
     const onError = vi.spyOn(editor, '_onError').mockImplementation(() => {});
     editor.registerCommand(
@@ -148,10 +142,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('does not warn when the last allowed notification clears a rootless selection', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     const onWarn = vi.spyOn(editor, '_onWarn');
     let calls = 0;
     editor.registerCommand(
@@ -192,10 +183,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each([false, true])(
     'counts explicit dispatches before commit (outside update: %s)',
     outside => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -228,10 +216,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each([false, true])(
     'aborts the update when a selection listener throws (explicit dispatch: %s)',
     explicit => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -294,10 +279,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   ])(
     'restores the notification baseline after rollback (explicit: %s, retry selection: %s)',
     (explicit, retrySelection) => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -342,10 +324,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each(['transform', 'nested update'])(
     'aborts the update when listener work fails in a %s',
     origin => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -394,10 +373,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('does not replay skipped range changes when a detached root reconnects', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -430,10 +406,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each([false, true])(
     'caps notifications without discarding edits (throwing warning: %s)',
     throws => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       mountEditor(editor);
       editor.update(
         () => {
@@ -505,10 +478,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each(['mounted', 'rootless', 'detached'])(
     'node selections notify before commit in a %s editor',
     kind => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       if (kind === 'mounted') mountEditor(editor);
       else if (kind === 'detached')
         editor.setRootElement(document.createElement('div'));
@@ -549,10 +519,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('listener edits and transforms are reconciled in the original commit', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -598,7 +565,6 @@ describe('SELECTION_CHANGE_COMMAND', () => {
     'preserves typing undo merging with %s callbacks',
     async callback => {
       using editor = buildEditorFromExtensions(
-        {disableLegacyImport: false, name: 'test/LegacyImportConfig'},
         configExtension(HistoryExtension, {delay: 1000, now: () => 0}),
       );
       mountEditor(editor);
@@ -659,10 +625,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('preserves callbacks added by a command during commit listeners', async () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -703,10 +666,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('focus produces one tagged commit and one callback', async () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -736,10 +696,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   test.each(['rootless', 'detached'])(
     'preserves existing notification behavior for a %s editor',
     rootKind => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       if (rootKind === 'detached') {
         const root = document.createElement('div');
         root.contentEditable = 'true';
@@ -777,10 +734,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('tracks non-range notifications while the root is detached', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     const root = editor.getRootElement()!;
     editor.update(
@@ -828,10 +782,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
       root.contentEditable = 'true';
       document.body.appendChild(root);
       onTestFinished(() => root.remove());
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'test/LegacyImportConfig',
-      });
+      using editor = buildEditorFromExtensions();
       editor.setRootElement(root);
       editor.update(
         () => {
@@ -916,10 +867,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   );
 
   test('reports committed selection changes without requiring DOM events', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -1007,10 +955,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('reports selection changes from setEditorState', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -1039,10 +984,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
     root.contentEditable = 'true';
     document.body.appendChild(root);
     onTestFinished(() => root.remove());
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     editor.setRootElement(root);
     editor.update(
       () => {
@@ -1076,10 +1018,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('notifies a selection change made by a command listener', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -1119,10 +1058,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('notifies once for batched changes and skips a batch with no net change', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     editor.update(
       () => {
@@ -1150,10 +1086,7 @@ describe('SELECTION_CHANGE_COMMAND', () => {
   });
 
   test('a dropped no-op update does not suppress the next notification', async () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'test/LegacyImportConfig',
-    });
+    using editor = buildEditorFromExtensions();
     mountEditor(editor);
     // Restates every range as bold, the way a toolbar might restate the format
     // of only the text the reader can see.

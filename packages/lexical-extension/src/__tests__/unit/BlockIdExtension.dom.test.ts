@@ -77,7 +77,6 @@ function mount(prefix = 'b'): LexicalEditorWithDispose {
         configExtension(HistoryExtension, {delay: 0}),
         configExtension(BlockIdExtension, {generateId: counter(prefix)}),
       ],
-      disableLegacyImport: false,
       name: '[block-id-dom]',
       // Editors that share a namespace paste each other's Lexical JSON.
       namespace: 'block-id-dom',

@@ -18,7 +18,7 @@ import {
   CoreImportExtension,
   DOMImportExtension,
 } from '@lexical/html';
-import {RichTextExtension} from '@lexical/rich-text';
+import {registerRichText, RichTextExtension} from '@lexical/rich-text';
 import {
   $createParagraphNode,
   $createTextNode,
@@ -28,6 +28,7 @@ import {
   defineExtension,
   type DOMConversionMap,
   ParagraphNode,
+  PASTE_COMMAND,
 } from 'lexical';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 
@@ -63,7 +64,7 @@ describe('legacy DOM import migration', () => {
   beforeEach(() => initializeImport.mockClear());
 
   test.each([undefined, null, false, true])(
-    'explicit legacy import configuration controls warnings and factories (%s)',
+    'legacy converters initialize only on demand and warn only for unspecified mode (%s)',
     disableLegacyImport => {
       using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       for (const mode of ['core', 'extension', 'dom-import']) {
@@ -83,9 +84,31 @@ describe('legacy DOM import migration', () => {
                   : configExtension(DOMImportExtension, {disableLegacyImport}),
               );
         try {
-          expect(initializeImport).toHaveBeenCalledTimes(
-            disableLegacyImport === true ? 0 : 1,
+          expect(initializeImport).not.toHaveBeenCalled();
+          expect(warn).not.toHaveBeenCalled();
+          editor.update(
+            () => {
+              for (let i = 0; i < 2; i++) {
+                const dom = parse('<custom-block></custom-block>');
+                if (disableLegacyImport === true) {
+                  expect(() => $generateNodesFromDOM(editor, dom)).toThrow(
+                    'Legacy DOM import is disabled',
+                  );
+                } else {
+                  const [node] = $generateNodesFromDOM(editor, dom);
+                  expect(node.getTextContent()).toBe('legacy');
+                }
+              }
+            },
+            {discrete: true},
           );
+          if (disableLegacyImport === true) {
+            expect(initializeImport).not.toHaveBeenCalled();
+          } else {
+            expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
+              LegacyParagraphNode,
+            );
+          }
           if (disableLegacyImport == null) {
             expect(warn).toHaveBeenCalledExactlyOnceWith(
               expect.stringContaining('Migrate to DOMImportExtension'),
@@ -102,73 +125,82 @@ describe('legacy DOM import migration', () => {
     },
   );
 
-  test.each([false, true])(
-    'implicit nested editors inherit the explicit legacy import choice (%s)',
-    disableLegacyImport => {
-      using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const editor = createEditor({
-        disableLegacyImport,
-        nodes: [LegacyParagraphNode],
-        onError: error => {
-          throw error;
-        },
-      });
+  test('each editor lazily builds its own cache', () => {
+    const [first, second] = Array.from({length: 2}, () =>
+      createEditor({disableLegacyImport: false, nodes: [LegacyParagraphNode]}),
+    );
+    expect(initializeImport).not.toHaveBeenCalled();
+
+    for (const editor of [first, second]) {
       editor.update(
         () => {
-          const nested = createEditor();
-          expect(nested._nodes).toBe(editor._nodes);
-          expect(nested._htmlConversions === null).toBe(disableLegacyImport);
-          nested.update(
-            () => {
-              const deeplyNested = createEditor();
-              expect(deeplyNested._nodes).toBe(editor._nodes);
-              expect(deeplyNested._htmlConversions === null).toBe(
-                disableLegacyImport,
-              );
-            },
-            {discrete: true},
-          );
+          $generateNodesFromDOM(editor, parse('<custom-block></custom-block>'));
         },
         {discrete: true},
       );
-      expect(warn).not.toHaveBeenCalled();
-    },
-  );
+      expect(initializeImport).toHaveBeenCalledTimes(editor === first ? 1 : 2);
+    }
+  });
 
-  test('implicit nested editors inherit the html.import opt-out', () => {
+  test('a bare nested editor keeps formatted paste under an opted-out parent', () => {
     using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const parent = createEditor({
-      html: {import: false},
-      nodes: [LegacyParagraphNode],
-      onError: error => {
-        throw error;
-      },
+    using parent = buildEditorFromExtensions(
+      RichTextExtension,
+      ClipboardDOMImportExtension,
+      LegacyNodeExtension,
+      configExtension(DOMImportExtension, {disableLegacyImport: true}),
+    );
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/html', '<p><b>pasted</b></p>');
+    dataTransfer.setData('text/plain', 'plain-text fallback');
+    const paste = new ClipboardEvent('paste', {
+      cancelable: true,
+      clipboardData: dataTransfer,
     });
+
     parent.update(
       () => {
-        const nested = createEditor();
-        expect(nested._htmlConversions).toBeNull();
+        const child = createEditor();
+        expect(child._nodes).toBe(parent._nodes);
+        expect(initializeImport).not.toHaveBeenCalled();
+        expect(warn).not.toHaveBeenCalled();
+        const cleanup = registerRichText(child);
+        try {
+          child.update(
+            () => {
+              $getRoot().append($createParagraphNode()).selectEnd();
+              expect(child.dispatchCommand(PASTE_COMMAND, paste)).toBe(true);
+            },
+            {discrete: true},
+          );
+          child.read('latest', () => {
+            const [text] = $getRoot().getAllTextNodes();
+            expect(text.getTextContent()).toBe('pasted');
+            expect(text.hasFormat('bold')).toBe(true);
+          });
+        } finally {
+          cleanup();
+        }
+        expect(() => $generateNodesFromDOM(parent, parse(''))).toThrow(
+          'Legacy DOM import is disabled',
+        );
       },
       {discrete: true},
     );
-    expect(initializeImport).not.toHaveBeenCalled();
-    expect(warn).not.toHaveBeenCalled();
+
+    expect(paste.defaultPrevented).toBe(true);
+    expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
+      LegacyParagraphNode,
+    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('Migrate to DOMImportExtension'),
+    );
   });
 
   test('the core opt-out rejects unmigrated overrides', () => {
     expect(() =>
       createEditor({disableLegacyImport: true, html: {import: legacyImport}}),
     ).toThrow('html.import conversions');
-  });
-
-  test('does not warn after disabling legacy import', () => {
-    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    using _editor = buildEditorFromExtensions(
-      CoreImportExtension,
-      configExtension(DOMImportExtension, {disableLegacyImport: true}),
-    );
-    createEditor({html: {import: false}});
-    expect(warn).not.toHaveBeenCalled();
   });
 
   test('explicitly retaining legacy import preserves converters and html.import overrides', () => {
@@ -192,15 +224,16 @@ describe('legacy DOM import migration', () => {
         name: 'test/LegacyOverride',
       }),
     );
-    expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
-      LegacyParagraphNode,
-    );
+    expect(initializeImport).not.toHaveBeenCalled();
     editor.update(
       () => {
         const [node] = $generateNodesFromDOM(editor, parse('<custom-block/>'));
         expect(node.getTextContent()).toBe('override');
       },
       {discrete: true},
+    );
+    expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
+      LegacyParagraphNode,
     );
   });
 
@@ -230,7 +263,7 @@ describe('legacy DOM import migration', () => {
 
   test('createEditor supports disabling legacy import without extensions', () => {
     const editor = createEditor({
-      html: {import: false},
+      disableLegacyImport: true,
       nodes: [LegacyParagraphNode],
     });
     expect(initializeImport).not.toHaveBeenCalled();
@@ -251,7 +284,7 @@ describe('legacy DOM import migration', () => {
         viaDOMImportExtension
           ? configExtension(DOMImportExtension, {disableLegacyImport: true})
           : defineExtension({
-              html: {import: false},
+              disableLegacyImport: true,
               name: 'test/DisableLegacy',
             }),
         defineExtension({
@@ -307,7 +340,10 @@ describe('legacy DOM import migration', () => {
     reverse => {
       const extensions = [
         defineExtension({html: {import: legacyImport}, name: 'test/LegacyMap'}),
-        defineExtension({html: {import: false}, name: 'test/DisableLegacy'}),
+        defineExtension({
+          disableLegacyImport: true,
+          name: 'test/DisableLegacy',
+        }),
       ];
       expect(() =>
         buildEditorFromExtensions(

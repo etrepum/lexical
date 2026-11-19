@@ -1002,7 +1002,6 @@ describe('formatUrl', () => {
 describe('LinkNode transform (Regression #8083)', () => {
   const transformExtension = defineExtension({
     dependencies: [LinkExtension, RichTextExtension],
-    disableLegacyImport: false,
     name: '[test-link-transform]',
   });
 
@@ -1678,7 +1677,6 @@ describe('$toggleLink with a NodeSelection', () => {
         .append($createParagraphNode().append($createTextNode('hello')));
     },
     dependencies: [LinkExtension, RichTextExtension],
-    disableLegacyImport: false,
     name: '[root-node-selection]',
   });
 
@@ -1770,7 +1768,6 @@ describe('$toggleLink with a NodeSelection', () => {
 describe('$toggleLink(null) with a selection touching a link boundary', () => {
   const extension = defineExtension({
     dependencies: [LinkExtension],
-    disableLegacyImport: false,
     name: '[test-unlink-link-boundary]',
   });
 

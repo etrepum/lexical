@@ -41,7 +41,6 @@ class Enabled extends TextNode {
 }
 function editor() {
   return createEditor({
-    disableLegacyImport: false,
     nodes: [Enabled],
     onError: e => {
       throw e;

@@ -846,7 +846,6 @@ describe('$config interleaved abstract/concrete classes', () => {
   test('serializes, transforms, and types every interleaved level’s state', () => {
     interleaveTransforms.length = 0;
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: [InterleaveConcrete],
       onError: err => {
         throw err;
@@ -935,7 +934,6 @@ describe('flat NodeState through a node replacement', () => {
     // node's *type* is registered with. Those agree here because a replacement
     // class is registered under its own type: the two directions cannot drift.
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       nodes: [
         FlatParagraph,
@@ -978,7 +976,6 @@ describe('flat NodeState through a node replacement', () => {
 
   test('withKlass must itself be registered', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       nodes: [
         {
@@ -998,7 +995,6 @@ describe('flat NodeState through a node replacement', () => {
 
   test('a replacement class cannot reuse the replaced type', () => {
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       nodes: [
         {
@@ -1039,7 +1035,6 @@ describe('importJSON applies state to the node it just built', () => {
 
   function editorWith() {
     return createEditor({
-      disableLegacyImport: false,
       namespace: '',
       nodes: [StatefulParagraph],
       onError: err => {
@@ -1138,7 +1133,6 @@ describe('set-valued state (arraySetValue)', () => {
 
   function createSetEditor() {
     return createEditor({
-      disableLegacyImport: false,
       namespace: '',
       onError: err => {
         throw err;
@@ -1301,7 +1295,6 @@ describe('set-valued state (arraySetValue)', () => {
     }
     const createTagsEditor = () =>
       createEditor({
-        disableLegacyImport: false,
         namespace: '',
         nodes: [TagsParagraphNode],
         onError: err => {
@@ -1445,7 +1438,6 @@ describe('$setState stores the value as given for every state that is not an arr
       parse: objectValue({a: stringSchema()}),
     });
     const editor = createEditor({
-      disableLegacyImport: false,
       namespace: '',
       onError: err => {
         throw err;

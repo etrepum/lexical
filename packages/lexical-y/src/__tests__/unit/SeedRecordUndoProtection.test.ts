@@ -34,7 +34,6 @@ for (const gc of [false, true])
         const root = nested ? new Y.Node('editor-root') : doc.get('lexical-y');
         if (nested) doc.get('app').setAttr('editor', root);
         const editor = createEditor({
-          disableLegacyImport: false,
           namespace: 'test',
           nodes: NODES,
           onError: e => {

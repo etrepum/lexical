@@ -26,10 +26,7 @@ describe('selection text slices', () => {
   test.each(['format', 'extract'] as const)(
     '%s of a detached text range repairs the active element point',
     operation => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'slice-active-element',
-      });
+      using editor = buildEditorFromExtensions({name: 'slice-active-element'});
       editor.update(
         () => {
           const text = $createTextNode('abcde');
@@ -62,10 +59,7 @@ describe('selection text slices', () => {
   test.each([false, true])(
     'styling retains the selected prefix at an element start (backward=%s)',
     backward => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'slice-style',
-      });
+      using editor = buildEditorFromExtensions({name: 'slice-style'});
       editor.update(
         () => {
           const text = $createTextNode('abc');
@@ -94,10 +88,7 @@ describe('selection text slices', () => {
   test.each(['format', 'extract'] as const)(
     '%s retains detached element endpoints after a split',
     operation => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'slice-detached-end',
-      });
+      using editor = buildEditorFromExtensions({name: 'slice-detached-end'});
       editor.update(
         () => {
           const first = $createTextNode('abc');
@@ -135,10 +126,7 @@ describe('selection text slices', () => {
   test.each([false, true])(
     'extracts through an element endpoint between children (backward=%s)',
     backward => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'selection-text-slices',
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const first = $createTextNode('abcd');
@@ -171,10 +159,7 @@ describe('selection text slices', () => {
   test.each([false, true])(
     'does not extract text from an empty mixed-point range (backward=%s)',
     backward => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'selection-text-slices',
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const text = $createTextNode('abcd');
@@ -199,10 +184,7 @@ describe('selection text slices', () => {
   );
 
   test('pending format excludes a final node selected at offset zero', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'selection-text-slices',
-    });
+    using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
     editor.update(
       () => {
         const first = $createTextNode('abcd').setFormat(IS_BOLD);
@@ -225,10 +207,7 @@ describe('selection text slices', () => {
   });
 
   test('formatting a detached selection retains its partial text range', () => {
-    using editor = buildEditorFromExtensions({
-      disableLegacyImport: false,
-      name: 'selection-text-slices',
-    });
+    using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
     editor.update(
       () => {
         const text = $createTextNode('abcde');
@@ -277,10 +256,7 @@ describe('selection text slices', () => {
   )(
     'formatting retains an element start (backward=$backward, active=$active, preceding=$preceding, end=$endOffset)',
     ({backward, active, preceding, endOffset}) => {
-      using editor = buildEditorFromExtensions({
-        disableLegacyImport: false,
-        name: 'selection-text-slices',
-      });
+      using editor = buildEditorFromExtensions({name: 'selection-text-slices'});
       editor.update(
         () => {
           const text = $createTextNode('abc');

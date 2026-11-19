@@ -75,7 +75,6 @@ function createEditor() {
         now: () => 0,
       }),
     ],
-    disableLegacyImport: false,
     name: 'test',
     nodes: [InlineEmptyElementNode],
   });

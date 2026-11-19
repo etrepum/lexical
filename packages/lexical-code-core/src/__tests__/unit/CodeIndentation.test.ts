@@ -48,7 +48,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -86,7 +85,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -122,7 +120,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -159,7 +156,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -196,7 +192,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -232,7 +227,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -267,7 +261,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -302,7 +295,6 @@ describe('CodeIndentExtension', () => {
             configExtension(CodeIndentExtension, {escapeWithArrows: true}),
             RichTextExtension,
           ],
-          disableLegacyImport: false,
           name: '[root-middle]',
         });
         using editor = buildEditorFromExtensions(ext);
@@ -334,7 +326,6 @@ describe('CodeIndentExtension', () => {
           configExtension(CodeIndentExtension, {escapeWithArrows: true}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root-middle]',
       });
       using editor = buildEditorFromExtensions(ext);
@@ -367,7 +358,6 @@ describe('CodeIndentExtension', () => {
           configExtension(CodeIndentExtension, {escapeWithArrows: true}),
           RichTextExtension,
         ],
-        disableLegacyImport: false,
         name: '[root-middle]',
       });
       using editor = buildEditorFromExtensions(ext);
@@ -406,7 +396,6 @@ describe('CodeIndentExtension', () => {
           (caretOnLastLine ? last : first).select(0, 0);
         },
         dependencies: [CodeIndentExtension, RichTextExtension],
-        disableLegacyImport: false,
         name: '[root-shift-lines]',
       });
       return buildEditorFromExtensions(ext);

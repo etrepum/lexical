@@ -50,7 +50,6 @@ function createTestEditor($initialEditorState: () => void) {
       };
     },
     dependencies: [RichTextExtension, ListExtension],
-    disableLegacyImport: false,
     name: '[test]',
   });
 }

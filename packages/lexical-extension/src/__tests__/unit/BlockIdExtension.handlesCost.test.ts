@@ -43,7 +43,6 @@ function countCalls(
           disabled: options.disabled,
         }),
       ],
-      disableLegacyImport: false,
       name: '[block-handle-cost]',
     }),
   );

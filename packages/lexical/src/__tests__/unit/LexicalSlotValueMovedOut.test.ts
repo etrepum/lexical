@@ -87,7 +87,6 @@ type Mounted = {
 function mount(): Mounted {
   const errors: string[] = [];
   const editor = createEditor({
-    disableLegacyImport: false,
     namespace: 'slot-moved-out',
     nodes: [DecoratorHost, Host, RebuiltHost],
     onError: e => {

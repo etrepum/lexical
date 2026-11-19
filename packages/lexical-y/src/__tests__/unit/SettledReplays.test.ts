@@ -104,7 +104,6 @@ function peer(
           : []),
         ...(marks ? [MarkStateExtension] : []),
       ],
-      disableLegacyImport: false,
       name: 'replay/' + id,
       nodes: NODES,
       onError: e => {

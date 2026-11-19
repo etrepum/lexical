@@ -30,7 +30,6 @@ function createEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test',
     }),
   );

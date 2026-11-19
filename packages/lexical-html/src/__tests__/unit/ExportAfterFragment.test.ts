@@ -93,7 +93,6 @@ function buildEditor(factory: () => LexicalNode) {
         $getRoot().clear().append(factory());
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: '[after-fragment]',
       nodes: [FragmentExportNode, ElementExportNode],
     }),

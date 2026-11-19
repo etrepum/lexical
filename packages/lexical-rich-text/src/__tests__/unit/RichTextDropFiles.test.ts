@@ -72,7 +72,6 @@ describe('RichTextExtension DROP_COMMAND file handling', () => {
     expect(IS_IOS).toBe(false);
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-desktop-text-file-drop',
     });
     const event = createDropEventWithFiles([
@@ -92,7 +91,6 @@ describe('RichTextExtension DROP_COMMAND file handling', () => {
     // nothing at all happens for the user.
     using editor = buildEditorFromExtensions({
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-drop-no-caret',
     });
 
@@ -115,7 +113,6 @@ describe('RichTextExtension DROP_COMMAND file handling', () => {
         $getRoot().append(paragraph);
       },
       dependencies: [RichTextExtension],
-      disableLegacyImport: false,
       name: 'test-drop-with-caret',
     });
     const rootElement = document.createElement('div');

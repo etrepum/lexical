@@ -24,7 +24,6 @@ for (const gc of [false, true])
     const doc = createYDoc(null, {gc});
     const root = doc.get('lexical-y');
     const e = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: x => {
         throw x;
@@ -51,7 +50,6 @@ for (const gc of [false, true])
     doc.transact(() => root.deleteAttr('lexical-y:4'), 'raw');
     expect(root.getAttr('lexical-y:4')).toBeUndefined();
     const e2 = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: x => {
         throw x;

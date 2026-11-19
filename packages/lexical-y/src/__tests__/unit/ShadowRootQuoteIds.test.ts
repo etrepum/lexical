@@ -303,7 +303,6 @@ function mixedPeer(id: number, blockIds: boolean, update: Uint8Array | null) {
           selfCheck: true,
         }),
       ],
-      disableLegacyImport: false,
       name: `cell-quote/${id}`,
       nodes: NODES,
       onError: e => {

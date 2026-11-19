@@ -582,7 +582,6 @@ function createEditorWith(
 ): LexicalEditor {
   return buildEditorFromExtensions(
     defineExtension({
-      disableLegacyImport: false,
       name: 'slots-test',
       nodes,
       onError: (e: Error) => {
@@ -605,7 +604,6 @@ describe('named slots where the document cannot store them', () => {
     const warnings: LexicalWarning[] = [];
     const editor = buildEditorFromExtensions(
       defineExtension({
-        disableLegacyImport: false,
         name: 'slots-unsupported',
         nodes: SLOT_NODES,
         onError: (e: Error) => {
@@ -757,7 +755,6 @@ describe('named slots with BlockIdExtension and MarkStateExtension', () => {
           }),
           MarkStateExtension,
         ],
-        disableLegacyImport: false,
         name: 'slots-ids-' + name,
         nodes: SLOT_NODES,
         onError: (e: Error) => {

@@ -72,7 +72,6 @@ function setUpEditor(options: {css?: string; theme?: EditorThemeClasses} = {}) {
       dependencies: [
         configExtension(TableExtension, {hasStickyScrollbar: true}),
       ],
-      disableLegacyImport: false,
       name: 'sticky-scrollbar-test',
       theme: {tableScrollableWrapper: '', ...theme},
     }),

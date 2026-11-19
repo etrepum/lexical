@@ -45,7 +45,6 @@ function createEditor(
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [MdastCommonMarkExtension, MdastExtension, ...extensions],
-      disableLegacyImport: false,
       name: '[root]',
     }),
   );

@@ -303,7 +303,6 @@ function createEditor(withReplacement: boolean) {
         MarkStateExtension,
         ...(twoFlavors ? [CommentMarks] : []),
       ],
-      disableLegacyImport: false,
       name: '[root]',
       nodes: () =>
         withReplacement

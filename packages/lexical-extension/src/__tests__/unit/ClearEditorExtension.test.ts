@@ -34,7 +34,6 @@ function setUpEditor(
         );
       },
       dependencies: [dependency],
-      disableLegacyImport: false,
       name: 'clear-editor-test',
     }),
   );

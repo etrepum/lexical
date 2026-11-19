@@ -26,7 +26,6 @@ function buildEditor() {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [TableExtension],
-      disableLegacyImport: false,
       name: 'unmerge-styles-host',
       theme: {tableScrollableWrapper: ''},
     }),

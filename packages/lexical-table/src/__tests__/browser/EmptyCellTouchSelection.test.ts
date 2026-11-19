@@ -35,7 +35,6 @@ function mount(text = '') {
   document.body.appendChild(root);
   const editor = buildEditorFromExtensions({
     dependencies: [RichTextExtension, TableExtension],
-    disableLegacyImport: false,
     name: 'test/empty-cell-touch-selection',
     theme: {tableScrollableWrapper: ''},
   });

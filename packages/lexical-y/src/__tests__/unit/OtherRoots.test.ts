@@ -16,7 +16,6 @@ import {$p, NODES} from '../utils/harness';
 
 const mk = (warnings: string[] = []) =>
   createEditor({
-    disableLegacyImport: false,
     namespace: 'x',
     nodes: NODES,
     onError: e => {

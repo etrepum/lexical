@@ -36,7 +36,6 @@ function createTestEditor(
     defineExtension({
       $initialEditorState,
       dependencies: [MarkdownExtension],
-      disableLegacyImport: false,
       name: 'markdown-editor-test',
       namespace: 'markdown-editor-test',
     }),

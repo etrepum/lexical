@@ -97,7 +97,6 @@ describe('derived textFormat and textStyle of an element', () => {
       defineExtension({
         $initialEditorState: null,
         dependencies: [RichTextExtension],
-        disableLegacyImport: false,
         name: 'derived-text-fields',
         onError: e => {
           throw e;

@@ -625,7 +625,6 @@ function storedNames(peer: Peer): string[] {
 test('a setEditorState replacement is normalized by its author, who matches a fresh reader', async () => {
   const client = (doc: YDoc) => {
     const editor = createEditor({
-      disableLegacyImport: false,
       nodes: NODES,
       onError: e => {
         throw e;
@@ -645,7 +644,6 @@ test('a setEditorState replacement is normalized by its author, who matches a fr
   a.editor.update(() => $getRoot().append($p('base')), {discrete: true});
   a.binding.initialize();
   const source = createEditor({
-    disableLegacyImport: false,
     nodes: NODES,
     onError: e => {
       throw e;

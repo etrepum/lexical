@@ -47,7 +47,6 @@ test('a table-only field change leaves pre-existing short rows alone', () => {
         RichTextExtension,
         configExtension(TableExtension, {hasHorizontalScroll: false}),
       ],
-      disableLegacyImport: false,
       name: 'review-9539-table-field',
       onError: error => {
         throw error;

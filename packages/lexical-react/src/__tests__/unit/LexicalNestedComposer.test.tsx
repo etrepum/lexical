@@ -116,7 +116,6 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor();
@@ -208,7 +207,6 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor();
@@ -309,11 +307,9 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor({
-                disableLegacyImport: false,
                 namespace: 'nested',
                 nodes: [],
                 parentEditor: editor,
@@ -414,11 +410,9 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor({
-                disableLegacyImport: false,
                 namespace: 'nested',
                 nodes: [],
                 parentEditor: editor,
@@ -515,11 +509,9 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor({
-                disableLegacyImport: false,
                 // this gets overwritten immediately
                 editable: false,
                 namespace: 'nested',
@@ -671,11 +663,9 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor({
-                disableLegacyImport: false,
                 editable: false,
                 namespace: 'nested',
                 nodes: [],
@@ -863,11 +853,9 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor({
-                disableLegacyImport: false,
                 namespace: 'nested',
                 nodes: [],
                 parentEditor: editor,
@@ -1085,7 +1073,6 @@ describe('LexicalNestedComposer', () => {
       return (
         <LexicalComposer
           initialConfig={{
-            disableLegacyImport: false,
             editorState: () => {
               editor = $getEditor();
               nestedEditor = createEditor();

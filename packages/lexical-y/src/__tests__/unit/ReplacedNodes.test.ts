@@ -88,7 +88,6 @@ function random(seed: number): () => number {
 
 function mkEditor(dom: boolean): LexicalEditor {
   const editor = createEditor({
-    disableLegacyImport: false,
     onError: e => {
       throw e;
     },
@@ -220,7 +219,6 @@ test('a keystroke in a large document with a root element does not walk the node
         }),
         configExtension(BlockIdExtension, {generateId: () => `b${++k}`}),
       ],
-      disableLegacyImport: false,
       name: 'replaced-nodes/keystroke',
       onError: (e: Error) => {
         throw e;

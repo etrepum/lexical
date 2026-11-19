@@ -95,10 +95,7 @@ function $readRangeSelection() {
  */
 function createDetachedEditor() {
   return buildEditorFromExtensions(
-    defineExtension({
-      disableLegacyImport: false,
-      name: 'detached-editor-state-source',
-    }),
+    defineExtension({name: 'detached-editor-state-source'}),
   );
 }
 
@@ -125,7 +122,6 @@ function createEditor(hot: HotContext | null, id?: string) {
         HistoryExtension,
         configExtension(HMRExtension, {hot, id}),
       ],
-      disableLegacyImport: false,
       name: 'hmr-test',
       namespace: TEST_NAMESPACE,
     }),
@@ -137,7 +133,6 @@ function createEditorNoHistory(hot: HotContext) {
     defineExtension({
       $initialEditorState: () => $setupContent('initial'),
       dependencies: [configExtension(HMRExtension, {hot})],
-      disableLegacyImport: false,
       name: 'hmr-no-history-test',
       namespace: TEST_NAMESPACE,
     }),
@@ -149,7 +144,6 @@ function createEditorWithNamespace(hot: HotContext, namespace: string) {
     defineExtension({
       $initialEditorState: () => $setupContent('initial'),
       dependencies: [configExtension(HMRExtension, {hot})],
-      disableLegacyImport: false,
       name: `editor-${namespace}`,
       namespace,
     }),
@@ -183,7 +177,6 @@ function createSeededEditor(hot: HotContext | null, namespace: string) {
         HistoryExtension,
         ...(hot === null ? [] : [configExtension(HMRExtension, {hot})]),
       ],
-      disableLegacyImport: false,
       name: `seeded-${namespace}`,
       namespace,
     }),
@@ -254,7 +247,6 @@ function createEditorNoInitialState(hot: HotContext) {
   return buildEditorFromExtensions(
     defineExtension({
       dependencies: [configExtension(HMRExtension, {hot})],
-      disableLegacyImport: false,
       name: 'hmr-no-initial-state-test',
       namespace: TEST_NAMESPACE,
     }),
@@ -282,7 +274,6 @@ describe('HMRExtension', () => {
         defineExtension({
           $initialEditorState: () => $setupContent('initial'),
           dependencies: [configExtension(HMRExtension, {hot})],
-          disableLegacyImport: false,
           name: 'hmr-editor-reading-test',
           namespace: TEST_NAMESPACE,
           nodes: [EditorReadingTextNode],
@@ -690,7 +681,6 @@ describe('HMRExtension', () => {
     using _e1 = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot})],
-        disableLegacyImport: false,
         name: 'ns-a-editor',
         namespace: 'ns-a',
       }),
@@ -698,7 +688,6 @@ describe('HMRExtension', () => {
     using _e2 = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot})],
-        disableLegacyImport: false,
         name: 'ns-b-editor',
         namespace: 'ns-b',
       }),
@@ -841,7 +830,6 @@ describe('HMRExtension', () => {
         defineExtension({
           $initialEditorState: () => $setupContent('initial'),
           dependencies: [configExtension(HMRExtension, {hot})],
-          disableLegacyImport: false,
           name: 'no-namespace-editor',
         }),
       );
@@ -1155,7 +1143,6 @@ describe('HMRExtension', () => {
         defineExtension({
           $initialEditorState: () => $setupContent('initial'),
           dependencies: [configExtension(HMRExtension, {hot})],
-          disableLegacyImport: false,
           name: 'empty-namespace-editor',
           namespace: '',
         }),
@@ -1188,7 +1175,6 @@ describe('HMRExtension', () => {
         defineExtension({
           $initialEditorState: () => $setupContent(text),
           dependencies: [configExtension(HMRExtension, {hot, id})],
-          disableLegacyImport: false,
           name: `colon-${namespace}-${id}`,
           namespace,
         }),
@@ -1221,12 +1207,11 @@ describe('HMRExtension', () => {
       // A parent built by createEditor rather than from extensions: nothing
       // records whether the namespace it is using was chosen or generated, and
       // this one was generated
-      const parent = createPlainEditor({disableLegacyImport: false});
+      const parent = createPlainEditor();
       const nested = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $setupContent('initial'),
           dependencies: [configExtension(HMRExtension, {hot})],
-          disableLegacyImport: false,
           name: 'plain-parent-nested',
           parentEditor: parent,
         }),
@@ -1261,7 +1246,6 @@ describe('HMRExtension', () => {
     using parent = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot})],
-        disableLegacyImport: false,
         name: 'nesting-parent',
         namespace: 'nesting-ns',
       }),
@@ -1269,7 +1253,6 @@ describe('HMRExtension', () => {
     using nested = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot})],
-        disableLegacyImport: false,
         name: 'nesting-child',
         parentEditor: parent,
       }),
@@ -1290,7 +1273,6 @@ describe('HMRExtension', () => {
     using parent = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot})],
-        disableLegacyImport: false,
         name: 'id-parent',
         namespace: 'id-ns',
       }),
@@ -1298,7 +1280,6 @@ describe('HMRExtension', () => {
     using _nested = buildEditorFromExtensions(
       defineExtension({
         dependencies: [configExtension(HMRExtension, {hot, id: 'nested'})],
-        disableLegacyImport: false,
         name: 'id-child',
         parentEditor: parent,
       }),
@@ -1345,7 +1326,6 @@ describe('HMRExtension', () => {
             HistoryExtension,
             configExtension(HMRExtension, {hot, id: 'parent'}),
           ],
-          disableLegacyImport: false,
           name: 'shared-parent',
           namespace: 'shared-history-ns',
         }),
@@ -1357,7 +1337,6 @@ describe('HMRExtension', () => {
             SharedHistoryExtension,
             configExtension(HMRExtension, {hot, id: 'nested'}),
           ],
-          disableLegacyImport: false,
           name: 'shared-nested',
           namespace: 'shared-history-ns',
           parentEditor: parent,
@@ -1558,7 +1537,6 @@ describe('HMRExtension', () => {
             }),
             configExtension(HMRExtension, {hot, id}),
           ],
-          disableLegacyImport: false,
           name: `sharing-${id}`,
           namespace,
         }),
@@ -1606,16 +1584,12 @@ describe('HMRExtension', () => {
       // The parent configures no namespace, so createEditor generates a random
       // one — and the nested editor inherits it
       const parent = buildEditorFromExtensions(
-        defineExtension({
-          disableLegacyImport: false,
-          name: 'unnamespaced-parent',
-        }),
+        defineExtension({name: 'unnamespaced-parent'}),
       );
       const nested = buildEditorFromExtensions(
         defineExtension({
           $initialEditorState: () => $setupContent('initial'),
           dependencies: [configExtension(HMRExtension, {hot})],
-          disableLegacyImport: false,
           name: 'nested-editor',
           parentEditor: parent,
         }),

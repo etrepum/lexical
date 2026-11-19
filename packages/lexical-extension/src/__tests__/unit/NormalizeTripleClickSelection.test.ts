@@ -42,7 +42,6 @@ function setUpEditor() {
         );
       },
       dependencies: [NormalizeTripleClickSelectionExtension],
-      disableLegacyImport: false,
       name: 'normalize-triple-click-selection-test',
       register: ed => {
         const rootElement = document.createElement('div');

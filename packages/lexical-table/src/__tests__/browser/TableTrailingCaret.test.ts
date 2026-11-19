@@ -46,7 +46,6 @@ function mount($initialEditorState: () => void): {
     defineExtension({
       $initialEditorState,
       dependencies: [RichTextExtension, TableExtension],
-      disableLegacyImport: false,
       name: 'issue-7999',
       onError: (error: Error) => {
         throw error;

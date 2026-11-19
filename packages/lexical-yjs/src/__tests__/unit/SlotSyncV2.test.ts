@@ -149,7 +149,6 @@ describe('named-slots collab-v2: lexical <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-sync-v2]',
         nodes,
       }),
@@ -175,7 +174,6 @@ describe('named-slots collab-v2: lexical <-> yjs', () => {
     const editor = buildEditorFromExtensions(
       defineExtension({
         $initialEditorState: null,
-        disableLegacyImport: false,
         name: '[slot-sync-v2]',
         nodes,
       }),
