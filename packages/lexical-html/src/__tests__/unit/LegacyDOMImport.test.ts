@@ -135,6 +135,26 @@ describe('legacy DOM import migration', () => {
     },
   );
 
+  test('implicit nested editors inherit the html.import opt-out', () => {
+    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const parent = createEditor({
+      html: {import: false},
+      nodes: [LegacyParagraphNode],
+      onError: error => {
+        throw error;
+      },
+    });
+    parent.update(
+      () => {
+        const nested = createEditor();
+        expect(nested._htmlConversions).toBeNull();
+      },
+      {discrete: true},
+    );
+    expect(initializeImport).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   test('the core opt-out rejects unmigrated overrides', () => {
     expect(() =>
       createEditor({disableLegacyImport: true, html: {import: legacyImport}}),

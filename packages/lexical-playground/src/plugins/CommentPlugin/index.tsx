@@ -197,10 +197,10 @@ function useOnChange(
   setCanSubmit: (canSubmit: boolean) => void,
 ) {
   return useCallback(
-    (editorState: EditorState, _editor: LexicalEditor) => {
-      editorState.read(() => {
+    (editorState: EditorState, editor: LexicalEditor) => {
+      editor.read(editorState, () => {
         setContent($rootTextContent());
-        setCanSubmit(!$isRootTextContentEmpty(_editor.isComposing(), true));
+        setCanSubmit(!$isRootTextContentEmpty(editor.isComposing(), true));
       });
     },
     [setCanSubmit, setContent],
@@ -906,7 +906,7 @@ export default function CommentPlugin({
         {skipInitialization: false},
       ),
       editor.registerUpdateListener(({editorState, tags}) => {
-        editorState.read(() => {
+        editor.read(editorState, () => {
           const selection = $getSelection();
           let hasActiveIds = false;
           let hasAnchorKey = false;

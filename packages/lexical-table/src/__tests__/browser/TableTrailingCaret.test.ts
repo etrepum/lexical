@@ -51,6 +51,7 @@ function mount($initialEditorState: () => void): {
       onError: (error: Error) => {
         throw error;
       },
+      theme: {tableScrollableWrapper: ''},
     }),
   );
   editor.setRootElement(contentEditable);

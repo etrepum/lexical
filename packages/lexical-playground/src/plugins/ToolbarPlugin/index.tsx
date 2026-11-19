@@ -42,6 +42,7 @@ import {
   $isNodeSelection,
   $isRangeSelection,
   $isRootOrShadowRoot,
+  $onUpdate,
   type AnyLexicalCommand,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
@@ -791,7 +792,7 @@ export default function ToolbarPlugin({
       SELECTION_CHANGE_COMMAND,
       (_payload, newEditor) => {
         setActiveEditor(newEditor);
-        $updateToolbar();
+        $onUpdate(() => newEditor.read('latest', $updateToolbar));
         return false;
       },
       COMMAND_PRIORITY_CRITICAL,
@@ -1445,9 +1446,10 @@ export default function ToolbarPlugin({
                 </DropDownItem>
                 <DropDownItem
                   onClick={() => {
-                    const dateTime = new Date();
-                    dateTime.setHours(0, 0, 0, 0);
-                    dispatchToolbarCommand(INSERT_DATETIME_COMMAND, {dateTime});
+                    dispatchToolbarCommand(INSERT_DATETIME_COMMAND, {
+                      allDay: true,
+                      dateTime: new Date(),
+                    });
                   }}
                   className="item">
                   <i className="icon calendar" />

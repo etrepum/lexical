@@ -23,11 +23,11 @@ import {
   $isRangeSelection,
   $isTextNode,
   $setSlot,
-  type ElementNode,
   type LexicalEditor,
   type ParagraphNode,
 } from 'lexical';
 import {
+  $assertNodeType,
   $createTestDecoratorNode,
   TestDecoratorNode,
 } from 'lexical/src/__tests__/utils';
@@ -161,7 +161,10 @@ describe('useCharacterLimit', () => {
       });
 
       await editor.update(() => {
-        const paragraph = $getRoot().getFirstChildOrThrow<ElementNode>();
+        const paragraph = $assertNodeType(
+          $getRoot().getFirstChildOrThrow(),
+          $isParagraphNode,
+        );
         const text = paragraph.getFirstChild();
         if ($isTextNode(text)) {
           text.setTextContent('abcdge');
@@ -173,7 +176,10 @@ describe('useCharacterLimit', () => {
       });
 
       editor.read(() => {
-        const paragraph = $getRoot().getFirstChildOrThrow<ElementNode>();
+        const paragraph = $assertNodeType(
+          $getRoot().getFirstChildOrThrow(),
+          $isParagraphNode,
+        );
         const children = paragraph.getChildren();
         expect(children.length).toBe(2);
         expect(children[0].getTextContent()).toBe('abcdg');
@@ -297,7 +303,10 @@ describe('useCharacterLimit', () => {
       });
 
       editor.read(() => {
-        const host = $getRoot().getFirstChildOrThrow<ElementNode>();
+        const host = $assertNodeType(
+          $getRoot().getFirstChildOrThrow(),
+          $isParagraphNode,
+        );
         const children = host.getChildren();
         expect(children[0].getTextContent()).toBe('12');
         expect($isOverflowNode(children[1])).toBe(true);

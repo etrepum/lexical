@@ -9,8 +9,11 @@ import type {EditorState, LexicalEditor} from 'lexical';
 
 import './ShikiViewPlugin.css';
 
+import {EditorStateExtension} from '@lexical/extension';
 import {$generateHtmlFromNodes} from '@lexical/html';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
+import {useExtensionDependency} from '@lexical/react/useExtensionComponent';
+import {useSignalValue} from '@lexical/react/useExtensionSignalValue';
 import * as prettier from 'prettier';
 import {useEffect, useMemo, useState} from 'react';
 import {createHighlighterCore} from 'shiki/core';
@@ -33,8 +36,12 @@ function editorHTML(editor: LexicalEditor, editorState: EditorState): string {
   return editorState.read(() => $generateHtmlFromNodes(editor, null), {editor});
 }
 
-function editorJSON(_editor: LexicalEditor, editorState: EditorState): string {
-  return JSON.stringify(editorState.toJSON(), null, 2);
+function editorJSON(editor: LexicalEditor, editorState: EditorState): string {
+  return JSON.stringify(
+    editorState.read(() => editorState.toJSON(true), {editor}),
+    null,
+    2,
+  );
 }
 
 const langs = {
@@ -48,13 +55,8 @@ export interface ShikiViewPluginProps {
 
 export function ShikiViewPlugin({lang}: ShikiViewPluginProps) {
   const [editor] = useLexicalComposerContext();
-  const [editorState, setEditorState] = useState(() => editor.getEditorState());
-  useEffect(
-    () =>
-      editor.registerUpdateListener(payload =>
-        setEditorState(payload.editorState),
-      ),
-    [editor],
+  const editorState = useSignalValue(
+    useExtensionDependency(EditorStateExtension).output,
   );
   const rawCode = useMemo(
     () => langs[lang](editor, editorState),

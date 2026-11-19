@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import type {ContextRecord} from '../types';
+import type {ContextRecord} from '../internal/types';
 import type {
   DOMImportExtensionOutput,
   DOMPreprocessContext,
@@ -15,15 +15,17 @@ import type {
 } from './types';
 
 import {$getExtensionOutput} from '@lexical/extension';
-import invariant from '@lexical/internal/invariant';
 import {defineExtension, type LexicalNode, shallowMergeConfig} from 'lexical';
 
-import {DOMImportContextSymbol, DOMImportExtensionName} from '../constants';
+import {
+  DOMImportContextSymbol,
+  DOMImportExtensionName,
+} from '../internal/constants';
 import {
   $withFullContext,
   contextFromPairs,
   getContextRecord,
-} from '../ContextRecord';
+} from '../internal/ContextRecord';
 import {type CompiledDispatch, compileImportRules} from './compileImportRules';
 import {defineImportRule} from './defineImportRule';
 import {
@@ -253,14 +255,6 @@ export const DOMImportExtension = defineExtension<
       config.disableLegacyImport !== undefined
     ) {
       editorConfig.disableLegacyImport = config.disableLegacyImport;
-    }
-    if (config.disableLegacyImport) {
-      const {html} = editorConfig;
-      invariant(
-        !html || !html.import || Object.keys(html.import).length === 0,
-        'DOMImportExtension: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',
-      );
-      editorConfig.html = {...html, import: false};
     }
   },
   // `contextDefaults` and `preprocess` append (last wins / runs first,
