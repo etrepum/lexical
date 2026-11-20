@@ -23,6 +23,7 @@ import {
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {describe, expect, test} from 'vitest';
 
 // A `<br>` that is the last (or only) child of a block element is not
@@ -70,7 +71,9 @@ const IMPORTERS = [
   [
     '$generateNodesFromDOM',
     (editor: LexicalEditor, html: string) =>
-      $generateNodesFromDOM(editor, parse(html)),
+      expectLegacyDOMImport(editor, () =>
+        $generateNodesFromDOM(editor, parse(html)),
+      ),
   ],
   [
     '$generateNodesFromDOMViaExtension',

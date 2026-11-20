@@ -6,11 +6,19 @@
  *
  */
 
+import {ClipboardDOMImportExtension} from '@lexical/clipboard';
 import {CodeHighlightNode, CodeNode} from '@lexical/code';
+import {buildEditorFromExtensions} from '@lexical/extension';
 import {HashtagNode} from '@lexical/hashtag';
 import {createHeadlessEditor} from '@lexical/headless';
-import {AutoLinkNode, LinkNode} from '@lexical/link';
-import {ListItemNode, ListNode} from '@lexical/list';
+import {
+  CoreImportExtension,
+  defineImportRule,
+  DOMImportExtension,
+  sel,
+} from '@lexical/html';
+import {AutoLinkNode, LinkImportRules, LinkNode} from '@lexical/link';
+import {ListImportRules, ListItemNode, ListNode} from '@lexical/list';
 import {MarkNode} from '@lexical/mark';
 import {OverflowNode} from '@lexical/overflow';
 import {
@@ -21,15 +29,18 @@ import {
   createLexicalComposerContext,
   LexicalComposerContext,
 } from '@lexical/react/LexicalComposerContext';
-import {HeadingNode, QuoteNode} from '@lexical/rich-text';
+import {HeadingNode, QuoteNode, RichTextImportRules} from '@lexical/rich-text';
 import {TableCellNode, TableNode, TableRowNode} from '@lexical/table';
 import prettier from '@prettier/sync';
 import {
   $create,
   $isRangeSelection,
+  type AnyLexicalExtensionArgument,
+  configExtension,
   createEditor,
   type CreateEditorArgs,
   DecoratorNode,
+  defineExtension,
   type DOMConversion,
   type DOMConversionOutput,
   type EditorState,
@@ -52,7 +63,7 @@ import {
 import * as React from 'react';
 import {act, createRef, type JSX} from 'react';
 import {createRoot} from 'react-dom/client';
-import {afterEach, beforeEach, expect} from 'vitest';
+import {afterEach, beforeEach, expect, vi} from 'vitest';
 
 import {
   $applyJSONSetters,
@@ -78,7 +89,9 @@ type TestEnv = {
 
 export function initializeUnitTest(
   runTests: (testEnv: TestEnv) => void,
-  editorConfig: CreateEditorArgs = {namespace: 'test', theme: {}},
+  editorConfig: CreateEditorArgs & {
+    extensions?: readonly AnyLexicalExtensionArgument[];
+  } = {namespace: 'test', theme: {}},
   plugins?: React.ReactNode,
 ) {
   const testEnv = {
@@ -445,6 +458,27 @@ const DEFAULT_NODES: NonNullable<InitialConfigType['nodes']> = [
   MarkNode,
 ];
 
+// Opt in per fixture: preserve the classic helper's behavior elsewhere.
+export const TestDOMImportExtension = defineExtension({
+  dependencies: [
+    CoreImportExtension,
+    ClipboardDOMImportExtension,
+    configExtension(DOMImportExtension, {
+      rules: [
+        ...ListImportRules,
+        ...RichTextImportRules,
+        ...LinkImportRules,
+        defineImportRule({
+          $import: () => [$createTestDecoratorNode()],
+          match: sel.tag('test-decorator'),
+          name: '[test-decorator-import]',
+        }),
+      ],
+    }),
+  ],
+  name: '[test-dom-import]',
+});
+
 export function TestComposer({
   config = {
     nodes: [],
@@ -473,6 +507,7 @@ export function TestComposer({
 
 export function createTestEditor(
   config: {
+    extensions?: readonly AnyLexicalExtensionArgument[];
     namespace?: string;
     editorState?: EditorState;
     theme?: EditorThemeClasses;
@@ -486,15 +521,25 @@ export function createTestEditor(
   } = {},
 ): LexicalEditor {
   const customNodes = config.nodes || [];
-  const editor = createEditor({
+  const {extensions, ...editorConfig} = config;
+  const args = {
     namespace: config.namespace,
-    onError: e => {
+    onError: (e: Error) => {
       throw e;
     },
-    ...config,
+    ...editorConfig,
     nodes: DEFAULT_NODES.concat(customNodes),
-  });
-  return editor;
+  };
+  return extensions
+    ? buildEditorFromExtensions(
+        defineExtension({
+          ...args,
+          $initialEditorState: null,
+          dependencies: [...extensions],
+          name: '[test-editor]',
+        }),
+      )
+    : createEditor(args);
 }
 
 export function createTestHeadlessEditor(
@@ -513,6 +558,29 @@ export function $assertRangeSelection(selection: unknown): RangeSelection {
     throw new Error(`Expected RangeSelection, got ${selection}`);
   }
   return selection;
+}
+
+const legacyImportEditors = new WeakSet<LexicalEditor>();
+
+/** Exercise intentional legacy compatibility and assert its first-use diagnostic. */
+export function expectLegacyDOMImport<T>(
+  editor: LexicalEditor,
+  run: () => T,
+): T {
+  using warn = vi.spyOn(console, 'warn');
+  const result = run();
+  if (
+    !legacyImportEditors.has(editor) &&
+    editor._config.disableLegacyImport == null
+  ) {
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('Migrate to DOMImportExtension'),
+    );
+  } else {
+    expect(warn).not.toHaveBeenCalled();
+  }
+  legacyImportEditors.add(editor);
+  return result;
 }
 
 export {$assertNodeType} from './assertNodeType';

@@ -5,7 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {$createLinkNode, $isLinkNode, type LinkNode} from '@lexical/link';
 import {
   $createListItemNode,
@@ -28,9 +31,21 @@ import {
   $assertNodeType,
   expectHtmlToBeEqual,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
+  TestDOMImportExtension,
 } from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, test} from 'vitest';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 const editorConfig = Object.freeze({
   namespace: '',
@@ -253,8 +268,7 @@ describe('LexicalListNode tests', () => {
           const root = $getRoot();
           root.clear();
           root.append(
-            ...$generateNodesFromDOM(
-              editor,
+            ...$generateNodesFromDOMViaExtension(
               parser.parseFromString(input, 'text/html'),
             ),
           );

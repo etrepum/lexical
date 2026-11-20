@@ -5,15 +5,30 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {registerListStrictIndentTransform} from '@lexical/list';
 import {$getRoot} from 'lexical';
 import {
   expectHtmlToBeEqual,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
+  TestDOMImportExtension,
 } from 'lexical/src/__tests__/utils';
 import {beforeEach, describe, test} from 'vitest';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 describe('Lexical List StrictIndentTransform tests', () => {
   initializeUnitTest(testEnv => {
@@ -191,7 +206,7 @@ describe('Lexical List StrictIndentTransform tests', () => {
           root.clear();
 
           const dom = parser.parseFromString(input, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           root.append(...nodes);
         });
 

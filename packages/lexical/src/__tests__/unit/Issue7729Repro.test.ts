@@ -8,7 +8,10 @@
 
 import {$insertGeneratedNodes} from '@lexical/clipboard';
 import {buildEditorFromExtensions, defineExtension} from '@lexical/extension';
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
   $createParagraphNode,
@@ -34,7 +37,7 @@ function $importHtml(html: string) {
   const editor = $getEditor();
   const parser = new DOMParser();
   const dom = parser.parseFromString(html, 'text/html');
-  const nodes = $generateNodesFromDOM(editor, dom);
+  const nodes = $generateNodesFromDOMViaExtension(dom);
   $insertGeneratedNodes(editor, nodes, $selectAll());
 }
 

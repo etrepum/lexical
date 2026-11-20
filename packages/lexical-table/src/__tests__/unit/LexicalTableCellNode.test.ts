@@ -6,7 +6,10 @@
  *
  */
 
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {
   $createTableCellNode,
   $isTableCellNode,
@@ -19,10 +22,23 @@ import {
   $runDOMConversion,
   expectHtmlToBeEqual,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
   invariant,
 } from 'lexical/src/__tests__/utils';
-import {describe, expect, test} from 'vitest';
+import {describe, expect, test, vi} from 'vitest';
+
+import {TableImportFixtureExtension} from '../TableImportFixtureExtension';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TableImportFixtureExtension]},
+    plugins,
+  );
 
 const editorConfig = Object.freeze({
   namespace: '',
@@ -266,7 +282,7 @@ describe('LexicalTableCellNode tests', () => {
           root.clear();
 
           const dom = parser.parseFromString(input, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           root.append(...nodes);
 
           expectHtmlToBeEqual($generateHtmlFromNodes(editor), output);
@@ -279,9 +295,23 @@ describe('LexicalTableCellNode tests', () => {
     // cache, the path the paste engine actually uses) rather than reaching into
     // TableCellNode.importDOM() directly. The element is converted in place so
     // the cell's row/table position is visible to the conversion.
+    const legacyEditors = new WeakSet<object>();
     const $convertHTMLTag = (
       element: HTMLElement,
-    ): DOMConversionOutput | null => $runDOMConversion(testEnv.editor, element);
+    ): DOMConversionOutput | null => {
+      using warn = vi.spyOn(console, 'warn');
+      const editor = testEnv.editor;
+      const result = $runDOMConversion(editor, element);
+      if (legacyEditors.has(editor)) {
+        expect(warn).not.toHaveBeenCalled();
+      } else {
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+          expect.stringContaining('Migrate to DOMImportExtension'),
+        );
+        legacyEditors.add(editor);
+      }
+      return result;
+    };
 
     const expectTableCellNode = (result: DOMConversionOutput | null) => {
       const node = result?.node;

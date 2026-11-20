@@ -33,9 +33,24 @@ import {
   $setSelectionFromCaretRange,
   KEY_TAB_COMMAND,
 } from 'lexical';
+import {TestDOMImportExtension} from 'lexical/src/__tests__/utils';
 import {beforeEach, describe, expect, test} from 'vitest';
 
-import {initializeUnitTest, invariant} from '../../../__tests__/utils';
+import {
+  initializeUnitTest as initializeFixtureUnitTest,
+  invariant,
+} from '../../../__tests__/utils';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 describe('LexicalTabNode tests', () => {
   initializeUnitTest(testEnv => {

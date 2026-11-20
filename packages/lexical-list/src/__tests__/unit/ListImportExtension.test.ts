@@ -6,7 +6,10 @@
  *
  */
 
-import {$insertDataTransferForRichText} from '@lexical/clipboard';
+import {
+  $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
+} from '@lexical/clipboard';
 import {
   buildEditorFromExtensions,
   getExtensionDependencyFromEditor,
@@ -59,7 +62,7 @@ function buildEditor() {
       // ListExtension registers its own import rules (and the shared
       // CoreImportExtension baseline) — no dedicated import extension
       // required.
-      dependencies: [ListExtension],
+      dependencies: [ClipboardDOMImportExtension, ListExtension],
       name: 'list-host',
     }),
   );
@@ -166,7 +169,7 @@ describe('ListImportExtension', () => {
   test('wrapper items come from ListNode.createListItemNode()', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        dependencies: [ListExtension],
+        dependencies: [ClipboardDOMImportExtension, ListExtension],
         name: 'custom-list-host',
         nodes: [
           CustomListNode,
@@ -216,7 +219,7 @@ describe('ListImportExtension', () => {
 function buildWordPasteEditor() {
   return buildEditorFromExtensions(
     defineExtension({
-      dependencies: [WordListImportExtension],
+      dependencies: [ClipboardDOMImportExtension, WordListImportExtension],
       name: 'word-paste-host',
     }),
   );
@@ -414,7 +417,11 @@ describe('ListItemNode block flattening', () => {
   test('treats a non-paragraph block (<hr>) as a boundary, not inline content', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
-        dependencies: [HorizontalRuleExtension, ListExtension],
+        dependencies: [
+          ClipboardDOMImportExtension,
+          HorizontalRuleExtension,
+          ListExtension,
+        ],
         name: 'list-hr-host',
       }),
     );
@@ -438,6 +445,7 @@ describe('ListItemNode block flattening', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({
         dependencies: [
+          ClipboardDOMImportExtension,
           HorizontalRuleExtension,
           ListExtension,
           NodeStructureExtension,
@@ -478,6 +486,7 @@ describe('ListItemNode block flattening', () => {
       using editor = buildEditorFromExtensions(
         defineExtension({
           dependencies: [
+            ClipboardDOMImportExtension,
             RichTextExtension,
             LinkExtension,
             ListExtension,

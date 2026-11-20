@@ -6,7 +6,10 @@
  *
  */
 
-import {$insertDataTransferForRichText} from '@lexical/clipboard';
+import {
+  $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
+} from '@lexical/clipboard';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {RichTextExtension} from '@lexical/rich-text';
 import {TableExtension} from '@lexical/table';
@@ -36,6 +39,7 @@ function pasteRow(cells: string): string[] {
         $getRoot().append($createParagraphNode());
       },
       dependencies: [
+        ClipboardDOMImportExtension,
         RichTextExtension,
         configExtension(TableExtension, {hasHorizontalScroll: false}),
       ],

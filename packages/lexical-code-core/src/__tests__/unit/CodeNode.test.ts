@@ -9,7 +9,10 @@
 import {$createCodeNode, $isCodeNode, CodeNode} from '@lexical/code-core';
 import {$generateNodesFromDOM} from '@lexical/html';
 import {$getRoot, type EditorConfig} from 'lexical';
-import {initializeUnitTest} from 'lexical/src/__tests__/utils';
+import {
+  expectLegacyDOMImport,
+  initializeUnitTest,
+} from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, it} from 'vitest';
 
 const editorConfig = {
@@ -90,7 +93,9 @@ describe('CodeNode', () => {
         doc.body.append(exportedElement);
 
         await editor.update(() => {
-          const [node] = $generateNodesFromDOM(editor, doc);
+          const [node] = expectLegacyDOMImport(editor, () =>
+            $generateNodesFromDOM(editor, doc),
+          );
           assert($isCodeNode(node), 'expected a CodeNode');
           expect(node.getLanguage()).toBe('javascript');
           expect(node.getTheme()).toBe('poimandres');

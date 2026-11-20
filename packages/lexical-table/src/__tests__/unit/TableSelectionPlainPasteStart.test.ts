@@ -6,7 +6,10 @@
  *
  */
 
-import {$insertDataTransferForRichText} from '@lexical/clipboard';
+import {
+  $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
+} from '@lexical/clipboard';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {
   $computeTableMapSkipCellCheck,
@@ -52,7 +55,7 @@ function build(rows: Spec): LexicalEditor {
         ed.setRootElement(root);
         return () => root.remove();
       },
-      dependencies: [TableExtension],
+      dependencies: [ClipboardDOMImportExtension, TableExtension],
       name: '[table-selection-plain-paste-start]',
       onError(error: Error) {
         throw error;

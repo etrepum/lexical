@@ -29,6 +29,7 @@ import {
   IS_UNDERLINE,
   isBlockDomNode,
   isDOMTextNode,
+  isInlineDomNode,
   isLastChildInBlockNode,
   isOnlyChildInBlockNode,
   type LexicalNode,
@@ -571,10 +572,19 @@ const TransparentBlockRule = defineImportRule({
       // the default hoist) handle it.
       return $next();
     }
-    return $propagateTextAlignToBlockChildren(
-      ctx.$importChildren(el, {schema: BlockSchema}),
-      el,
-    );
+    const children = ctx.$importChildren(el, {schema: BlockSchema});
+    // An empty unconverted block between inline siblings separates their
+    // text, just as it does in the legacy importer.
+    if (
+      children.length === 0 &&
+      el.previousSibling !== null &&
+      el.nextSibling !== null &&
+      isInlineDomNode(el.previousSibling) &&
+      isInlineDomNode(el.nextSibling)
+    ) {
+      return [$createLineBreakNode()];
+    }
+    return $propagateTextAlignToBlockChildren(children, el);
   },
   match: sel.any(),
   name: '@lexical/html/transparent-block',

@@ -8,7 +8,7 @@
 
 import {caretFromPoint} from '@lexical/clipboard';
 import {
-  $generateNodesFromDOM,
+  $generateNodesFromDOMViaExtension,
   defineImportRule,
   DOMImportExtension,
   sel,
@@ -117,12 +117,11 @@ const FigureRule = defineImportRule({
           continue;
         }
         imgNode.setShowCaption(true);
-        // The caption editor is a nested editor with its own (legacy)
-        // import pipeline; route the <figcaption> children through it.
+        // Use the caption editor's own extension rules for its children.
         imgNode.__caption.update(
           () => {
             $selectAll().insertNodes(
-              $generateNodesFromDOM(imgNode.__caption, figcaption),
+              $generateNodesFromDOMViaExtension(figcaption),
             );
             $setSelection(null);
           },

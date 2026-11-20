@@ -6,7 +6,14 @@
  *
  */
 
-import {$insertDataTransferForRichText} from '@lexical/clipboard';
+import {
+  $insertDataTransferForRichText,
+  $insertGeneratedNodes,
+  ClipboardDOMImportExtension,
+} from '@lexical/clipboard';
+import {CodeExtension} from '@lexical/code-core';
+import {$generateNodesFromDOM} from '@lexical/html';
+import {RichTextExtension} from '@lexical/rich-text';
 import {
   $createParagraphNode,
   $getRoot,
@@ -14,7 +21,7 @@ import {
   $isRangeSelection,
 } from 'lexical';
 import {initializeUnitTest, invariant} from 'lexical/src/__tests__/utils';
-import {beforeEach, describe, expect, test} from 'vitest';
+import {beforeEach, describe, expect, test, vi} from 'vitest';
 
 describe('CodeBlock tests', () => {
   initializeUnitTest(
@@ -117,6 +124,10 @@ describe('CodeBlock tests', () => {
       CODE_PASTING_TESTS.forEach((testCase, i) => {
         test(`Code block html paste: ${testCase.name}`, async () => {
           const {editor} = testEnv;
+          using warn = vi.spyOn(console, 'warn');
+          const legacyCompatibility =
+            testCase.name === 'Postman IDE' ||
+            testCase.name === 'GitHub / Gist';
 
           const dataTransfer = new DataTransfer();
           dataTransfer.setData('text/html', testCase.pastedHTML);
@@ -126,13 +137,39 @@ describe('CodeBlock tests', () => {
               $isRangeSelection(selection),
               'isRangeSelection(selection)',
             );
-            $insertDataTransferForRichText(dataTransfer, selection, editor);
+            if (legacyCompatibility) {
+              $insertGeneratedNodes(
+                editor,
+                $generateNodesFromDOM(
+                  editor,
+                  new DOMParser().parseFromString(
+                    testCase.pastedHTML,
+                    'text/html',
+                  ),
+                ),
+                selection,
+              );
+            } else {
+              $insertDataTransferForRichText(dataTransfer, selection, editor);
+            }
           });
           expect(testEnv.innerHTML).toBe(testCase.expectedHTML);
+          if (legacyCompatibility) {
+            expect(warn).toHaveBeenCalledExactlyOnceWith(
+              expect.stringContaining('Migrate to DOMImportExtension'),
+            );
+          } else {
+            expect(warn).not.toHaveBeenCalled();
+          }
         });
       });
     },
     {
+      extensions: [
+        CodeExtension,
+        RichTextExtension,
+        ClipboardDOMImportExtension,
+      ],
       namespace: 'test',
       theme: {
         text: {

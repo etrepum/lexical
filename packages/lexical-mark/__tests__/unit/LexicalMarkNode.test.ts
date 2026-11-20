@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$generateNodesFromDOM} from '@lexical/html';
+import {$generateNodesFromDOMViaExtension} from '@lexical/html';
 import {
   $createMarkNode,
   $isMarkNode,
@@ -28,9 +28,21 @@ import {
   $createTestDecoratorNode,
   $createTestElementNode,
   $createTestInlineElementNode,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
+  TestDOMImportExtension,
 } from 'lexical/src/__tests__/utils';
 import {assert, beforeEach, describe, expect, test} from 'vitest';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 describe('LexicalMarkNode tests', () => {
   initializeUnitTest(testEnv => {
@@ -271,7 +283,7 @@ describe('LexicalMarkNode tests', () => {
             `<html><body><p><span>Foo </span><mark>Bar</mark><span> !</span></p></body></html>`,
             'text/html',
           );
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
 
           expect(nodes).toHaveLength(1);
           const paragraphNode = $assertNodeType(nodes[0], $isElementNode);

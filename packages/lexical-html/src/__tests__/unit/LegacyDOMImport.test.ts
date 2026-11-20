@@ -63,6 +63,33 @@ function parse(html: string): Document {
 describe('legacy DOM import migration', () => {
   beforeEach(() => initializeImport.mockClear());
 
+  test('legacy nested spans retain additive formatting and emit the diagnostic', () => {
+    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const editor = createEditor({
+      onError: error => {
+        throw error;
+      },
+    });
+    editor.update(
+      () => {
+        const nodes = $generateNodesFromDOM(
+          editor,
+          parse(
+            '<p><span style="font-weight: bold"><span style="font-weight: normal">x</span></span></p>',
+          ),
+        );
+        $getRoot().append(...nodes);
+      },
+      {discrete: true},
+    );
+    expect(
+      editor.read(() => $getRoot().getAllTextNodes()[0].hasFormat('bold')),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining('Migrate to DOMImportExtension'),
+    );
+  });
+
   test.each([undefined, null, false, true])(
     'legacy converters initialize only on demand and warn only for unspecified mode (%s)',
     disableLegacyImport => {

@@ -70,6 +70,7 @@ import {
   TextNode,
   type UpdateListenerPayload,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import * as React from 'react';
 import {
   act,
@@ -4402,7 +4403,9 @@ describe('LexicalEditor tests', () => {
       newEditor.update(() => {
         const parser = new DOMParser();
         const dom = parser.parseFromString('<figure></figure>', 'text/html');
-        const node = $generateNodesFromDOM(newEditor, dom)[0];
+        const node = expectLegacyDOMImport(newEditor, () =>
+          $generateNodesFromDOM(newEditor, dom),
+        )[0];
 
         expect(node).toEqual({
           __detail: 0,
