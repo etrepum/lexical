@@ -10,6 +10,7 @@ import {
   $generateNodesFromSerializedNodes,
   $getClipboardDataFromSelection,
   $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
 } from '@lexical/clipboard';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {
@@ -61,7 +62,10 @@ function build(rows: Spec) {
         ed.setRootElement(root);
         return () => root.remove();
       },
-      dependencies: [configExtension(TableExtension, {hasNestedTables: true})],
+      dependencies: [
+        ClipboardDOMImportExtension,
+        configExtension(TableExtension, {hasNestedTables: true}),
+      ],
       name: '[table-selection-covered-rows]',
       // Lexical clipboard data pastes into an editor of the same namespace.
       namespace: 'table-selection-covered-rows',

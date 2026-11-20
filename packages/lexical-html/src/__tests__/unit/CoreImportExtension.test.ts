@@ -79,6 +79,24 @@ function $findTextByContent(content: string) {
 }
 
 describe('CoreImportExtension', () => {
+  test.each(['div', 'section', 'article'])(
+    'an empty <%s> between inline siblings preserves a line break',
+    tag => {
+      using editor = buildEditor();
+      importInto(editor, `<div>1<${tag}></${tag}>2</div>`);
+      editor.read(() => {
+        const paragraph = $getRoot().getFirstChild();
+        assert($isParagraphNode(paragraph));
+        expect(paragraph.getChildren().map(node => node.getType())).toEqual([
+          'text',
+          'linebreak',
+          'text',
+        ]);
+        expect(paragraph.getTextContent()).toBe('1\n2');
+      });
+    },
+  );
+
   test('paragraph + text', () => {
     using editor = buildEditor();
     importInto(editor, '<p>Hello world</p>');

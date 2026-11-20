@@ -23,7 +23,7 @@ import {$createCodeNode} from '@lexical/code-core';
 import {CodePrismExtension} from '@lexical/code-prism';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {HashtagExtension} from '@lexical/hashtag';
-import {$generateNodesFromDOM} from '@lexical/html';
+import {$generateNodesFromDOMViaExtension} from '@lexical/html';
 import {LinkExtension} from '@lexical/link';
 import {ListExtension} from '@lexical/list';
 import {RichTextExtension} from '@lexical/rich-text';
@@ -233,7 +233,7 @@ async function scenario(
       const dom = new DOMParser().parseFromString(html, 'text/html');
       $insertGeneratedNodes(
         $getEditor(),
-        $generateNodesFromDOM($getEditor(), dom),
+        $generateNodesFromDOMViaExtension(dom),
         s,
       );
     },
@@ -357,7 +357,7 @@ describe('a paste over part of a line its transform makes again', () => {
         );
         $insertGeneratedNodes(
           $getEditor(),
-          $generateNodesFromDOM($getEditor(), dom),
+          $generateNodesFromDOMViaExtension(dom),
           s,
         );
         const after = $getSelection();

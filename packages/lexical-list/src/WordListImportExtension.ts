@@ -238,7 +238,6 @@ const $installWordListPasteOverlay: DOMPreprocessFn = (dom, ctx, $next) => {
  * });
  * ```
  *
- * @experimental
  */
 export const WordListImportExtension = defineExtension({
   dependencies: [

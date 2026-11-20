@@ -6,7 +6,14 @@
  *
  */
 
-import {$isLinkNode, AutoLinkNode, LinkNode} from '@lexical/link';
+import {ClipboardDOMImportExtension} from '@lexical/clipboard';
+import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
+import {
+  $isLinkNode,
+  AutoLinkNode,
+  LinkImportRules,
+  LinkNode,
+} from '@lexical/link';
 import {
   AutoEmbedOption,
   type EmbedConfig,
@@ -18,13 +25,18 @@ import {
   AutoLinkPlugin,
   createLinkMatcherWithRegExp,
 } from '@lexical/react/LexicalAutoLinkPlugin';
-import {LexicalComposer} from '@lexical/react/LexicalComposer';
 import {ContentEditable} from '@lexical/react/LexicalContentEditable';
 import {EditorRefPlugin} from '@lexical/react/LexicalEditorRefPlugin';
 import {LexicalErrorBoundary} from '@lexical/react/LexicalErrorBoundary';
+import {LexicalExtensionComposer} from '@lexical/react/LexicalExtensionComposer';
 import {type MenuRenderFn} from '@lexical/react/LexicalNodeMenuPlugin';
 import {RichTextPlugin} from '@lexical/react/LexicalRichTextPlugin';
-import {$createQuoteNode, $isQuoteNode, QuoteNode} from '@lexical/rich-text';
+import {
+  $createQuoteNode,
+  $isQuoteNode,
+  QuoteNode,
+  RichTextImportRules,
+} from '@lexical/rich-text';
 import {$getNearestNodeOfType} from '@lexical/utils';
 import {
   $createParagraphNode,
@@ -35,6 +47,8 @@ import {
   $isParagraphNode,
   $isTextNode,
   $setSelection,
+  configExtension,
+  defineExtension,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
@@ -101,19 +115,30 @@ let insertNode: Mock<EmbedConfig['insertNode']>;
 let embedConfig: EmbedConfig;
 const editorRef = React.createRef<LexicalEditor>();
 
+const autoEmbedFixture = defineExtension({
+  dependencies: [
+    CoreImportExtension,
+    ClipboardDOMImportExtension,
+    configExtension(DOMImportExtension, {
+      rules: [...RichTextImportRules, ...LinkImportRules],
+    }),
+  ],
+  name: '[auto-embed-fixture]',
+  namespace: 'test-auto-embed',
+  nodes: [LinkNode, AutoLinkNode, QuoteNode],
+  onError: error => onError(error),
+  theme: {},
+});
+
 function App({
   $disableMenuFor,
 }: {
   $disableMenuFor?: (node: LexicalNode) => boolean;
 }) {
   return (
-    <LexicalComposer
-      initialConfig={{
-        namespace: 'test-auto-embed',
-        nodes: [LinkNode, AutoLinkNode, QuoteNode],
-        onError,
-        theme: {},
-      }}>
+    <LexicalExtensionComposer
+      extension={autoEmbedFixture}
+      contentEditable={null}>
       <RichTextPlugin
         contentEditable={<ContentEditable />}
         placeholder={null}
@@ -129,7 +154,7 @@ function App({
         menuRenderFn={menuRenderFn}
         $disableMenuFor={$disableMenuFor}
       />
-    </LexicalComposer>
+    </LexicalExtensionComposer>
   );
 }
 

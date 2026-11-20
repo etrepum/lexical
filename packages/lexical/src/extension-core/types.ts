@@ -366,6 +366,8 @@ export interface InitialEditorConfig {
    * @internal Disable root element events (for internal Meta use)
    */
   disableEvents?: CreateEditorArgs['disableEvents'];
+  /** Controls legacy DOM import and its deprecation warning. */
+  disableLegacyImport?: CreateEditorArgs['disableLegacyImport'];
   /**
    * @internal @experimental
    */

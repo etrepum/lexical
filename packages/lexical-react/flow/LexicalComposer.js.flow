@@ -23,6 +23,7 @@ export type InitialEditorStateType =
   | ((editor: LexicalEditor) => void);
 
 export type InitialConfigType = Readonly<{
+  disableLegacyImport?: boolean | null,
   editable?: boolean,
   namespace: string,
   nodes?: ReadonlyArray<Class<LexicalNode> | LexicalNodeReplacement>,

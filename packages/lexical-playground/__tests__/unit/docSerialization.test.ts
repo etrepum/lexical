@@ -7,17 +7,34 @@
  */
 
 import {serializedDocumentFromEditorState} from '@lexical/file';
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
   $insertNodes,
 } from 'lexical';
-import {initializeUnitTest} from 'lexical/src/__tests__/utils';
+import {
+  initializeUnitTest as initializeFixtureUnitTest,
+  TestDOMImportExtension,
+} from 'lexical/src/__tests__/utils';
 import {describe, expect, it} from 'vitest';
 
 import {docFromHash, docToHash} from '../../src/utils/docSerialization';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 describe('docSerialization', () => {
   initializeUnitTest(testEnv => {
@@ -72,7 +89,7 @@ describe('docSerialization', () => {
 </blockquote>`;
         const dom = parser.parseFromString(htmlString, 'text/html');
         await editor.update(() => {
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $getRoot().select();
           $insertNodes(nodes);
         });

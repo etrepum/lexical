@@ -18,9 +18,10 @@ import {
   $isElementNode,
   type AnyLexicalExtension,
   defineExtension,
+  type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
-import {assert, describe, expect, it} from 'vitest';
+import {assert, describe, expect, it, vi} from 'vitest';
 
 import {
   $createDateTimeNode,
@@ -120,6 +121,33 @@ function expectRoundTrip(
 }
 
 describe('Playground node importers (DOMImportExtension round-trip)', () => {
+  it('imports a formatted image caption without using legacy DOM import', () => {
+    using warn = vi.spyOn(console, 'warn');
+    using editor = buildEditorFromExtensions(testExtension(ImagesExtension));
+    let caption: LexicalEditor | undefined;
+    editor.update(
+      () => {
+        const dom = new DOMParser().parseFromString(
+          '<figure><img src="https://example.com/image.png"><figcaption><p><strong>Caption</strong></p></figcaption></figure>',
+          'text/html',
+        );
+        const nodes = $generateNodesFromDOMViaExtension(dom);
+        $getRoot()
+          .clear()
+          .append(...nodes);
+        const image = $findFirst($isImageNode);
+        assert($isImageNode(image));
+        caption = image.__caption;
+      },
+      {discrete: true},
+    );
+    assert(caption);
+    expect(caption.read(() => $generateHtmlFromNodes(caption!))).toContain(
+      '<b><strong',
+    );
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('ImageNode', () => {
     expectRoundTrip(
       ImagesExtension,

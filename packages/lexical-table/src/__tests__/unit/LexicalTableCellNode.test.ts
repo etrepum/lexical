@@ -6,7 +6,10 @@
  *
  */
 
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {
   $createTableCellNode,
   $isTableCellNode,
@@ -18,11 +21,25 @@ import {$createTextNode, $getRoot, type DOMConversionOutput} from 'lexical';
 import {
   $runDOMConversion,
   expectHtmlToBeEqual,
+  expectLegacyDOMImport,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
   invariant,
 } from 'lexical/src/__tests__/utils';
 import {describe, expect, test} from 'vitest';
+
+import {TableImportFixtureExtension} from '../TableImportFixtureExtension';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TableImportFixtureExtension]},
+    plugins,
+  );
 
 const editorConfig = Object.freeze({
   namespace: '',
@@ -266,7 +283,7 @@ describe('LexicalTableCellNode tests', () => {
           root.clear();
 
           const dom = parser.parseFromString(input, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           root.append(...nodes);
 
           expectHtmlToBeEqual($generateHtmlFromNodes(editor), output);
@@ -281,7 +298,10 @@ describe('LexicalTableCellNode tests', () => {
     // the cell's row/table position is visible to the conversion.
     const $convertHTMLTag = (
       element: HTMLElement,
-    ): DOMConversionOutput | null => $runDOMConversion(testEnv.editor, element);
+    ): DOMConversionOutput | null =>
+      expectLegacyDOMImport(testEnv.editor, () =>
+        $runDOMConversion(testEnv.editor, element),
+      );
 
     const expectTableCellNode = (result: DOMConversionOutput | null) => {
       const node = result?.node;

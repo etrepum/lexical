@@ -62,6 +62,17 @@ function $rootCode(): CodeNode {
 }
 
 describe('CodeImportExtension', () => {
+  test('monospace wrappers keep inline divs together and block divs on separate lines', () => {
+    using editor = buildEditor();
+    importInto(
+      editor,
+      '<div style="font-family: monospace; white-space: pre"><div style="display: inline">❯</div> first<div>second</div><div style="display: inline">❯</div> third</div>',
+    );
+    editor.read(() => {
+      expect($rootCode().getTextContent()).toBe('❯ first\nsecond\n❯ third');
+    });
+  });
+
   test('<pre> imports as CodeNode', () => {
     using editor = buildEditor();
     importInto(editor, '<pre>const x = 1;</pre>');

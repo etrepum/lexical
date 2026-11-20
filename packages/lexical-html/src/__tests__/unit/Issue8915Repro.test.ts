@@ -22,6 +22,7 @@ import {
   type LexicalNode,
   type TextFormatType,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, test} from 'vitest';
 
 // Reproduction for https://github.com/meta/lexical/issues/8915
@@ -102,7 +103,9 @@ describe('Issue #8915: text-transform survives an HTML round trip', () => {
       editor.update(
         () => {
           const textNode = firstTextNode(
-            $generateNodesFromDOM(editor, parse(html)),
+            expectLegacyDOMImport(editor, () =>
+              $generateNodesFromDOM(editor, parse(html)),
+            ),
           );
           assert($isTextNode(textNode), 'expected a TextNode');
           expect(textNode.hasFormat(format)).toBe(true);
@@ -161,8 +164,7 @@ describe('Issue #8915: text-transform survives an HTML round trip', () => {
     using editor = buildEditor();
     editor.update(
       () => {
-        const nodes = $generateNodesFromDOM(
-          editor,
+        const nodes = $generateNodesFromDOMViaExtension(
           parse(
             '<p><span style="font-weight: bold; text-transform: none;">Hello</span></p>',
           ),

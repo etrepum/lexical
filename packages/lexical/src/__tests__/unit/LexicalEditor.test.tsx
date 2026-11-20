@@ -70,6 +70,7 @@ import {
   TextNode,
   type UpdateListenerPayload,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import * as React from 'react';
 import {
   act,
@@ -4260,8 +4261,8 @@ describe('LexicalEditor tests', () => {
     expect(updateListener.mock.lastCall?.[0].prevEditorState).toBe(editorState);
   });
 
-  it('should call importDOM methods only once', async () => {
-    vi.spyOn(ParagraphNode, 'importDOM');
+  it('deduplicates inherited importDOM methods on first legacy import', () => {
+    using importDOM = vi.spyOn(ParagraphNode, 'importDOM');
 
     class CustomParagraphNode extends ParagraphNode {
       $config() {
@@ -4269,9 +4270,23 @@ describe('LexicalEditor tests', () => {
       }
     }
 
-    createTestEditor({nodes: [CustomParagraphNode]});
+    const editorWithCustomNode = createEditor({
+      disableLegacyImport: false,
+      nodes: [CustomParagraphNode],
+    });
+    expect(importDOM).not.toHaveBeenCalled();
 
-    expect(ParagraphNode.importDOM).toHaveBeenCalledTimes(1);
+    editorWithCustomNode.update(
+      () => {
+        const dom = document.createElement('p');
+        dom.textContent = 'paragraph';
+        $generateNodesFromDOM(editorWithCustomNode, dom);
+        $generateNodesFromDOM(editorWithCustomNode, dom);
+      },
+      {discrete: true},
+    );
+
+    expect(importDOM).toHaveBeenCalledTimes(1);
   });
 
   describe('setRootElement', () => {
@@ -4388,7 +4403,9 @@ describe('LexicalEditor tests', () => {
       newEditor.update(() => {
         const parser = new DOMParser();
         const dom = parser.parseFromString('<figure></figure>', 'text/html');
-        const node = $generateNodesFromDOM(newEditor, dom)[0];
+        const node = expectLegacyDOMImport(newEditor, () =>
+          $generateNodesFromDOM(newEditor, dom),
+        )[0];
 
         expect(node).toEqual({
           __detail: 0,

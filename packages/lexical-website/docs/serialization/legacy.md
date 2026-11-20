@@ -39,6 +39,13 @@ If the element property is null in the return value of exportDOM, that Node will
 
 ## Legacy HTML import
 
+`static importDOM()`, `$config().importDOM`, `html.import` conversion maps,
+and `$generateNodesFromDOM(editor, dom)` are deprecated. They still work by
+default. For new editors, use [DOM Import](./dom-import.md); for existing
+editors, follow the [migration guide](./dom-import.md#migrating-from-importdom)
+before disabling the old importer. This deprecation does not affect HTML
+export configuration.
+
 The legacy import entry point is `$generateNodesFromDOM(editor, dom)` from
 `@lexical/html`. It converts each DOM node using the `static importDOM()`
 methods of the editor's registered node classes, plus the editor's `html`
@@ -144,7 +151,7 @@ While `importDOM` and `exportDOM` allow for highly customized, node-specific con
 ```typescript
 type HTMLConfig = {
   export?: DOMExportOutputMap;  // Optional map defining how nodes are exported to HTML.
-  import?: DOMConversionMap;     // Optional record defining how HTML is converted into nodes.
+  import?: DOMConversionMap;    // Deprecated; use DOMImportExtension rules instead.
 };
 ```
 

@@ -5,16 +5,26 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$createCodeNode, CodeNode} from '@lexical/code-core';
+import {$createCodeNode, CodeExtension, CodeNode} from '@lexical/code-core';
 import {buildEditorFromExtensions} from '@lexical/extension';
 import {createHeadlessEditor} from '@lexical/headless';
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+  DOMImportExtension,
+} from '@lexical/html';
 import invariant from '@lexical/internal/invariant';
-import {$createLinkNode, $isLinkNode, LinkNode} from '@lexical/link';
+import {
+  $createLinkNode,
+  $isLinkNode,
+  LinkImportRules,
+  LinkNode,
+} from '@lexical/link';
 import {
   $createListItemNode,
   $createListNode,
   $isListNode,
+  ListExtension,
   ListItemNode,
   ListNode,
 } from '@lexical/list';
@@ -47,6 +57,7 @@ import {
   $isQuoteNode,
   HeadingNode,
   QuoteNode,
+  RichTextExtension,
 } from '@lexical/rich-text';
 import {
   $addUpdateTag,
@@ -69,6 +80,7 @@ import {
   $setSelectionFromCaretRange,
   $setState,
   COMPOSITION_END_TAG,
+  configExtension,
   type CreateEditorArgs,
   defineExtension,
   type ElementNode,
@@ -1156,22 +1168,25 @@ describe('Markdown', () => {
     }
 
     it(`can export "${md.replace(/\n/g, '\\n')}"`, () => {
-      const editor = createTestEditor({
-        nodes: [
-          HeadingNode,
-          ListNode,
-          ListItemNode,
-          QuoteNode,
-          CodeNode,
-          LinkNode,
-        ],
-      });
+      using editor = buildEditorFromExtensions(
+        defineExtension({
+          $initialEditorState: null,
+          dependencies: [
+            RichTextExtension,
+            ListExtension,
+            CodeExtension,
+            configExtension(DOMImportExtension, {rules: LinkImportRules}),
+          ],
+          name: '[markdown-export-fixture]',
+          nodes: [LinkNode],
+        }),
+      );
 
       editor.update(
         () => {
           const parser = new DOMParser();
           const dom = parser.parseFromString(html, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $getRoot().select();
           $insertNodes(nodes);
         },

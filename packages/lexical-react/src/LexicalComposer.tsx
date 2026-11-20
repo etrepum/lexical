@@ -71,6 +71,8 @@ export type InitialEditorStateType =
  * import/export configuration.
  */
 export type InitialConfigType = Readonly<{
+  /** Controls legacy DOM import and its deprecation warning. */
+  disableLegacyImport?: boolean | null;
   namespace: string;
   nodes?: readonly (Klass<LexicalNode> | LexicalNodeReplacement)[];
   onError: (error: Error, editor: LexicalEditor) => void;
@@ -143,6 +145,7 @@ export function LexicalComposer({initialConfig, children}: Props): JSX.Element {
       );
 
       const editor = createEditor({
+        disableLegacyImport: initialConfig.disableLegacyImport,
         editable: initialConfig.editable,
         html,
         namespace,

@@ -6,7 +6,13 @@
  *
  */
 
-import {$insertDataTransferForRichText} from '@lexical/clipboard';
+import {
+  $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
+} from '@lexical/clipboard';
+import {CodeExtension} from '@lexical/code-core';
+import {ListExtension} from '@lexical/list';
+import {RichTextExtension} from '@lexical/rich-text';
 import {$patchStyleText} from '@lexical/selection';
 import {
   $createParagraphNode,
@@ -14,10 +20,16 @@ import {
   $getSelection,
   $isRangeSelection,
 } from 'lexical';
-import {initializeUnitTest, invariant} from 'lexical/src/__tests__/utils';
+import {
+  captureLegacyDOMImportWarning,
+  initializeUnitTest,
+  invariant,
+} from 'lexical/src/__tests__/utils';
 import {beforeEach, describe, expect, test} from 'vitest';
 
-describe('HTMLCopyAndPaste tests', () => {
+const describeImporters = describe.each(['legacy', 'extension'] as const);
+
+describeImporters('HTMLCopyAndPaste tests (%s)', importer => {
   initializeUnitTest(
     testEnv => {
       beforeEach(async () => {
@@ -120,6 +132,7 @@ describe('HTMLCopyAndPaste tests', () => {
       HTML_COPY_PASTING_TESTS.forEach((testCase, i) => {
         test(`HTML copy paste: ${testCase.name}`, async () => {
           const {editor} = testEnv;
+          using warn = captureLegacyDOMImportWarning();
 
           const dataTransfer = new DataTransfer();
           dataTransfer.setData('text/html', testCase.pastedHTML);
@@ -140,6 +153,7 @@ describe('HTMLCopyAndPaste tests', () => {
             }
           });
           expect(testEnv.innerHTML).toBe(testCase.expectedHTML);
+          expect(warn).not.toHaveBeenCalled();
         });
       });
 
@@ -173,6 +187,16 @@ describe('HTMLCopyAndPaste tests', () => {
       });
     },
     {
+      disableLegacyImport: importer === 'extension',
+      extensions:
+        importer === 'extension'
+          ? [
+              RichTextExtension,
+              ListExtension,
+              CodeExtension,
+              ClipboardDOMImportExtension,
+            ]
+          : undefined,
       namespace: 'test',
       theme: {
         text: {

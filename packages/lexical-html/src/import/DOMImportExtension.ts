@@ -39,10 +39,23 @@ import {selBase} from './sel';
 
 /**
  * Configuration for {@link DOMImportExtension}.
- *
- * @experimental
  */
 export interface DOMImportConfig {
+  /**
+   * Disable the legacy `importDOM` / `html.import` pipeline. Defaults to
+   * `null`, which keeps it enabled with a one-time development warning on
+   * first use.
+   * Set to `false` to explicitly keep legacy import enabled without warning.
+   *
+   * Set to `true` after migrating custom conversions, direct imports, and
+   * clipboard imports (using `ClipboardDOMImportExtension`). This skips
+   * legacy converter initialization and makes the legacy
+   * `$generateNodesFromDOM` throw. Nonempty `html.import` overrides must be
+   * migrated first; they are rejected rather than silently discarded.
+   * The cache is created only on first legacy import, even without this
+   * opt-out. This setting does not change which pipeline any caller uses.
+   */
+  readonly disableLegacyImport?: boolean | null;
   /**
    * The ordered list of rules compiled into the import dispatcher.
    * Entries can be raw {@link DOMImportRule}s or a
@@ -146,7 +159,6 @@ function $runPreprocessStack(
  * (e.g. with a `sel.any()` rule that captures and discards unknown
  * elements).
  *
- * @experimental
  */
 export const DefaultHoistRule = defineImportRule({
   $import: (ctx, el) => ctx.$importChildren(el),
@@ -155,8 +167,6 @@ export const DefaultHoistRule = defineImportRule({
 });
 
 /**
- * @experimental
- *
  * Extension-based replacement for the legacy `importDOM` / `DOMConversion`
  * machinery. Rules are contributed via configuration (see
  * {@link DOMImportConfig.rules}), compiled into a tag-bucketed dispatcher at
@@ -232,8 +242,17 @@ export const DOMImportExtension = defineExtension<
   },
   config: {
     contextDefaults: [],
+    disableLegacyImport: null,
     preprocess: [$inlineStylesFromStyleSheets],
     rules: [DefaultHoistRule],
+  },
+  init(editorConfig, config) {
+    if (
+      config.disableLegacyImport !== null &&
+      config.disableLegacyImport !== undefined
+    ) {
+      editorConfig.disableLegacyImport = config.disableLegacyImport;
+    }
   },
   // `contextDefaults` and `preprocess` append (last wins / runs first,
   // since the preprocess stack is run from the end) while `rules`
@@ -263,15 +282,14 @@ export const DOMImportExtension = defineExtension<
 
 /**
  * Look up the editor's {@link DOMImportExtension} and run its
- * `$generateNodesFromDOM`. Designed as a drop-in replacement for the
- * legacy `$generateNodesFromDOM(editor, dom)` signature so it can be
- * supplied to `ClipboardImportExtension.$generateNodesFromDOM` (or any
- * other consumer that wants to route through the extension pipeline).
+ * `$generateNodesFromDOM`. Unlike the legacy
+ * `$generateNodesFromDOM(editor, dom)`, this uses the active editor:
+ * call it as `$generateNodesFromDOMViaExtension(dom)` inside an update.
+ * Use `ClipboardDOMImportExtension` to route HTML pastes through it.
  *
  * Throws if the editor was not built with {@link DOMImportExtension} as a
  * dependency.
  *
- * @experimental
  */
 export function $generateNodesFromDOMViaExtension(
   dom: Document | ParentNode,

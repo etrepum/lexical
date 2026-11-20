@@ -8,17 +8,23 @@
 
 import {$insertGeneratedNodes} from '@lexical/clipboard';
 import {CodeNode} from '@lexical/code';
+import {CodeImportRules} from '@lexical/code-core';
 import {buildEditorFromExtensions} from '@lexical/extension';
-import {createHeadlessEditor} from '@lexical/headless';
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
-import {LinkNode} from '@lexical/link';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+  CoreImportExtension,
+  DOMImportExtension,
+} from '@lexical/html';
+import {LinkImportRules, LinkNode} from '@lexical/link';
 import {
   $createListItemNode,
   $createListNode,
+  ListImportRules,
   ListItemNode,
   ListNode,
 } from '@lexical/list';
-import {HeadingNode, QuoteNode} from '@lexical/rich-text';
+import {HeadingNode, QuoteNode, RichTextImportRules} from '@lexical/rich-text';
 import {JSDOM} from 'jsdom';
 import {
   $createParagraphNode,
@@ -27,6 +33,9 @@ import {
   $getRoot,
   $isElementNode,
   $setSlot,
+  configExtension,
+  type CreateEditorArgs,
+  defineExtension,
   isHTMLElement,
   ParagraphNode,
   type RangeSelection,
@@ -36,6 +45,27 @@ import {
   TestShadowRootNode,
 } from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, test} from 'vitest';
+
+function createImportEditor(config: CreateEditorArgs = {}) {
+  return buildEditorFromExtensions(
+    defineExtension({
+      $initialEditorState: null,
+      dependencies: [
+        CoreImportExtension,
+        configExtension(DOMImportExtension, {
+          rules: [
+            ...RichTextImportRules,
+            ...ListImportRules,
+            ...LinkImportRules,
+            ...CodeImportRules,
+          ],
+        }),
+      ],
+      ...config,
+      name: '[html-fixture]',
+    }),
+  );
+}
 
 describe('HTML', () => {
   type Input = {
@@ -79,7 +109,7 @@ describe('HTML', () => {
   ];
   for (const {name, html, initializeEditorState} of HTML_SERIALIZE) {
     test(`[Lexical -> HTML]: ${name}`, () => {
-      const editor = createHeadlessEditor({
+      const editor = createImportEditor({
         nodes: [
           HeadingNode,
           ListNode,
@@ -101,7 +131,7 @@ describe('HTML', () => {
   }
 
   test(`[Lexical -> HTML]: Use provided selection`, () => {
-    const editor = createHeadlessEditor({
+    const editor = createImportEditor({
       nodes: [
         HeadingNode,
         ListNode,
@@ -148,7 +178,7 @@ describe('HTML', () => {
   });
 
   test(`[Lexical -> HTML]: Default selection (undefined) should serialize entire editor state`, () => {
-    const editor = createHeadlessEditor({
+    const editor = createImportEditor({
       nodes: [
         HeadingNode,
         ListNode,
@@ -193,7 +223,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, don't overwrite from parent empty format`, () => {
-    const editor = createHeadlessEditor();
+    const editor = createImportEditor();
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div><p style="text-align: center;">Hello world!</p></div>';
@@ -205,7 +235,7 @@ describe('HTML', () => {
           rightAlignedParagraphInDiv,
           'text/html',
         );
-        const nodes = $generateNodesFromDOM(editor, dom);
+        const nodes = $generateNodesFromDOMViaExtension(dom);
         root.append(...nodes);
       },
       {discrete: true},
@@ -223,7 +253,7 @@ describe('HTML', () => {
   });
 
   test(`If alignment is set on the paragraph, it should take precedence over its parent block alignment`, () => {
-    const editor = createHeadlessEditor();
+    const editor = createImportEditor();
     const parser = new DOMParser();
     const rightAlignedParagraphInDiv =
       '<div style="text-align: right;"><p style="text-align: center;">Hello world!</p></div>';
@@ -235,7 +265,7 @@ describe('HTML', () => {
           rightAlignedParagraphInDiv,
           'text/html',
         );
-        const nodes = $generateNodesFromDOM(editor, dom);
+        const nodes = $generateNodesFromDOMViaExtension(dom);
         root.append(...nodes);
       },
       {discrete: true},
@@ -253,7 +283,7 @@ describe('HTML', () => {
   });
 
   test('It should output correctly nodes whose export is DocumentFragment', () => {
-    const editor = createHeadlessEditor({
+    const editor = createImportEditor({
       html: {
         export: new Map([
           [
@@ -304,7 +334,7 @@ describe('HTML', () => {
 
   describe('$generateNodesFromDOM: CSS class style inlining', () => {
     test('HTML with <style> tags inlines styles by class', () => {
-      const editor = buildEditorFromExtensions();
+      const editor = createImportEditor();
       // workaround for https://github.com/jsdom/jsdom/issues/3179 - DOMParser does not work correctly
       const dom = new JSDOM(
         `<html><head><style>.highlight { font-weight: bold; }</style></head>` +
@@ -314,7 +344,7 @@ describe('HTML', () => {
       editor.update(
         () => {
           const root = $getRoot();
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $insertGeneratedNodes(editor, nodes, root.select(0));
           expect(root.getTextContent()).toBe('Hello');
           const highlightSpan = dom.querySelector('span.highlight');
@@ -329,7 +359,7 @@ describe('HTML', () => {
     });
 
     test('existing inline styles are preserved after inlining pass', () => {
-      const editor = createHeadlessEditor();
+      const editor = createImportEditor();
       const parser = new DOMParser();
 
       editor.update(
@@ -339,7 +369,7 @@ describe('HTML', () => {
               `<body><p><span class="colored" style="color: blue;">Hello</span></p></body></html>`,
             'text/html',
           );
-          $generateNodesFromDOM(editor, dom);
+          $generateNodesFromDOMViaExtension(dom);
 
           // Inline style should never be overwritten
           const span = dom.querySelector('.colored');
@@ -351,14 +381,14 @@ describe('HTML', () => {
     });
 
     test('HTML without <style> tags works as before', () => {
-      const editor = createHeadlessEditor();
+      const editor = createImportEditor();
       const parser = new DOMParser();
 
       editor.update(
         () => {
           const root = $getRoot();
           const dom = parser.parseFromString('<p>Hello world</p>', 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $insertGeneratedNodes(editor, nodes, root.select(0));
           expect(
             root
@@ -385,14 +415,14 @@ describe('HTML', () => {
     'small',
     'strike',
   ])('$generateNodesFromDOM keeps the spaces around an inline <%s>', tag => {
-    const editor = createHeadlessEditor();
+    const editor = createImportEditor();
     const dom = new DOMParser().parseFromString(
       `<p>is <${tag}>old</${tag}> now</p>`,
       'text/html',
     );
     editor.update(
       () => {
-        const nodes = $generateNodesFromDOM(editor, dom);
+        const nodes = $generateNodesFromDOMViaExtension(dom);
         $insertGeneratedNodes(editor, nodes, $getRoot().select(0));
       },
       {discrete: true},
@@ -402,11 +432,11 @@ describe('HTML', () => {
 
   test('$generateNodesFromDOM breaks the line at an empty block between two inline <font>s, as between two <span>s', () => {
     const lines = (html: string) => {
-      const editor = createHeadlessEditor();
+      const editor = createImportEditor();
       const dom = new DOMParser().parseFromString(html, 'text/html');
       editor.update(
         () => {
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $insertGeneratedNodes(editor, nodes, $getRoot().select(0));
         },
         {discrete: true},
@@ -431,14 +461,14 @@ describe('HTML', () => {
   ] as const)(
     '$generateNodesFromDOM keeps %s from a <span> around another <span>',
     (style, format) => {
-      const editor = createHeadlessEditor();
+      const editor = createImportEditor();
       const dom = new DOMParser().parseFromString(
         `<p>a <span style="${style}"><span class="run">b</span></span> c</p>`,
         'text/html',
       );
       editor.update(
         () => {
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $insertGeneratedNodes(editor, nodes, $getRoot().select(0));
         },
         {discrete: true},
@@ -458,14 +488,14 @@ describe('HTML', () => {
   );
 
   test('$generateNodesFromDOM combines the formats of nested <span>s', () => {
-    const editor = createHeadlessEditor();
+    const editor = createImportEditor();
     const dom = new DOMParser().parseFromString(
       '<p><span style="font-style: italic"><span style="font-weight: bold">b</span></span></p>',
       'text/html',
     );
     editor.update(
       () => {
-        const nodes = $generateNodesFromDOM(editor, dom);
+        const nodes = $generateNodesFromDOMViaExtension(dom);
         $insertGeneratedNodes(editor, nodes, $getRoot().select(0));
       },
       {discrete: true},
@@ -478,13 +508,13 @@ describe('HTML', () => {
     ).toEqual([true, true]);
   });
 
-  // An inner element only adds formats, as it does across different tags,
-  // and the formats of one span do not reach the span next to it.
+  // Extension rules honor explicit inner style resets and keep formats
+  // scoped to the element's descendants.
   test.each([
     [
-      'an inner font-weight: normal keeps the outer bold',
+      'an inner font-weight: normal resets the outer bold',
       '<span style="font-weight: bold"><span style="font-weight: normal">x</span></span>',
-      [['x', true]],
+      [['x', false]],
     ],
     [
       'the next span does not take the bold',
@@ -495,11 +525,11 @@ describe('HTML', () => {
       ],
     ],
   ])('$generateNodesFromDOM with nested <span>s: %s', (_, html, expected) => {
-    const editor = createHeadlessEditor();
+    const editor = createImportEditor();
     const dom = new DOMParser().parseFromString(`<p>${html}</p>`, 'text/html');
     editor.update(
       () => {
-        const nodes = $generateNodesFromDOM(editor, dom);
+        const nodes = $generateNodesFromDOMViaExtension(dom);
         $insertGeneratedNodes(editor, nodes, $getRoot().select(0));
       },
       {discrete: true},
@@ -515,14 +545,14 @@ describe('HTML', () => {
 
   describe('importDOM preserves dir attribute', () => {
     function importAndGetDirection(html: string): string | null {
-      const editor = createHeadlessEditor({
+      const editor = createImportEditor({
         nodes: [HeadingNode, ListNode, ListItemNode, QuoteNode],
       });
       editor.update(
         () => {
           const parser = new DOMParser();
           const dom = parser.parseFromString(html, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
+          const nodes = $generateNodesFromDOMViaExtension(dom);
           $getRoot().selectEnd();
           const selection = $getRoot().select(0);
           selection.insertNodes(nodes);
@@ -568,7 +598,7 @@ describe('HTML', () => {
   });
 
   test('[Lexical -> HTML]: slots are not auto-serialized to HTML', () => {
-    const editor = createHeadlessEditor({
+    const editor = createImportEditor({
       namespace: 'slot',
       nodes: [TestShadowRootNode],
     });

@@ -169,7 +169,6 @@ function parseSimpleSelector(c: Cursor): ParsedSimpleSelector {
  * combinators, pseudo-classes) is intentionally rejected — chain combinator
  * methods off the returned builder instead.
  *
- * @experimental
  */
 export function parseSelector(
   source: string,

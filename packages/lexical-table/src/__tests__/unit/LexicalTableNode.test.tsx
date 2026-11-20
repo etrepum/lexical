@@ -9,7 +9,10 @@
 import type {TableNode} from '@lexical/table';
 
 import {$insertDataTransferForRichText} from '@lexical/clipboard';
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+} from '@lexical/html';
 import {TablePlugin} from '@lexical/react/LexicalTablePlugin';
 import {
   $createTableCellNode,
@@ -41,12 +44,25 @@ import {
   $assertNodeType,
   expectHtmlToBeEqual,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
   invariant,
   polyfillContentEditable,
 } from 'lexical/src/__tests__/utils';
 import {act, useState} from 'react';
 import {assert, beforeEach, describe, expect, test} from 'vitest';
+
+import {TableImportFixtureExtension} from '../TableImportFixtureExtension';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TableImportFixtureExtension]},
+    plugins,
+  );
 
 const editorConfig = Object.freeze({
   namespace: '',
@@ -1918,7 +1934,7 @@ describe('LexicalTableNode tests', () => {
             const dom = new DOMParser().parseFromString(inputHtml, 'text/html');
             $getRoot()
               .clear()
-              .append(...$generateNodesFromDOM(editor, dom));
+              .append(...$generateNodesFromDOMViaExtension(dom));
           },
           {discrete: true},
         );
@@ -1958,7 +1974,7 @@ describe('LexicalTableNode tests', () => {
             const dom = new DOMParser().parseFromString(exported, 'text/html');
             $getRoot()
               .clear()
-              .append(...$generateNodesFromDOM(editor, dom));
+              .append(...$generateNodesFromDOMViaExtension(dom));
           },
           {discrete: true},
         );

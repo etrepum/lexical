@@ -271,7 +271,6 @@ const TableCellRule = defineImportRule({
  * `TableRowNode` children are accepted; orphan `TableCellNode` runs are
  * wrapped in a synthesized row.
  *
- * @experimental
  */
 export const TableSchema: ChildSchema = {
   $accepts: $isTableRowNode,
@@ -287,7 +286,6 @@ export const TableSchema: ChildSchema = {
  * `TableCellNode` children are accepted; non-cell children are dropped
  * (the legacy converter does the same via `$descendantsMatching`).
  *
- * @experimental
  */
 export const TableRowSchema: ChildSchema = {
   $accepts: $isTableCellNode,
@@ -303,6 +301,5 @@ export const TableRowSchema: ChildSchema = {
  * import these tags through the `DOMImportExtension` pipeline without
  * further configuration.
  *
- * @experimental
  */
 export const TableImportRules = [TableRule, TableRowRule, TableCellRule];
