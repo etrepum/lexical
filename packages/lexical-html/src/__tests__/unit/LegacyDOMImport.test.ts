@@ -221,7 +221,7 @@ describe('legacy DOM import migration', () => {
     expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
       LegacyParagraphNode,
     );
-    expect(warn).toHaveBeenCalledExactlyOnceWith(LEGACY_DOM_IMPORT_WARNING);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   test('the core opt-out rejects unmigrated overrides', () => {

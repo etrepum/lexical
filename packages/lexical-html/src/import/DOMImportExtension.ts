@@ -159,7 +159,6 @@ function $runPreprocessStack(
  * (e.g. with a `sel.any()` rule that captures and discards unknown
  * elements).
  *
- * @experimental
  */
 export const DefaultHoistRule = defineImportRule({
   $import: (ctx, el) => ctx.$importChildren(el),
@@ -291,7 +290,6 @@ export const DOMImportExtension = defineExtension<
  * Throws if the editor was not built with {@link DOMImportExtension} as a
  * dependency.
  *
- * @experimental
  */
 export function $generateNodesFromDOMViaExtension(
   dom: Document | ParentNode,

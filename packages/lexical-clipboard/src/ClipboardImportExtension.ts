@@ -509,8 +509,6 @@ export const ClipboardImportExtension = defineExtension({
 });
 
 /**
- * @experimental
- *
  * Drop-in extension that routes `text/html` clipboard pastes and drops
  * through the {@link DOMImportExtension} pipeline (rules, schemas,
  * preprocessors, overlays) instead of the legacy

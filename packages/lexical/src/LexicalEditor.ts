@@ -1042,7 +1042,16 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
   ];
   const {onError, onWarn, html} = config;
   const htmlImport = html ? html.import : undefined;
-  const disableLegacyImport = config.disableLegacyImport ?? null;
+  // A bare nested editor shares its parent's nodes but has no extension graph.
+  // Retain its legacy paste fallback when the parent has migrated to extensions;
+  // the child cannot install that pipeline itself.
+  const disableLegacyImport =
+    config.disableLegacyImport ??
+    (editorConfig === undefined &&
+    parentEditor !== null &&
+    parentEditor._config.disableLegacyImport === true
+      ? false
+      : null);
   invariant(
     !disableLegacyImport || !htmlImport || Object.keys(htmlImport).length === 0,
     'createEditor: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',

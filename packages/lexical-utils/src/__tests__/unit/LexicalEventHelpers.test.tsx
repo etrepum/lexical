@@ -79,7 +79,9 @@ Range.prototype.getBoundingClientRect = function (): DOMRect {
   };
 };
 
-describe('LexicalEventHelpers', () => {
+const describeImporters = describe.each(['legacy', 'extension'] as const);
+
+describeImporters('LexicalEventHelpers (%s)', importer => {
   let container: HTMLDivElement | null = null;
 
   beforeEach(async () => {
@@ -109,7 +111,9 @@ describe('LexicalEventHelpers', () => {
           extension={defineExtension({
             dependencies: [
               CoreImportExtension,
-              ClipboardDOMImportExtension,
+              ...(importer === 'extension'
+                ? [ClipboardDOMImportExtension]
+                : []),
               configExtension(DOMImportExtension, {
                 rules: [
                   ...CodeImportRules,
@@ -120,6 +124,7 @@ describe('LexicalEventHelpers', () => {
                 ],
               }),
             ],
+            disableLegacyImport: importer === 'extension',
             name: '[event-helper-fixture]',
             nodes: [
               LinkNode,

@@ -15,6 +15,7 @@ import {
   sel,
 } from '@lexical/html';
 import {
+  isBlockDomNode,
   isDOMDocumentNode,
   isDOMTextNode,
   isHTMLElement,
@@ -165,7 +166,7 @@ function splitMonospaceWrapperLines(el: HTMLElement): string[] | null {
   };
   for (const child of Array.from(el.childNodes)) {
     if (isHTMLElement(child)) {
-      if (child.tagName === 'DIV') {
+      if (child.tagName === 'DIV' && isBlockDomNode(child)) {
         flush();
         lines.push(child.textContent || '');
         hasBlockChild = true;
@@ -303,7 +304,6 @@ const VscodeCodePasteOverlay = defineOverlayRules([
  * VS Code-specific rules participate in the walk. Pastes from other
  * sources pay only the detection cost.
  *
- * @experimental
  */
 export const $installVscodeCodePasteOverlay: DOMPreprocessFn = (
   dom,
@@ -388,7 +388,6 @@ const GitHubCodeCellByClassRule = defineImportRule({
  * these shapes through the `DOMImportExtension` pipeline without further
  * configuration.
  *
- * @experimental
  */
 export const CodeImportRules = [
   // Higher-priority (more-specific) rules first:

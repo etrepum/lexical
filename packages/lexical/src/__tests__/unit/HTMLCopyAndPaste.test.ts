@@ -8,11 +8,9 @@
 
 import {
   $insertDataTransferForRichText,
-  $insertGeneratedNodes,
   ClipboardDOMImportExtension,
 } from '@lexical/clipboard';
 import {CodeExtension} from '@lexical/code-core';
-import {$generateNodesFromDOM} from '@lexical/html';
 import {ListExtension} from '@lexical/list';
 import {RichTextExtension} from '@lexical/rich-text';
 import {$patchStyleText} from '@lexical/selection';
@@ -26,11 +24,12 @@ import {
   captureLegacyDOMImportWarning,
   initializeUnitTest,
   invariant,
-  LEGACY_DOM_IMPORT_WARNING,
 } from 'lexical/src/__tests__/utils';
 import {beforeEach, describe, expect, test} from 'vitest';
 
-describe('HTMLCopyAndPaste tests', () => {
+const describeImporters = describe.each(['legacy', 'extension'] as const);
+
+describeImporters('HTMLCopyAndPaste tests (%s)', importer => {
   initializeUnitTest(
     testEnv => {
       beforeEach(async () => {
@@ -134,8 +133,6 @@ describe('HTMLCopyAndPaste tests', () => {
         test(`HTML copy paste: ${testCase.name}`, async () => {
           const {editor} = testEnv;
           using warn = captureLegacyDOMImportWarning();
-          const legacyCompatibility =
-            testCase.name === 'Ghostty terminal paste with inline divs';
 
           const dataTransfer = new DataTransfer();
           dataTransfer.setData('text/html', testCase.pastedHTML);
@@ -145,21 +142,7 @@ describe('HTMLCopyAndPaste tests', () => {
               $isRangeSelection(selection),
               'isRangeSelection(selection)',
             );
-            if (legacyCompatibility) {
-              $insertGeneratedNodes(
-                editor,
-                $generateNodesFromDOM(
-                  editor,
-                  new DOMParser().parseFromString(
-                    testCase.pastedHTML,
-                    'text/html',
-                  ),
-                ),
-                selection,
-              );
-            } else {
-              $insertDataTransferForRichText(dataTransfer, selection, editor);
-            }
+            $insertDataTransferForRichText(dataTransfer, selection, editor);
             if (testCase.plainTextInsert) {
               const newSelection = $getSelection();
               invariant(
@@ -170,13 +153,7 @@ describe('HTMLCopyAndPaste tests', () => {
             }
           });
           expect(testEnv.innerHTML).toBe(testCase.expectedHTML);
-          if (legacyCompatibility) {
-            expect(warn).toHaveBeenCalledExactlyOnceWith(
-              LEGACY_DOM_IMPORT_WARNING,
-            );
-          } else {
-            expect(warn).not.toHaveBeenCalled();
-          }
+          expect(warn).not.toHaveBeenCalled();
         });
       });
 
@@ -210,12 +187,16 @@ describe('HTMLCopyAndPaste tests', () => {
       });
     },
     {
-      extensions: [
-        RichTextExtension,
-        ListExtension,
-        CodeExtension,
-        ClipboardDOMImportExtension,
-      ],
+      disableLegacyImport: importer === 'extension',
+      extensions:
+        importer === 'extension'
+          ? [
+              RichTextExtension,
+              ListExtension,
+              CodeExtension,
+              ClipboardDOMImportExtension,
+            ]
+          : undefined,
       namespace: 'test',
       theme: {
         text: {

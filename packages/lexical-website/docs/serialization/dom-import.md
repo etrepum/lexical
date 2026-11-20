@@ -1169,7 +1169,10 @@ Setting it to `true` makes `$generateNodesFromDOM` throw with migration
 guidance, including for an empty document. Nonempty `html.import` maps
 cannot be combined with this setting. HTML export is unaffected. Bare
 nested editors created with `createEditor()` keep legacy import enabled
-so that they can still paste formatted HTML without extensions.
+so that they can still paste formatted HTML without extensions. When the
+parent disables legacy import, this fallback does not warn: the bare child
+has no extension graph to migrate. Its conversion cache is still initialized
+only on first use.
 
 This setting is available in `createEditor`, `LexicalComposer` initial
 configuration, and extension definitions. It does not remove legacy methods
