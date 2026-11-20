@@ -560,6 +560,28 @@ export function $assertRangeSelection(selection: unknown): RangeSelection {
   return selection;
 }
 
+export const LEGACY_DOM_IMPORT_WARNING =
+  'Legacy DOM import (static importDOM and html.import) is deprecated. Migrate to DOMImportExtension rules from @lexical/html, including direct imports and clipboard imports, then configure DOMImportExtension with {disableLegacyImport: true}. Set disableLegacyImport to false to explicitly retain legacy import without this warning. See https://lexical.dev/docs/serialization/dom-import for migration guidance.';
+
+/** Capture only the asserted legacy diagnostic for the lifetime of a test scope. */
+export function captureLegacyDOMImportWarning() {
+  const originalWarn = console.warn;
+  const warn = vi.fn<typeof console.warn>((...args) => {
+    if (args.length !== 1 || args[0] !== LEGACY_DOM_IMPORT_WARNING) {
+      originalWarn.apply(console, args);
+    }
+  });
+  console.warn = warn;
+  return Object.assign(warn, {
+    [Symbol.dispose]() {
+      console.warn = originalWarn;
+      for (const args of warn.mock.calls) {
+        expect(args).toEqual([LEGACY_DOM_IMPORT_WARNING]);
+      }
+    },
+  });
+}
+
 const legacyImportEditors = new WeakSet<LexicalEditor>();
 
 /** Exercise intentional legacy compatibility and assert its first-use diagnostic. */
@@ -567,15 +589,13 @@ export function expectLegacyDOMImport<T>(
   editor: LexicalEditor,
   run: () => T,
 ): T {
-  using warn = vi.spyOn(console, 'warn');
+  using warn = captureLegacyDOMImportWarning();
   const result = run();
   if (
     !legacyImportEditors.has(editor) &&
     editor._config.disableLegacyImport == null
   ) {
-    expect(warn).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining('Migrate to DOMImportExtension'),
-    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(LEGACY_DOM_IMPORT_WARNING);
   } else {
     expect(warn).not.toHaveBeenCalled();
   }

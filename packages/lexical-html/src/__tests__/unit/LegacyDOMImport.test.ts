@@ -30,6 +30,10 @@ import {
   ParagraphNode,
   PASTE_COMMAND,
 } from 'lexical';
+import {
+  captureLegacyDOMImportWarning,
+  LEGACY_DOM_IMPORT_WARNING,
+} from 'lexical/src/__tests__/utils';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 
 const initializeImport = vi.fn();
@@ -64,7 +68,7 @@ describe('legacy DOM import migration', () => {
   beforeEach(() => initializeImport.mockClear());
 
   test('legacy nested spans retain additive formatting and emit the diagnostic', () => {
-    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    using warn = captureLegacyDOMImportWarning();
     const editor = createEditor({
       onError: error => {
         throw error;
@@ -85,15 +89,13 @@ describe('legacy DOM import migration', () => {
     expect(
       editor.read(() => $getRoot().getAllTextNodes()[0].hasFormat('bold')),
     ).toBe(true);
-    expect(warn).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining('Migrate to DOMImportExtension'),
-    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(LEGACY_DOM_IMPORT_WARNING);
   });
 
   test.each([undefined, null, false, true])(
     'legacy converters initialize only on demand and warn only for unspecified mode (%s)',
     disableLegacyImport => {
-      using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      using warn = captureLegacyDOMImportWarning();
       for (const mode of ['core', 'extension', 'dom-import']) {
         initializeImport.mockClear();
         warn.mockClear();
@@ -138,7 +140,7 @@ describe('legacy DOM import migration', () => {
           }
           if (disableLegacyImport == null) {
             expect(warn).toHaveBeenCalledExactlyOnceWith(
-              expect.stringContaining('Migrate to DOMImportExtension'),
+              LEGACY_DOM_IMPORT_WARNING,
             );
           } else {
             expect(warn).not.toHaveBeenCalled();
@@ -170,7 +172,7 @@ describe('legacy DOM import migration', () => {
   });
 
   test('a bare nested editor keeps formatted paste under an opted-out parent', () => {
-    using warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    using warn = captureLegacyDOMImportWarning();
     using parent = buildEditorFromExtensions(
       RichTextExtension,
       ClipboardDOMImportExtension,
@@ -219,9 +221,7 @@ describe('legacy DOM import migration', () => {
     expect(initializeImport).toHaveBeenCalledExactlyOnceWith(
       LegacyParagraphNode,
     );
-    expect(warn).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining('Migrate to DOMImportExtension'),
-    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(LEGACY_DOM_IMPORT_WARNING);
   });
 
   test('the core opt-out rejects unmigrated overrides', () => {

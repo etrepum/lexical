@@ -22,8 +22,13 @@ import {
   $getSelection,
   $isRangeSelection,
 } from 'lexical';
-import {initializeUnitTest, invariant} from 'lexical/src/__tests__/utils';
-import {beforeEach, describe, expect, test, vi} from 'vitest';
+import {
+  captureLegacyDOMImportWarning,
+  initializeUnitTest,
+  invariant,
+  LEGACY_DOM_IMPORT_WARNING,
+} from 'lexical/src/__tests__/utils';
+import {beforeEach, describe, expect, test} from 'vitest';
 
 describe('HTMLCopyAndPaste tests', () => {
   initializeUnitTest(
@@ -128,7 +133,7 @@ describe('HTMLCopyAndPaste tests', () => {
       HTML_COPY_PASTING_TESTS.forEach((testCase, i) => {
         test(`HTML copy paste: ${testCase.name}`, async () => {
           const {editor} = testEnv;
-          using warn = vi.spyOn(console, 'warn');
+          using warn = captureLegacyDOMImportWarning();
           const legacyCompatibility =
             testCase.name === 'Ghostty terminal paste with inline divs';
 
@@ -167,7 +172,7 @@ describe('HTMLCopyAndPaste tests', () => {
           expect(testEnv.innerHTML).toBe(testCase.expectedHTML);
           if (legacyCompatibility) {
             expect(warn).toHaveBeenCalledExactlyOnceWith(
-              expect.stringContaining('Migrate to DOMImportExtension'),
+              LEGACY_DOM_IMPORT_WARNING,
             );
           } else {
             expect(warn).not.toHaveBeenCalled();

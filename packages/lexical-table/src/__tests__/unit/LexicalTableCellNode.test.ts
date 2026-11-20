@@ -21,11 +21,12 @@ import {$createTextNode, $getRoot, type DOMConversionOutput} from 'lexical';
 import {
   $runDOMConversion,
   expectHtmlToBeEqual,
+  expectLegacyDOMImport,
   html,
   initializeUnitTest as initializeFixtureUnitTest,
   invariant,
 } from 'lexical/src/__tests__/utils';
-import {describe, expect, test, vi} from 'vitest';
+import {describe, expect, test} from 'vitest';
 
 import {TableImportFixtureExtension} from '../TableImportFixtureExtension';
 
@@ -295,23 +296,12 @@ describe('LexicalTableCellNode tests', () => {
     // cache, the path the paste engine actually uses) rather than reaching into
     // TableCellNode.importDOM() directly. The element is converted in place so
     // the cell's row/table position is visible to the conversion.
-    const legacyEditors = new WeakSet<object>();
     const $convertHTMLTag = (
       element: HTMLElement,
-    ): DOMConversionOutput | null => {
-      using warn = vi.spyOn(console, 'warn');
-      const editor = testEnv.editor;
-      const result = $runDOMConversion(editor, element);
-      if (legacyEditors.has(editor)) {
-        expect(warn).not.toHaveBeenCalled();
-      } else {
-        expect(warn).toHaveBeenCalledExactlyOnceWith(
-          expect.stringContaining('Migrate to DOMImportExtension'),
-        );
-        legacyEditors.add(editor);
-      }
-      return result;
-    };
+    ): DOMConversionOutput | null =>
+      expectLegacyDOMImport(testEnv.editor, () =>
+        $runDOMConversion(testEnv.editor, element),
+      );
 
     const expectTableCellNode = (result: DOMConversionOutput | null) => {
       const node = result?.node;
