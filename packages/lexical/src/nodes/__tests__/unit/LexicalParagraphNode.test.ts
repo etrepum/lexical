@@ -13,6 +13,7 @@ import {
   type DOMConversionOutput,
   ParagraphNode,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {describe, expect, test} from 'vitest';
 
 import {
@@ -159,7 +160,8 @@ describe('LexicalParagraphNode tests', () => {
       // cache) instead of reaching into ParagraphNode.importDOM() directly.
       const $convertParagraph = (
         element: HTMLElement,
-      ): DOMConversionOutput | null => $runDOMConversion(editor, element);
+      ): DOMConversionOutput | null =>
+        expectLegacyDOMImport(editor, () => $runDOMConversion(editor, element));
 
       const expectParagraphNode = (result: DOMConversionOutput | null) => {
         const node = result ? result.node : null;

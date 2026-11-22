@@ -19,6 +19,7 @@ import {
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {describe, expect, test} from 'vitest';
 
 import {
@@ -48,7 +49,9 @@ function $pasteHTML(editor: LexicalEditor, html: string): void {
   invariant($isRangeSelection(selection), 'Expected a RangeSelection');
   const dataTransfer = new DataTransfer();
   dataTransfer.setData('text/html', html);
-  $insertDataTransferForRichText(dataTransfer, selection, editor);
+  expectLegacyDOMImport(editor, () =>
+    $insertDataTransferForRichText(dataTransfer, selection, editor),
+  );
 }
 
 // A custom inline ElementNode does not implement insertNewAfter(), so it can

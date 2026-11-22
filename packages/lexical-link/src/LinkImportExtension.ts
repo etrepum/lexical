@@ -43,6 +43,5 @@ const AnchorRule = defineImportRule({
  * import `<a>` through the `DOMImportExtension` pipeline without further
  * configuration.
  *
- * @experimental
  */
 export const LinkImportRules = [AnchorRule];

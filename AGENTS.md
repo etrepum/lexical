@@ -410,11 +410,11 @@ When creating custom nodes:
    extension that provides the node: list `CoreImportExtension` and
    `configExtension(DOMImportExtension, {rules: [...]})` in its
    `dependencies` (see `ListExtension`, and `ListImportRules` for the rules,
-   in `@lexical/list`). Both APIs are `@experimental`, and the rules only
-   apply where the editor routes HTML through the pipeline; see
+   in `@lexical/list`). The rules apply where the editor routes HTML
+   through the pipeline; see
    `packages/lexical-website/docs/serialization/dom-import.md`.
-   `importDOM()`, which that page calls legacy, is not deprecated yet, but
-   its deprecation is planned.
+   Legacy `importDOM()` is deprecated; that page documents migration and
+   explicit compatibility settings.
 6. Register with an extension (`nodes: () => [YourNode]`) or editor config.
 7. Export a `$createYourNode()` factory built on `$create(YourNode)` and the
    node's setters, and a `$isYourNode()` guard.

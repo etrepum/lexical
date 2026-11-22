@@ -13,6 +13,5 @@ import {HorizontalRuleRule} from './coreImportRules';
  * {@link CoreImportRules} (gated on `HorizontalRuleNode` registration), so
  * this array exists only for backwards compatibility and introspection.
  *
- * @experimental
  */
 export const HorizontalRuleImportRules = [HorizontalRuleRule];

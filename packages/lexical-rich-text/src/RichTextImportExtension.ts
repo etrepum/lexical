@@ -121,7 +121,6 @@ const QuoteRule = defineImportRule({
  * prepended in front of it, so this rule is reached first and shadows the
  * default `@lexical/rich-text/blockquote` rule.
  *
- * @experimental
  */
 export const ShadowRootQuoteRule = defineImportRule({
   $import: (ctx, el) =>
@@ -152,7 +151,6 @@ export const ShadowRootQuoteRule = defineImportRule({
  * (`QuoteContainerReplacementExtension`) does not need it: there the default
  * rule builds a container already.
  *
- * @experimental
  */
 export const QuoteContainerRule = defineImportRule({
   $import: (ctx, el) => $importQuote(ctx, el, $createQuoteContainerNode()),
@@ -202,7 +200,6 @@ const GoogleDocsTitleSpanRule = defineImportRule({
  * extension can import these tags through the `DOMImportExtension`
  * pipeline without further configuration.
  *
- * @experimental
  */
 export const RichTextImportRules = [
   HeadingRule,

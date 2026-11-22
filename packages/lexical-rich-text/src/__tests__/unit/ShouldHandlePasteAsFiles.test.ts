@@ -6,6 +6,7 @@
  *
  */
 
+import {ClipboardDOMImportExtension} from '@lexical/clipboard';
 import {
   buildEditorFromExtensions,
   getExtensionDependencyFromEditor,
@@ -72,7 +73,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
     // This test locks in that this is still the *default*, so existing
     // consumers (e.g. the playground) don't silently change behavior.
     using editor = buildEditorFromExtensions({
-      dependencies: [RichTextExtension],
+      dependencies: [ClipboardDOMImportExtension, RichTextExtension],
       name: 'test-default',
     });
 
@@ -89,6 +90,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
   test('override: treating only text/plain as content lets the file win over an incidental text/html entry', () => {
     using editor = buildEditorFromExtensions({
       dependencies: [
+        ClipboardDOMImportExtension,
         configExtension(RichTextExtension, {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
@@ -114,6 +116,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
         $getRoot().append($createParagraphNode()).selectEnd();
       },
       dependencies: [
+        ClipboardDOMImportExtension,
         configExtension(RichTextExtension, {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
@@ -148,6 +151,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
         $getRoot();
       },
       dependencies: [
+        ClipboardDOMImportExtension,
         configExtension(RichTextExtension, {
           shouldHandlePasteAsFiles: (files: File[]) => files.length > 0,
         }),
@@ -169,7 +173,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
     // This is the case that already worked before this change — a pure
     // regression guard that our new parameter didn't break it.
     using editor = buildEditorFromExtensions({
-      dependencies: [RichTextExtension],
+      dependencies: [ClipboardDOMImportExtension, RichTextExtension],
       name: 'test-file-only',
     });
 
@@ -183,7 +187,7 @@ describe('RichTextExtension shouldHandlePasteAsFiles', () => {
 
   test('shouldHandlePasteAsFiles can be modified as a signal after the editor is built', () => {
     using editor = buildEditorFromExtensions({
-      dependencies: [RichTextExtension],
+      dependencies: [ClipboardDOMImportExtension, RichTextExtension],
       name: 'test-signal',
     });
 

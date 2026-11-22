@@ -11,7 +11,7 @@ import {
   buildEditorFromExtensions,
   NodeStructureExtension,
 } from '@lexical/extension';
-import {$generateNodesFromDOM} from '@lexical/html';
+import {$generateNodesFromDOMViaExtension} from '@lexical/html';
 import {
   $createListItemNode,
   $createListNode,
@@ -74,8 +74,7 @@ function $pasteAcross(from: string, to: string) {
   const html = '<p><b>bold</b> <i>italic</i></p><ul><li>item</li></ul>';
   $insertGeneratedNodes(
     $getEditor(),
-    $generateNodesFromDOM(
-      $getEditor(),
+    $generateNodesFromDOMViaExtension(
       new DOMParser().parseFromString(html, 'text/html'),
     ),
     selection,

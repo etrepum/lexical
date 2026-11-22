@@ -37,6 +37,7 @@ import {
   type LexicalEditor,
   UNDO_COMMAND,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {afterEach, assert, describe, expect, test} from 'vitest';
 
 function counter(prefix = 'b') {
@@ -262,13 +263,15 @@ describe('BlockIdExtension (DOM)', () => {
   test('HTML pasted through the legacy importer gets fresh ids', () => {
     using editor = mount();
     seed(editor, ['one']);
-    paste(
-      editor,
-      {
-        'text/html':
-          '<p data-block-id="b1">pasted a</p><p data-block-id="b1">pasted b</p>',
-      },
-      () => $getRoot().selectEnd(),
+    expectLegacyDOMImport(editor, () =>
+      paste(
+        editor,
+        {
+          'text/html':
+            '<p data-block-id="b1">pasted a</p><p data-block-id="b1">pasted b</p>',
+        },
+        () => $getRoot().selectEnd(),
+      ),
     );
     const result = blocks(editor);
     expect(result[0]).toBe('paragraph:onepasted a:b1');

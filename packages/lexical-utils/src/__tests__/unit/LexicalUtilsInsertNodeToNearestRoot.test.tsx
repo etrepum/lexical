@@ -6,13 +6,22 @@
  *
  */
 
-import {$generateHtmlFromNodes, $generateNodesFromDOM} from '@lexical/html';
+import {
+  $generateHtmlFromNodes,
+  $generateNodesFromDOMViaExtension,
+  defineImportRule,
+  DOMImportExtension,
+  sel,
+} from '@lexical/html';
+import {ListExtension} from '@lexical/list';
+import {RichTextExtension} from '@lexical/rich-text';
 import {$insertNodeToNearestRoot} from '@lexical/utils';
 import {
   $createRangeSelection,
   $getRoot,
   $isElementNode,
   $setSelection,
+  configExtension,
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
@@ -31,7 +40,21 @@ describe('LexicalUtils#insertNodeToNearestRoot', () => {
   };
 
   beforeEach(async () => {
-    editor = createTestEditor();
+    editor = createTestEditor({
+      extensions: [
+        RichTextExtension,
+        ListExtension,
+        configExtension(DOMImportExtension, {
+          rules: [
+            defineImportRule({
+              $import: () => [$createTestDecoratorNode().setIsInline(false)],
+              match: sel.tag('test-decorator'),
+              name: '[insert-node-fixture-decorator]',
+            }),
+          ],
+        }),
+      ],
+    });
     editor._headless = true;
   });
 
@@ -173,7 +196,7 @@ describe('LexicalUtils#insertNodeToNearestRoot', () => {
         // spans in html output) and make assertions more precise
         const parser = new DOMParser();
         const dom = parser.parseFromString(testCase.initialHtml, 'text/html');
-        const nodesToInsert = $generateNodesFromDOM(editor, dom);
+        const nodesToInsert = $generateNodesFromDOMViaExtension(dom);
         $getRoot()
           .clear()
           .append(...nodesToInsert);

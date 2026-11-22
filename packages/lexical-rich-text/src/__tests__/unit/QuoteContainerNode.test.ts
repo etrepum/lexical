@@ -10,6 +10,7 @@ import {
   $getHtmlContent,
   $getLexicalContent,
   $insertDataTransferForRichText,
+  ClipboardDOMImportExtension,
 } from '@lexical/clipboard';
 import {
   $getBlockId,
@@ -60,6 +61,7 @@ import {
   type RangeSelection,
   type SerializedEditorState,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, onTestFinished, test} from 'vitest';
 
 function createEditor(
@@ -127,9 +129,11 @@ function update(editor: LexicalEditorWithDispose, fn: () => void): void {
 
 /** Imports `html` through the node classes' importDOM. */
 function $generate(html: string): LexicalNode[] {
-  return $generateNodesFromDOM(
-    $getEditor(),
-    new DOMParser().parseFromString(html, 'text/html'),
+  return expectLegacyDOMImport($getEditor(), () =>
+    $generateNodesFromDOM(
+      $getEditor(),
+      new DOMParser().parseFromString(html, 'text/html'),
+    ),
   );
 }
 
@@ -699,7 +703,10 @@ describe('QuoteNode replaced by QuoteContainerNode', () => {
   });
 
   test('pasted HTML and pasted Lexical JSON of a quote make containers', () => {
-    const editor = createEditor(QuoteContainerReplacementExtension);
+    const editor = createEditor(
+      QuoteContainerReplacementExtension,
+      ClipboardDOMImportExtension,
+    );
     update(editor, () => {
       $setRoot($p('start'));
       const selection = $block([0]).selectEnd();

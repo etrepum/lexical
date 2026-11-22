@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  *
  */
-import {$generateNodesFromDOM} from '@lexical/html';
+import {$generateNodesFromDOMViaExtension} from '@lexical/html';
 import {
   $createListItemNode,
   $createListNode,
@@ -35,11 +35,23 @@ import {
 import {
   expectHtmlToBeEqual,
   html,
-  initializeUnitTest,
+  initializeUnitTest as initializeFixtureUnitTest,
+  TestDOMImportExtension,
 } from 'lexical/src/__tests__/utils';
 import {assert, beforeEach, describe, expect, it, test} from 'vitest';
 
 import {$handleIndent} from '../../formatList';
+
+const initializeUnitTest: typeof initializeFixtureUnitTest = (
+  tests,
+  config = {namespace: 'test', theme: {}},
+  plugins,
+) =>
+  initializeFixtureUnitTest(
+    tests,
+    {...config, extensions: [TestDOMImportExtension]},
+    plugins,
+  );
 
 const editorConfig = Object.freeze({
   namespace: '',
@@ -1200,7 +1212,9 @@ describe('LexicalListItemNode tests', () => {
                 <li value="1">
                   <span data-lexical-text="true">one</span>
                 </li>
-                <li value="2"><br data-lexical-managed-linebreak="true" /></li>
+                <li value="2">
+                  <br data-lexical-managed-linebreak="true" />
+                </li>
                 <li value="3">
                   <span data-lexical-text="true">two</span>
                 </li>
@@ -1237,7 +1251,9 @@ describe('LexicalListItemNode tests', () => {
                 <li value="3">
                   <span data-lexical-text="true">three</span>
                 </li>
-                <li value="4"><br data-lexical-managed-linebreak="true" /></li>
+                <li value="4">
+                  <br data-lexical-managed-linebreak="true" />
+                </li>
               </ul>
             </div>
           `,
@@ -1268,7 +1284,9 @@ describe('LexicalListItemNode tests', () => {
                 <li value="3">
                   <span data-lexical-text="true">three</span>
                 </li>
-                <li value="4"><br data-lexical-managed-linebreak="true" /></li>
+                <li value="4">
+                  <br data-lexical-managed-linebreak="true" />
+                </li>
               </ul>
             </div>
           `,
@@ -1314,7 +1332,9 @@ describe('LexicalListItemNode tests', () => {
                 <li value="1">
                   <span data-lexical-text="true">one</span>
                 </li>
-                <li value="2"><br data-lexical-managed-linebreak="true" /></li>
+                <li value="2">
+                  <br data-lexical-managed-linebreak="true" />
+                </li>
               </ul>
             </div>
           `,
@@ -1716,7 +1736,7 @@ describe('LexicalListItemNode tests', () => {
           () => {
             $getRoot().clear().select();
             const dom = parser.parseFromString(input, 'text/html');
-            $insertNodes($generateNodesFromDOM(editor, dom));
+            $insertNodes($generateNodesFromDOMViaExtension(dom));
           },
           {discrete: true},
         );

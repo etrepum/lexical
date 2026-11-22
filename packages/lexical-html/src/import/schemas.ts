@@ -27,7 +27,6 @@ import {isAlignmentValue} from './coreImportRules';
  * ImageNode-as-block, etc.). Used by {@link BlockSchema},
  * {@link RootSchema}, and {@link NestedBlockSchema}.
  *
- * @experimental
  */
 export function $isBlockLevel(node: LexicalNode): boolean {
   return (
@@ -60,7 +59,6 @@ export function $isBlockLevel(node: LexicalNode): boolean {
  * runs. The enclosing schema (typically {@link BlockSchema}) will
  * then package those inline wrappers into paragraphs as usual.
  *
- * @experimental
  */
 export function $distributeInlineWrapper(
   children: readonly LexicalNode[],
@@ -166,7 +164,6 @@ export function $applySchema(
  * paragraphs synthesized around inline runs) to fully replicate the
  * legacy behavior on a run of mixed children.
  *
- * @experimental
  */
 export function $propagateTextAlignToBlockChildren(
   children: LexicalNode[],
@@ -222,7 +219,6 @@ function $paragraphPackageRun(
  * of a block element node). Accepts block lexical nodes; packages runs of
  * inline children into fresh paragraph nodes.
  *
- * @experimental
  */
 export const BlockSchema: ChildSchema = {
   $accepts: $isBlockLevel,
@@ -235,7 +231,6 @@ export const BlockSchema: ChildSchema = {
  * as a link). Accepts non-block lexical nodes; runs of block children are
  * dropped (`onReject: 'drop'` is the default).
  *
- * @experimental
  */
 export const InlineSchema: ChildSchema = {
   $accepts: child => !$isBlockLevel(child),
@@ -250,7 +245,6 @@ export const InlineSchema: ChildSchema = {
  * of being wrapped in a paragraph, which would introduce an extra level of
  * nesting).
  *
- * @experimental
  */
 export const NestedBlockSchema: ChildSchema = {
   $accepts: $isBlockLevel,
@@ -271,7 +265,6 @@ export const NestedBlockSchema: ChildSchema = {
  * be overridden separately in the future (e.g. to synthesize a `ListNode`
  * around runs of orphan `ListItemNode`s).
  *
- * @experimental
  */
 export const RootSchema: ChildSchema = {
   $accepts: $isBlockLevel,

@@ -39,6 +39,7 @@ import {
   createTestEditor,
   initializeUnitTest,
   invariant,
+  TestDOMImportExtension,
 } from 'lexical/src/__tests__/utils';
 import {
   afterEach,
@@ -740,7 +741,7 @@ describe('$handleRichTextDrop across editors', () => {
     destContainer.setAttribute('data-lexical-editor', 'true');
     destContainer.contentEditable = 'true';
     document.body.appendChild(destContainer);
-    destEditor = createTestEditor();
+    destEditor = createTestEditor({extensions: [TestDOMImportExtension]});
     destEditor.setRootElement(destContainer);
   });
 

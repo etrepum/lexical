@@ -8,23 +8,33 @@
 
 import type {LexicalEditor} from 'lexical';
 
+import {ClipboardDOMImportExtension} from '@lexical/clipboard';
 import {CodeHighlightNode, CodeNode} from '@lexical/code';
+import {CodeImportRules} from '@lexical/code-core';
 import {HashtagNode} from '@lexical/hashtag';
-import {AutoLinkNode, LinkNode} from '@lexical/link';
-import {ListItemNode, ListNode} from '@lexical/list';
+import {CoreImportExtension, DOMImportExtension} from '@lexical/html';
+import {AutoLinkNode, LinkImportRules, LinkNode} from '@lexical/link';
+import {ListImportRules, ListItemNode, ListNode} from '@lexical/list';
 import {OverflowNode} from '@lexical/overflow';
 import {AutoFocusPlugin} from '@lexical/react/LexicalAutoFocusPlugin';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
 import {ContentEditable} from '@lexical/react/LexicalContentEditable';
 import {LexicalErrorBoundary} from '@lexical/react/LexicalErrorBoundary';
+import {LexicalExtensionComposer} from '@lexical/react/LexicalExtensionComposer';
 import {RichTextPlugin} from '@lexical/react/LexicalRichTextPlugin';
-import {HeadingNode, QuoteNode} from '@lexical/rich-text';
+import {HeadingNode, QuoteNode, RichTextImportRules} from '@lexical/rich-text';
 import {
   applySelectionInputs,
   pasteHTML,
 } from '@lexical/selection/src/__tests__/utils';
-import {TableCellNode, TableNode, TableRowNode} from '@lexical/table';
-import {initializeClipboard, TestComposer} from 'lexical/src/__tests__/utils';
+import {
+  TableCellNode,
+  TableImportRules,
+  TableNode,
+  TableRowNode,
+} from '@lexical/table';
+import {configExtension, defineExtension} from 'lexical';
+import {initializeClipboard} from 'lexical/src/__tests__/utils';
 import {act} from 'react';
 import {createRoot} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
@@ -69,7 +79,9 @@ Range.prototype.getBoundingClientRect = function (): DOMRect {
   };
 };
 
-describe('LexicalEventHelpers', () => {
+const describeImporters = describe.each(['legacy', 'extension'] as const);
+
+describeImporters('LexicalEventHelpers (%s)', importer => {
   let container: HTMLDivElement | null = null;
 
   beforeEach(async () => {
@@ -94,8 +106,26 @@ describe('LexicalEventHelpers', () => {
       }
 
       return (
-        <TestComposer
-          config={{
+        <LexicalExtensionComposer
+          contentEditable={null}
+          extension={defineExtension({
+            dependencies: [
+              CoreImportExtension,
+              ...(importer === 'extension'
+                ? [ClipboardDOMImportExtension]
+                : []),
+              configExtension(DOMImportExtension, {
+                rules: [
+                  ...CodeImportRules,
+                  ...LinkImportRules,
+                  ...ListImportRules,
+                  ...TableImportRules,
+                  ...RichTextImportRules,
+                ],
+              }),
+            ],
+            disableLegacyImport: importer === 'extension',
+            name: '[event-helper-fixture]',
             nodes: [
               LinkNode,
               HeadingNode,
@@ -141,7 +171,7 @@ describe('LexicalEventHelpers', () => {
                 underlineStrikethrough: 'editor-text-underlineStrikethrough',
               },
             },
-          }}>
+          })}>
           <RichTextPlugin
             contentEditable={
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,7 +182,7 @@ describe('LexicalEventHelpers', () => {
           />
           <AutoFocusPlugin />
           <TestPlugin />
-        </TestComposer>
+        </LexicalExtensionComposer>
       );
     }
 

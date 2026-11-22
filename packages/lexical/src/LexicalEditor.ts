@@ -267,6 +267,7 @@ export interface EditorThemeClasses {
 }
 
 export interface EditorConfig {
+  disableLegacyImport?: boolean | null;
   dom?: EditorDOMRenderConfig;
   disableEvents?: boolean;
   namespace: string;
@@ -404,6 +405,11 @@ export type LexicalNodeReplacement = {
 
 export type HTMLConfig = {
   export?: DOMExportOutputMap;
+  /**
+   * Legacy DOM conversion overrides.
+   *
+   * @deprecated Contribute rules to `DOMImportExtension` from `@lexical/html`.
+   */
   import?: DOMConversionMap;
 };
 
@@ -510,6 +516,15 @@ export interface EditorDOMRenderConfig {
 }
 
 export interface CreateEditorArgs {
+  /**
+   * Controls the deprecated static `importDOM` / `html.import` pipeline.
+   * `null` (the default) enables it with a one-time development warning on
+   * first use. `false` keeps it enabled without warning. `true` disables it;
+   * migrate all import paths to DOMImportExtension before opting out.
+   * Implicit nested editors created with `createEditor()` keep the default
+   * legacy importer so they can still paste HTML without extensions.
+   */
+  disableLegacyImport?: boolean | null;
   disableEvents?: boolean;
   editorState?: EditorState;
   namespace?: string;
@@ -900,6 +915,10 @@ export function resetEditor(
   }
 }
 
+const legacyImportDeprecation = warnOnlyOnce(
+  'Legacy DOM import (static importDOM and html.import) is deprecated. Migrate to DOMImportExtension rules from @lexical/html, including direct imports and clipboard imports, then configure DOMImportExtension with {disableLegacyImport: true}. Set disableLegacyImport to false to explicitly retain legacy import without this warning. See https://lexical.dev/docs/serialization/dom-import for migration guidance.',
+);
+
 function initializeConversionCache(
   nodes: RegisteredNodes,
   additionalConversions?: DOMConversionMap,
@@ -1022,6 +1041,21 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     ...(config.nodes || []),
   ];
   const {onError, onWarn, html} = config;
+  const htmlImport = html ? html.import : undefined;
+  // A bare nested editor shares its parent's nodes but has no extension graph.
+  // Retain its legacy paste fallback when the parent has migrated to extensions;
+  // the child cannot install that pipeline itself.
+  const disableLegacyImport =
+    config.disableLegacyImport ??
+    (editorConfig === undefined &&
+    parentEditor !== null &&
+    parentEditor._config.disableLegacyImport === true
+      ? false
+      : null);
+  invariant(
+    !disableLegacyImport || !htmlImport || Object.keys(htmlImport).length === 0,
+    'createEditor: Cannot disable legacy DOM import while html.import conversions are configured. Migrate them to DOMImportExtension rules first.',
+  );
   const isEditable = config.editable !== undefined ? config.editable : true;
   let registeredNodes: RegisteredNodes;
 
@@ -1125,6 +1159,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     registeredNodes,
     {
       disableEvents,
+      disableLegacyImport,
       dom: {
         ...DEFAULT_EDITOR_DOM_CONFIG,
         ...(editorConfig && editorConfig.dom),
@@ -1134,7 +1169,7 @@ export function createEditor(editorConfig?: CreateEditorArgs): LexicalEditor {
     },
     onError ? onError : console.error,
     onWarn ? onWarn : defaultOnWarn,
-    initializeConversionCache(registeredNodes, html ? html.import : undefined),
+    htmlImport,
     isEditable,
     editorConfig,
   );
@@ -1257,8 +1292,26 @@ export class LexicalEditor {
   _onError: ErrorHandler;
   /** @internal */
   _onWarn: ErrorHandler;
+  private _cachedHTMLConversions: DOMConversionCache | null;
+  private readonly _htmlImport: DOMConversionMap | undefined;
+
   /** @internal */
-  _htmlConversions: DOMConversionCache;
+  get _htmlConversions(): DOMConversionCache | null {
+    const {disableLegacyImport} = this._config;
+    if (disableLegacyImport === true) {
+      return null;
+    }
+    if (this._cachedHTMLConversions === null) {
+      if (disableLegacyImport == null) {
+        legacyImportDeprecation();
+      }
+      this._cachedHTMLConversions = initializeConversionCache(
+        this._nodes,
+        this._htmlImport,
+      );
+    }
+    return this._cachedHTMLConversions;
+  }
   /** @internal */
   _window: null | Window;
   /** @internal */
@@ -1293,7 +1346,7 @@ export class LexicalEditor {
     config: EditorConfig,
     onError: ErrorHandler,
     onWarn: ErrorHandler,
-    htmlConversions: DOMConversionCache,
+    htmlImport: DOMConversionMap | undefined,
     editable: boolean,
     createEditorArgs?: CreateEditorArgs,
   ) {
@@ -1346,7 +1399,8 @@ export class LexicalEditor {
 
     this._onError = onError;
     this._onWarn = onWarn;
-    this._htmlConversions = htmlConversions;
+    this._cachedHTMLConversions = null;
+    this._htmlImport = htmlImport;
     this._editable = editable;
     this._headless = parentEditor !== null && parentEditor._headless;
     this._recordNodeMoves = false;

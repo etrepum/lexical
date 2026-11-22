@@ -9,6 +9,7 @@
 import {
   $insertDataTransferForRichText,
   $insertGeneratedNodes,
+  ClipboardDOMImportExtension,
   ClipboardImportExtension,
 } from '@lexical/clipboard';
 import {
@@ -34,6 +35,7 @@ import {
   $isRangeSelection,
   type BaseSelection,
 } from 'lexical';
+import {expectLegacyDOMImport} from 'lexical/src/__tests__/utils';
 import {assert, describe, expect, test} from 'vitest';
 
 function $initialEditorState(): void {
@@ -52,16 +54,30 @@ function dataTransferWithPlainText(text: string): DataTransfer {
   return dt as unknown as DataTransfer;
 }
 
-function $pasteHtml(editor: LexicalEditorWithDispose, html: string) {
+function $pasteHtml(
+  editor: LexicalEditorWithDispose,
+  html: string,
+  legacyCompatibility = false,
+) {
   editor.update(
     () => {
       const selection = $getSelection();
       assert($isRangeSelection(selection), 'expected RangeSelection');
-      $insertDataTransferForRichText(
-        dataTransferWithHtml(html),
-        selection,
-        editor,
-      );
+      if (legacyCompatibility) {
+        expectLegacyDOMImport(editor, () =>
+          $insertDataTransferForRichText(
+            dataTransferWithHtml(html),
+            selection,
+            editor,
+          ),
+        );
+      } else {
+        $insertDataTransferForRichText(
+          dataTransferWithHtml(html),
+          selection,
+          editor,
+        );
+      }
     },
     {discrete: true},
   );
@@ -72,7 +88,7 @@ describe('ClipboardImportExtension', () => {
     using editor = buildEditorFromExtensions(
       defineExtension({$initialEditorState, name: 'host'}),
     );
-    $pasteHtml(editor, '<p>hello</p>');
+    $pasteHtml(editor, '<p>hello</p>', true);
     editor.read(() => {
       const lastChild = $getRoot().getLastChild();
       assert($isParagraphNode(lastChild), 'expected paragraph');
@@ -133,7 +149,7 @@ describe('ClipboardImportExtension', () => {
         name: 'host',
       }),
     );
-    $pasteHtml(editor, '<p>hello</p>');
+    $pasteHtml(editor, '<p>hello</p>', true);
     editor.read(() => {
       const lastChild = $getRoot().getLastChild();
       assert($isParagraphNode(lastChild), 'expected paragraph');
@@ -374,6 +390,7 @@ describe('$insertDataTransferForRichText selection argument (#6278)', () => {
             );
           second.select();
         },
+        dependencies: [CoreImportExtension, ClipboardDOMImportExtension],
         name: 'host',
       }),
     );
