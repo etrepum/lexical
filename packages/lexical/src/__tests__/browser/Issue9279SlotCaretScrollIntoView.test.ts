@@ -15,8 +15,11 @@ import {
   $createTextNode,
   $getNodeByKey,
   $getRoot,
+  $isElementNode,
+  $isTextNode,
   $markSlotEditable,
   $setSlot,
+  COLLABORATION_TAG,
   configExtension,
   DecoratorNode,
   type EditorConfig,
@@ -26,8 +29,9 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type ParagraphNode,
+  type TextNode,
 } from 'lexical';
-import {describe, expect, onTestFinished, test} from 'vitest';
+import {assert, describe, expect, onTestFinished, test} from 'vitest';
 
 // A block decorator whose slot is revealed in place inside its DOM, so the
 // slot's container is an editing host of its own, like the playground's
@@ -164,32 +168,69 @@ function isCaretInView(root: HTMLElement): boolean {
   return caret.top >= view.top - 1 && caret.bottom <= view.bottom + 1;
 }
 
+const PLACES: [string, (line: ParagraphNode) => LexicalNode][] = [
+  ["the root's own text", line => line],
+  [
+    "a named slot's text",
+    line => {
+      const host = $create(SlotHostNode);
+      $setSlot(host, 'body', $create(SlotValueNode).append(line));
+      return host;
+    },
+  ],
+  ["an editable island's text", line => $create(IslandHostNode).append(line)],
+];
+
+function $getTargetText(targetKey: string): TextNode {
+  const line = $getNodeByKey(targetKey);
+  assert($isElementNode(line));
+  const text = line.getFirstDescendant();
+  assert($isTextNode(text));
+  return text;
+}
+
 describe('scrolling a caret moved in an update into view (#9279)', () => {
-  test.each([
-    ["the root's own text", (line: ParagraphNode) => line],
-    [
-      "a named slot's text",
-      (line: ParagraphNode) => {
-        const host = $create(SlotHostNode);
-        $setSlot(host, 'body', $create(SlotValueNode).append(line));
-        return host;
-      },
-    ],
-    [
-      "an editable island's text",
-      (line: ParagraphNode) => $create(IslandHostNode).append(line),
-    ],
-  ])('scrolls to a caret in %s far below', async (_where, $build) => {
-    const {editor, root, targetKey} = setUp($build);
-    expect(isCaretInView(root)).toBe(true);
-    editor.update(
-      () => {
-        $getNodeByKey(targetKey)!.selectEnd();
-      },
-      {discrete: true},
-    );
-    await nextFrame();
-    expect(getDOMSelection(window)!.anchorNode!.textContent).toBe('target');
-    expect(isCaretInView(root)).toBe(true);
-  });
+  test.each(PLACES)(
+    'scrolls to a caret in %s far below',
+    async (_where, $build) => {
+      const {editor, root, targetKey} = setUp($build);
+      expect(isCaretInView(root)).toBe(true);
+      editor.update(
+        () => {
+          $getNodeByKey(targetKey)!.selectEnd();
+        },
+        {discrete: true},
+      );
+      await nextFrame();
+      expect(getDOMSelection(window)!.anchorNode!.textContent).toBe('target');
+      expect(isCaretInView(root)).toBe(true);
+    },
+  );
+});
+
+describe('a collaboration update with the caret in an editing host', () => {
+  test.each(PLACES)(
+    'keeps the DOM caret in step in %s',
+    async (_where, $build) => {
+      const {editor, targetKey} = setUp($build);
+      editor.update(() => $getTargetText(targetKey).select(3, 3), {
+        discrete: true,
+      });
+      await nextFrame();
+      // A remote edit around the local caret. Wrapping the text makes the DOM
+      // write cover the caret in every engine, which puts the DOM caret at 0.
+      editor.update(
+        () => {
+          const text = $getTargetText(targetKey);
+          text.setTextContent('XX' + text.getTextContent() + 'YY');
+          text.select(5, 5);
+        },
+        {discrete: true, tag: COLLABORATION_TAG},
+      );
+      await nextFrame();
+      const domSelection = getDOMSelection(window)!;
+      expect(domSelection.anchorNode!.textContent).toBe('XXtargetYY');
+      expect(domSelection.anchorOffset).toBe(5);
+    },
+  );
 });
