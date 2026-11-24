@@ -7,6 +7,7 @@
  */
 
 import {$isLinkNode, TOGGLE_LINK_COMMAND} from '@lexical/link';
+import {$convertSelectionToMarkdownString} from '@lexical/markdown';
 import {useLexicalComposerContext} from '@lexical/react/LexicalComposerContext';
 import {
   NodeContextMenuOption,
@@ -25,7 +26,32 @@ import {
 } from 'lexical';
 import {type JSX, useMemo} from 'react';
 
-export default function ContextMenuPlugin(): JSX.Element {
+import {PLAYGROUND_TRANSFORMERS} from '../MarkdownTransformers';
+
+async function isClipboardReadDenied(): Promise<boolean> {
+  if (
+    navigator.permissions &&
+    typeof navigator.permissions.query === 'function'
+  ) {
+    try {
+      const permission = await navigator.permissions.query({
+        // @ts-expect-error These types are incorrect.
+        name: 'clipboard-read',
+      });
+      return permission.state === 'denied';
+    } catch {
+      // navigator.permissions.query with 'clipboard-read' is not supported in all browsers (e.g. Firefox)
+      return false;
+    }
+  }
+  return false;
+}
+
+export default function ContextMenuPlugin({
+  shouldPreserveNewLinesInMarkdown,
+}: {
+  shouldPreserveNewLinesInMarkdown: boolean;
+}): JSX.Element {
   const [editor] = useLexicalComposerContext();
 
   const items = useMemo(() => {
@@ -36,7 +62,7 @@ export default function ContextMenuPlugin(): JSX.Element {
         },
         $showOn: (node: LexicalNode) => $isLinkNode(node.getParent()),
         disabled: false,
-        icon: <i className="PlaygroundEditorTheme__contextMenuItemIcon" />,
+        icon: <i className="PlaygroundEditorTheme__contextMenuItemIcon link" />,
       }),
       new NodeContextMenuSeparator({
         $showOn: (node: LexicalNode) => $isLinkNode(node.getParent()),
@@ -57,38 +83,54 @@ export default function ContextMenuPlugin(): JSX.Element {
         disabled: false,
         icon: <i className="PlaygroundEditorTheme__contextMenuItemIcon copy" />,
       }),
-      new NodeContextMenuOption(`Paste`, {
+      new NodeContextMenuOption(`Copy as Markdown`, {
         $onSelect: () => {
-          navigator.clipboard.read().then(async function (...args) {
-            const data = new DataTransfer();
+          const markdown = $convertSelectionToMarkdownString(
+            PLAYGROUND_TRANSFORMERS,
+            $getSelection(),
+            shouldPreserveNewLinesInMarkdown,
+          );
+          if (markdown !== '') {
+            navigator.clipboard.writeText(markdown);
+          }
+        },
+        disabled: false,
+        icon: (
+          <i className="PlaygroundEditorTheme__contextMenuItemIcon markdown" />
+        ),
+      }),
+      new NodeContextMenuOption(`Paste`, {
+        $onSelect: async () => {
+          if (await isClipboardReadDenied()) {
+            alert('Not allowed to paste from clipboard.');
+            return;
+          }
 
+          try {
             const readClipboardItems = await navigator.clipboard.read();
             const item = readClipboardItems[0];
-
-            if (navigator.permissions) {
-              const permission = await navigator.permissions.query({
-                // @ts-expect-error These types are incorrect.
-                name: 'clipboard-read',
-              });
-              if (permission.state === 'denied') {
-                alert('Not allowed to paste from clipboard.');
-                return;
-              }
-
-              for (const type of item.types) {
-                const dataString = await (await item.getType(type)).text();
-                data.setData(type, dataString);
-              }
-
-              const event = new ClipboardEvent('paste', {
-                clipboardData: data,
-              });
-
-              editor.dispatchCommand(PASTE_COMMAND, event);
-            } else {
-              alert('Your browser does not support navigator.permissions');
+            if (!item) {
+              return;
             }
-          });
+
+            const data = new DataTransfer();
+            for (const type of item.types) {
+              const dataString = await (await item.getType(type)).text();
+              data.setData(type, dataString);
+            }
+
+            const event = new ClipboardEvent('paste');
+            // Firefox ignores clipboardData in ClipboardEventInit.
+            Object.defineProperty(event, 'clipboardData', {value: data});
+
+            editor.dispatchCommand(PASTE_COMMAND, event);
+          } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'NotAllowedError') {
+              alert('Not allowed to paste from clipboard.');
+            } else {
+              console.error(error);
+            }
+          }
         },
         disabled: false,
         icon: (
@@ -96,34 +138,34 @@ export default function ContextMenuPlugin(): JSX.Element {
         ),
       }),
       new NodeContextMenuOption(`Paste as Plain Text`, {
-        $onSelect: () => {
-          navigator.clipboard.read().then(async function (...args) {
-            if (navigator.permissions) {
-              const permission = await navigator.permissions.query({
-                // @ts-expect-error These types are incorrect.
-                name: 'clipboard-read',
-              });
+        $onSelect: async () => {
+          if (await isClipboardReadDenied()) {
+            alert('Not allowed to paste from clipboard.');
+            return;
+          }
 
-              if (permission.state === 'denied') {
-                alert('Not allowed to paste from clipboard.');
-                return;
-              }
+          try {
+            const clipboardText = await navigator.clipboard.readText();
+            const data = new DataTransfer();
+            data.setData('text/plain', clipboardText);
 
-              const data = new DataTransfer();
-              const clipboardText = await navigator.clipboard.readText();
-              data.setData('text/plain', clipboardText);
+            const event = new ClipboardEvent('paste');
+            // Firefox ignores clipboardData in ClipboardEventInit.
+            Object.defineProperty(event, 'clipboardData', {value: data});
 
-              const event = new ClipboardEvent('paste', {
-                clipboardData: data,
-              });
-              editor.dispatchCommand(PASTE_COMMAND, event);
+            editor.dispatchCommand(PASTE_COMMAND, event);
+          } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'NotAllowedError') {
+              alert('Not allowed to paste from clipboard.');
             } else {
-              alert('Your browser does not support navigator.permissions');
+              console.error(error);
             }
-          });
+          }
         },
         disabled: false,
-        icon: <i className="PlaygroundEditorTheme__contextMenuItemIcon" />,
+        icon: (
+          <i className="PlaygroundEditorTheme__contextMenuItemIcon paragraph" />
+        ),
       }),
       new NodeContextMenuSeparator(),
       new NodeContextMenuOption(`Delete Node`, {
@@ -151,7 +193,7 @@ export default function ContextMenuPlugin(): JSX.Element {
         ),
       }),
     ];
-  }, [editor]);
+  }, [editor, shouldPreserveNewLinesInMarkdown]);
 
   return (
     <NodeContextMenuPlugin

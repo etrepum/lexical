@@ -6,20 +6,27 @@
  *
  */
 
+import noConstantNodeTypeComparison from './rules/no-constant-node-type-comparison.js';
 import noImportsFromSelf from './rules/no-imports-from-self.js';
 import noOptionalChaining from './rules/no-optional-chaining.js';
 import noPureAnnotation from './rules/no-pure-annotation.js';
+import noUnscopedWindowMessaging from './rules/no-unscoped-window-messaging.js';
 
 const rules = {
+  'no-constant-node-type-comparison': noConstantNodeTypeComparison,
   'no-imports-from-self': noImportsFromSelf,
   'no-optional-chaining': noOptionalChaining,
   'no-pure-annotation': noPureAnnotation,
+  'no-unscoped-window-messaging': noUnscopedWindowMessaging,
 };
 
 // Legacy config format (ESLint 7-8)
-// Note: no-pure-annotation is deliberately not part of the default configs —
-// it is about how this repository builds its own sources, so the root
-// eslint.config.mjs enables it with its own files scope.
+// Note: no-constant-node-type-comparison, no-pure-annotation and
+// no-unscoped-window-messaging are deliberately not part of the default
+// configs — the first must not apply to tests, the second is about how this
+// repository builds its own sources, and the third about one third-party
+// messaging API used in one package, so the root eslint.config.mjs enables
+// each with its own files scope.
 const legacyAll = {
   rules: {
     '@lexical/internal/no-imports-from-self': 'error',

@@ -19,13 +19,17 @@ import {
   waitForSelector,
 } from '../utils/index.mjs';
 
+// TODO(collab-v2): nested editors are not supported yet
+test.skip(
+  ({isPlainText}) => isPlainText || IS_COLLAB_V2,
+  'Requires rich text without collaboration v2',
+);
+
 test.use({acceptDownloads: true});
 test.describe('File', () => {
   test.beforeEach(({isCollab, page}) => initialize({isCollab, page}));
 
-  test(`Can import/export`, async ({page, isPlainText}) => {
-    // TODO(collab-v2): nested editors are not supported yet
-    test.skip(isPlainText || IS_COLLAB_V2);
+  test(`Can import/export`, async ({page}) => {
     await focusEditor(page);
     await toggleBold(page);
     await page.keyboard.type('Hello');
@@ -53,13 +57,13 @@ test.describe('File', () => {
         <span data-lexical-text="true">World</span>
       </p>
       <ol class="PlaygroundEditorTheme__ol1" dir="auto">
-        <li class="PlaygroundEditorTheme__listItem" value="1">
+        <li class="PlaygroundEditorTheme__listItem">
           <span data-lexical-text="true">one</span>
         </li>
-        <li class="PlaygroundEditorTheme__listItem" value="2">
+        <li class="PlaygroundEditorTheme__listItem">
           <span data-lexical-text="true">two</span>
         </li>
-        <li class="PlaygroundEditorTheme__listItem" value="3">
+        <li class="PlaygroundEditorTheme__listItem">
           <span
             class="editor-image"
             contenteditable="false"
